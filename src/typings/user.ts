@@ -12,7 +12,7 @@ export interface IUser {
   gender?: string;
   image?: string;
   country?: string;
-  company?: Types.ObjectId | string;
+  organization?: Types.ObjectId | string;
   userRole: string;
   profile: Types.ObjectId | string;
   recoveryCode: string | null;
