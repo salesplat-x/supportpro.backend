@@ -2,12 +2,12 @@ import { MakeResponse } from "../typings/customs";
 import { Response } from "express";
 import { ValidationError } from "joi";
 
-export const makeResponse = (
+export const makeResponse = <T = Record<string, any>>(
   status: boolean,
   message: string,
-  data?: Record<string, any>,
+  data?: T,
   statusCode?: number
-): MakeResponse => {
+): MakeResponse<T> => {
   return {
     status,
     message,
@@ -38,7 +38,6 @@ export const sendErrorResponse = (
   return res.status(statusCode).json({
     status: false,
     message,
-    data: data,
   });
 };
 

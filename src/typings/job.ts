@@ -1,6 +1,7 @@
 import { Types } from "mongoose";
 
 export interface IJob {
+  _id: Types.ObjectId;
   role: string;
   description: string;
   maxSalary: number;

@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { Roles } from "./customs";
 
 export interface IUser {
   _id: Types.ObjectId | string;

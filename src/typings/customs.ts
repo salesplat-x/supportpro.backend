@@ -29,9 +29,9 @@ export const CurrentHiringProcess = {
   Outsourced: "outsourced",
 } as const;
 
-export interface MakeResponse<T = any> {
+export interface MakeResponse<T = Record<string, any>> {
   status: boolean;
   message: string;
-  data?: Record<string, T>;
+  data?: T;
   statusCode?: number;
 }

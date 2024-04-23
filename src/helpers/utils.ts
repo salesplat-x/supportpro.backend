@@ -37,21 +37,29 @@ export const verifyToken = async (
   token: string,
   secret: string,
   repository: Function
-): Promise<MakeResponse> => {
+): Promise<MakeResponse<IUser | undefined>> => {
   if (!token) {
-    return makeResponse(false, "Login required", {});
+    return makeResponse(false, "Login required");
   }
   try {
     let decoded = jwt.verify(token, secret) as unknown as {
       _id: mongoose.Types.ObjectId;
     };
-    let user = (await repository(decoded._id)) as unknown as IUser;
+    let user = (await repository(decoded._id)) as IUser;
     if (!user) {
-      return makeResponse(false, "Login required", {});
+      return makeResponse(false, "Login required", undefined, 401);
     }
-    return makeResponse(true, "", { user });
+    if (!user.active) {
+      return makeResponse(
+        false,
+        "Account deactivated, contact support to reactivate",
+        undefined,
+        403
+      );
+    }
+    return makeResponse(true, "", user);
   } catch (error) {
-    return makeResponse(false, "Login required", {});
+    return makeResponse(false, "Login required", undefined);
   }
 };
 

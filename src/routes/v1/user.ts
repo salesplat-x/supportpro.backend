@@ -6,18 +6,19 @@ import * as user from "../../controllers/v1/user";
 import validate from "../../middlewares/v1/validators/validate";
 import * as userValidator from "../../middlewares/v1/validators/user";
 import { asyncHandler } from "../../middlewares/v1/handler";
-import { loginRequired } from "../../middlewares/v1/auth";
+import { validateAccess } from "../../middlewares/v1/auth";
+import { Roles } from "../../typings/customs";
 
 router.post(
   "/profile",
-  loginRequired,
+  validateAccess([Roles.Talent]),
   validate(userValidator.profile, { body: true }),
   asyncHandler(user.uploadProfile)
 );
 
 router.patch(
   "/profile",
-  loginRequired,
+  validateAccess([Roles.Talent]),
   validate(userValidator.profile, { body: true }),
   asyncHandler(user.editProfile)
 );

@@ -6,3 +6,13 @@ export const create = async (req: Request, res: Response) => {
   const response = await jobController.createJob(req.body);
   return responseHandler(res, response);
 };
+
+export const fetchAll = async (req: Request, res: Response) => {
+  const response = await jobController.fetchAllJobs();
+  return responseHandler(res, response);
+};
+
+export const fetch = async (req: Request, res: Response) => {
+  const response = await jobController.fetchJob(req.params as any);
+  return responseHandler(res, response);
+};

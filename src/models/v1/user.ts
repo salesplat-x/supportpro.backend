@@ -29,6 +29,11 @@ const userSchema = new Schema<IUser>(
       required: false,
       set: func.firstCharToUpperCase,
     },
+    userRole: {
+      type: String,
+      enum: Roles,
+      default: Roles.Talent,
+    },
     phone: {
       type: String,
       required: false,
@@ -49,10 +54,6 @@ const userSchema = new Schema<IUser>(
     onboarded: {
       type: Boolean,
       default: false,
-    },
-    userRole: {
-      type: String,
-      enum: Roles,
     },
     recoveryCode: String,
     recoveryCodeExpiry: Date,

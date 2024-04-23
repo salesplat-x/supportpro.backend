@@ -14,6 +14,12 @@ router.post(
 );
 
 router.post(
+  "/register/recruiter",
+  validate(authValidator.register, { body: true }),
+  asyncHandler(auth.registerRecruiter)
+);
+
+router.post(
   "/login",
   validate(authValidator.login, { body: true }),
   asyncHandler(auth.login)

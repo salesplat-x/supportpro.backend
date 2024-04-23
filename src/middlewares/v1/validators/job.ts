@@ -1,8 +1,9 @@
 import Joi from "joi";
 import { Experience } from "../../../typings/customs";
+import { IJob } from "../../../typings/job";
 
 export const job = Joi.object({
-  body: Joi.object({
+  body: Joi.object<IJob>({
     role: Joi.string().required(),
     description: Joi.string().required(),
     experienceLevel: Joi.string()
@@ -20,5 +21,23 @@ export const job = Joi.object({
     responsibilities: Joi.array().items(Joi.string()).optional(),
     skills: Joi.array().items(Joi.string()).optional(),
     goals: Joi.array().items(Joi.string()).optional(),
+  }),
+}).required();
+
+export const jobId = Joi.object({
+  params: Joi.object({
+    _id: Joi.string().required(),
+  }),
+}).required();
+
+export const jobQuery = Joi.object({
+  query: Joi.object({
+    role: Joi.string().optional(),
+    experienceLevel: Joi.string()
+      .valid(...Object.values(Experience))
+      .optional(),
+    maxSalary: Joi.number().optional(),
+    minSalary: Joi.number().optional(),
+    remote: Joi.boolean().optional(),
   }),
 }).required();
