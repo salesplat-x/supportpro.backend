@@ -9,7 +9,7 @@ export const job = Joi.object({
       .required()
       .valid(...Object.values(Experience)),
     maxSalary: Joi.number().required(),
-    minSalary: Joi.number().required(),
+    minSalary: Joi.number().less(Joi.ref("maxSalary")).required(),
     address: Joi.string().optional(),
     location: Joi.object({
       city: Joi.string().required(),

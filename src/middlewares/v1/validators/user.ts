@@ -9,7 +9,7 @@ export const profile = Joi.object({
       .required()
       .valid(...Object.values(Experience)),
     maxSalary: Joi.number().required(),
-    minSalary: Joi.number().required(),
+    minSalary: Joi.number().less(Joi.ref("maxSalary")).required(),
     role: Joi.array().items(Joi.string()),
   }),
 }).required();
