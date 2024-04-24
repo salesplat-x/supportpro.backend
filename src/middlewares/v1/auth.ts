@@ -12,10 +12,9 @@ export const loginRequired = async (
   next: NextFunction
 ): Promise<Response | void> => {
   const validated = await checkUser(req, res);
-  if (!validated.status || !validated.data) {
+  if (!validated.status) {
     return sendErrorResponse(res, validated.message, {}, 401);
   }
-
   return next();
 };
 

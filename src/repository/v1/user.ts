@@ -13,6 +13,7 @@ export const findUserById = async (id: Types.ObjectId | string) => {
     path: "profile",
     select: "-__v -createdAt -updatedAt -_id",
     strictPopulate: false,
+    populate: { path: "role", select: "-__v -_id" },
   });
 };
 

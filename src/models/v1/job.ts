@@ -3,11 +3,9 @@ import { Experience } from "../../typings/customs";
 import { IJob } from "../../typings/job";
 
 const jobSchema = new Schema<IJob>({
-  //@TODO switch role to ID
   role: {
-    type: String,
-    required: true,
-    lowercase: true,
+    type: Schema.Types.ObjectId,
+    ref: "role",
   },
   description: {
     type: String,

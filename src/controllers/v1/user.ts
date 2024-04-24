@@ -11,3 +11,8 @@ export const editProfile = async (req: Request, res: Response) => {
   const response = await userController.editProfile(req.body, req.user);
   return responseHandler(res, response);
 };
+
+export const me = async (req: Request, res: Response) => {
+  const response = await userController.me(req.user);
+  return responseHandler(res, response);
+};

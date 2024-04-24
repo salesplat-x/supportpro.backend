@@ -72,11 +72,12 @@ const profileSchema = new Schema<IProfile>({
     type: String,
     required: true,
   },
-  role: {
-    type: [String],
-    required: false,
-    lowercase: true,
-  },
+  role: [
+    {
+      type: Schema.Types.ObjectId,
+      ref: "user",
+    },
+  ],
   experience: {
     type: String,
     required: true,

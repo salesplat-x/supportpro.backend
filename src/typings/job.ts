@@ -1,8 +1,9 @@
 import { Types } from "mongoose";
+import { IRole } from "./role";
 
 export interface IJob {
   _id: Types.ObjectId;
-  role: string;
+  role: string | Types.ObjectId | IRole;
   description: string;
   maxSalary: number;
   minSalary: number;

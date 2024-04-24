@@ -1,5 +1,6 @@
 import { Types } from "mongoose";
 import { Roles } from "./customs";
+import { IRole } from "./role";
 
 export interface IUser {
   _id: Types.ObjectId | string;
@@ -30,7 +31,7 @@ export interface IUser {
 export interface IProfile {
   bio: string;
   cv: string;
-  role: Types.Array<string>;
+  role: Types.Array<Types.ObjectId> | Types.Array<string> | Types.Array<IRole>;
   experience: string;
   maxSalary: number;
   minSalary: number;

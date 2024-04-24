@@ -1,10 +1,8 @@
 import * as roleRepository from "../../repository/v1/role";
 import { makeResponse } from "../../helpers/response";
 import { IRole } from "../../typings/role";
-import { exists } from "fs";
 
 export const createRole = async (payload: IRole) => {
-  //@TODO check if role exists
   payload.name = payload.name.toLowerCase();
   const existingRole = await roleRepository.findRoleByMatch({
     name: payload.name,

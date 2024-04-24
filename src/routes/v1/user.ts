@@ -6,7 +6,7 @@ import * as user from "../../controllers/v1/user";
 import validate from "../../middlewares/v1/validators/validate";
 import * as userValidator from "../../middlewares/v1/validators/user";
 import { asyncHandler } from "../../middlewares/v1/handler";
-import { validateAccess } from "../../middlewares/v1/auth";
+import { loginRequired, validateAccess } from "../../middlewares/v1/auth";
 import { Roles } from "../../typings/customs";
 
 router.post(
@@ -22,5 +22,7 @@ router.patch(
   validate(userValidator.profile, { body: true }),
   asyncHandler(user.editProfile)
 );
+
+router.get("/me", loginRequired, asyncHandler(user.me));
 
 export default (app: Router) => app.use("/user", router);

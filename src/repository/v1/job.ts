@@ -7,20 +7,36 @@ export const createJob = async (job: IJob): Promise<HydratedDocument<IJob>> => {
 };
 
 export const findJobById = async (id: Types.ObjectId | string) => {
-  return await Job.findById(id);
+  return await Job.findById(id).populate({
+    path: "role",
+    select: "-__v -createdAt -updatedAt -_id",
+    strictPopulate: false,
+  });
 };
 
 export const findAllJobs = async () => {
-  return await Job.find();
+  return await Job.find().populate({
+    path: "role",
+    select: "-__v -createdAt -updatedAt -_id",
+    strictPopulate: false,
+  });
 };
 
 export const findJobByMatch = async (data: IJob | Record<string, any>) => {
-  return await Job.findOne(data);
+  return await Job.findOne(data).populate({
+    path: "role",
+    select: "-__v -createdAt -updatedAt -_id",
+    strictPopulate: false,
+  });
 };
 
 export const findJobByIdAndUpdate = async (
   JobId: string | Types.ObjectId,
   data: Partial<IJob>
 ) => {
-  return await Job.findByIdAndUpdate(JobId, data, { new: true });
+  return await Job.findByIdAndUpdate(JobId, data, { new: true }).populate({
+    path: "role",
+    select: "-__v -createdAt -updatedAt -_id",
+    strictPopulate: false,
+  });
 };
