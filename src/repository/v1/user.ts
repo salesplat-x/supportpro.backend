@@ -13,7 +13,7 @@ export const findUserById = async (id: Types.ObjectId | string) => {
     path: "profile",
     select: "-__v -createdAt -updatedAt -_id",
     strictPopulate: false,
-    populate: { path: "role", select: "-__v -_id" },
+    populate: { path: "role", model: "role", select: "-__v -_id" },
   });
 };
 
@@ -22,6 +22,7 @@ export const findUserByEmail = async (email: string) => {
     path: "profile",
     select: "-__v -createdAt -updatedAt -_id",
     strictPopulate: false,
+    populate: { path: "role", model: "role", select: "-__v -_id" },
   });
 };
 
@@ -30,6 +31,7 @@ export const findUserByMatch = async (data: IUser | Record<string, any>) => {
     path: "profile",
     select: "-__v -createdAt -updatedAt -_id",
     strictPopulate: false,
+    populate: { path: "role", model: "role", select: "-__v -_id" },
   });
 };
 
@@ -41,6 +43,7 @@ export const findUserByIdAndUpdate = async (
     path: "profile",
     select: "-__v -createdAt -updatedAt -_id",
     strictPopulate: false,
+    populate: { path: "role", model: "role", select: "-__v -_id" },
   });
 };
 
@@ -54,5 +57,12 @@ export const findProfileByIdAndUpdate = async (
   profileId: string | Types.ObjectId,
   data: Partial<IProfile>
 ) => {
-  return await Profile.findByIdAndUpdate(profileId, data, { new: true });
+  return await Profile.findByIdAndUpdate(profileId, data, {
+    new: true,
+  }).populate({
+    path: "profile",
+    select: "-__v -createdAt -updatedAt -_id",
+    strictPopulate: false,
+    populate: { path: "role", model: "role", select: "-__v -_id" },
+  });
 };
