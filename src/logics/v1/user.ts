@@ -7,6 +7,9 @@ export const uploadProfile = async (payload: IProfile, user: IUser) => {
   if (!existingUser) {
     return makeResponse(false, "Authenticated user no longer exist!", {});
   }
+  if (existingUser.profile) {
+    return makeResponse(false, "This user already has a profile!", {});
+  }
 
   const profile = await userRepository.createProfile(payload);
   existingUser = await userRepository.findUserByIdAndUpdate(user._id, {
@@ -22,10 +25,7 @@ export const editProfile = async (payload: IProfile, user: IUser) => {
     return makeResponse(false, "Authenticated user no longer exist!", {});
   }
 
-  const profile = await userRepository.findProfileByIdAndUpdate(
-    user.profile,
-    payload
-  );
+  await userRepository.findProfileByIdAndUpdate(user.profile, payload);
 
   existingUser?.set("password", undefined);
   return makeResponse(true, "User profile added", { user: existingUser });
