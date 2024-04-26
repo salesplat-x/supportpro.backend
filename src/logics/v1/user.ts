@@ -2,7 +2,6 @@ import { IProfile, IUser } from "../../typings/user";
 import * as userRepository from "../../repository/v1/user";
 import * as roleRepository from "../../repository/v1/role";
 import { makeResponse } from "../../helpers/response";
-import e from "express";
 
 export const uploadProfile = async (payload: IProfile, user: IUser) => {
   let existingUser = await userRepository.findUserById(user._id);
