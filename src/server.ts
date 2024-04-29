@@ -6,6 +6,7 @@ import { newMongoDBConnection } from "./config/db";
 import versionRoutes from "./version/v1";
 import cors from "cors";
 import helmet from "helmet";
+import path from "path";
 
 const PORT = env.port;
 
@@ -21,6 +22,9 @@ export default async function startApplication(app: Application): Promise<void> 
       },
     })
   );
+
+  // Serve uploaded files statically
+  app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
   // enable logging
   app.use(logger.logan);

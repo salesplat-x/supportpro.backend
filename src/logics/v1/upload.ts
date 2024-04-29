@@ -1,6 +1,3 @@
-import { IProfile, IUser } from "../../typings/user";
-import * as userRepository from "../../repository/v1/user";
-import * as roleRepository from "../../repository/v1/role";
 import { makeResponse } from "../../helpers/response";
 import { Request } from "express";
 
