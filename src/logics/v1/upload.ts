@@ -9,7 +9,6 @@ export const uploadFile = async (req: Request) => {
     if (!req.file) {
       return makeResponse(false, "No file uploaded");
     }
-    console.log(req.file);
     const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${
       req.file.filename
     }`;
