@@ -35,6 +35,7 @@ export interface IProfile {
   experience: string;
   maxSalary: number;
   minSalary: number;
+  score: number;
 }
 
 export interface IOrganization {

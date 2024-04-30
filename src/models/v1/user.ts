@@ -90,6 +90,10 @@ const profileSchema = new Schema<IProfile>({
     type: Number,
     required: true,
   },
+  score: {
+    type: Number,
+    select: false,
+  },
 });
 
 export const User = model<IUser>("user", userSchema);

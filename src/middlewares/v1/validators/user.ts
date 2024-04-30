@@ -13,3 +13,9 @@ export const profile = Joi.object({
     role: Joi.array().items(Joi.string()),
   }),
 }).required();
+
+export const userId = Joi.object({
+  params: Joi.object({
+    _id: Joi.string().required(),
+  }),
+}).required();

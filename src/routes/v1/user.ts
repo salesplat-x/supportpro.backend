@@ -25,4 +25,11 @@ router.patch(
 
 router.get("/me", loginRequired, asyncHandler(user.me));
 
+router.get(
+  "/:_id",
+  validateAccess([Roles.Admin, Roles.Recruiter]),
+  validate(userValidator.userId, { params: true }),
+  asyncHandler(user.viewProfile)
+);
+
 export default (app: Router) => app.use("/user", router);
