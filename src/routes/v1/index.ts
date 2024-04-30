@@ -6,6 +6,7 @@ import job from "./job";
 import role from "./role";
 import user from "./user";
 import upload from "./upload";
+import question from "./question";
 
 export default (router: Router) => {
   main(router);
@@ -14,4 +15,5 @@ export default (router: Router) => {
   job(router);
   role(router);
   upload(router);
+  question(router);
 };

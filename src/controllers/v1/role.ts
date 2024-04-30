@@ -16,3 +16,8 @@ export const fetch = async (req: Request, res: Response) => {
   const response = await roleController.fetchRole(req.params as any);
   return responseHandler(res, response);
 };
+
+export const questions = async (req: Request, res: Response) => {
+  const response = await roleController.questions(req.params as any);
+  return responseHandler(res, response);
+};

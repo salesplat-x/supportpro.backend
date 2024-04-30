@@ -24,4 +24,10 @@ router.get(
   asyncHandler(role.fetch)
 );
 
+router.get(
+  "/:_id/questions",
+  validate(roleValidator.roleId, { params: true }),
+  asyncHandler(role.questions)
+);
+
 export default (app: Router) => app.use("/roles", router);

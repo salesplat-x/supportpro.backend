@@ -1,4 +1,5 @@
 import * as roleRepository from "../../repository/v1/role";
+import * as questionRepository from "../../repository/v1/question";
 import { makeResponse } from "../../helpers/response";
 import { IRole } from "../../typings/role";
 
@@ -25,4 +26,20 @@ export const fetchRole = async (payload: Pick<IRole, "_id">) => {
     return makeResponse(false, "Role not found", {}, 404);
   }
   return makeResponse(true, "Role fetched successfully", role, 200);
+};
+
+export const questions = async (payload: Pick<IRole, "_id">) => {
+  let role = await roleRepository.findRoleById(payload._id);
+  if (!role) {
+    return makeResponse(false, "Role not found", {}, 404);
+  }
+  let questions = await questionRepository.findQuestionByMatch({
+    role: payload._id,
+  });
+  return makeResponse(
+    true,
+    "Questions fetched successfully",
+    questions || [],
+    200
+  );
 };
