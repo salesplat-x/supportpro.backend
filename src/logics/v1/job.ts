@@ -2,8 +2,12 @@ import * as jobRepository from "../../repository/v1/job";
 import * as roleRepository from "../../repository/v1/role";
 import { makeResponse } from "../../helpers/response";
 import { IJob } from "../../typings/job";
+import mongoose from "mongoose";
 
 export const createJob = async (payload: IJob) => {
+  if (!mongoose.Types.ObjectId.isValid(payload.role as string)) {
+    return makeResponse(false, "Invalid role id", {}, 400);
+  }
   const existingRole = await roleRepository.findRoleById(payload.role as string);
   if (!existingRole) {
     return makeResponse(false, "Role does not exist", {}, 404);
@@ -19,6 +23,9 @@ export const fetchAllJobs = async () => {
 };
 
 export const fetchJob = async (payload: Pick<IJob, "_id">) => {
+  if (!mongoose.Types.ObjectId.isValid(payload._id)) {
+    return makeResponse(false, "Invalid job id", {}, 400);
+  }
   let job = await jobRepository.findJobById(payload._id);
   if (!job) {
     return makeResponse(false, "Job not found", {}, 404);

@@ -2,6 +2,7 @@ import * as roleRepository from "../../repository/v1/role";
 import * as questionRepository from "../../repository/v1/question";
 import { makeResponse } from "../../helpers/response";
 import { IRole } from "../../typings/role";
+import mongoose from "mongoose";
 
 export const createRole = async (payload: IRole) => {
   payload.name = payload.name.toLowerCase();
@@ -21,6 +22,9 @@ export const fetchAllRoles = async () => {
 };
 
 export const fetchRole = async (payload: Pick<IRole, "_id">) => {
+  if (!mongoose.Types.ObjectId.isValid(payload._id)) {
+    return makeResponse(false, "Invalid role id", {}, 400);
+  }
   let role = await roleRepository.findRoleById(payload._id);
   if (!role) {
     return makeResponse(false, "Role not found", {}, 404);
@@ -29,6 +33,9 @@ export const fetchRole = async (payload: Pick<IRole, "_id">) => {
 };
 
 export const questions = async (payload: Pick<IRole, "_id">) => {
+  if (!mongoose.Types.ObjectId.isValid(payload._id)) {
+    return makeResponse(false, "Invalid role id", {}, 400);
+  }
   let role = await roleRepository.findRoleById(payload._id);
   if (!role) {
     return makeResponse(false, "Role not found", {}, 404);
