@@ -11,7 +11,7 @@ export const createQuestion = async (
 export const findQuestionById = async (id: Types.ObjectId | string) => {
   return await Question.findById(id).populate({
     path: "role",
-    select: "-__v -createdAt -updatedAt -_id",
+    select: "-__v -createdAt -updatedAt ",
     strictPopulate: false,
   });
 };
@@ -19,7 +19,7 @@ export const findQuestionById = async (id: Types.ObjectId | string) => {
 export const findAllQuestions = async () => {
   return await Question.find().populate({
     path: "role",
-    select: "-__v -createdAt -updatedAt -_id",
+    select: "-__v -createdAt -updatedAt ",
     strictPopulate: false,
   });
 };
@@ -29,7 +29,7 @@ export const findQuestionByMatch = async (
 ) => {
   return await Question.find(data).populate({
     path: "role",
-    select: "-__v -createdAt -updatedAt -_id",
+    select: "-__v -createdAt -updatedAt ",
     strictPopulate: false,
   });
 };
@@ -42,7 +42,7 @@ export const findQuestionByIdAndUpdate = async (
     new: true,
   }).populate({
     path: "role",
-    select: "-__v -createdAt -updatedAt -_id",
+    select: "-__v -createdAt -updatedAt ",
     strictPopulate: false,
   });
 };

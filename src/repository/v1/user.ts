@@ -11,9 +11,9 @@ export const createUser = async (
 export const findUserById = async (id: Types.ObjectId | string) => {
   return await User.findById(id).populate({
     path: "profile",
-    select: "-__v -createdAt -updatedAt -_id",
+    select: "-__v -createdAt -updatedAt ",
     strictPopulate: false,
-    populate: { path: "role", model: "role", select: "-__v -_id" },
+    populate: { path: "role", model: "role", select: "-__v " },
   });
 };
 
@@ -22,25 +22,25 @@ export const findUserAndScoreById = async (id: Types.ObjectId | string) => {
     path: "profile",
     select: "bio cv role experience maxSalary minSalary score",
     strictPopulate: false,
-    populate: { path: "role", model: "role", select: "-__v -_id" },
+    populate: { path: "role", model: "role", select: "-__v " },
   });
 };
 
 export const findUserByEmail = async (email: string) => {
   return await User.findOne({ email }).populate({
     path: "profile",
-    select: "-__v -createdAt -updatedAt -_id",
+    select: "-__v -createdAt -updatedAt ",
     strictPopulate: false,
-    populate: { path: "role", model: "role", select: "-__v -_id" },
+    populate: { path: "role", model: "role", select: "-__v " },
   });
 };
 
 export const findUserByMatch = async (data: IUser | Record<string, any>) => {
   return await User.findOne(data).populate({
     path: "profile",
-    select: "-__v -createdAt -updatedAt -_id",
+    select: "-__v -createdAt -updatedAt ",
     strictPopulate: false,
-    populate: { path: "role", model: "role", select: "-__v -_id" },
+    populate: { path: "role", model: "role", select: "-__v " },
   });
 };
 
@@ -50,9 +50,9 @@ export const findUserByIdAndUpdate = async (
 ) => {
   return await User.findByIdAndUpdate(userId, data, { new: true }).populate({
     path: "profile",
-    select: "-__v -createdAt -updatedAt -_id",
+    select: "-__v -createdAt -updatedAt ",
     strictPopulate: false,
-    populate: { path: "role", model: "role", select: "-__v -_id" },
+    populate: { path: "role", model: "role", select: "-__v " },
   });
 };
 
@@ -69,9 +69,23 @@ export const findProfileByIdAndUpdate = async (
   return await Profile.findByIdAndUpdate(profileId, data, {
     new: true,
   }).populate({
-    path: "profile",
-    select: "-__v -createdAt -updatedAt -_id",
+    path: "role",
+    select: "-__v",
     strictPopulate: false,
-    populate: { path: "role", model: "role", select: "-__v -_id" },
+  });
+};
+
+export const updateUserScore = async (
+  profileId: string | Types.ObjectId,
+  score: number
+) => {
+  return await Profile.findByIdAndUpdate(
+    profileId,
+    { score },
+    { new: true }
+  ).populate({
+    path: "role",
+    select: "-__v",
+    strictPopulate: false,
   });
 };

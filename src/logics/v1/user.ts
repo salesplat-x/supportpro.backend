@@ -36,7 +36,10 @@ export const editProfile = async (payload: IProfile, user: IUser) => {
     return makeResponse(false, "Authenticated user no longer exist!", {});
   }
 
-  await userRepository.findProfileByIdAndUpdate(user.profile, payload);
+  await userRepository.findProfileByIdAndUpdate(
+    (user.profile as IProfile)._id,
+    payload
+  );
 
   existingUser?.set("password", undefined);
   return makeResponse(true, "User profile added", { user: existingUser });

@@ -7,3 +7,9 @@ export interface IQuestion {
   question: string;
   category: string;
 }
+
+export interface IAnswerQuestion {
+  questionId: Types.ObjectId | string;
+  question?: string;
+  answer: string;
+}

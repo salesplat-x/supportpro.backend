@@ -18,6 +18,13 @@ router.post(
 
 router.get("/", asyncHandler(question.fetchAll));
 
+router.post(
+  "/answer",
+  validateAccess([Roles.Talent]),
+  validate(questionValidator.answers, { body: true }),
+  asyncHandler(question.answerQuestions)
+);
+
 router.get(
   "/:_id",
   validate(questionValidator.questionId, { params: true }),

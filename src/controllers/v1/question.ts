@@ -16,3 +16,11 @@ export const fetch = async (req: Request, res: Response) => {
   const response = await questionController.fetchQuestion(req.params as any);
   return responseHandler(res, response);
 };
+
+export const answerQuestions = async (req: Request, res: Response) => {
+  const response = await questionController.answerQuestions(
+    req.user as any,
+    req.body
+  );
+  return responseHandler(res, response);
+};

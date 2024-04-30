@@ -75,7 +75,7 @@ const profileSchema = new Schema<IProfile>({
   role: [
     {
       type: Schema.Types.ObjectId,
-      ref: "user",
+      ref: "role",
     },
   ],
   experience: {

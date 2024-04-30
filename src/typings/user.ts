@@ -16,7 +16,7 @@ export interface IUser {
   country?: string;
   organization?: Types.ObjectId | string;
   userRole: string;
-  profile: Types.ObjectId | string;
+  profile: Types.ObjectId | string | IProfile;
   recoveryCode: string | null;
   recoveryCodeExpiry: Date | null;
   verificationCode: string | null;
@@ -29,6 +29,7 @@ export interface IUser {
 }
 
 export interface IProfile {
+  _id: Types.ObjectId | string;
   bio: string;
   cv: string;
   role: Types.Array<Types.ObjectId> | Types.Array<string> | Types.Array<IRole>;
