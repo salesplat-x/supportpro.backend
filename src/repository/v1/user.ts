@@ -1,7 +1,7 @@
 import { User, Profile } from "../../models/v1/user";
 import { Page, Paging } from "../../typings/customs";
 import { IUser, IProfile } from "../../typings/user";
-import { HydratedDocument, Types } from "mongoose";
+import mongoose, { HydratedDocument, Types } from "mongoose";
 import * as func from "../../helpers/func";
 
 export const createUser = async (
@@ -63,22 +63,14 @@ export const findUsersByMatch = async (
     });
 };
 
-export const userRoleAggregate = async (roleId: string) => {
-  return await User.aggregate([
-    {
-      $lookup: {
-        from: "profiles",
-        localField: "profile",
-        foreignField: "_id",
-        as: "profile",
-      },
-    },
-    {
-      $match: {
-        "profile.role": roleId,
-      },
-    },
-  ]).exec();
+export const userRoleAggregate = async (
+  data: mongoose.PipelineStage[],
+  paging: Paging = {}
+) => {
+  return await User.aggregate(data)
+    .sort({ updatedAt: func.sortDirection(paging.sort!) || Page.Sort })
+    .skip(Number(paging.offset) || Page.Offset)
+    .limit(Number(paging.limit) || Page.Limit);
 };
 
 export const findUserByIdAndUpdate = async (

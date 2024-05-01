@@ -72,6 +72,7 @@ const profileSchema = new Schema<IProfile>({
     type: String,
     required: true,
   },
+  //@TODO rename role to roles
   role: [
     {
       type: Schema.Types.ObjectId,
