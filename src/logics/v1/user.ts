@@ -81,7 +81,7 @@ export const viewProfilesForRole = async (payload: FetchProfiles) => {
     if (!mongoose.Types.ObjectId.isValid(payload.roleId)) {
       return makeResponse(false, "Invalid role id", {}, 400);
     }
-    const role = roleRepository.findRoleById(payload.roleId);
+    const role = await roleRepository.findRoleById(payload.roleId);
     if (!role) {
       return makeResponse(false, "Role does not exist", {}, 404);
     }
