@@ -25,6 +25,6 @@ export const roleId = Joi.object({
     limit: Joi.number(),
     offset: Joi.number(),
     sort: Joi.string().valid("asc", "desc"),
-    role: Joi.string().optional(),
+    roleId: Joi.string().optional(),
   }),
 }).required();
