@@ -1,5 +1,5 @@
 import { Types } from "mongoose";
-import { Roles } from "./customs";
+import { Paging, Roles } from "./customs";
 import { IRole } from "./role";
 
 export interface IUser {
@@ -75,4 +75,8 @@ export interface IUserPasswordUpdate {
 
 export interface IEmailOnlyPayload {
   email: string;
+}
+
+export interface FetchProfiles extends Paging {
+  roleId?: string;
 }

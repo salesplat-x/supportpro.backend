@@ -29,6 +29,18 @@ export const CurrentHiringProcess = {
   Outsourced: "outsourced",
 } as const;
 
+export const Page = {
+  Limit: 10,
+  Offset: 0,
+  Sort: -1,
+} as const;
+
+export interface Paging {
+  limit?: number;
+  offset?: number;
+  sort?: string;
+}
+
 export interface MakeResponse<T = Record<string, any>> {
   status: boolean;
   message: string;

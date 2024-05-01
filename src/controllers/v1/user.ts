@@ -17,6 +17,11 @@ export const me = async (req: Request, res: Response) => {
   return responseHandler(res, response);
 };
 
+export const viewProfiles = async (req: Request, res: Response) => {
+  const response = await userController.viewProfilesForRole(req.query);
+  return responseHandler(res, response);
+};
+
 export const viewProfile = async (req: Request, res: Response) => {
   const response = await userController.viewProfile(req.params as any);
   return responseHandler(res, response);

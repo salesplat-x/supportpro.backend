@@ -1,6 +1,8 @@
 import { User, Profile } from "../../models/v1/user";
+import { Page, Paging } from "../../typings/customs";
 import { IUser, IProfile } from "../../typings/user";
 import { HydratedDocument, Types } from "mongoose";
+import * as func from "../../helpers/func";
 
 export const createUser = async (
   user: IUser
@@ -42,6 +44,41 @@ export const findUserByMatch = async (data: IUser | Record<string, any>) => {
     strictPopulate: false,
     populate: { path: "role", model: "role", select: "-__v " },
   });
+};
+
+export const findUsersByMatch = async (
+  data: IUser | Record<string, any>,
+  paging: Paging = {}
+) => {
+  // @TODO paginate
+  return await User.find(data)
+    .sort({ updatedAt: func.sortDirection(paging.sort!) || Page.Sort })
+    .skip(Number(paging.offset) || Page.Offset)
+    .limit(Number(paging.limit) || Page.Limit)
+    .populate({
+      path: "profile",
+      select: "-__v -createdAt -updatedAt -password",
+      strictPopulate: false,
+      populate: { path: "role", model: "role", select: "-__v " },
+    });
+};
+
+export const userRoleAggregate = async (roleId: string) => {
+  return await User.aggregate([
+    {
+      $lookup: {
+        from: "profiles",
+        localField: "profile",
+        foreignField: "_id",
+        as: "profile",
+      },
+    },
+    {
+      $match: {
+        "profile.role": roleId,
+      },
+    },
+  ]).exec();
 };
 
 export const findUserByIdAndUpdate = async (

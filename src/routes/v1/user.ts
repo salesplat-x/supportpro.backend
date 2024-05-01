@@ -26,7 +26,14 @@ router.patch(
 router.get("/me", loginRequired, asyncHandler(user.me));
 
 router.get(
-  "/:_id",
+  "/profile/",
+  validateAccess([Roles.Admin, Roles.Recruiter]),
+  validate(userValidator.roleId, { query: true }),
+  asyncHandler(user.viewProfiles)
+);
+
+router.get(
+  "/profile/:_id",
   validateAccess([Roles.Admin, Roles.Recruiter]),
   validate(userValidator.userId, { params: true }),
   asyncHandler(user.viewProfile)

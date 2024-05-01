@@ -19,3 +19,12 @@ export const userId = Joi.object({
     _id: Joi.string().required(),
   }),
 }).required();
+
+export const roleId = Joi.object({
+  query: Joi.object({
+    limit: Joi.number(),
+    offset: Joi.number(),
+    sort: Joi.string().valid("asc", "desc"),
+    role: Joi.string().optional(),
+  }),
+}).required();

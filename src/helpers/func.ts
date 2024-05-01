@@ -54,3 +54,11 @@ export function generateRandomString(length: number): string {
   }
   return result;
 }
+
+export function sortDirection(direction: string): -1 | 1 | 0 {
+  return direction?.toLowerCase() === "asc"
+    ? 1
+    : direction?.toLowerCase() === "desc"
+    ? -1
+    : 0;
+}
