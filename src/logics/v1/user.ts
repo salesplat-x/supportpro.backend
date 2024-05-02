@@ -97,13 +97,11 @@ export const viewProfilesForRole = async (payload: FetchProfiles) => {
           },
         },
         {
-          $unwind: "$profile",
-        },
-        {
           $match: {
             $and: [
               { userRole: Roles.Talent },
               { "profile.role": new mongoose.Types.ObjectId(payload.roleId) },
+              { "profile._id": { $exists: true } },
             ],
           },
         },
