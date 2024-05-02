@@ -1,7 +1,7 @@
 import * as jobRepository from "../../repository/v1/job";
 import * as roleRepository from "../../repository/v1/role";
 import { makeResponse } from "../../helpers/response";
-import { IJob } from "../../typings/job";
+import { FetchJobs, IJob } from "../../typings/job";
 import mongoose from "mongoose";
 
 export const createJob = async (payload: IJob) => {
@@ -17,8 +17,20 @@ export const createJob = async (payload: IJob) => {
   return makeResponse(true, "Job posted successfully", job, 200);
 };
 
-export const fetchAllJobs = async () => {
-  let jobs = await jobRepository.findAllJobs();
+export const fetchAllJobs = async (payload: FetchJobs) => {
+  let jobs: IJob[] = [];
+  if (payload.roleId) {
+    if (!mongoose.Types.ObjectId.isValid(payload.roleId)) {
+      return makeResponse(false, "Invalid role id", {}, 400);
+    }
+    const role = await roleRepository.findRoleById(payload.roleId);
+    if (!role) {
+      return makeResponse(false, "Role does not exist", {}, 404);
+    }
+    jobs = await jobRepository.findAllJobs({ role: payload.roleId }, payload);
+  } else {
+    jobs = await jobRepository.findAllJobs({}, payload);
+  }
   return makeResponse(true, "Jobs fetched successfully", jobs, 200);
 };
 

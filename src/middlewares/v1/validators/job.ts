@@ -30,6 +30,15 @@ export const jobId = Joi.object({
   }),
 }).required();
 
+export const allJobs = Joi.object({
+  query: Joi.object({
+    limit: Joi.number(),
+    offset: Joi.number(),
+    sort: Joi.string().valid("asc", "desc"),
+    roleId: Joi.string().optional(),
+  }),
+}).required();
+
 export const jobQuery = Joi.object({
   query: Joi.object({
     role: Joi.string().optional(),

@@ -8,7 +8,7 @@ export const create = async (req: Request, res: Response) => {
 };
 
 export const fetchAll = async (req: Request, res: Response) => {
-  const response = await jobController.fetchAllJobs();
+  const response = await jobController.fetchAllJobs(req.query);
   return responseHandler(res, response);
 };
 

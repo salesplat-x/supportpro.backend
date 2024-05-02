@@ -16,7 +16,11 @@ router.post(
   asyncHandler(job.create)
 );
 
-router.get("/", asyncHandler(job.fetchAll));
+router.get(
+  "/",
+  validate(jobValidator.allJobs, { query: true }),
+  asyncHandler(job.fetchAll)
+);
 
 router.get(
   "/:_id",

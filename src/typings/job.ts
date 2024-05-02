@@ -1,5 +1,6 @@
 import { Types } from "mongoose";
 import { IRole } from "./role";
+import { Paging } from "./customs";
 
 export interface IJob {
   _id: Types.ObjectId;
@@ -20,4 +21,8 @@ export interface ILocation {
   city: string;
   state: string;
   country: string;
+}
+
+export interface FetchJobs extends Paging {
+  roleId?: string;
 }
