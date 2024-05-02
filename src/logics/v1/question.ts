@@ -5,6 +5,7 @@ import { makeResponse } from "../../helpers/response";
 import { IAnswerQuestion, IQuestion } from "../../typings/question";
 import mongoose from "mongoose";
 import { IProfile, IUser } from "../../typings/user";
+import { Paging } from "../../typings/customs";
 
 export const createQuestion = async (payload: IQuestion) => {
   if (!mongoose.Types.ObjectId.isValid(payload.role as string)) {
@@ -18,8 +19,8 @@ export const createQuestion = async (payload: IQuestion) => {
   return makeResponse(true, "Question posted successfully", question, 200);
 };
 
-export const fetchAllQuestions = async () => {
-  let questions = await questionRepository.findAllQuestions();
+export const fetchAllQuestions = async (payload: Paging) => {
+  let questions = await questionRepository.findAllQuestions(payload);
   return makeResponse(true, "Questions fetched successfully", questions, 200);
 };
 

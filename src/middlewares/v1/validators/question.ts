@@ -28,3 +28,11 @@ export const answers = Joi.object({
       .required(),
   }),
 }).required();
+
+export const allQuestions = Joi.object({
+  query: Joi.object({
+    limit: Joi.number(),
+    offset: Joi.number(),
+    sort: Joi.string().valid("asc", "desc"),
+  }),
+}).required();

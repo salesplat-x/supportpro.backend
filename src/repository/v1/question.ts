@@ -1,6 +1,8 @@
 import Question from "../../models/v1/question";
+import { Page, Paging } from "../../typings/customs";
 import { IQuestion } from "../../typings/question";
 import { HydratedDocument, Types } from "mongoose";
+import * as func from "../../helpers/func";
 
 export const createQuestion = async (
   question: IQuestion
@@ -16,22 +18,32 @@ export const findQuestionById = async (id: Types.ObjectId | string) => {
   });
 };
 
-export const findAllQuestions = async () => {
-  return await Question.find().populate({
-    path: "role",
-    select: "-__v -createdAt -updatedAt ",
-    strictPopulate: false,
-  });
+export const findAllQuestions = async (paging: Paging = {}) => {
+  return await Question.find()
+    .sort({ updatedAt: func.sortDirection(paging.sort!) || Page.Sort })
+    .skip(Number(paging.offset) || Page.Offset)
+    .limit(Number(paging.limit) || Page.Limit)
+    .populate({
+      path: "role",
+      select: "-__v -createdAt -updatedAt ",
+      strictPopulate: false,
+    });
 };
 
 export const findQuestionByMatch = async (
-  data: IQuestion | Record<string, any>
+  data: IQuestion | Record<string, any>,
+  paging: Paging = {}
 ) => {
-  return await Question.find(data).populate({
-    path: "role",
-    select: "-__v -createdAt -updatedAt ",
-    strictPopulate: false,
-  });
+  // @TODO paginate
+  return await Question.find(data)
+    .sort({ updatedAt: func.sortDirection(paging.sort!) || Page.Sort })
+    .skip(Number(paging.offset) || Page.Offset)
+    .limit(Number(paging.limit) || Page.Limit)
+    .populate({
+      path: "role",
+      select: "-__v -createdAt -updatedAt ",
+      strictPopulate: false,
+    });
 };
 
 export const findQuestionByIdAndUpdate = async (

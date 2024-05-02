@@ -16,7 +16,11 @@ router.post(
   asyncHandler(question.create)
 );
 
-router.get("/", asyncHandler(question.fetchAll));
+router.get(
+  "/",
+  validate(questionValidator.allQuestions, { query: true }),
+  asyncHandler(question.fetchAll)
+);
 
 router.post(
   "/answer",
