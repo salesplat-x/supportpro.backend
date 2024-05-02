@@ -17,7 +17,6 @@ export const findJobById = async (id: Types.ObjectId | string) => {
 };
 
 export const findAllJobs = async (match: Partial<IJob>, paging: Paging = {}) => {
-  // @TODO paginate
   return await Job.find(match)
     .sort({ updatedAt: func.sortDirection(paging.sort!) || Page.Sort })
     .skip(Number(paging.offset) || Page.Offset)

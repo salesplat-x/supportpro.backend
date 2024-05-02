@@ -3,6 +3,7 @@ import * as questionRepository from "../../repository/v1/question";
 import { makeResponse } from "../../helpers/response";
 import { IRole } from "../../typings/role";
 import mongoose from "mongoose";
+import { Paging } from "../../typings/customs";
 
 export const createRole = async (payload: IRole) => {
   payload.name = payload.name.toLowerCase();
@@ -16,8 +17,8 @@ export const createRole = async (payload: IRole) => {
   return makeResponse(true, "Role posted successfully", role, 200);
 };
 
-export const fetchAllRoles = async () => {
-  let roles = await roleRepository.findAllRoles();
+export const fetchAllRoles = async (payload: Paging) => {
+  let roles = await roleRepository.findAllRoles(payload);
   return makeResponse(true, "Roles fetched successfully", roles, 200);
 };
 

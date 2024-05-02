@@ -50,7 +50,6 @@ export const findUsersByMatch = async (
   data: IUser | Record<string, any>,
   paging: Paging = {}
 ) => {
-  // @TODO paginate
   return await User.find(data)
     .sort({ updatedAt: func.sortDirection(paging.sort!) || Page.Sort })
     .skip(Number(paging.offset) || Page.Offset)

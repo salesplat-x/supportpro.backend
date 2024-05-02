@@ -1,6 +1,8 @@
 import Role from "../../models/v1/role";
+import { Page, Paging } from "../../typings/customs";
 import { IRole } from "../../typings/role";
 import { HydratedDocument, Types } from "mongoose";
+import * as func from "../../helpers/func";
 
 export const createRole = async (
   role: Omit<IRole, "_id">
@@ -12,8 +14,11 @@ export const findRoleById = async (id: Types.ObjectId | string) => {
   return await Role.findById(id);
 };
 
-export const findAllRoles = async () => {
-  return await Role.find();
+export const findAllRoles = async (paging: Paging = {}) => {
+  return await Role.find()
+    .sort({ updatedAt: func.sortDirection(paging.sort!) || Page.Sort })
+    .skip(Number(paging.offset) || Page.Offset)
+    .limit(Number(paging.limit) || Page.Limit);
 };
 
 export const findRoleByMatch = async (data: IRole | Record<string, any>) => {

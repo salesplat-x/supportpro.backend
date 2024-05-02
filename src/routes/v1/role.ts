@@ -16,7 +16,11 @@ router.post(
   asyncHandler(role.create)
 );
 
-router.get("/", asyncHandler(role.fetchAll));
+router.get(
+  "/",
+  validate(roleValidator.allRoles, { query: true }),
+  asyncHandler(role.fetchAll)
+);
 
 router.get(
   "/:_id",
