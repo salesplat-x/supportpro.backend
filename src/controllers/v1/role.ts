@@ -18,6 +18,6 @@ export const fetch = async (req: Request, res: Response) => {
 };
 
 export const questions = async (req: Request, res: Response) => {
-  const response = await roleController.questions(req.params as any);
+  const response = await roleController.questions(req.params as any, req.query);
   return responseHandler(res, response);
 };

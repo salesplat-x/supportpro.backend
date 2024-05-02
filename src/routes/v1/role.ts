@@ -30,7 +30,7 @@ router.get(
 
 router.get(
   "/:_id/questions",
-  validate(roleValidator.roleId, { params: true }),
+  validate(roleValidator.roleQuestions, { params: true, query: true }),
   asyncHandler(role.questions)
 );
 
