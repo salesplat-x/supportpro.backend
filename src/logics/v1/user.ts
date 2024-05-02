@@ -64,6 +64,9 @@ export const viewProfile = async (user: Pick<IUser, "_id">) => {
   if (!existingUser) {
     return makeResponse(false, "User not found", {}, 404);
   }
+  if (existingUser.userRole !== Roles.Talent) {
+    return makeResponse(false, "User not a talent", {}, 404);
+  }
 
   existingUser.set("password", undefined);
   return makeResponse(true, "User details fetched", { user: existingUser });
