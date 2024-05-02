@@ -10,6 +10,8 @@ export interface IQuestion {
 
 export interface IAnswerQuestion {
   questionId: Types.ObjectId | string;
-  question?: string;
   answer: string;
+}
+export interface AnswerQuestionPayload {
+  answers: IAnswerQuestion[];
 }

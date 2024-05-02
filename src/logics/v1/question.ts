@@ -1,10 +1,11 @@
 import * as questionRepository from "../../repository/v1/question";
 import * as roleRepository from "../../repository/v1/role";
 import * as userRepository from "../../repository/v1/user";
+import * as answerRepository from "../../repository/v1/answer";
 import { makeResponse } from "../../helpers/response";
-import { IAnswerQuestion, IQuestion } from "../../typings/question";
+import { AnswerQuestionPayload, IQuestion } from "../../typings/question";
 import mongoose from "mongoose";
-import { IProfile, IUser } from "../../typings/user";
+import { IUser } from "../../typings/user";
 import { Paging } from "../../typings/customs";
 
 export const createQuestion = async (payload: IQuestion) => {
@@ -37,9 +38,31 @@ export const fetchQuestion = async (payload: Pick<IQuestion, "_id">) => {
 
 export const answerQuestions = async (
   user: IUser,
-  answers: IAnswerQuestion[]
+  payload: AnswerQuestionPayload
 ) => {
-  // @TODO use LLM to evaluate answers and assign score
+  let score: number;
+  for (const answer of payload.answers) {
+    if (!mongoose.Types.ObjectId.isValid(answer.questionId as string)) {
+      return makeResponse(false, "Invalid question id", {}, 400);
+    }
+
+    const existingQuestion = await questionRepository.findQuestionById(
+      answer.questionId
+    );
+    if (!existingQuestion) {
+      return makeResponse(false, "Question does not exist", {}, 404);
+    }
+
+    // @TODO use LLM to evaluate answers and update score
+    await answerRepository.createAnswer({
+      question: answer.questionId,
+      user: user._id,
+      answer: answer.answer,
+      // @TODO add weight and score
+    });
+  }
+
+  // @TODO assign score to user's profile role
   // const score = ;
   // await userRepository.updateUserScore(
   //   (user.profile as IProfile)._id,

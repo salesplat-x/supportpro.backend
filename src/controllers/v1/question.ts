@@ -18,9 +18,6 @@ export const fetch = async (req: Request, res: Response) => {
 };
 
 export const answerQuestions = async (req: Request, res: Response) => {
-  const response = await questionController.answerQuestions(
-    req.user as any,
-    req.body
-  );
+  const response = await questionController.answerQuestions(req.user, req.body);
   return responseHandler(res, response);
 };

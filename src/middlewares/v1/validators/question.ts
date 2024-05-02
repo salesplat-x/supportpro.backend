@@ -22,7 +22,6 @@ export const answers = Joi.object({
         Joi.object<IAnswerQuestion>({
           questionId: Joi.string().required(),
           answer: Joi.string().required(),
-          question: Joi.string().optional(),
         }).required()
       )
       .required(),
