@@ -18,4 +18,5 @@ export interface AnswerQuestionPayload {
 export interface IQuestionConstruct {
   question: string;
   answer: string;
+  gradingCriteria: string;
 }
