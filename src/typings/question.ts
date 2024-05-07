@@ -15,3 +15,7 @@ export interface IAnswerQuestion {
 export interface AnswerQuestionPayload {
   answers: IAnswerQuestion[];
 }
+export interface IQuestionConstruct {
+  question: string;
+  answer: string;
+}

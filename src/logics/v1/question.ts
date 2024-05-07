@@ -3,9 +3,13 @@ import * as roleRepository from "../../repository/v1/role";
 import * as userRepository from "../../repository/v1/user";
 import * as answerRepository from "../../repository/v1/answer";
 import { makeResponse } from "../../helpers/response";
-import { AnswerQuestionPayload, IQuestion } from "../../typings/question";
+import {
+  AnswerQuestionPayload,
+  IQuestion,
+  IQuestionConstruct,
+} from "../../typings/question";
 import mongoose from "mongoose";
-import { IUser } from "../../typings/user";
+import { IProfile, IUser } from "../../typings/user";
 import { Paging } from "../../typings/customs";
 
 export const createQuestion = async (payload: IQuestion) => {
@@ -40,33 +44,49 @@ export const answerQuestions = async (
   user: IUser,
   payload: AnswerQuestionPayload
 ) => {
-  let score: number;
+  let questionsConstruct: IQuestionConstruct[] = [];
+
+  // Use transaction to ensure atomicity when storing answers
+  const session = await answerRepository.startSession();
+  session.startTransaction();
+  // Loop through the answers and map to the question
   for (const answer of payload.answers) {
     if (!mongoose.Types.ObjectId.isValid(answer.questionId as string)) {
+      await session.abortTransaction();
       return makeResponse(false, "Invalid question id", {}, 400);
     }
 
-    const existingQuestion = await questionRepository.findQuestionById(
+    const question = await questionRepository.findQuestionById(
       answer.questionId
     );
-    if (!existingQuestion) {
+    if (!question) {
+      await session.abortTransaction();
       return makeResponse(false, "Question does not exist", {}, 404);
     }
 
-    // @TODO use LLM to evaluate answers and update score
-    await answerRepository.createAnswer({
-      question: answer.questionId,
-      user: user._id,
+    await answerRepository.createAnswer(
+      {
+        question: answer.questionId,
+        user: user._id,
+        answer: answer.answer,
+        // @TODO add weight and score
+      },
+      session
+    );
+
+    // Push questionObject into construct
+    questionsConstruct.push({
+      question: question.question,
       answer: answer.answer,
-      // @TODO add weight and score
     });
   }
+  await session.commitTransaction();
+  // // @TODO use LLM to evaluate questionConstruct and update score
+  // const totalScore =
 
-  // @TODO assign score to user's profile role
-  // const score = ;
   // await userRepository.updateUserScore(
   //   (user.profile as IProfile)._id,
-  //   score
+  //   totalScore
   // );
   return makeResponse(true, "Answers submitted successfully");
 };
