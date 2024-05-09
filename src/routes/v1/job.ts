@@ -23,6 +23,13 @@ router.get(
 );
 
 router.get(
+  "/match/:_id",
+  validateAccess([Roles.Recruiter, Roles.Admin]),
+  validate(jobValidator.jobId, { params: true }),
+  asyncHandler(job.fuzzyMatch)
+);
+
+router.get(
   "/:_id",
   validate(jobValidator.jobId, { params: true }),
   asyncHandler(job.fetch)

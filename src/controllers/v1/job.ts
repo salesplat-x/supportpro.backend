@@ -16,3 +16,8 @@ export const fetch = async (req: Request, res: Response) => {
   const response = await jobController.fetchJob(req.params as any);
   return responseHandler(res, response);
 };
+
+export const fuzzyMatch = async (req: Request, res: Response) => {
+  const response = await jobController.fuzzyMatch(req.params as any);
+  return responseHandler(res, response);
+};

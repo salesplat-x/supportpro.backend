@@ -117,3 +117,12 @@ export const updateUserScore = async (
     strictPopulate: false,
   });
 };
+
+export const profileAggregate = async (
+  data: mongoose.PipelineStage[],
+  paging: Paging = {}
+) => {
+  return await Profile.aggregate(data)
+    .skip(Number(paging.offset) || Page.Offset)
+    .limit(Number(paging.limit) || Page.Limit);
+};
