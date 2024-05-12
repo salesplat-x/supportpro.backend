@@ -6,6 +6,7 @@ export const question = Joi.object({
     role: Joi.string().required(),
     question: Joi.string().required(),
     category: Joi.string().required(),
+    criteria: Joi.string().required(),
   }),
 }).required();
 

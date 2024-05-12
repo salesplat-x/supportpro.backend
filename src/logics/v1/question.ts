@@ -78,7 +78,8 @@ export const answerQuestions = async (
     questionsConstruct.push({
       question: question.question,
       answer: answer.answer,
-      gradingCriteria: question.category,
+      category: question.category,
+      criteria: question.criteria,
     });
   }
   await session.commitTransaction();

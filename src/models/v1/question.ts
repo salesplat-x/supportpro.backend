@@ -15,6 +15,10 @@ const questionSchema = new Schema<IQuestion>({
     type: String,
     required: true,
   },
+  criteria: {
+    type: String,
+    required: true,
+  },
 });
 
 export default model<IQuestion>("question", questionSchema);

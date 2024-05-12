@@ -6,6 +6,7 @@ export interface IQuestion {
   role: string | Types.ObjectId | IRole;
   question: string;
   category: string;
+  criteria: string;
 }
 
 export interface IAnswerQuestion {
@@ -18,5 +19,6 @@ export interface AnswerQuestionPayload {
 export interface IQuestionConstruct {
   question: string;
   answer: string;
-  gradingCriteria: string;
+  category: string;
+  criteria: string;
 }
