@@ -14,6 +14,7 @@ const requiredEnvVars = {
   port: Number(process.env.PORT),
   jwt_secret: process.env.JWT_SECRET,
   salt_rounds: Number(process.env.SALT_ROUNDS) || 10,
+  openai_secret: process.env.OPENAI_API_KEY,
 } as const;
 
 const env = {

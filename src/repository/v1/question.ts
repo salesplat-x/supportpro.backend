@@ -35,14 +35,15 @@ export const findQuestionByMatch = async (
   paging: Paging = {}
 ) => {
   return await Question.find(data)
+    .select("question _id")
     .sort({ updatedAt: func.sortDirection(paging.sort!) || Page.Sort })
     .skip(Number(paging.offset) || Page.Offset)
-    .limit(Number(paging.limit) || Page.Limit)
-    .populate({
-      path: "role",
-      select: "-__v -createdAt -updatedAt ",
-      strictPopulate: false,
-    });
+    .limit(Number(paging.limit) || Page.Limit);
+  // .populate({
+  //   path: "role",
+  //   select: "-__v -createdAt -updatedAt ",
+  //   strictPopulate: false,
+  // });
 };
 
 export const findQuestionByIdAndUpdate = async (

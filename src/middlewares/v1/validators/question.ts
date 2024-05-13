@@ -20,8 +20,10 @@ export const answers = Joi.object({
   body: Joi.object({
     answers: Joi.array()
       .items(
-        Joi.object<IAnswerQuestion>({
+        // Joi.object<IAnswerQuestion>({
+        Joi.object({
           questionId: Joi.string().required(),
+          question: Joi.string().optional(),
           answer: Joi.string().required(),
         }).required()
       )
