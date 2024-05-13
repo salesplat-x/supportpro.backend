@@ -11,8 +11,6 @@ import {
 import mongoose from "mongoose";
 import { IProfile, IUser } from "../../typings/user";
 import { Paging } from "../../typings/customs";
-import OpenAI from "openai";
-import env from "../../config/env";
 import { gradeAnswers } from "../../servces/v1/openai";
 
 export const createQuestion = async (payload: IQuestion) => {
@@ -47,61 +45,66 @@ export const answerQuestions = async (
   user: IUser,
   payload: AnswerQuestionPayload
 ) => {
-  // @TODO add the roleID and get all the
-  let questionsConstruct: IQuestionConstruct[] = [];
-
-  // Use transaction to ensure atomicity when storing answers
-  const session = await answerRepository.startSession();
-  session.startTransaction();
-
   if (payload.answers.length > 15) {
     return makeResponse(false, "Maximum length of answers 15 has been exceeded");
   }
 
-  // Loop through the answers and map to the question
-  for (const answer of payload.answers) {
-    if (!mongoose.Types.ObjectId.isValid(answer.questionId as string)) {
-      await session.abortTransaction();
-      return makeResponse(false, "Invalid question id", {}, 400);
-    }
+  // Get all question by Id
+  const questionIds = payload.answers.map((answer) => answer.questionId);
+  const questions = await questionRepository.findQuestionByMatch({
+    role: payload.roleId,
+    _id: { $in: questionIds },
+  });
 
-    const question = await questionRepository.findQuestionById(
-      answer.questionId
-    );
-    if (!question) {
-      await session.abortTransaction();
-      return makeResponse(false, "Question does not exist", {}, 404);
-    }
-
-    // save answer to DB
-    await answerRepository.createAnswer(
-      {
-        question: answer.questionId,
-        user: user._id,
-        answer: answer.answer,
-      },
-      session
-    );
-
-    // Push questionObject into construct
-    questionsConstruct.push({
-      question: question.question,
-      answer: answer.answer,
-      criteria: question.criteria,
-    });
+  if (questions.length !== payload.answers.length) {
+    return makeResponse(false, "One of more questions do not belong to role");
   }
 
-  await session.commitTransaction();
+  // Map questions by ID for efficient lookup
+  const questionMap = new Map(
+    questions.map((q) => [
+      q._id.toString(),
+      {
+        question: q.question,
+        criteria: q.criteria,
+      },
+    ])
+  );
+
+  // Validate answers and prepare valid answers for grading
+  const questionsConstruct = payload.answers.reduce(
+    (questionConstruct: IQuestionConstruct[], ans) => {
+      const question = questionMap.get(ans.questionId as string);
+      if (question) {
+        questionConstruct.push({
+          questionId: ans.questionId,
+          question: question.question,
+          answer: ans.answer,
+          criteria: question.criteria,
+        });
+      }
+      return questionConstruct;
+    },
+    []
+  );
+
+  await answerRepository.insertMany(
+    questionsConstruct.map((ans) => ({
+      question: ans.questionId,
+      answer: ans.answer,
+      user: user._id,
+    }))
+  );
 
   const questionsJSON = JSON.stringify(questionsConstruct);
 
+  // Use LLM to grade scores
   const response = await gradeAnswers(questionsJSON);
   if (!response || !response.message.content) {
     return makeResponse(false, "Error with LLM", {}, 400);
   }
-  const responseJSON: number[] = JSON.parse(response.message.content);
-
-  if (responseJSON.length != questionsConstruct.length) {
+  const scores = JSON.parse(response.message.content).scores;
+  if (scores.length != questionsConstruct.length) {
     return makeResponse(
       false,
       "Length of response array doesn't match length of input array"
@@ -109,7 +112,7 @@ export const answerQuestions = async (
   }
 
   let totalScore = 0;
-  for (const score of responseJSON) {
+  for (const score of scores) {
     if (score > 5) {
       return makeResponse(false, "Score exceeds the maximum assignable score");
     }

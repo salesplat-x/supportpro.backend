@@ -6,6 +6,10 @@ export const startSession = async () => {
   return await Answer.startSession();
 };
 
+export const insertMany = async (answers: Omit<IAnswer, "_id">[]) => {
+  return await Answer.insertMany(answers);
+};
+
 export const createAnswer = async (
   answer: Omit<IAnswer, "_id">,
   session?: ClientSession

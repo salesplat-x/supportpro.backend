@@ -18,6 +18,7 @@ export const questionId = Joi.object({
 
 export const answers = Joi.object({
   body: Joi.object({
+    roleId: Joi.string().required(),
     answers: Joi.array()
       .items(
         // Joi.object<IAnswerQuestion>({

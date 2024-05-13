@@ -14,9 +14,11 @@ export interface IAnswerQuestion {
   answer: string;
 }
 export interface AnswerQuestionPayload {
+  roleId: Types.ObjectId | string;
   answers: IAnswerQuestion[];
 }
 export interface IQuestionConstruct {
+  questionId: Types.ObjectId | string;
   question: string;
   answer: string;
   category?: string;

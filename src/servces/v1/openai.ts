@@ -27,7 +27,7 @@ export const gradeAnswers = async (
   4 - very satisfactory
   5 - outstanding.
 
-  Your result should be a JSON stringified array of the numeric scores of the candidate's answers.`;
+  Your result should be a JSON stringified array of the numeric scores of the candidate's answers, for example '{"scores":[3,4,2,3]}'`;
 
   const completion = await openai.chat.completions.create({
     messages: [

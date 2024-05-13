@@ -30,7 +30,7 @@ export const CurrentHiringProcess = {
 } as const;
 
 export const Page = {
-  Limit: 10,
+  Limit: 20,
   Offset: 0,
   Sort: -1,
 } as const;

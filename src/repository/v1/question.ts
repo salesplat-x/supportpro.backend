@@ -35,7 +35,7 @@ export const findQuestionByMatch = async (
   paging: Paging = {}
 ) => {
   return await Question.find(data)
-    .select("question _id")
+    .select("question criteria _id")
     .sort({ updatedAt: func.sortDirection(paging.sort!) || Page.Sort })
     .skip(Number(paging.offset) || Page.Offset)
     .limit(Number(paging.limit) || Page.Limit);
