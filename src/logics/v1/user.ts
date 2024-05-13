@@ -14,7 +14,7 @@ export const uploadProfile = async (payload: IProfile, user: IUser) => {
     return makeResponse(false, "This user already has a profile!", {});
   }
 
-  payload.role.forEach(async (role) => {
+  for (const role of payload.role) {
     if (!mongoose.Types.ObjectId.isValid(role as string)) {
       return makeResponse(false, "Invalid role id", {}, 400);
     }
@@ -22,7 +22,7 @@ export const uploadProfile = async (payload: IProfile, user: IUser) => {
     if (!existingRole) {
       return makeResponse(false, "Role does not exist", {}, 404);
     }
-  });
+  }
   const profile = await userRepository.createProfile(payload);
   existingUser = await userRepository.findUserByIdAndUpdate(user._id, {
     profile: profile._id,
