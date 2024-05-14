@@ -86,8 +86,13 @@ export const viewProfilesForRole = async (payload: FetchProfiles) => {
     }
 
     // Use an aggregation to get all users with the specified role
-    talents = await userRepository.userRoleAggregate(
+    talents = await userRepository.userAggregate(
       [
+        {
+          $match: {
+            userRole: Roles.Talent,
+          },
+        },
         {
           $lookup: {
             from: "profiles",
@@ -98,11 +103,16 @@ export const viewProfilesForRole = async (payload: FetchProfiles) => {
         },
         {
           $match: {
-            $and: [
-              { userRole: Roles.Talent },
-              { "profile.role": new mongoose.Types.ObjectId(payload.roleId) },
-              { "profile._id": { $exists: true } },
-            ],
+            "profile.role": new mongoose.Types.ObjectId(payload.roleId),
+          },
+        },
+        { $unwind: "$profile" },
+        {
+          $lookup: {
+            from: "roles",
+            localField: "profile.role",
+            foreignField: "_id",
+            as: "profile.role",
           },
         },
       ],

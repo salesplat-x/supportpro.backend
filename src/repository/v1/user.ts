@@ -62,7 +62,7 @@ export const findUsersByMatch = async (
     });
 };
 
-export const userRoleAggregate = async (
+export const userAggregate = async (
   data: mongoose.PipelineStage[],
   paging: Paging = {}
 ) => {
