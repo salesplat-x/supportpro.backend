@@ -67,7 +67,7 @@ export const userAggregate = async (
   paging: Paging = {}
 ) => {
   return await User.aggregate(data)
-    .sort({ updatedAt: func.sortDirection(paging.sort!) || Page.Sort })
+    // .sort({ updatedAt: func.sortDirection(paging.sort!) || Page.Sort })
     .skip(Number(paging.offset) || Page.Offset)
     .limit(Number(paging.limit) || Page.Limit);
 };

@@ -84,6 +84,11 @@ export const viewProfilesForRole = async (payload: FetchProfiles) => {
       },
     },
     {
+      $project: {
+        password: 0, // Exclude password field from user object
+      },
+    },
+    {
       $lookup: {
         from: "profiles",
         localField: "profile",
@@ -131,7 +136,8 @@ export const viewProfilesForRole = async (payload: FetchProfiles) => {
         foreignField: "_id",
         as: "profile.role",
       },
-    }
+    },
+    { $sort: { "profile.score": -1 } }
   );
 
   // Use an aggregation to get all users with the specified role
