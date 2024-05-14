@@ -5,6 +5,7 @@ import { makeResponse } from "../../helpers/response";
 import { FetchJobs, IJob } from "../../typings/job";
 import mongoose from "mongoose";
 import { IRole } from "../../typings/role";
+import { Roles } from "../../typings/customs";
 
 export const createJob = async (payload: IJob) => {
   if (!mongoose.Types.ObjectId.isValid(payload.role as string)) {
@@ -58,29 +59,40 @@ export const fuzzyMatch = async (payload: Pick<IJob, "_id">) => {
 
   //@TODO add check to view only jobs posted by organization of recruiter but if user is Admin proceed
 
-  const talents = await userRepository.profileAggregate([
+  const talents = await userRepository.userAggregate([
     {
       $match: {
-        role: (job.role as IRole)._id,
-        experience: job.experienceLevel,
-        minSalary: { $gte: job.minSalary },
-        maxSalary: { $lte: job.maxSalary },
+        userRole: Roles.Talent,
+      },
+    },
+    {
+      $project: {
+        password: 0, // Exclude password field from user object
       },
     },
     {
       $lookup: {
-        from: "users",
-        localField: "_id",
-        foreignField: "profile",
-        as: "user",
+        from: "profiles",
+        localField: "profile",
+        foreignField: "_id",
+        as: "profile",
+      },
+    },
+    { $unwind: "$profile" },
+    {
+      $match: {
+        "profile.role": (job.role as IRole)._id,
+        "profile.experience": job.experienceLevel,
+        "profile.minSalary": { $gte: job.minSalary },
+        "profile.maxSalary": { $lte: job.maxSalary },
       },
     },
     {
-      $unwind: "$user",
-    },
-    {
-      $project: {
-        "user.password": 0, // Exclude password field from user object
+      $lookup: {
+        from: "roles",
+        localField: "profile.role",
+        foreignField: "_id",
+        as: "profile.role",
       },
     },
     {
