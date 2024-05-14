@@ -93,7 +93,7 @@ const profileSchema = new Schema<IProfile>({
   },
   score: {
     type: Number,
-    select: false,
+    // select: false,
   },
 });
 
