@@ -83,7 +83,7 @@ export const fuzzyMatch = async (payload: Pick<IJob, "_id">) => {
       $match: {
         "profile.role": (job.role as IRole)._id,
         "profile.experience": job.experienceLevel,
-        "profile.minSalary": { $gte: job.minSalary },
+        // "profile.minSalary": { $gte: job.minSalary },
         "profile.maxSalary": { $lte: job.maxSalary },
       },
     },
