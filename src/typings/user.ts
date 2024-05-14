@@ -79,4 +79,7 @@ export interface IEmailOnlyPayload {
 
 export interface FetchProfiles extends Paging {
   roleId?: string;
+  experience?: string;
+  minScore?: number;
+  maxSalary?: number;
 }

@@ -4,6 +4,7 @@ import * as roleRepository from "../../repository/v1/role";
 import { makeResponse } from "../../helpers/response";
 import mongoose from "mongoose";
 import { Roles } from "../../typings/customs";
+import { Profile } from "../../models/v1/user";
 
 export const uploadProfile = async (payload: IProfile, user: IUser) => {
   let existingUser = await userRepository.findUserById(user._id);
@@ -73,8 +74,24 @@ export const viewProfile = async (user: Pick<IUser, "_id">) => {
 };
 
 export const viewProfilesForRole = async (payload: FetchProfiles) => {
-  let query: mongoose.RootQuerySelector<IUser> = { userRole: Roles.Talent };
   let talents: IUser[] = [];
+
+  // Create aggregation pipeline
+  let pipeline: mongoose.PipelineStage[] = [
+    {
+      $match: {
+        userRole: Roles.Talent,
+      },
+    },
+    {
+      $lookup: {
+        from: "profiles",
+        localField: "profile",
+        foreignField: "_id",
+        as: "profile",
+      },
+    },
+  ];
 
   if (payload.roleId) {
     if (!mongoose.Types.ObjectId.isValid(payload.roleId)) {
@@ -84,42 +101,40 @@ export const viewProfilesForRole = async (payload: FetchProfiles) => {
     if (!role) {
       return makeResponse(false, "Role does not exist", {}, 404);
     }
-
-    // Use an aggregation to get all users with the specified role
-    talents = await userRepository.userAggregate(
-      [
-        {
-          $match: {
-            userRole: Roles.Talent,
-          },
-        },
-        {
-          $lookup: {
-            from: "profiles",
-            localField: "profile",
-            foreignField: "_id",
-            as: "profile",
-          },
-        },
-        {
-          $match: {
-            "profile.role": new mongoose.Types.ObjectId(payload.roleId),
-          },
-        },
-        { $unwind: "$profile" },
-        {
-          $lookup: {
-            from: "roles",
-            localField: "profile.role",
-            foreignField: "_id",
-            as: "profile.role",
-          },
-        },
-      ],
-      payload
-    );
-  } else {
-    talents = await userRepository.findUsersByMatch({ ...query }, payload);
+    pipeline.push({
+      $match: {
+        "profile.role": new mongoose.Types.ObjectId(payload.roleId),
+      },
+    });
   }
+
+  if (payload.experience) {
+    pipeline.push({ $match: { "profile.experience": payload.experience } });
+  }
+  if (payload.minScore) {
+    pipeline.push({
+      $match: { "profile.score": { $gte: Number(payload.minScore) } },
+    });
+  }
+  if (payload.maxSalary) {
+    pipeline.push({
+      $match: { "profile.score": { $lte: Number(payload.maxSalary) } },
+    });
+  }
+
+  pipeline.push(
+    { $unwind: "$profile" },
+    {
+      $lookup: {
+        from: "roles",
+        localField: "profile.role",
+        foreignField: "_id",
+        as: "profile.role",
+      },
+    }
+  );
+
+  // Use an aggregation to get all users with the specified role
+  talents = await userRepository.userAggregate(pipeline, payload);
   return makeResponse(true, "User details fetched", { talents });
 };

@@ -28,7 +28,7 @@ router.get("/me", loginRequired, asyncHandler(user.me));
 router.get(
   "/profile/",
   validateAccess([Roles.Admin, Roles.Recruiter]),
-  validate(userValidator.roleId, { query: true }),
+  validate(userValidator.userProfiles, { query: true }),
   asyncHandler(user.viewProfiles)
 );
 

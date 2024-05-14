@@ -1,5 +1,6 @@
 import Joi from "joi";
 import { Experience } from "../../../typings/customs";
+import { FetchProfiles } from "../../../typings/user";
 
 export const profile = Joi.object({
   body: Joi.object({
@@ -20,11 +21,16 @@ export const userId = Joi.object({
   }),
 }).required();
 
-export const roleId = Joi.object({
-  query: Joi.object({
+export const userProfiles = Joi.object({
+  query: Joi.object<FetchProfiles>({
     limit: Joi.number(),
     offset: Joi.number(),
     sort: Joi.string().valid("asc", "desc"),
     roleId: Joi.string().optional(),
+    experience: Joi.string()
+      .valid(...Object.values(Experience))
+      .optional(),
+    minScore: Joi.number().max(99).min(0).optional(),
+    maxSalary: Joi.number().optional(),
   }),
 }).required();
