@@ -12,6 +12,7 @@ import mongoose from "mongoose";
 import { IProfile, IUser } from "../../typings/user";
 import { Paging } from "../../typings/customs";
 import { gradeAnswers } from "../../servces/v1/openai";
+import { IRole } from "../../typings/role";
 
 export const createQuestion = async (payload: IQuestion) => {
   if (!mongoose.Types.ObjectId.isValid(payload.role as string)) {
@@ -45,6 +46,10 @@ export const answerQuestions = async (
   user: IUser,
   payload: AnswerQuestionPayload
 ) => {
+  if ((user.profile as IProfile).score) {
+    return makeResponse(false, "User has already taken assessment");
+  }
+
   if (payload.answers.length > 15) {
     return makeResponse(false, "Maximum length of answers 15 has been exceeded");
   }
