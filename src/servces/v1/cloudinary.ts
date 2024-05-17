@@ -9,8 +9,8 @@ cloudinary.config({
 
 export const handleUpload = async (
   file: string,
-  format: string,
-  name: string
+  name: string,
+  format?: string
 ) => {
   return await cloudinary.uploader.upload(file, {
     use_filename: true,

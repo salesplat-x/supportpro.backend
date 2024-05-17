@@ -62,3 +62,20 @@ export function sortDirection(direction: string): -1 | 1 | 0 {
     ? -1
     : 0;
 }
+
+export function handleFilename(filename: string) {
+  let oldName =
+    filename.split(".") && filename.split(".").length
+      ? filename
+          .split(".")
+          .slice(0, filename.split(".").length - 1)
+          .join("_")
+      : filename;
+  const name =
+    oldName.replace(/ /g, "-") +
+    "_" +
+    Date.now().toString() +
+    "." +
+    filename.split(".").pop();
+  return { name, ext: filename.split(".").pop() };
+}
