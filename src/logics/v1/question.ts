@@ -56,6 +56,7 @@ export const answerQuestions = async (
     _id: { $in: questionIds },
   });
 
+  // @TODO validate that payload.roleId == user.profile.role[0]._id
   if (questions.length !== payload.answers.length) {
     return makeResponse(false, "One of more questions do not belong to role");
   }
@@ -119,7 +120,7 @@ export const answerQuestions = async (
     totalScore += score;
   }
   const maxScore = 5 * 15;
-  const scorePercent = (totalScore / maxScore) * 100;
+  const scorePercent = Number(((totalScore / maxScore) * 100).toFixed(2));
 
   await userRepository.updateUserScore(
     (user.profile as IProfile)._id,
