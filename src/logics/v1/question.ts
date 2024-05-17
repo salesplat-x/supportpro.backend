@@ -61,7 +61,13 @@ export const answerQuestions = async (
     _id: { $in: questionIds },
   });
 
-  // @TODO validate that payload.roleId == user.profile.role[0]._id
+  if (payload.roleId !== ((user.profile as IProfile).role[0]! as IRole)._id) {
+    return makeResponse(
+      false,
+      "User is not permitted to take assessment for this role"
+    );
+  }
+
   if (questions.length !== payload.answers.length) {
     return makeResponse(false, "One of more questions do not belong to role");
   }
