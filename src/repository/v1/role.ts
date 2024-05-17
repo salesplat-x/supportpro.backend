@@ -16,7 +16,7 @@ export const findRoleById = async (id: Types.ObjectId | string) => {
 
 export const findAllRoles = async (paging: Paging = {}) => {
   return await Role.find()
-    .sort({ updatedAt: func.sortDirection(paging.sort!) || Page.Sort })
+    .sort({ name: 1 })
     .skip(Number(paging.offset) || Page.Offset)
     .limit(Number(paging.limit) || Page.Limit);
 };
