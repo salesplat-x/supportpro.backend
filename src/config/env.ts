@@ -15,6 +15,9 @@ const requiredEnvVars = {
   jwt_secret: process.env.JWT_SECRET,
   salt_rounds: Number(process.env.SALT_ROUNDS) || 10,
   openai_secret: process.env.OPENAI_API_KEY,
+  cloudinary_name: process.env.CLOUDINARY_NAME,
+  cloudinary_key: process.env.CLOUDINARY_KEY,
+  cloudinary_secret: process.env.CLOUDINARY_SECRET,
 } as const;
 
 const env = {

@@ -1,7 +1,7 @@
 import { Request } from "express";
 import multer from "multer";
 
-const storage = multer.diskStorage({
+const diskStorage = multer.diskStorage({
   destination: (req: Request, file, cb) => {
     cb(null, "uploads/");
   },
@@ -25,4 +25,7 @@ const storage = multer.diskStorage({
   },
 });
 
-export const upload = multer({ storage });
+const memoryStorage = multer.memoryStorage();
+
+export const diskUpload = multer({ storage: diskStorage });
+export const cloudinaryUpload = multer({ storage: memoryStorage });
