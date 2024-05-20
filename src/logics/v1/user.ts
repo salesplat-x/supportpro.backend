@@ -126,6 +126,13 @@ export const viewProfilesForRole = async (payload: FetchProfiles) => {
       $match: { "profile.score": { $lte: Number(payload.maxSalary) } },
     });
   }
+  if (payload.incomplete != "true") {
+    pipeline.push({
+      $match: {
+        "profile.score": { $exists: true },
+      },
+    });
+  }
 
   pipeline.push(
     { $unwind: "$profile" },

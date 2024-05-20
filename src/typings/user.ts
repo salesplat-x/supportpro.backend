@@ -82,4 +82,5 @@ export interface FetchProfiles extends Paging {
   experience?: string;
   minScore?: number;
   maxSalary?: number;
+  incomplete?: string;
 }

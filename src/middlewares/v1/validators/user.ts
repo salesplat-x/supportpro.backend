@@ -32,5 +32,6 @@ export const userProfiles = Joi.object({
       .optional(),
     minScore: Joi.number().max(99).min(0).optional(),
     maxSalary: Joi.number().optional(),
+    incomplete: Joi.boolean().optional(),
   }),
 }).required();
