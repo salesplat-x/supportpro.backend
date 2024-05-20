@@ -26,3 +26,8 @@ export interface ILocation {
 export interface FetchJobs extends Paging {
   roleId?: string;
 }
+
+export interface MatchJob extends Paging {
+  _id: string;
+  incomplete?: string;
+}

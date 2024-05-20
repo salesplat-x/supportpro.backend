@@ -2,7 +2,7 @@ import * as jobRepository from "../../repository/v1/job";
 import * as roleRepository from "../../repository/v1/role";
 import * as userRepository from "../../repository/v1/user";
 import { makeResponse } from "../../helpers/response";
-import { FetchJobs, IJob } from "../../typings/job";
+import { FetchJobs, IJob, MatchJob } from "../../typings/job";
 import mongoose from "mongoose";
 import { IRole } from "../../typings/role";
 import { Roles } from "../../typings/customs";
@@ -48,7 +48,7 @@ export const fetchJob = async (payload: Pick<IJob, "_id">) => {
   return makeResponse(true, "Job fetched successfully", job, 200);
 };
 
-export const fuzzyMatch = async (payload: Pick<IJob, "_id">) => {
+export const matchJob = async (payload: MatchJob) => {
   if (!mongoose.Types.ObjectId.isValid(payload._id)) {
     return makeResponse(false, "Invalid job id", {}, 400);
   }
@@ -59,7 +59,7 @@ export const fuzzyMatch = async (payload: Pick<IJob, "_id">) => {
 
   //@TODO add check to view only jobs posted by organization of recruiter but if user is Admin proceed
 
-  const talents = await userRepository.userAggregate([
+  let pipeline: mongoose.PipelineStage[] = [
     {
       $match: {
         userRole: Roles.Talent,
@@ -98,7 +98,15 @@ export const fuzzyMatch = async (payload: Pick<IJob, "_id">) => {
     {
       $sort: { "profile.score": -1 }, // Sort by score in descending order
     },
-  ]);
+  ];
+  if (payload.incomplete != "true") {
+    pipeline.push({
+      $match: {
+        "profile.score": { $exists: true },
+      },
+    });
+  }
+  const talents = await userRepository.userAggregate(pipeline);
 
   return makeResponse(true, "Job fetched successfully", { talents }, 200);
 };

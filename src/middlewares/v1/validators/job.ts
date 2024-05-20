@@ -24,10 +24,13 @@ export const job = Joi.object({
   }),
 }).required();
 
-export const jobId = Joi.object({
+export const matchJob = Joi.object({
   params: Joi.object({
     _id: Joi.string().required(),
   }),
+  query: {
+    incomplete: Joi.boolean().optional(),
+  },
 }).required();
 
 export const allJobs = Joi.object({
