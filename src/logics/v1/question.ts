@@ -137,5 +137,5 @@ export const answerQuestions = async (
     (user.profile as IProfile)._id,
     scorePercent
   );
-  return makeResponse(true, "Answers submitted successfully");
+  return makeResponse(true, "Answers submitted successfully", { scorePercent });
 };
