@@ -13,6 +13,7 @@ import { IProfile, IUser } from "../../typings/user";
 import { Paging } from "../../typings/customs";
 import { gradeAnswers } from "../../servces/v1/openai";
 import { IRole } from "../../typings/role";
+import { IResponse } from "../../typings/answer";
 
 export const createQuestion = async (payload: IQuestion) => {
   if (!mongoose.Types.ObjectId.isValid(payload.role as string)) {
@@ -100,14 +101,6 @@ export const answerQuestions = async (
     []
   );
 
-  await answerRepository.insertMany(
-    questionsConstruct.map((ans) => ({
-      question: ans.questionId,
-      answer: ans.answer,
-      user: user._id,
-    }))
-  );
-
   const questionsJSON = JSON.stringify(questionsConstruct);
 
   // Use LLM to grade scores
@@ -115,8 +108,10 @@ export const answerQuestions = async (
   if (!response || !response.message.content) {
     return makeResponse(false, "Error with LLM", {}, 400);
   }
-  const scores = JSON.parse(response.message.content).scores;
-  if (scores.length != questionsConstruct.length) {
+  const responseArray: IResponse[] = JSON.parse(
+    response.message.content
+  ).responses;
+  if (responseArray.length != questionsConstruct.length) {
     return makeResponse(
       false,
       "Length of response array doesn't match length of input array"
@@ -124,14 +119,20 @@ export const answerQuestions = async (
   }
 
   let totalScore = 0;
-  for (const score of scores) {
-    if (score > 5) {
+  for (const response of responseArray) {
+    if (response.score > 5) {
       return makeResponse(false, "Score exceeds the maximum assignable score");
     }
-    totalScore += score;
+    totalScore += response.score;
   }
   const maxScore = 5 * 15;
   const scorePercent = Number(((totalScore / maxScore) * 100).toFixed(2));
+
+  await answerRepository.saveOrUpdateAnswer(
+    user._id,
+    payload.roleId,
+    responseArray
+  );
 
   await userRepository.updateUserScore(
     (user.profile as IProfile)._id,

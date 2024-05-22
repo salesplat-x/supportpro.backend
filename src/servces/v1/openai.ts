@@ -18,7 +18,7 @@ export const gradeAnswers = async (
   1. question: The questions that was asked to a candidate.
   2. answer: the candidates answer to the question.
   3. criteria: The criteria that is being considered for scoring the candidate's a answer to the question.
-
+  
   For each assessment object, your task is to generate an appropriate score of the candidate's answer based on the criteria field. That is, based on the criteria stated in the scoring criteria field, you should score the candidate's answers  on a 1 to 5 scale. The scale is defined below:
 
   1 - poor
@@ -27,7 +27,20 @@ export const gradeAnswers = async (
   4 - very satisfactory
   5 - outstanding.
 
-  Your result should be a JSON stringified array of the numeric scores of the candidate's answers, for example '{"scores":[3,4,2,3]}'`;
+  For each score, question and answer you will generate a Response object has 3 fields similar to the Assessment object. Each field is described as follows:
+
+  1. question: The questions that was asked to a candidate.
+  2. answer: the candidates answer to the question.
+  3. score: The score you generated for that question. 
+  
+  Your output should be a JSON array of the Response objects. For example 
+  '{
+    "responses":[
+      {"question": ..., "answer": ...,"score":3},
+      {"question": ..., "answer": ...,"score":4},
+      ...
+    ]
+  }', the length of the array of Response objects must match the length of the array of the Assessment object`;
 
   const completion = await openai.chat.completions.create({
     messages: [
@@ -38,6 +51,5 @@ export const gradeAnswers = async (
     response_format: { type: "json_object" },
   });
 
-  const response = completion.choices[0];
-  return response;
+  return completion.choices[0];
 };

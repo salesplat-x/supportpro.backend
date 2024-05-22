@@ -1,15 +1,9 @@
 import { Schema, model } from "mongoose";
-import { IAnswer } from "../../typings/answer";
+import { IAnswer, IResponse } from "../../typings/answer";
 
-const answerSchema = new Schema<IAnswer>({
+const gradeSchema = new Schema<IResponse>({
   question: {
-    type: Schema.Types.ObjectId,
-    ref: "question",
-    required: true,
-  },
-  user: {
-    type: Schema.Types.ObjectId,
-    ref: "user",
+    type: String,
     required: true,
   },
   answer: {
@@ -18,10 +12,22 @@ const answerSchema = new Schema<IAnswer>({
   },
   score: {
     type: Number,
+    required: true,
   },
-  weight: {
-    type: Number,
+});
+
+const answerSchema = new Schema<IAnswer>({
+  role: {
+    type: Schema.Types.ObjectId,
+    ref: "role",
+    required: true,
   },
+  user: {
+    type: Schema.Types.ObjectId,
+    ref: "user",
+    required: true,
+  },
+  responses: [gradeSchema],
 });
 
 export default model<IAnswer>("answer", answerSchema);

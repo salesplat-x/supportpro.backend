@@ -1,12 +1,16 @@
 import { Types } from "mongoose";
-import { IQuestion } from "./question";
 import { IUser } from "./user";
+import { IRole } from "./role";
+
+export interface IResponse {
+  question: string;
+  answer: string;
+  score: number;
+}
 
 export interface IAnswer {
   _id: Types.ObjectId;
-  question: string | Types.ObjectId | IQuestion;
   user: string | Types.ObjectId | IUser;
-  answer: string;
-  score?: number;
-  weight?: number;
+  role: string | Types.ObjectId | IRole;
+  responses: IResponse[];
 }
