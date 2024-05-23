@@ -6,6 +6,7 @@ import { FetchJobs, IJob, MatchJob } from "../../typings/job";
 import mongoose from "mongoose";
 import { IRole } from "../../typings/role";
 import { Roles } from "../../typings/customs";
+import { createEmbedding } from "../../servces/v1/openai";
 
 export const createJob = async (payload: IJob) => {
   if (!mongoose.Types.ObjectId.isValid(payload.role as string)) {
@@ -16,8 +17,24 @@ export const createJob = async (payload: IJob) => {
     return makeResponse(false, "Role does not exist", {}, 404);
   }
   //@TODO check if job already exists under organization
-  let job = await jobRepository.createJob(payload);
-  return makeResponse(true, "Job posted successfully", job, 200);
+
+  // Create vector embedding for Job description
+  const JDvector = await createEmbedding(payload.description);
+  if (!JDvector) {
+    return makeResponse(
+      false,
+      "Unable to create vector embedding for JD",
+      {},
+      400
+    );
+  }
+
+  // @TODO Save JDvector in vectorDB
+
+  return makeResponse(true, "Job posted successfully", JDvector, 200);
+
+  // let job = await jobRepository.createJob(payload);
+  // return makeResponse(true, "Job posted successfully", job, 200);
 };
 
 export const fetchAllJobs = async (payload: FetchJobs) => {
