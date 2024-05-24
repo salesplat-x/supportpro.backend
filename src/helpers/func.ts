@@ -1,4 +1,59 @@
+import mammoth from "mammoth";
 import path from "path";
+import pdfParse from "pdf-parse";
+
+export async function extractText(buffer: Buffer, mimetype: string) {
+  if (mimetype === "application/pdf") {
+    const data = await pdfParse(buffer);
+    return data.text;
+  } else {
+    const result = await mammoth.extractRawText({ buffer: buffer });
+    return result.value;
+  }
+}
+
+// Function to remove unnecessary characters and whitespace
+export function preprocessText(text: string) {
+  const cleanedText = text
+    .replace(/[^\x20-\x7E]+/g, " ") // Replace non-printable characters with a space
+    .replace(/\s+/g, " ") // Collapse multiple spaces into a single space
+    .trim(); // Trim leading and trailing spaces
+
+  // Reduce multiline empty spaces to a single new line
+  const paragraphs = cleanedText
+    .split("\n")
+    .map((paragraph) => paragraph.trim()) // Trim each paragraph
+    .filter((paragraph) => paragraph.length > 0); // Remove empty paragraphs
+
+  // Join paragraphs with a single newline
+  return paragraphs.join("\n");
+}
+
+export function chunkText(text: string, maxChunkSize: number = 1300): string[] {
+  const chunks: string[] = [];
+  let start = 0;
+
+  while (start < text.length) {
+    // Determine the end position for the current chunk
+    let end = Math.min(start + maxChunkSize, text.length);
+
+    // If the end is not at the end of the text and the next character is not a full stop, find the next full stop
+    if (end < text.length && text[end] !== ".") {
+      let fullStopIndex = text.lastIndexOf(".", end);
+      if (fullStopIndex > start) {
+        end = fullStopIndex + 1; // Include the full stop in the chunk
+      }
+    }
+
+    // Slice the text chunk and add to the result
+    chunks.push(text.slice(start, end).trim());
+
+    // Move to the next chunk
+    start = end;
+  }
+
+  return chunks;
+}
 
 export function validateEmail(email: string): boolean {
   const emailRegex: RegExp = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

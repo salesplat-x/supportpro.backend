@@ -11,6 +11,11 @@ const optionalEnvVars = {
 
 const requiredEnvVars = {
   db_database: process.env.DB_URI,
+  pg_host: process.env.PG_HOST,
+  pg_port: process.env.PG_PORT,
+  pg_db: process.env.PG_DB,
+  pg_user: process.env.PG_USER,
+  pg_password: process.env.PG_PASSWORD,
   port: Number(process.env.PORT),
   jwt_secret: process.env.JWT_SECRET,
   salt_rounds: Number(process.env.SALT_ROUNDS) || 10,

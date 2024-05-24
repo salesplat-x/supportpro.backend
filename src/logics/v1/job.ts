@@ -20,7 +20,7 @@ export const createJob = async (payload: IJob) => {
 
   // Create vector embedding for Job description
   const JDvector = await createEmbedding(payload.description);
-  if (!JDvector) {
+  if (!JDvector || JDvector[0]?.embedding) {
     return makeResponse(
       false,
       "Unable to create vector embedding for JD",
@@ -29,7 +29,7 @@ export const createJob = async (payload: IJob) => {
     );
   }
 
-  // @TODO Save JDvector in vectorDB
+  // @TODO Save JDvector[0].embedding in vectorDB
 
   return makeResponse(true, "Job posted successfully", JDvector, 200);
 
