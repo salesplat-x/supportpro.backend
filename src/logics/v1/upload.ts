@@ -8,6 +8,9 @@ import {
   preprocessText,
 } from "../../helpers/func";
 import { createEmbedding } from "../../servces/v1/openai";
+import { saveTalentEmbedding } from "../../repository/v1/pg";
+import { IProfile } from "../../typings/user";
+import { Roles } from "../../typings/customs";
 
 export const uploadLocal = async (req: Request) => {
   if (!req.file) {
@@ -25,25 +28,34 @@ export const uploadCloudinary = async (req: Request) => {
     return makeResponse(false, "No file uploaded");
   }
 
-  // extract text from CV
-  const mimetype = req.file.mimetype;
-  if (
-    mimetype ===
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-    mimetype === "application/msword" ||
-    mimetype === "application/pdf"
-  ) {
-    let text: string | string[] = await extractText(req.file.buffer, mimetype);
-    if (!text) {
-      return makeResponse(false, "Unable to extract text");
+  if (req.user.userRole === Roles.Talent && req.user.profile) {
+    // extract text from CV
+    const mimetype = req.file.mimetype;
+    if (
+      mimetype ===
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      mimetype === "application/msword" ||
+      mimetype === "application/pdf"
+    ) {
+      let text: string | string[] = await extractText(req.file.buffer, mimetype);
+      if (!text) {
+        return makeResponse(false, "Unable to extract text");
+      }
+      text = preprocessText(text);
+      text = chunkText(text);
+
+      // Create vector embedding for the chunks
+      const cvEmbedding = await createEmbedding(text);
+
+      // @TODO save cvEmbedding[0]?.embedding to vectorDB
+      const res = await saveTalentEmbedding(
+        (req.user.profile as IProfile)._id,
+        cvEmbedding
+      );
+      if (!res) {
+        return makeResponse(false, "Unable to save cv embedding", {}, 500);
+      }
     }
-    text = preprocessText(text);
-    text = chunkText(text);
-
-    // Create vector embedding for the chunks
-    const cvEmbedding = await createEmbedding(text);
-
-    // @TODO save cvEmbedding[0]?.embedding to vectorDB
   }
 
   const { name, ext } = handleFilename(req.file.originalname);

@@ -14,22 +14,13 @@ export async function extractText(buffer: Buffer, mimetype: string) {
 
 // Function to remove unnecessary characters and whitespace
 export function preprocessText(text: string) {
-  const cleanedText = text
+  return text
     .replace(/[^\x20-\x7E]+/g, " ") // Replace non-printable characters with a space
-    .replace(/\s+/g, " ") // Collapse multiple spaces into a single space
+    .replace(/[\s\n]+/g, " ") // Collapse multiple spaces and newlines into a single space
     .trim(); // Trim leading and trailing spaces
-
-  // Reduce multiline empty spaces to a single new line
-  const paragraphs = cleanedText
-    .split("\n")
-    .map((paragraph) => paragraph.trim()) // Trim each paragraph
-    .filter((paragraph) => paragraph.length > 0); // Remove empty paragraphs
-
-  // Join paragraphs with a single newline
-  return paragraphs.join("\n");
 }
 
-export function chunkText(text: string, maxChunkSize: number = 1300): string[] {
+export function chunkText(text: string, maxChunkSize: number = 8000): string[] {
   const chunks: string[] = [];
   let start = 0;
 
