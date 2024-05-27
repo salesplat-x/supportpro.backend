@@ -7,6 +7,8 @@ import mongoose from "mongoose";
 import { IRole } from "../../typings/role";
 import { Roles } from "../../typings/customs";
 import { createEmbedding } from "../../servces/v1/openai";
+import { saveJobEmbedding } from "../../repository/v1/pg";
+import { preprocessText } from "../../helpers/func";
 
 export const createJob = async (payload: IJob) => {
   if (!mongoose.Types.ObjectId.isValid(payload.role as string)) {
@@ -19,8 +21,9 @@ export const createJob = async (payload: IJob) => {
   //@TODO check if job already exists under organization
 
   // Create vector embedding for Job description
-  const JDvector = await createEmbedding(payload.description);
-  if (!JDvector || JDvector[0]?.embedding) {
+  const jd = preprocessText(payload.description);
+  const JDvector = await createEmbedding(jd);
+  if (!JDvector || !JDvector[0]?.embedding) {
     return makeResponse(
       false,
       "Unable to create vector embedding for JD",
@@ -29,12 +32,15 @@ export const createJob = async (payload: IJob) => {
     );
   }
 
-  // @TODO Save JDvector[0].embedding in vectorDB
+  let job = await jobRepository.createJob(payload);
 
-  return makeResponse(true, "Job posted successfully", JDvector, 200);
+  // Save JDvector[0].embedding in vectorDB
+  const jobEmbedding = await saveJobEmbedding(job._id, JDvector[0]?.embedding!);
+  if (!jobEmbedding) {
+    return makeResponse(false, "Unable to save job embedding", {}, 500);
+  }
 
-  // let job = await jobRepository.createJob(payload);
-  // return makeResponse(true, "Job posted successfully", job, 200);
+  return makeResponse(true, "Job posted successfully", job, 200);
 };
 
 export const fetchAllJobs = async (payload: FetchJobs) => {
