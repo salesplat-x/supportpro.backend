@@ -45,11 +45,15 @@ const logan = morgan(
 
 const logErrorToConsole = (err: Error) => {
   logger.error("AN ERROR OCCURRED WITH STACK TRACE:");
-  logger.warn(err.stack);
+  logger.warn(err.stack || err);
 };
 
 const log = (message: string) => {
   logger.info(message);
 };
 
-export default { logan, logErrorToConsole, log };
+const logErrorMessage = (message: string) => {
+  logger.error(message);
+};
+
+export default { logan, logErrorToConsole, log, logErrorMessage };

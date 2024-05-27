@@ -7,6 +7,7 @@ import versionRoutes from "./version/v1";
 import cors from "cors";
 import helmet from "helmet";
 import path from "path";
+import { setupPostgresDB } from "./repository/v1/pg";
 
 const PORT = env.port;
 
@@ -32,6 +33,9 @@ export default async function startApplication(app: Application): Promise<void> 
 
   // connect to mongodb via mongoose
   await newMongoDBConnection();
+
+  // setup PostgresDB
+  await setupPostgresDB();
 
   app.listen(PORT, async () => {
     logger.log(`All connections established successfully 🚀`);

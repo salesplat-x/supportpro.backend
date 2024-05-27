@@ -59,6 +59,7 @@ export const createEmbedding = async (text: string | string[]) => {
     model: "text-embedding-3-small",
     input: text,
     encoding_format: "float",
+    dimensions: 512,
   });
   return embedding.data;
 };
