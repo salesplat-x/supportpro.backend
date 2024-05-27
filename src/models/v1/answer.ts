@@ -16,18 +16,21 @@ const gradeSchema = new Schema<IResponse>({
   },
 });
 
-const answerSchema = new Schema<IAnswer>({
-  role: {
-    type: Schema.Types.ObjectId,
-    ref: "role",
-    required: true,
+const answerSchema = new Schema<IAnswer>(
+  {
+    role: {
+      type: Schema.Types.ObjectId,
+      ref: "role",
+      required: true,
+    },
+    user: {
+      type: Schema.Types.ObjectId,
+      ref: "user",
+      required: true,
+    },
+    responses: [gradeSchema],
   },
-  user: {
-    type: Schema.Types.ObjectId,
-    ref: "user",
-    required: true,
-  },
-  responses: [gradeSchema],
-});
+  { timestamps: true }
+);
 
 export default model<IAnswer>("answer", answerSchema);

@@ -47,7 +47,6 @@ export const uploadCloudinary = async (req: Request) => {
       // Create vector embedding for the chunks
       const cvEmbedding = await createEmbedding(text);
 
-      // @TODO save cvEmbedding[0]?.embedding to vectorDB
       const res = await saveTalentEmbedding(
         (req.user.profile as IProfile)._id,
         cvEmbedding
