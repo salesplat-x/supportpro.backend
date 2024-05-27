@@ -20,7 +20,7 @@ export function preprocessText(text: string) {
     .trim(); // Trim leading and trailing spaces
 }
 
-export function chunkText(text: string, maxChunkSize: number = 8000): string[] {
+export function chunkText(text: string, maxChunkSize: number = 28600): string[] {
   const chunks: string[] = [];
   let start = 0;
 
