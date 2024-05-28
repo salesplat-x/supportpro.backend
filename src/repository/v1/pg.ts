@@ -16,11 +16,6 @@ const pool = new Pool({
   max: 20,
 });
 
-pool.on("error", (err, client) => {
-  console.error("Unexpected error on idle client", err);
-  process.exit(-1);
-});
-
 const query = async (text: string, params?: any[]) => {
   const res = await pool.query(text, params);
   return res;
@@ -28,15 +23,16 @@ const query = async (text: string, params?: any[]) => {
 
 // Function to save a job embedding
 export const saveJobEmbedding = async (
-  jobId: Types.ObjectId,
+  jobId: Types.ObjectId | string,
+  jobDescription: string,
   jobEmbedding: number[]
 ) => {
   const insertionString =
-    "INSERT INTO jobs (job_id, job_embedding) VALUES ($1, $2) RETURNING *";
+    "INSERT INTO jobs (job_id, job_description, job_embedding) VALUES ($1, $2, $3) RETURNING *";
 
   const embedding = `[${jobEmbedding.toString()}]`;
 
-  const values = [jobId, embedding];
+  const values = [jobId, jobDescription, embedding];
 
   const res = await query(insertionString, values);
   return res.rows[0];
@@ -45,24 +41,26 @@ export const saveJobEmbedding = async (
 // Function to save a talent cv embedding
 export const saveTalentEmbedding = async (
   profileId: string | Types.ObjectId,
-  cvEmbedding: OpenAI.Embeddings.Embedding[] | any[]
+  cvText: string[],
+  cvEmbedding: OpenAI.Embeddings.Embedding[]
 ) => {
-  let insertionString = "INSERT INTO talents (profile_id, cv_embedding) VALUES ";
+  let insertionString =
+    "INSERT INTO talents (profile_id, cv_text, cv_embedding) VALUES ";
   const values = [];
 
   for (let j = 0; j < cvEmbedding.length; j++) {
     const embedding = `[${cvEmbedding[j]?.embedding.toString()}]`;
 
     // Calculate the positional placeholders
-    const baseIndex = j * 2 + 1;
-    insertionString += `($${baseIndex}, $${baseIndex + 1})`;
+    const baseIndex = j * 3 + 1;
+    insertionString += `($${baseIndex}, $${baseIndex + 1}, $${baseIndex + 2})`;
 
     // Add a comma between sets of values, except for the last set
     if (j < cvEmbedding.length - 1) {
       insertionString += ", ";
     }
 
-    values.push(profileId, embedding);
+    values.push(profileId, cvText[j], embedding);
   }
 
   insertionString += " RETURNING *;";
@@ -83,6 +81,7 @@ export const setupPostgresDB = async () => {
       CREATE TABLE IF NOT EXISTS jobs (
         id SERIAL PRIMARY KEY,
         job_id VARCHAR(255) NOT NULL,
+        job_description VARCHAR(255) NOT NULL,
         job_embedding VECTOR(512) NOT NULL
       );
     `);
@@ -91,6 +90,7 @@ export const setupPostgresDB = async () => {
     CREATE TABLE IF NOT EXISTS talents (
       id SERIAL PRIMARY KEY,
       profile_id VARCHAR(255) NOT NULL,
+      cv_text VARCHAR(255) NOT NULL,
       cv_embedding VECTOR(512) NOT NULL
     );
     `);
