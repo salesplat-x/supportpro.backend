@@ -23,7 +23,7 @@ const query = async (text: string, params?: any[]) => {
 
 // Function to save a job embedding
 export const saveJobEmbedding = async (
-  jobId: Types.ObjectId | string,
+  jobId: string,
   jobDescription: string,
   jobEmbedding: number[]
 ) => {
@@ -40,7 +40,7 @@ export const saveJobEmbedding = async (
 
 // Function to save a talent cv embedding
 export const saveTalentEmbedding = async (
-  profileId: string | Types.ObjectId,
+  profileId: string,
   cvText: string[],
   cvEmbedding: OpenAI.Embeddings.Embedding[]
 ) => {

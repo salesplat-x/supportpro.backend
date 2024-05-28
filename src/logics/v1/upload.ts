@@ -48,8 +48,8 @@ export const uploadLocal = async (req: Request) => {
 //       const cvEmbedding = await createEmbedding(text);
 
 //       const res = await saveTalentEmbedding(
-//         // (req.user.profile as IProfile)._id,
-//         req.user._id,
+//         // (req.user.profile as IProfile)._id.toString(),
+//         req.user._id.toString(),
 //         text,
 //         cvEmbedding
 //       );
@@ -89,7 +89,7 @@ export const uploadCloudinary = async (req: Request) => {
 
       const res = await saveTalentEmbedding(
         // (req.user.profile as IProfile)._id,
-        req.user._id,
+        req.user._id.toString(),
         text,
         cvEmbedding
       );
