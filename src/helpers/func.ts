@@ -117,11 +117,6 @@ export function handleFilename(filename: string) {
           .slice(0, filename.split(".").length - 1)
           .join("_")
       : filename;
-  const name =
-    oldName.replace(/ /g, "-") +
-    "_" +
-    Date.now().toString() +
-    "." +
-    filename.split(".").pop();
+  const name = oldName.replace(/ /g, "-") + "_" + Date.now().toString();
   return { name, ext: filename.split(".").pop() };
 }

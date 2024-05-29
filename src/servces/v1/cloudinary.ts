@@ -12,6 +12,9 @@ export const handleUpload = async (
   name: string,
   format?: string
 ) => {
+  if (format === "doc" || format === "docx") {
+    name = name.concat(".", format);
+  }
   return await cloudinary.uploader.upload(file, {
     use_filename: true,
     resource_type: "auto",
