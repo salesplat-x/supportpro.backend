@@ -3,6 +3,7 @@ import env from "../../config/env";
 import { Pool } from "pg";
 import OpenAI from "openai";
 import logger from "../../config/logger";
+import { TopTalents } from "../../typings/job";
 
 const pool = new Pool({
   user: env.pg_user,
@@ -69,6 +70,38 @@ export const saveTalentEmbedding = async (
   return res.rows[0];
 };
 
+//  Function to get top cv_embeddings for a job
+export const getTopCVEmbedding = async (input: TopTalents) => {
+  const percentage = input.percentage ? input.percentage : 40;
+  const limit = input.limit ? input.limit : 20;
+  const strictness = (100 - percentage) / 100;
+  const queryText = `
+  WITH jd_cte AS (
+    SELECT * 
+    FROM public.jobs 
+    WHERE job_id = $1
+  )
+  ,similarity_cte AS (
+    SELECT
+        talents.profile_id,
+        talents.cv_text,
+        ABS (
+			job_embedding <=> talents.cv_embedding) AS similarity,
+        ROW_NUMBER() OVER (PARTITION BY talents.profile_id ORDER BY job_embedding <=> talents.cv_embedding ASC) AS rn
+    FROM jd_cte
+    CROSS JOIN public.talents
+  )
+  SELECT profile_id, cv_text, similarity
+  FROM similarity_cte
+  WHERE rn = 1 AND similarity <= $2
+  ORDER BY similarity
+  LIMIT $3;
+  `;
+  const values = [input.jobId, strictness, limit];
+  const res = await query(queryText, values);
+  return res.rows;
+};
+
 // Function to create necessary tables
 export const setupPostgresDB = async () => {
   try {
@@ -81,7 +114,7 @@ export const setupPostgresDB = async () => {
       CREATE TABLE IF NOT EXISTS jobs (
         id SERIAL PRIMARY KEY,
         job_id VARCHAR(255) NOT NULL,
-        job_description VARCHAR(255) NOT NULL,
+        job_description TEXT NOT NULL,
         job_embedding VECTOR(512) NOT NULL
       );
     `);
@@ -90,7 +123,7 @@ export const setupPostgresDB = async () => {
     CREATE TABLE IF NOT EXISTS talents (
       id SERIAL PRIMARY KEY,
       profile_id VARCHAR(255) NOT NULL,
-      cv_text VARCHAR(255) NOT NULL,
+      cv_text TEXT NOT NULL,
       cv_embedding VECTOR(512) NOT NULL
     );
     `);

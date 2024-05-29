@@ -54,9 +54,10 @@ export const findUsersByMatch = async (
     .sort({ updatedAt: func.sortDirection(paging.sort!) || Page.Sort })
     .skip(Number(paging.offset) || Page.Offset)
     .limit(Number(paging.limit) || Page.Limit)
+    .select("-password")
     .populate({
       path: "profile",
-      select: "-__v -createdAt -updatedAt -password",
+      select: "-__v -createdAt -updatedAt",
       strictPopulate: false,
       populate: { path: "role", model: "role", select: "-__v " },
     });

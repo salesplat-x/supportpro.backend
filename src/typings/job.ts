@@ -31,3 +31,9 @@ export interface MatchJob extends Paging {
   _id: string;
   incomplete?: string;
 }
+
+export interface TopTalents {
+  jobId: string;
+  percentage: number;
+  limit: number;
+}

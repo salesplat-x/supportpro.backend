@@ -2,12 +2,12 @@ import * as jobRepository from "../../repository/v1/job";
 import * as roleRepository from "../../repository/v1/role";
 import * as userRepository from "../../repository/v1/user";
 import { makeResponse } from "../../helpers/response";
-import { FetchJobs, IJob, MatchJob } from "../../typings/job";
+import { FetchJobs, IJob, MatchJob, TopTalents } from "../../typings/job";
 import mongoose from "mongoose";
 import { IRole } from "../../typings/role";
 import { Roles } from "../../typings/customs";
 import { createEmbedding } from "../../servces/v1/openai";
-import { saveJobEmbedding } from "../../repository/v1/pg";
+import { getTopCVEmbedding, saveJobEmbedding } from "../../repository/v1/pg";
 import { preprocessText } from "../../helpers/func";
 
 export const createJob = async (payload: IJob) => {
@@ -136,4 +136,21 @@ export const matchJob = async (payload: MatchJob) => {
   const talents = await userRepository.userAggregate(pipeline);
 
   return makeResponse(true, "Job fetched successfully", { talents }, 200);
+};
+
+export const topTalents = async (payload: TopTalents) => {
+  if (!mongoose.Types.ObjectId.isValid(payload.jobId)) {
+    return makeResponse(false, "Invalid job id", {}, 400);
+  }
+  const job = await jobRepository.findJobById(payload.jobId);
+  if (!job) {
+    return makeResponse(false, "Job does not exist", {}, 404);
+  }
+  const res = await getTopCVEmbedding(payload);
+
+  const talentIds = res.map((r: any) => r.profile_id);
+  const talents = await userRepository.findUsersByMatch({
+    _id: { $in: talentIds },
+  });
+  return makeResponse(true, "Top talents fetched", { talents }, 200);
 };

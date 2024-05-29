@@ -23,6 +23,13 @@ router.get(
 );
 
 router.get(
+  "/talents/:jobId",
+  validateAccess([Roles.Recruiter, Roles.Admin]),
+  validate(jobValidator.topTalents, { params: true, query: true }),
+  asyncHandler(job.topTalents)
+);
+
+router.get(
   "/match/:_id",
   validateAccess([Roles.Recruiter, Roles.Admin]),
   validate(jobValidator.matchJob, { params: true, query: true }),

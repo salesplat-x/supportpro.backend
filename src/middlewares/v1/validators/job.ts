@@ -1,6 +1,6 @@
 import Joi from "joi";
 import { Experience } from "../../../typings/customs";
-import { IJob } from "../../../typings/job";
+import { IJob, TopTalents } from "../../../typings/job";
 
 export const job = Joi.object({
   body: Joi.object<IJob>({
@@ -51,5 +51,15 @@ export const jobQuery = Joi.object({
     maxSalary: Joi.number().optional(),
     minSalary: Joi.number().optional(),
     remote: Joi.boolean().optional(),
+  }),
+}).required();
+
+export const topTalents = Joi.object({
+  params: Joi.object({
+    jobId: Joi.string().required(),
+  }),
+  query: Joi.object({
+    percentage: Joi.number().max(100).min(0).optional(),
+    limit: Joi.number().optional(),
   }),
 }).required();
