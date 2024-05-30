@@ -8,10 +8,10 @@ import { TopTalents } from "../../typings/job";
 const pool = new Pool({
   user: env.pg_user,
   host: env.pg_host,
-  database: env.pg_db,
   password: env.pg_password,
-  port: Number(env.pg_port),
   ssl: true,
+  database: env.pg_db,
+  port: Number(env.pg_port),
   connectionTimeoutMillis: 20000,
   idleTimeoutMillis: 30000,
   max: 20,
@@ -80,19 +80,26 @@ export const getTopCVEmbedding = async (input: TopTalents) => {
     SELECT * 
     FROM public.jobs 
     WHERE job_id = $1
-  )
-  ,similarity_cte AS (
+  ),
+  similarity_cte AS (
     SELECT
         talents.profile_id,
         talents.cv_text,
-        ABS (
-			job_embedding <=> talents.cv_embedding) AS similarity,
-        ROW_NUMBER() OVER (PARTITION BY talents.profile_id ORDER BY job_embedding <=> talents.cv_embedding ASC) AS rn
-    FROM jd_cte
-    CROSS JOIN public.talents
-  )
-  SELECT profile_id, cv_text, similarity
-  FROM similarity_cte
+        ABS ((SELECT job_embedding FROM jd_cte) <=> talents.cv_embedding) AS similarity
+    FROM public.talents
+)
+SELECT
+    profile_id,
+    cv_text,
+    similarity
+FROM (
+    SELECT
+        profile_id,
+        cv_text,
+        similarity,
+        ROW_NUMBER() OVER (PARTITION BY profile_id ORDER BY similarity DESC) AS rn
+    FROM similarity_cte
+) ranked
   WHERE rn = 1 AND similarity <= $2
   ORDER BY similarity
   LIMIT $3;
