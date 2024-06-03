@@ -66,6 +66,8 @@ export const answerQuestions = async (
     payload.roleId !=
     ((user.profile as IProfile).role[0]! as IRole)._id.toString()
   ) {
+    console.log(payload.roleId);
+    console.log(((user.profile as IProfile).role[0]! as IRole)._id.toString());
     return makeResponse(
       false,
       "User is not permitted to take assessment for this role"
