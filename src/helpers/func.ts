@@ -46,6 +46,38 @@ export function chunkText(text: string, maxChunkSize: number = 28600): string[] 
   return chunks;
 }
 
+export function overlapChunkText(
+  text: string,
+  maxChunkSize: number = 28600,
+  overlapSize: number = 500
+): string[] {
+  const chunks: string[] = [];
+  let start = 0;
+
+  while (start < text.length) {
+    let end = start + maxChunkSize;
+    if (end > text.length) {
+      end = text.length;
+    } else {
+      // Adjust end to the nearest full stop within maxChunkSize
+      let fullStopIndex = text.lastIndexOf(".", end);
+      if (fullStopIndex > start) {
+        end = fullStopIndex + 1;
+      }
+    }
+
+    chunks.push(text.slice(start, end).trim());
+
+    // Prepare start for the next chunk, ensuring it doesn't go beyond the text length
+    start = end;
+    if (start < text.length) {
+      start = Math.max(0, end - overlapSize);
+    }
+  }
+
+  return chunks;
+}
+
 export function validateEmail(email: string): boolean {
   const emailRegex: RegExp = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);

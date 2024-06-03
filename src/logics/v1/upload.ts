@@ -5,6 +5,7 @@ import {
   chunkText,
   extractText,
   handleFilename,
+  overlapChunkText,
   preprocessText,
 } from "../../helpers/func";
 import { createEmbedding } from "../../servces/v1/openai";
@@ -42,7 +43,7 @@ export const uploadCloudinary = async (req: Request) => {
         return makeResponse(false, "Unable to extract text");
       }
       text = preprocessText(text);
-      text = chunkText(text);
+      text = overlapChunkText(text);
 
       // Create vector embedding for the chunks
       const cvEmbedding = await createEmbedding(text);

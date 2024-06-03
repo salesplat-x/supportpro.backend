@@ -62,7 +62,10 @@ export const answerQuestions = async (
     _id: { $in: questionIds },
   });
 
-  if (payload.roleId != ((user.profile as IProfile).role[0]! as IRole)._id) {
+  if (
+    payload.roleId !=
+    ((user.profile as IProfile).role[0]! as IRole)._id.toString()
+  ) {
     return makeResponse(
       false,
       "User is not permitted to take assessment for this role"
