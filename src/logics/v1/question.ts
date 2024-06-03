@@ -15,6 +15,7 @@ import { gradeAnswers } from "../../servces/v1/openai";
 import { IRole } from "../../typings/role";
 import { IResponse } from "../../typings/answer";
 
+// Function to create/add question for role
 export const createQuestion = async (payload: IQuestion) => {
   if (!mongoose.Types.ObjectId.isValid(payload.role as string)) {
     return makeResponse(false, "Invalid role id", {}, 400);
@@ -27,11 +28,13 @@ export const createQuestion = async (payload: IQuestion) => {
   return makeResponse(true, "Question posted successfully", question, 200);
 };
 
+// Function to fetch all questions
 export const fetchAllQuestions = async (payload: Paging) => {
   let questions = await questionRepository.findAllQuestions(payload);
   return makeResponse(true, "Questions fetched successfully", questions, 200);
 };
 
+// Function to fetch a question
 export const fetchQuestion = async (payload: Pick<IQuestion, "_id">) => {
   if (!mongoose.Types.ObjectId.isValid(payload._id!)) {
     return makeResponse(false, "Invalid question id", {}, 400);
@@ -43,6 +46,7 @@ export const fetchQuestion = async (payload: Pick<IQuestion, "_id">) => {
   return makeResponse(true, "Question fetched successfully", question, 200);
 };
 
+// Function to answer questions
 export const answerQuestions = async (
   user: IUser,
   payload: AnswerQuestionPayload
@@ -66,8 +70,6 @@ export const answerQuestions = async (
     payload.roleId !=
     ((user.profile as IProfile).role[0]! as IRole)._id.toString()
   ) {
-    console.log(payload.roleId);
-    console.log(((user.profile as IProfile).role[0]! as IRole)._id.toString());
     return makeResponse(
       false,
       "User is not permitted to take assessment for this role"
