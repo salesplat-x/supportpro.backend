@@ -6,7 +6,7 @@ import * as question from "../../controllers/v1/question";
 import validate from "../../middlewares/v1/validators/validate";
 import * as questionValidator from "../../middlewares/v1/validators/question";
 import { asyncHandler } from "../../middlewares/v1/handler";
-import { validateAccess } from "../../middlewares/v1/auth";
+import { loginRequired, validateAccess } from "../../middlewares/v1/auth";
 import { Roles } from "../../typings/customs";
 
 router.post(
@@ -18,8 +18,15 @@ router.post(
 
 router.get(
   "/",
+  validateAccess([Roles.Admin, Roles.Recruiter]),
   validate(questionValidator.allQuestions, { query: true }),
   asyncHandler(question.fetchAll)
+);
+
+router.post(
+  "/personality",
+  validate(questionValidator.personalizedQuestions, { body: true }),
+  asyncHandler(question.personalizedQuestions)
 );
 
 router.post(

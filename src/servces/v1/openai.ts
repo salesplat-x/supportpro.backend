@@ -63,3 +63,42 @@ export const createEmbedding = async (text: string | string[]) => {
   });
   return embedding.data;
 };
+
+export const generatePersonalizedQuestions = async (
+  jobDescription: string,
+  cv: Array<string>,
+  recruiterNotes: Array<string>
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const system = `
+  You are an automated system for generating personality questions tailor made for job applicants/talents in order to get a wholesome idea of job applicants.
+  You will be given the job description, the talent's CV and the recruiter's notes use them to generate 15 tailor-made personality questions to ask the talent,  
+  
+  Your output should be a JSON array of the Questions. For example 
+  '{
+    "questions":[
+      "Tell me about your work at SalesPlat",
+      "You said you were laid off at your previous job, was that due to a performance deficit?"
+    ]
+  }'`;
+  const prompt = `
+  Here is the job description below, 
+  ${jobDescription}
+
+  Here is the talent's CV below,
+  ${cv}
+  
+  Here is the recruiter's notes below.
+  ${recruiterNotes}
+`;
+
+  const completion = await openai.chat.completions.create({
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: prompt },
+    ],
+    model: "gpt-3.5-turbo",
+    response_format: { type: "json_object" },
+  });
+
+  return completion.choices[0];
+};

@@ -109,6 +109,28 @@ FROM (
   return res.rows;
 };
 
+//  Function to get a job
+export const getJob = async (jobId: string) => {
+  const queryText = `
+  SELECT job_description
+  FROM jobs
+  WHERE job_id = $1;
+`;
+  const res = await query(queryText, [jobId]);
+  return res.rows[0];
+};
+
+//  Function to get talents
+export const getTalents = async (userId: string) => {
+  const queryText = `
+  SELECT cv_text
+  FROM talents
+  WHERE profile_id = $1;
+`;
+  const res = await query(queryText, [userId]);
+  return res.rows;
+};
+
 // Function to create necessary tables
 export const setupPostgresDB = async () => {
   try {

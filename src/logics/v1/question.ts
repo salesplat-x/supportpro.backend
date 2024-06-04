@@ -5,15 +5,20 @@ import * as answerRepository from "../../repository/v1/answer";
 import { makeResponse } from "../../helpers/response";
 import {
   AnswerQuestionPayload,
+  IGenerateQuestions,
   IQuestion,
   IQuestionConstruct,
 } from "../../typings/question";
 import mongoose from "mongoose";
 import { IProfile, IUser } from "../../typings/user";
 import { Paging } from "../../typings/customs";
-import { gradeAnswers } from "../../servces/v1/openai";
+import {
+  generatePersonalizedQuestions,
+  gradeAnswers,
+} from "../../servces/v1/openai";
 import { IRole } from "../../typings/role";
 import { IResponse } from "../../typings/answer";
+import { getJob, getTalents } from "../../repository/v1/pg";
 
 // Function to create/add question for role
 export const createQuestion = async (payload: IQuestion) => {
@@ -146,4 +151,30 @@ export const answerQuestions = async (
     scorePercent
   );
   return makeResponse(true, "Answers submitted successfully", { scorePercent });
+};
+
+// Function to generate personalized questions
+export const personalizedQuestions = async (payload: IGenerateQuestions) => {
+  const job = await getJob(payload.jobId);
+  if (!job) {
+    return makeResponse(false, "Job not found", {}, 404);
+  }
+
+  const talent = await getTalents(payload.talentId);
+
+  if (talent.length == 0) {
+    return makeResponse(false, "Talent not found", {}, 404);
+  }
+  const cv = talent.map((t) => t.cv_text);
+
+  const response = await generatePersonalizedQuestions(
+    job.job_description,
+    cv,
+    payload.recruiterNotes
+  );
+  if (!response || !response.message.content) {
+    return makeResponse(false, "Error with LLM", {}, 400);
+  }
+  const questions = JSON.parse(response.message.content).questions;
+  return makeResponse(true, "Question fetched successfully", { questions }, 200);
 };

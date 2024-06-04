@@ -24,3 +24,9 @@ export interface IQuestionConstruct {
   category?: string;
   criteria: string;
 }
+
+export interface IGenerateQuestions {
+  talentId: string;
+  jobId: string;
+  recruiterNotes: Array<string>;
+}

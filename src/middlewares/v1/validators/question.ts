@@ -39,3 +39,11 @@ export const allQuestions = Joi.object({
     sort: Joi.string().valid("asc", "desc"),
   }),
 }).required();
+
+export const personalizedQuestions = Joi.object({
+  body: Joi.object({
+    jobId: Joi.string().required(),
+    talentId: Joi.string().required(),
+    recruiterNotes: Joi.array().items(Joi.string()),
+  }),
+}).required();
