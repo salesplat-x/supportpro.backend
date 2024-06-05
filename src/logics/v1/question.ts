@@ -120,9 +120,11 @@ export const answerQuestions = async (
   if (!response || !response.message.content) {
     return makeResponse(false, "Error with LLM", {}, 400);
   }
+
   const responseArray: IResponse[] = JSON.parse(
     response.message.content
   ).responses;
+
   if (responseArray.length != questionsConstruct.length) {
     return makeResponse(
       false,

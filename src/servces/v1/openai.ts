@@ -48,7 +48,7 @@ export const gradeAnswers = async (
       { role: "user", content: questionsJSON },
     ],
     model: "gpt-3.5-turbo-16k",
-    response_format: { type: "json_object" },
+    // response_format: { type: "json_object" },
   });
 
   return completion.choices[0];
