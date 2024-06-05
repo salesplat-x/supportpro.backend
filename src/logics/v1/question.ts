@@ -155,24 +155,39 @@ export const answerQuestions = async (
   return makeResponse(true, "Answers submitted successfully", { scorePercent });
 };
 
+const job = {
+  job_description:
+    "Job Title: Business Analyst Location: Akure, Ondo State Company: Kuji Labs Type: Full-Time Department: Business Analysis Reports To: Project Manager/Director of Business Analysis Job Overview: We are seeking a highly motivated and detail-oriented Business Analyst to join our dynamic team. The Business Analyst will play a critical role in analyzing business processes, identifying opportunities for improvement, and collaborating with various departments to implement solutions that drive efficiency and growth. The ideal candidate has a strong analytical mindset, excellent communication skills, and the ability to work effectively in a fast-paced environment. Key Responsibilities: 1. Requirements Gathering and Analysis: - Conduct detailed interviews with stakeholders to understand business needs and objectives. - Document and analyze business requirements, processes, and workflows. - Translate business requirements into functional specifications for technical teams. 2. Data Analysis and Reporting: - Collect, analyze, and interpret data to identify trends and patterns. - Develop and maintain reports and dashboards to monitor business performance. - Provide insights and recommendations based on data analysis to support decision-making. 3. Process Improvement: - Evaluate existing business processes and identify areas for improvement. - Propose and implement process enhancements to optimize efficiency and effectiveness. - Work closely with cross-functional teams to ensure seamless implementation of new processes. 4. Project Management Support: - Assist in project planning, execution, and monitoring. - Coordinate with project teams to ensure timely delivery of project milestones. - Track project progress and report on status to stakeholders. 5. Stakeholder Communication: - Serve as a liaison between business units, technology teams, and support teams. - Facilitate meetings and workshops to gather and communicate business requirements. - Ensure all stakeholders are informed of project developments and changes. Qualifications: - Bachelors degree in Business Administration, Information Technology, or a related field. - Minimum of 3 years of experience in business analysis or a similar role. - Strong analytical and problem-solving skills. - Proficiency in data analysis tools and software (e.g., Excel, SQL, Tableau). - Excellent written and verbal communication skills. - Ability to work independently and as part of a team. - Strong organizational skills and attention to detail. - Experience with project management methodologies (e.g., Agile, Scrum) is a plus. - Certification in Business Analysis (e.g., CBAP, CCBA) is desirable. What We Offer: - Competitive salary and benefits package. - Opportunities for professional development and career growth. - Collaborative and inclusive work environment. - Flexible work hours and potential for remote work.",
+};
+const talent = [
+  {
+    cv_text:
+      "Jane Smith Agency Sales Lead Phone: +1 555-987-6543 Email: janesmith@gmail.com Summary Results-driven Agency Sales Lead with over 10 years of experience in leading sales teams, developing strategic sales plans, and driving revenue growth in competitive markets. Expert in client relationship management, market analysis, and team leadership. Demonstrated ability to exceed sales targets and foster long-term business partnerships. Professional Experience Agency Sales Lead Top Marketing Solutions Los Angeles, CA March 2018 - Present Lead a team of 15 sales representatives, providing mentorship and training to enhance performance. Develop and implement strategic sales plans to achieve company objectives and revenue targets. Build and maintain strong relationships with key clients, ensuring high levels of customer satisfaction and retention. Analyze market trends and competitor activities to identify new business opportunities. Achieved a 25% increase in annual sales revenue through effective sales strategies and team collaboration. Sales Manager Creative Advertising Agency Chicago, IL September 2013 - February 2018 Managed a team of 10 sales professionals, driving sales growth through targeted marketing campaigns and personalized client interactions. Conducted regular performance reviews and provided ongoing training to improve team effectiveness. Collaborated with the marketing team to develop promotional materials and sales presentations. Successfully negotiated and closed high-value contracts with major corporate clients. Increased regional sales by 30% within two years by implementing innovative sales techniques. Senior Sales Executive Dynamic Media Group Austin, TX June 2009 - August 2013 Identified and pursued new business opportunities through networking and market research. Maintained a robust sales pipeline and consistently met or exceeded sales quotas. Developed customized sales proposals and presentations tailored to client needs. Fostered strong relationships with clients, resulting in repeat business and referrals. Recognized as the top sales performer for three consecutive years. Education Bachelor of Business Administration (BBA) in Marketing University of Texas at Austin Austin, TX Graduated: May 2009 Skills Sales Strategy Development Team Leadership and Mentorship Client Relationship Management Market Analysis and Research Negotiation and Closing Performance Management CRM Software (Salesforce, HubSpot) Excellent Communication and Presentation Skills Certifications Certified Sales Leadership Professional (CSLP) Strategic Sales Management Certification",
+  },
+];
 // Function to generate personalized questions
 export const personalizedQuestions = async (payload: IGenerateQuestions) => {
-  const job = await getJob(payload.jobId);
+  // const job = await getJob(payload.jobId);
   if (!job) {
     return makeResponse(false, "Job not found", {}, 404);
   }
 
-  const talent = await getTalents(payload.talentId);
+  // const talent = await getTalents(payload.talentId);
 
   if (talent.length == 0) {
     return makeResponse(false, "Talent not found", {}, 404);
   }
   const cv = talent.map((t) => t.cv_text);
+  const recruiterGuide = payload.recruiterGuide?.length
+    ? payload.recruiterGuide
+    : [
+        "Make sure to check the talent's CV and ask questions to test the validity of the claims",
+      ];
 
   const response = await generatePersonalizedQuestions(
     job.job_description,
     cv,
-    payload.recruiterGuide
+    recruiterGuide
   );
   if (!response || !response.message.content) {
     return makeResponse(false, "Error with LLM", {}, 400);

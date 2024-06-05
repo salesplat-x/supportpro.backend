@@ -89,7 +89,7 @@ export const generatePersonalizedQuestions = async (
   
   Here is the recruiter's guide below.
   ${recruiterGuide}
-  Make sure the generated personalized questions are based on the job description, talent's CV and recruiter's guide
+  Make sure the generated personalized questions are lays emphasis on the recruiter's guide especially
 `;
 
   const completion = await openai.chat.completions.create({
