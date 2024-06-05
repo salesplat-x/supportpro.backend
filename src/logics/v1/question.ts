@@ -170,7 +170,7 @@ export const personalizedQuestions = async (payload: IGenerateQuestions) => {
   const response = await generatePersonalizedQuestions(
     job.job_description,
     cv,
-    payload.recruiterNotes
+    payload.recruiterGuide
   );
   if (!response || !response.message.content) {
     return makeResponse(false, "Error with LLM", {}, 400);

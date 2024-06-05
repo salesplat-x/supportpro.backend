@@ -44,6 +44,6 @@ export const personalizedQuestions = Joi.object({
   body: Joi.object({
     jobId: Joi.string().required(),
     talentId: Joi.string().required(),
-    recruiterNotes: Joi.array().items(Joi.string()),
+    recruiterGuide: Joi.array().items(Joi.string()),
   }),
 }).required();

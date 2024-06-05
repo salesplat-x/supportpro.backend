@@ -28,5 +28,5 @@ export interface IQuestionConstruct {
 export interface IGenerateQuestions {
   talentId: string;
   jobId: string;
-  recruiterNotes: Array<string>;
+  recruiterGuide: Array<string>;
 }
