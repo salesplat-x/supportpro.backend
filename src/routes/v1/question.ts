@@ -24,7 +24,7 @@ router.get(
 );
 
 router.post(
-  "/personality",
+  "/personalized",
   validate(questionValidator.personalizedQuestions, { body: true }),
   asyncHandler(question.personalizedQuestions)
 );
