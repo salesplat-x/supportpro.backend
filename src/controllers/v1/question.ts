@@ -26,3 +26,8 @@ export const personalizedQuestions = async (req: Request, res: Response) => {
   const response = await questionController.personalizedQuestions(req.body);
   return responseHandler(res, response);
 };
+
+export const personalityQuestion = async (req: Request, res: Response) => {
+  const response = await questionController.personalityQuestion(req.body);
+  return responseHandler(res, response);
+};

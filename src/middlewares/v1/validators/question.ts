@@ -1,5 +1,9 @@
 import Joi from "joi";
-import { IAnswerQuestion, IQuestion } from "../../../typings/question";
+import {
+  TDichotomyPair,
+  IQuestion,
+  DichotomyPair,
+} from "../../../typings/question";
 
 export const question = Joi.object({
   body: Joi.object<IQuestion>({
@@ -45,5 +49,14 @@ export const personalizedQuestions = Joi.object({
     jobId: Joi.string().required(),
     talentId: Joi.string().required(),
     recruiterGuide: Joi.array().items(Joi.string()),
+  }),
+}).required();
+
+export const personalityQuestions = Joi.object({
+  body: Joi.object({
+    jobId: Joi.string().required(),
+    dichotomyPair: Joi.string()
+      .valid(...Object.values(DichotomyPair))
+      .required(),
   }),
 }).required();

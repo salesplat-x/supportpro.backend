@@ -1,10 +1,12 @@
 import * as questionRepository from "../../repository/v1/question";
+import * as PQuestionRepository from "../../repository/v1/personalityQuestion";
 import * as roleRepository from "../../repository/v1/role";
 import * as userRepository from "../../repository/v1/user";
 import * as answerRepository from "../../repository/v1/answer";
 import { makeResponse } from "../../helpers/response";
 import {
   AnswerQuestionPayload,
+  IGeneratePersonalityQuestions,
   IGenerateQuestions,
   IQuestion,
   IQuestionConstruct,
@@ -12,10 +14,7 @@ import {
 import mongoose from "mongoose";
 import { IProfile, IUser } from "../../typings/user";
 import { Paging } from "../../typings/customs";
-import {
-  generatePersonalizedQuestions,
-  gradeAnswers,
-} from "../../servces/v1/openai";
+import * as AI from "../../servces/v1/openai";
 import { IRole } from "../../typings/role";
 import { IResponse } from "../../typings/answer";
 import { getJob, getTalents } from "../../repository/v1/pg";
@@ -116,7 +115,7 @@ export const answerQuestions = async (
   const questionsJSON = JSON.stringify(questionsConstruct);
 
   // Use LLM to grade scores
-  const response = await gradeAnswers(questionsJSON);
+  const response = await AI.gradeAnswers(questionsJSON);
   if (!response || !response.message.content) {
     return makeResponse(false, "Error with LLM", {}, 400);
   }
@@ -174,7 +173,7 @@ export const personalizedQuestions = async (payload: IGenerateQuestions) => {
         "Make sure to check the talent's CV and ask questions to test the validity of the claims",
       ];
 
-  const response = await generatePersonalizedQuestions(
+  const response = await AI.generatePersonalizedQuestions(
     job.job_description,
     cv,
     recruiterGuide
@@ -184,4 +183,34 @@ export const personalizedQuestions = async (payload: IGenerateQuestions) => {
   }
   const questions = JSON.parse(response.message.content).questions;
   return makeResponse(true, "Question fetched successfully", { questions }, 200);
+};
+
+// Function to generate personalized questions
+export const personalityQuestion = async (
+  payload: IGeneratePersonalityQuestions
+) => {
+  const job = await getJob(payload.jobId);
+  if (!job) {
+    return makeResponse(false, "Job not found", {}, 404);
+  }
+
+  const response = await AI.generatePersonalityQuestion(
+    job.job_description,
+    payload.dichotomyPair
+  );
+  if (!response || !response.message.content) {
+    return makeResponse(false, "Error with LLM", {}, 400);
+  }
+  const question = JSON.parse(response.message.content).question;
+
+  // Save question to job
+  const pQuestion = await PQuestionRepository.createOrUpdateQuestion(
+    payload.jobId,
+    payload.dichotomyPair,
+    question
+  );
+
+  return makeResponse(true, "Question created successfully", {
+    question: pQuestion,
+  });
 };

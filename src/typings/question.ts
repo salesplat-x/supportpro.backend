@@ -30,3 +30,22 @@ export interface IGenerateQuestions {
   jobId: string;
   recruiterGuide: Array<string>;
 }
+
+export interface IPersonalityQuestion {
+  job: string | Types.ObjectId | IRole;
+  dichotomyPair: TDichotomyPair;
+  question: string;
+}
+export interface IGeneratePersonalityQuestions {
+  jobId: string;
+  dichotomyPair: TDichotomyPair;
+}
+
+export const DichotomyPair = {
+  EI: "EI",
+  SN: "SN",
+  TF: "TF",
+  JP: "JP",
+} as const;
+
+export type TDichotomyPair = keyof typeof DichotomyPair;

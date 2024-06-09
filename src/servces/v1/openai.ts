@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import env from "../../config/env";
 import { makeResponse } from "../../helpers/response";
+import { TDichotomyPair } from "../../typings/question";
 
 const openai = new OpenAI({
   apiKey: env.openai_secret,
@@ -70,8 +71,8 @@ export const generatePersonalizedQuestions = async (
   recruiterGuide: Array<string>
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
   const system = `
-  You are an automated system for generating personality questions tailor made for job applicants/talents in order to get a wholesome idea of job applicants.
-  You will be given the job description, the talent's CV and the recruiter's guide use them to generate 15 tailor-made personality questions to ask the talent,  
+  You are an automated system for generating personalized questions tailor made for job applicants/talents in order to get a wholesome idea of job applicants.
+  You will be given the job description, the talent's CV and the recruiter's guide use them to generate 15 tailor-made personalized questions to ask the talent,  
   
   Your output should be a JSON array of the Questions. For example 
   '{
@@ -90,6 +91,39 @@ export const generatePersonalizedQuestions = async (
   Here is the recruiter's guide below.
   ${recruiterGuide}
   Make sure the generated personalized questions are lays emphasis on the recruiter's guide especially
+`;
+
+  const completion = await openai.chat.completions.create({
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: prompt },
+    ],
+    // model: "gpt-3.5-turbo",
+    model: "gpt-3.5-turbo-16k",
+    // response_format: { type: "json_object" },
+  });
+
+  return completion.choices[0];
+};
+
+// Function to generate questions to determine MBTI/personality type
+export const generatePersonalityQuestion = async (
+  jobDescription: string,
+  dichotomyPair: TDichotomyPair
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const system = `
+  You are an automated system for generating questions to determine the personality type of a job applicant based on the MBTI model.
+  You will be provided with the job description and the MBTI dichotomy pair,
+  use them to generate a tailor-made question to assess the applicant's personality trait in the given dichotomy pair.
+  `;
+  const prompt = `
+  Job Description below: ${jobDescription},
+  Dichotomy Pair: ${dichotomyPair}
+  Generate a question to determine if a person is more inclined towards ${dichotomyPair[0]} or ${dichotomyPair[1]} in the MBTI personality assessment.
+  Your output should be a JSON object with the question. For example:
+  {
+    "question": "..."
+  }
 `;
 
   const completion = await openai.chat.completions.create({

@@ -25,8 +25,16 @@ router.get(
 
 router.post(
   "/personalized",
+  validateAccess([Roles.Recruiter, Roles.Admin]),
   validate(questionValidator.personalizedQuestions, { body: true }),
   asyncHandler(question.personalizedQuestions)
+);
+
+router.post(
+  "/personality",
+  validateAccess([Roles.Recruiter]),
+  validate(questionValidator.personalityQuestions, { body: true }),
+  asyncHandler(question.personalityQuestion)
 );
 
 router.post(
