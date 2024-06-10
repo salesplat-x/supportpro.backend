@@ -3,6 +3,7 @@ import * as roleRepository from "../../repository/v1/role";
 import * as userRepository from "../../repository/v1/user";
 import * as answerRepository from "../../repository/v1/answer";
 import * as jobRepository from "../../repository/v1/job";
+import * as jobTalentRepository from "../../repository/v1/jobTalent";
 import { makeResponse } from "../../helpers/response";
 import {
   AnswerPersonalityPayload,
@@ -191,13 +192,13 @@ export const answerQuestions = async (
 export const personalizedQuestions = async (
   payload: IGeneratePersonalizedQuestions
 ) => {
-  const job = await getJob(payload.jobId);
+  const { jobId, talentId } = payload;
+  const job = await getJob(jobId);
   if (!job) {
     return makeResponse(false, "Job not found", {}, 404);
   }
 
-  const talent = await getTalents(payload.talentId);
-
+  const talent = await getTalents(talentId);
   if (talent.length == 0) {
     return makeResponse(false, "Talent not found", {}, 404);
   }
@@ -217,7 +218,10 @@ export const personalizedQuestions = async (
     return makeResponse(false, "Error with LLM", {}, 400);
   }
   const questions = JSON.parse(response.message.content).questions;
-  //@TODO save questions under jobTalents
+  await jobTalentRepository.createOrUpdateJobTalent(jobId, talentId, {
+    personalizedQuestions: questions,
+  });
+
   return makeResponse(
     true,
     "Question generated successfully",
