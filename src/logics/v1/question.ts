@@ -230,6 +230,21 @@ export const personalizedQuestions = async (
   );
 };
 
+// Function to get personalized questions for a talent based on job
+export const fetchPersonalizedQuestions = async (user: IUser, jobId: string) => {
+  const questions = await jobTalentRepository.findJobTalentsByMatch({
+    job: jobId,
+    talent: user._id,
+  });
+
+  return makeResponse(
+    true,
+    "Personality questions fetched successfully",
+    { questions },
+    200
+  );
+};
+
 // Function to generate personalized questions
 export const personalityQuestion = async (
   payload: IGeneratePersonalityQuestions
