@@ -30,6 +30,13 @@ router.post(
   asyncHandler(question.personalizedQuestions)
 );
 
+router.get(
+  "/personalized/:_id",
+  validateAccess([Roles.Talent]),
+  validate(questionValidator.id, { params: true }),
+  asyncHandler(question.getPersonalizedQuestions)
+);
+
 router.post(
   "/personality",
   validateAccess([Roles.Recruiter]),
@@ -53,7 +60,7 @@ router.post(
 
 router.get(
   "/:_id",
-  validate(questionValidator.questionId, { params: true }),
+  validate(questionValidator.id, { params: true }),
   asyncHandler(question.fetch)
 );
 
