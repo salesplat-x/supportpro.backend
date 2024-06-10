@@ -15,7 +15,7 @@ export const question = Joi.object({
   }),
 }).required();
 
-export const questionId = Joi.object({
+export const id = Joi.object({
   params: Joi.object({
     _id: Joi.string().required(),
   }),

@@ -51,7 +51,7 @@ export const findJobTalentsByMatch = async (
   paging: Paging = {}
 ) => {
   return await JobTalent.find(data)
-    .select("jobTalent criteria _id")
+    .select("personalizedQuestions")
     .sort({ updatedAt: func.sortDirection(paging.sort!) || Page.Sort })
     .skip(Number(paging.offset) || Page.Offset)
     .limit(Number(paging.limit) || Page.Limit);
