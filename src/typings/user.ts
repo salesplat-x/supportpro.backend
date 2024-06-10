@@ -36,7 +36,7 @@ export interface IProfile {
   experience: string;
   maxSalary: number;
   minSalary: number;
-  score: number;
+  assessmentScore: number;
   personalityType: string;
 }
 

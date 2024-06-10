@@ -123,13 +123,13 @@ export const matchJob = async (payload: MatchJob) => {
       },
     },
     {
-      $sort: { "profile.score": -1 }, // Sort by score in descending order
+      $sort: { "profile.assessmentScore": -1 }, // Sort by assessmentScore in descending order
     },
   ];
   if (payload.incomplete != "true") {
     pipeline.push({
       $match: {
-        "profile.score": { $exists: true },
+        "profile.assessmentScore": { $exists: true },
       },
     });
   }

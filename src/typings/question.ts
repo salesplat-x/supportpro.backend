@@ -35,7 +35,7 @@ export interface IQuestionConstruct {
   dichotomy?: string;
 }
 
-export interface IGenerateQuestions {
+export interface IGeneratePersonalizedQuestions {
   talentId: string;
   jobId: string;
   recruiterGuide: Array<string>;

@@ -8,7 +8,7 @@ import {
   AnswerPersonalityPayload,
   AnswerQuestionPayload,
   IGeneratePersonalityQuestions,
-  IGenerateQuestions,
+  IGeneratePersonalizedQuestions,
   IQuestion,
   IQuestionConstruct,
   QuestionType,
@@ -88,7 +88,7 @@ export const answerQuestions = async (
   user: IUser,
   payload: AnswerQuestionPayload
 ) => {
-  if ((user.profile as IProfile).score) {
+  if ((user.profile as IProfile).assessmentScore) {
     return makeResponse(false, "User has already taken assessment");
   }
 
@@ -188,7 +188,9 @@ export const answerQuestions = async (
 };
 
 // Function to generate personalized questions
-export const personalizedQuestions = async (payload: IGenerateQuestions) => {
+export const personalizedQuestions = async (
+  payload: IGeneratePersonalizedQuestions
+) => {
   const job = await getJob(payload.jobId);
   if (!job) {
     return makeResponse(false, "Job not found", {}, 404);
@@ -215,7 +217,13 @@ export const personalizedQuestions = async (payload: IGenerateQuestions) => {
     return makeResponse(false, "Error with LLM", {}, 400);
   }
   const questions = JSON.parse(response.message.content).questions;
-  return makeResponse(true, "Question fetched successfully", { questions }, 200);
+  //@TODO save questions under jobTalents
+  return makeResponse(
+    true,
+    "Question generated successfully",
+    { questions },
+    200
+  );
 };
 
 // Function to generate personalized questions
