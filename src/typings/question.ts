@@ -1,9 +1,12 @@
 import { Types } from "mongoose";
 import { IRole } from "./role";
+import { IJob } from "./job";
 
 export interface IQuestion {
   _id?: Types.ObjectId;
-  role: string | Types.ObjectId | IRole;
+  role?: string | Types.ObjectId | IRole;
+  job?: string | Types.ObjectId | IJob;
+  type: TQuestionType;
   question: string;
   category: string;
   criteria: string;
@@ -31,15 +34,18 @@ export interface IGenerateQuestions {
   recruiterGuide: Array<string>;
 }
 
-export interface IPersonalityQuestion {
-  job: string | Types.ObjectId | IRole;
-  dichotomyPair: TDichotomyPair;
-  question: string;
-}
 export interface IGeneratePersonalityQuestions {
   jobId: string;
   dichotomyPair: TDichotomyPair;
 }
+
+export const QuestionType = {
+  Assessment: "assessment",
+  Personality: "personality",
+  Personalized: "personalized",
+} as const;
+
+export type TQuestionType = (typeof QuestionType)[keyof typeof QuestionType];
 
 export const DichotomyPair = {
   EI: "EI",
@@ -48,4 +54,4 @@ export const DichotomyPair = {
   JP: "JP",
 } as const;
 
-export type TDichotomyPair = keyof typeof DichotomyPair;
+export type TDichotomyPair = (typeof DichotomyPair)[keyof typeof DichotomyPair];

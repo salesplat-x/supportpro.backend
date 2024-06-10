@@ -1,11 +1,19 @@
 import { Schema, model } from "mongoose";
-import { IQuestion } from "../../typings/question";
+import { IQuestion, QuestionType } from "../../typings/question";
 
 const questionSchema = new Schema<IQuestion>(
   {
     role: {
       type: Schema.Types.ObjectId,
       ref: "role",
+    },
+    job: {
+      type: Schema.Types.ObjectId,
+      ref: "job",
+    },
+    type: {
+      type: String,
+      enum: Object.values(QuestionType),
       required: true,
     },
     question: {

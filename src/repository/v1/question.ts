@@ -1,6 +1,6 @@
 import Question from "../../models/v1/question";
 import { Page, Paging } from "../../typings/customs";
-import { IQuestion } from "../../typings/question";
+import { IQuestion, QuestionType } from "../../typings/question";
 import { HydratedDocument, Types } from "mongoose";
 import * as func from "../../helpers/func";
 
@@ -16,6 +16,21 @@ export const findQuestionById = async (id: Types.ObjectId | string) => {
     select: "-__v -createdAt -updatedAt ",
     strictPopulate: false,
   });
+};
+
+export const createOrUpdatePersonalityQuestion = async (
+  job: string | Types.ObjectId,
+  category: string,
+  update: Partial<IQuestion>
+) => {
+  return await Question.findOneAndUpdate(
+    { job, category },
+    { ...update },
+    {
+      upsert: true,
+      new: true,
+    }
+  );
 };
 
 export const findAllQuestions = async (paging: Paging = {}) => {

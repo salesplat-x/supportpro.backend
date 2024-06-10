@@ -1,5 +1,4 @@
 import * as questionRepository from "../../repository/v1/question";
-import * as PQuestionRepository from "../../repository/v1/personalityQuestion";
 import * as roleRepository from "../../repository/v1/role";
 import * as userRepository from "../../repository/v1/user";
 import * as answerRepository from "../../repository/v1/answer";
@@ -10,6 +9,7 @@ import {
   IGenerateQuestions,
   IQuestion,
   IQuestionConstruct,
+  QuestionType,
 } from "../../typings/question";
 import mongoose from "mongoose";
 import { IProfile, IUser } from "../../typings/user";
@@ -204,10 +204,10 @@ export const personalityQuestion = async (
   const question = JSON.parse(response.message.content).question;
 
   // Save question to job
-  const pQuestion = await PQuestionRepository.createOrUpdateQuestion(
+  const pQuestion = await questionRepository.createOrUpdatePersonalityQuestion(
     payload.jobId,
     payload.dichotomyPair,
-    question
+    { question, type: QuestionType.Personality }
   );
 
   return makeResponse(true, "Question created successfully", {
