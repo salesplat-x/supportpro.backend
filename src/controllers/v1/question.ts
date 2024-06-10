@@ -17,8 +17,11 @@ export const fetch = async (req: Request, res: Response) => {
   return responseHandler(res, response);
 };
 
-export const answerQuestions = async (req: Request, res: Response) => {
-  const response = await questionController.answerQuestions(req.user, req.body);
+export const answerAssessmentQuestions = async (req: Request, res: Response) => {
+  const response = await questionController.answerAssessmentQuestions(
+    req.user,
+    req.body
+  );
   return responseHandler(res, response);
 };
 

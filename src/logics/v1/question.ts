@@ -84,8 +84,8 @@ export const fetchQuestion = async (payload: Pick<IQuestion, "_id">) => {
   return makeResponse(true, "Question fetched successfully", question, 200);
 };
 
-// Function to answer questions
-export const answerQuestions = async (
+// Function to answer assessment questions
+export const answerAssessmentQuestions = async (
   user: IUser,
   payload: AnswerQuestionPayload
 ) => {
