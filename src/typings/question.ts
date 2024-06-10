@@ -20,12 +20,19 @@ export interface AnswerQuestionPayload {
   roleId: Types.ObjectId | string;
   answers: IAnswerQuestion[];
 }
+
+export interface AnswerPersonalityPayload {
+  jobId: Types.ObjectId | string;
+  answers: IAnswerQuestion[];
+}
+
 export interface IQuestionConstruct {
   questionId: Types.ObjectId | string;
   question: string;
   answer: string;
   category?: string;
-  criteria: string;
+  criteria?: string;
+  dichotomy?: string;
 }
 
 export interface IGenerateQuestions {

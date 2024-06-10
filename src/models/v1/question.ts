@@ -20,13 +20,12 @@ const questionSchema = new Schema<IQuestion>(
       type: String,
       required: true,
     },
-    category: {
-      type: String,
-      required: true,
-    },
     criteria: {
       type: String,
       required: true,
+    },
+    category: {
+      type: String,
     },
   },
   { timestamps: true }

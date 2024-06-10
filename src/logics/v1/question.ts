@@ -4,6 +4,7 @@ import * as userRepository from "../../repository/v1/user";
 import * as answerRepository from "../../repository/v1/answer";
 import { makeResponse } from "../../helpers/response";
 import {
+  AnswerPersonalityPayload,
   AnswerQuestionPayload,
   IGeneratePersonalityQuestions,
   IGenerateQuestions,
@@ -212,5 +213,71 @@ export const personalityQuestion = async (
 
   return makeResponse(true, "Question created successfully", {
     question: pQuestion,
+  });
+};
+
+// Function to answer personality questions
+export const answerPersonalityQuestions = async (
+  user: IUser,
+  payload: AnswerPersonalityPayload
+) => {
+  if (payload.answers.length != 4) {
+    return makeResponse(false, "You must answer exactly 4 questions");
+  }
+
+  // Get all question by Id
+  const questionIds = payload.answers.map((answer) => answer.questionId);
+  const questions = await questionRepository.findQuestionByMatch({
+    job: payload.jobId,
+    type: QuestionType.Personality,
+    _id: { $in: questionIds },
+  });
+
+  if (questions.length !== payload.answers.length) {
+    return makeResponse(false, "One of more questions do not belong to job");
+  }
+
+  // Map questions by ID for efficient lookup
+  const questionMap = new Map(
+    questions.map((q) => [
+      q._id.toString(),
+      {
+        question: q.question,
+        criteria: q.criteria,
+      },
+    ])
+  );
+
+  // Validate answers and prepare valid answers for grading
+  const questionsConstruct = payload.answers.reduce(
+    (questionConstruct: IQuestionConstruct[], ans) => {
+      const question = questionMap.get(ans.questionId as string);
+      if (question) {
+        questionConstruct.push({
+          questionId: ans.questionId,
+          question: question.question,
+          answer: ans.answer,
+          dichotomy: question.criteria,
+        });
+      }
+      return questionConstruct;
+    },
+    []
+  );
+
+  const questionsJSON = JSON.stringify(questionsConstruct);
+
+  // Use LLM to determine MBTI personality type
+  const response = await AI.determinePersonalityType(questionsJSON);
+  if (!response || !response.message.content) {
+    return makeResponse(false, "Error with LLM", {}, 400);
+  }
+  const personalityType = JSON.parse(response.message.content).personality;
+
+  await userRepository.findProfileByIdAndUpdate((user.profile as IProfile)._id, {
+    personalityType,
+  });
+  return makeResponse(true, "Personality assessment completed", {
+    personalityType,
   });
 };

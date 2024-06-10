@@ -31,3 +31,14 @@ export const personalityQuestion = async (req: Request, res: Response) => {
   const response = await questionController.personalityQuestion(req.body);
   return responseHandler(res, response);
 };
+
+export const answerPersonalityQuestions = async (
+  req: Request,
+  res: Response
+) => {
+  const response = await questionController.answerPersonalityQuestions(
+    req.user,
+    req.body
+  );
+  return responseHandler(res, response);
+};

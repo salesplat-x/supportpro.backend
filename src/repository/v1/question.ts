@@ -20,11 +20,11 @@ export const findQuestionById = async (id: Types.ObjectId | string) => {
 
 export const createOrUpdatePersonalityQuestion = async (
   job: string | Types.ObjectId,
-  category: string,
+  criteria: string,
   update: Partial<IQuestion>
 ) => {
   return await Question.findOneAndUpdate(
-    { job, category },
+    { job, criteria },
     { ...update },
     {
       upsert: true,

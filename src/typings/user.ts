@@ -37,6 +37,7 @@ export interface IProfile {
   maxSalary: number;
   minSalary: number;
   score: number;
+  personalityType: string;
 }
 
 export interface IOrganization {

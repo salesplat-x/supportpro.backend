@@ -138,3 +138,37 @@ export const generatePersonalityQuestion = async (
 
   return completion.choices[0];
 };
+
+export const determinePersonalityType = async (
+  questionsJSON: string
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const prompt = `You are an automated MBTI personality assessment system.
+
+  You will be given a JSON stringified array of 4 objects. The objects are called the Assessment object. The content of each Assessment object is explained as follows:
+
+  The Assessment object has 3 fields. Each field is described as follows:
+
+  1. question: The questions that was asked to a candidate to determine the personality.
+  2. answer: the candidates answer to the question.
+  3. dichotomy: The dichotomy pair being tested for, which could be one of the following "EI", "SN", "TF", or "JP".
+  
+  For each assessment object, your task is to determine the appropriate preference from the candidate's answer based on the dichotomy field. 
+
+  Use each personality gotten to determine which of the 16 personality types the candidate falls under based on their preferences in four dichotomies
+  
+  Your output should be a JSON object with the personality. For example 
+  '{
+    "personality": "ESTJ"
+  }'`;
+
+  const completion = await openai.chat.completions.create({
+    messages: [
+      { role: "system", content: prompt },
+      { role: "user", content: questionsJSON },
+    ],
+    model: "gpt-3.5-turbo-16k",
+    // response_format: { type: "json_object" },
+  });
+
+  return completion.choices[0];
+};

@@ -36,6 +36,21 @@ export const answers = Joi.object({
   }),
 }).required();
 
+export const answersPersonality = Joi.object({
+  body: Joi.object({
+    jobId: Joi.string().required(),
+    answers: Joi.array()
+      .items(
+        Joi.object({
+          questionId: Joi.string().required(),
+          question: Joi.string().optional(),
+          answer: Joi.string().required(),
+        }).required()
+      )
+      .required(),
+  }),
+}).required();
+
 export const allQuestions = Joi.object({
   query: Joi.object({
     limit: Joi.number(),
