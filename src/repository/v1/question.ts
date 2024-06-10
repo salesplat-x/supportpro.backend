@@ -45,7 +45,7 @@ export const findAllQuestions = async (paging: Paging = {}) => {
     });
 };
 
-export const findQuestionByMatch = async (
+export const findQuestionsByMatch = async (
   data: IQuestion | Record<string, any>,
   paging: Paging = {}
 ) => {

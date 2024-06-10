@@ -7,8 +7,8 @@ export const create = async (req: Request, res: Response) => {
   return responseHandler(res, response);
 };
 
-export const fetchAll = async (req: Request, res: Response) => {
-  const response = await questionController.fetchAllQuestions(req.query);
+export const fetchQuestions = async (req: Request, res: Response) => {
+  const response = await questionController.fetchQuestions(req.query);
   return responseHandler(res, response);
 };
 

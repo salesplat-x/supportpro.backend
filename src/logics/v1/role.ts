@@ -41,7 +41,7 @@ export const questions = async (payload: Pick<IRole, "_id">, paging: Paging) => 
   if (!role) {
     return makeResponse(false, "Role not found", {}, 404);
   }
-  let questions = await questionRepository.findQuestionByMatch(
+  let questions = await questionRepository.findQuestionsByMatch(
     {
       role: payload._id,
     },

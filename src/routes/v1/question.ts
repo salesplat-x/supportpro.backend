@@ -18,9 +18,9 @@ router.post(
 
 router.get(
   "/",
-  validateAccess([Roles.Admin, Roles.Recruiter]),
-  validate(questionValidator.allQuestions, { query: true }),
-  asyncHandler(question.fetchAll)
+  loginRequired,
+  validate(questionValidator.getQuestions, { query: true }),
+  asyncHandler(question.fetchQuestions)
 );
 
 router.post(

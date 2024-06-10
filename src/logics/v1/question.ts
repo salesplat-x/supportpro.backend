@@ -2,6 +2,7 @@ import * as questionRepository from "../../repository/v1/question";
 import * as roleRepository from "../../repository/v1/role";
 import * as userRepository from "../../repository/v1/user";
 import * as answerRepository from "../../repository/v1/answer";
+import * as jobRepository from "../../repository/v1/job";
 import { makeResponse } from "../../helpers/response";
 import {
   AnswerPersonalityPayload,
@@ -34,8 +35,39 @@ export const createQuestion = async (payload: IQuestion) => {
 };
 
 // Function to fetch all questions
-export const fetchAllQuestions = async (payload: Paging) => {
-  let questions = await questionRepository.findAllQuestions(payload);
+export const fetchQuestions = async (payload: any) => {
+  const query: mongoose.RootQuerySelector<IQuestion> = {};
+  if (payload.jobId) {
+    const job = await jobRepository.findJobById(payload.jobId);
+    if (!job) {
+      return makeResponse(false, "Job not found", {}, 404);
+    }
+    query.job = payload.jobId;
+  }
+
+  if (payload.roleId) {
+    const role = await roleRepository.findRoleById(payload.roleId);
+    if (!role) {
+      return makeResponse(false, "Role not found", {}, 404);
+    }
+    query.role = payload.roleId;
+  }
+  if (payload.questionType) {
+    query.type = payload.questionType;
+  }
+
+  const paging: Paging = {};
+  if (payload.limit) {
+    paging.limit = payload.limit;
+  }
+  if (payload.offset) {
+    paging.offset = payload.offset;
+  }
+  if (payload.sort) {
+    paging.sort = payload.sort;
+  }
+
+  const questions = await questionRepository.findQuestionsByMatch(query, paging);
   return makeResponse(true, "Questions fetched successfully", questions, 200);
 };
 
@@ -66,7 +98,7 @@ export const answerQuestions = async (
 
   // Get all question by Id
   const questionIds = payload.answers.map((answer) => answer.questionId);
-  const questions = await questionRepository.findQuestionByMatch({
+  const questions = await questionRepository.findQuestionsByMatch({
     role: payload.roleId,
     _id: { $in: questionIds },
   });
@@ -227,7 +259,7 @@ export const answerPersonalityQuestions = async (
 
   // Get all question by Id
   const questionIds = payload.answers.map((answer) => answer.questionId);
-  const questions = await questionRepository.findQuestionByMatch({
+  const questions = await questionRepository.findQuestionsByMatch({
     job: payload.jobId,
     type: QuestionType.Personality,
     _id: { $in: questionIds },
