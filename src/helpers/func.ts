@@ -2,6 +2,13 @@ import mammoth from "mammoth";
 import path from "path";
 import pdfParse from "pdf-parse";
 
+export function convertSimilarityToPercentage(similarityScore: number) {
+  if (similarityScore < 0 || similarityScore > 1) {
+    throw new Error("Similarity score must be between 0 and 1");
+  }
+  return Number(((1 - similarityScore) * 100).toFixed(2));
+}
+
 export async function extractText(buffer: Buffer, mimetype: string) {
   if (mimetype === "application/pdf") {
     const data = await pdfParse(buffer);
