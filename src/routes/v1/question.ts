@@ -58,6 +58,13 @@ router.post(
   asyncHandler(question.answerPersonalityQuestions)
 );
 
+router.post(
+  "/answer/personalized",
+  validateAccess([Roles.Talent]),
+  validate(questionValidator.answersPersonalized, { body: true }),
+  asyncHandler(question.answerPersonalizedQuestions)
+);
+
 router.get(
   "/:_id",
   validate(questionValidator.id, { params: true }),
