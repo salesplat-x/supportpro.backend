@@ -9,5 +9,6 @@ export interface IJobTalent {
   role: string | Types.ObjectId | IRole;
   talent: string | Types.ObjectId | IUser;
   personalizedQuestions?: Types.Array<string>;
+  personalizedScore?: number;
   mbtiType?: string;
 }
