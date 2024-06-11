@@ -1,4 +1,5 @@
 import * as jobRepository from "../../repository/v1/job";
+import * as jobTalentRepository from "../../repository/v1/jobTalent";
 import * as roleRepository from "../../repository/v1/role";
 import * as userRepository from "../../repository/v1/user";
 import { makeResponse } from "../../helpers/response";
@@ -8,7 +9,10 @@ import { IRole } from "../../typings/role";
 import { Roles } from "../../typings/customs";
 import { createEmbedding } from "../../servces/v1/openai";
 import { getTopCVEmbedding, saveJobEmbedding } from "../../repository/v1/pg";
-import { preprocessText } from "../../helpers/func";
+import {
+  convertSimilarityToPercentage,
+  preprocessText,
+} from "../../helpers/func";
 
 export const createJob = async (payload: IJob) => {
   if (!mongoose.Types.ObjectId.isValid(payload.role as string)) {
@@ -139,16 +143,36 @@ export const matchJob = async (payload: MatchJob) => {
 };
 
 export const topTalents = async (payload: TopTalents) => {
-  if (!mongoose.Types.ObjectId.isValid(payload.jobId)) {
+  const { jobId } = payload;
+
+  if (!mongoose.Types.ObjectId.isValid(jobId)) {
     return makeResponse(false, "Invalid job id", {}, 400);
   }
-  const job = await jobRepository.findJobById(payload.jobId);
+  const job = await jobRepository.findJobById(jobId);
   if (!job) {
     return makeResponse(false, "Job does not exist", {}, 404);
   }
   const res = await getTopCVEmbedding(payload);
 
   const talentIds = res.map((r: any) => r.profile_id);
+
+  const bulkOps = res.map((r: any) => {
+    const talentId = r.profile_id;
+    const cvSimilarityScore = convertSimilarityToPercentage(r.similarity);
+    return {
+      updateOne: {
+        filter: { job: jobId, talent: talentId },
+        update: { $set: { cvSimilarityScore } },
+        upsert: true,
+      },
+    };
+  });
+
+  // Execute bulk operations in MongoDB
+  if (bulkOps.length > 0) {
+    await jobTalentRepository.bulkWrite(bulkOps);
+  }
+
   const talents = await userRepository.findUsersByMatch({
     _id: { $in: talentIds },
   });
