@@ -18,6 +18,9 @@ const schema = new Schema<IJobTalent>(
     personalizedQuestions: {
       type: [String],
     },
+    personalizedScore: {
+      type: Number,
+    },
     mbtiType: {
       type: String,
     },
