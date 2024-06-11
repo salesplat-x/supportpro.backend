@@ -91,9 +91,6 @@ const profileSchema = new Schema<IProfile>({
     type: Number,
     required: true,
   },
-  personalityType: {
-    type: String,
-  },
   assessmentScore: {
     type: Number,
     // select: false,
