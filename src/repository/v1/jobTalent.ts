@@ -1,13 +1,19 @@
 import JobTalent from "../../models/v1/jobTalent";
 import { Page, Paging } from "../../typings/customs";
 import { IJobTalent } from "../../typings/jobTalent";
-import { HydratedDocument, Types } from "mongoose";
+import { AnyBulkWriteOperation, HydratedDocument, Types } from "mongoose";
 import * as func from "../../helpers/func";
 
 export const createJobTalent = async (
   jobTalent: IJobTalent
 ): Promise<HydratedDocument<IJobTalent>> => {
   return await new JobTalent(jobTalent).save();
+};
+
+export const bulkWrite = async (
+  bulkOps: AnyBulkWriteOperation<IJobTalent>[]
+) => {
+  return await JobTalent.bulkWrite(bulkOps);
 };
 
 export const findJobTalentById = async (id: Types.ObjectId | string) => {
