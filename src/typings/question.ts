@@ -26,6 +26,14 @@ export interface AnswerPersonalityPayload {
   answers: IAnswerQuestion[];
 }
 
+export interface AnswerPersonalizedPayload {
+  jobId: Types.ObjectId | string;
+  answers: {
+    question: string;
+    answer: string;
+  }[];
+}
+
 export interface IQuestionConstruct {
   questionId: Types.ObjectId | string;
   question: string;
