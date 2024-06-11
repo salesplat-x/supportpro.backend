@@ -10,5 +10,6 @@ export interface IJobTalent {
   talent: string | Types.ObjectId | IUser;
   personalizedQuestions?: Types.Array<string>;
   personalizedScore?: number;
+  cvSimilarityScore?: number;
   mbtiType?: string;
 }
