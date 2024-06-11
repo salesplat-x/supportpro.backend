@@ -38,6 +38,17 @@ export const getPersonalizedQuestions = async (req: Request, res: Response) => {
   return responseHandler(res, response);
 };
 
+export const answerPersonalizedQuestions = async (
+  req: Request,
+  res: Response
+) => {
+  const response = await questionController.answerPersonalizedQuestions(
+    req.user,
+    req.body
+  );
+  return responseHandler(res, response);
+};
+
 export const personalityQuestion = async (req: Request, res: Response) => {
   const response = await questionController.personalityQuestion(req.body);
   return responseHandler(res, response);
