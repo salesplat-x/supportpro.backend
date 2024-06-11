@@ -52,6 +52,20 @@ export const answersPersonality = Joi.object({
   }),
 }).required();
 
+export const answersPersonalized = Joi.object({
+  body: Joi.object({
+    jobId: Joi.string().required(),
+    answers: Joi.array()
+      .items(
+        Joi.object({
+          question: Joi.string().required(),
+          answer: Joi.string().required(),
+        }).required()
+      )
+      .required(),
+  }),
+}).required();
+
 export const getQuestions = Joi.object({
   query: Joi.object({
     jobId: Joi.string(),
