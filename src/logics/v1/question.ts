@@ -7,6 +7,7 @@ import * as jobTalentRepository from "../../repository/v1/jobTalent";
 import { makeResponse } from "../../helpers/response";
 import {
   AnswerPersonalityPayload,
+  AnswerPersonalizedPayload,
   AnswerQuestionPayload,
   IGeneratePersonalityQuestions,
   IGeneratePersonalizedQuestions,
@@ -149,7 +150,7 @@ export const answerAssessmentQuestions = async (
   const questionsJSON = JSON.stringify(questionsConstruct);
 
   // Use LLM to grade scores
-  const response = await AI.gradeAnswers(questionsJSON);
+  const response = await AI.gradeAssessmentAnswers(questionsJSON);
   if (!response || !response.message.content) {
     return makeResponse(false, "Error with LLM", {}, 400);
   }
@@ -172,7 +173,7 @@ export const answerAssessmentQuestions = async (
     }
     totalScore += response.score;
   }
-  const maxScore = 5 * 15;
+  const maxScore = 5 * responseArray.length;
   const scorePercent = Number(((totalScore / maxScore) * 100).toFixed(2));
 
   await answerRepository.saveOrUpdateAnswer(
@@ -245,7 +246,50 @@ export const fetchPersonalizedQuestions = async (user: IUser, jobId: string) => 
   );
 };
 
-// Function to generate personalized questions
+// Function to answer personalized questions
+export const answerPersonalizedQuestions = async (
+  user: IUser,
+  payload: AnswerPersonalizedPayload
+) => {
+  const { answers, jobId } = payload;
+
+  const answersJSON = JSON.stringify(answers);
+
+  // Use LLM to grade answers
+  const response = await AI.gradePersonalizedAnswers(answersJSON);
+  if (!response || !response.message.content) {
+    return makeResponse(false, "Error with LLM", {}, 400);
+  }
+
+  const scoresArray: number[] = JSON.parse(response.message.content).scores;
+
+  if (scoresArray.length != answers.length) {
+    return makeResponse(
+      false,
+      "Length of response array doesn't match length of input array"
+    );
+  }
+
+  let totalScore = scoresArray.reduce((arg, current) => {
+    return arg + current;
+  }, 0);
+
+  const maxScore = 5 * scoresArray.length;
+  const scorePercent = Number(((totalScore / maxScore) * 100).toFixed(2));
+
+  await jobTalentRepository.createOrUpdateJobTalent(jobId, user._id, {
+    personalizedScore: scorePercent,
+  });
+
+  return makeResponse(
+    true,
+    "Answers graded successfully",
+    { scorePercent },
+    200
+  );
+};
+
+// Function to generate personality questions
 export const personalityQuestion = async (
   payload: IGeneratePersonalityQuestions
 ) => {
@@ -280,19 +324,20 @@ export const answerPersonalityQuestions = async (
   user: IUser,
   payload: AnswerPersonalityPayload
 ) => {
-  if (payload.answers.length != 4) {
+  const { answers, jobId } = payload;
+  if (answers.length != 4) {
     return makeResponse(false, "You must answer exactly 4 questions");
   }
 
   // Get all question by Id
-  const questionIds = payload.answers.map((answer) => answer.questionId);
+  const questionIds = answers.map((answer) => answer.questionId);
   const questions = await questionRepository.findQuestionsByMatch({
-    job: payload.jobId,
+    job: jobId,
     type: QuestionType.Personality,
     _id: { $in: questionIds },
   });
 
-  if (questions.length !== payload.answers.length) {
+  if (questions.length !== answers.length) {
     return makeResponse(false, "One of more questions do not belong to job");
   }
 
@@ -308,7 +353,7 @@ export const answerPersonalityQuestions = async (
   );
 
   // Validate answers and prepare valid answers for grading
-  const questionsConstruct = payload.answers.reduce(
+  const questionsConstruct = answers.reduce(
     (questionConstruct: IQuestionConstruct[], ans) => {
       const question = questionMap.get(ans.questionId as string);
       if (question) {
@@ -331,12 +376,12 @@ export const answerPersonalityQuestions = async (
   if (!response || !response.message.content) {
     return makeResponse(false, "Error with LLM", {}, 400);
   }
-  const personalityType = JSON.parse(response.message.content).personality;
+  const mbtiType = JSON.parse(response.message.content).personality;
 
-  await userRepository.findProfileByIdAndUpdate((user.profile as IProfile)._id, {
-    personalityType,
+  await jobTalentRepository.createOrUpdateJobTalent(jobId, user._id, {
+    mbtiType,
   });
   return makeResponse(true, "Personality assessment completed", {
-    personalityType,
+    mbtiType,
   });
 };
