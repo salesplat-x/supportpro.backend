@@ -6,19 +6,24 @@ const schema = new Schema<IJobTalent>(
     job: {
       type: Schema.Types.ObjectId,
       ref: "job",
+      required: true,
+    },
+    talent: {
+      type: Schema.Types.ObjectId,
+      ref: "user",
+      required: true,
     },
     role: {
       type: Schema.Types.ObjectId,
       ref: "role",
     },
-    talent: {
-      type: Schema.Types.ObjectId,
-      ref: "user",
-    },
     personalizedQuestions: {
       type: [String],
     },
     personalizedScore: {
+      type: Number,
+    },
+    cvSimilarityScore: {
       type: Number,
     },
     mbtiType: {
