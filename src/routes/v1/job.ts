@@ -29,6 +29,7 @@ router.get(
   asyncHandler(job.fetchAll)
 );
 
+// Endpoint to get talents based on CV and JD embedding similarity
 router.get(
   "/talents/:jobId",
   validateAccess([Roles.Recruiter, Roles.Admin]),
@@ -36,6 +37,7 @@ router.get(
   asyncHandler(job.topTalents)
 );
 
+// Endpoint to get talents based on profile and Job similarity
 router.get(
   "/match/:_id",
   validateAccess([Roles.Recruiter, Roles.Admin]),

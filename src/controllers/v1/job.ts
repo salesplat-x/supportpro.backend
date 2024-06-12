@@ -27,12 +27,12 @@ export const fetch = async (req: Request, res: Response) => {
 
 export const matchJob = async (req: Request, res: Response) => {
   const payload = { ...req.params, ...req.query };
-  const response = await jobController.matchJob(payload as any);
+  const response = await jobController.matchJob(req.user, payload as any);
   return responseHandler(res, response);
 };
 
 export const topTalents = async (req: Request, res: Response) => {
   const payload = { ...req.params, ...req.query };
-  const response = await jobController.topTalents(payload as any);
+  const response = await jobController.topTalents(req.user, payload as any);
   return responseHandler(res, response);
 };

@@ -2,13 +2,13 @@ import * as jobRepository from "../../repository/v1/job";
 import * as jobTalentRepository from "../../repository/v1/jobTalent";
 import * as roleRepository from "../../repository/v1/role";
 import * as userRepository from "../../repository/v1/user";
+import * as pgRepository from "../../repository/v1/pg";
 import { makeResponse } from "../../helpers/response";
 import { FetchJobs, IJob, MatchJob, TopTalents } from "../../typings/job";
 import mongoose from "mongoose";
 import { IRole } from "../../typings/role";
 import { Roles } from "../../typings/customs";
 import { createEmbedding } from "../../servces/v1/openai";
-import { getTopCVEmbedding, saveJobEmbedding } from "../../repository/v1/pg";
 import {
   convertSimilarityToPercentage,
   preprocessText,
@@ -41,7 +41,7 @@ export const createJob = async (user: IUser, payload: IJob) => {
   let job = await jobRepository.createJob(payload);
 
   // Save job embedding in vectorDB
-  const res = await saveJobEmbedding(
+  const res = await pgRepository.saveJobEmbedding(
     job._id.toString(),
     job.description,
     jobEmbedding[0]?.embedding!
@@ -120,7 +120,8 @@ export const fetchJob = async (payload: Pick<IJob, "_id">) => {
   return makeResponse(true, "Job fetched successfully", job, 200);
 };
 
-export const matchJob = async (payload: MatchJob) => {
+// Function to to get talents based on profile and job similarity
+export const matchJob = async (user: IUser, payload: MatchJob) => {
   if (!mongoose.Types.ObjectId.isValid(payload._id)) {
     return makeResponse(false, "Invalid job id", {}, 400);
   }
@@ -129,7 +130,17 @@ export const matchJob = async (payload: MatchJob) => {
     return makeResponse(false, "Job not found", {}, 404);
   }
 
-  //@TODO add check to view only jobs posted by organization of recruiter but if user is Admin proceed
+  //Check if job was posted by user or if user is Admin
+  if (
+    (job.postedBy as IUser)._id.toString() !== user._id.toString() &&
+    user.userRole !== Roles.Admin
+  ) {
+    return makeResponse(
+      false,
+      "You are not authorized to perform this action",
+      403
+    );
+  }
 
   let pipeline: mongoose.PipelineStage[] = [
     {
@@ -183,7 +194,8 @@ export const matchJob = async (payload: MatchJob) => {
   return makeResponse(true, "Job fetched successfully", { talents }, 200);
 };
 
-export const topTalents = async (payload: TopTalents) => {
+// Function to get talents based on CV and JD embedding similarity
+export const topTalents = async (user: IUser, payload: TopTalents) => {
   const { jobId } = payload;
 
   if (!mongoose.Types.ObjectId.isValid(jobId)) {
@@ -193,7 +205,20 @@ export const topTalents = async (payload: TopTalents) => {
   if (!job) {
     return makeResponse(false, "Job does not exist", {}, 404);
   }
-  const res = await getTopCVEmbedding(payload);
+
+  //Check if job was posted by user or if user is Admin
+  if (
+    (job.postedBy as IUser)._id.toString() !== user._id.toString() &&
+    user.userRole !== Roles.Admin
+  ) {
+    return makeResponse(
+      false,
+      "You are not authorized to perform this action",
+      403
+    );
+  }
+
+  const res = await pgRepository.getTopCVEmbedding(payload);
 
   const talentIds = res.map((r: any) => r.profile_id);
 
@@ -217,5 +242,7 @@ export const topTalents = async (payload: TopTalents) => {
   const talents = await userRepository.findUsersByMatch({
     _id: { $in: talentIds },
   });
+  //@TODO send out invitations to talents
+
   return makeResponse(true, "Top talents fetched", { talents }, 200);
 };

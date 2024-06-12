@@ -72,7 +72,7 @@ export const saveTalentEmbedding = async (
 
 //  Function to get top cv_embeddings for a job
 export const getTopCVEmbedding = async (input: TopTalents) => {
-  const percentage = input.percentage ? input.percentage : 40;
+  const percentage = input.percentage ? input.percentage : 50;
   const limit = input.limit ? input.limit : 20;
   const strictness = (100 - percentage) / 100;
   const queryText = `
