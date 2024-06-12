@@ -7,6 +7,12 @@ const jobSchema = new Schema<IJob>(
     role: {
       type: Schema.Types.ObjectId,
       ref: "role",
+      required: true,
+    },
+    postedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "user",
+      required: true,
     },
     description: {
       type: String,
@@ -46,6 +52,10 @@ const jobSchema = new Schema<IJob>(
     remote: {
       type: Boolean,
       required: true,
+    },
+    recruiterGuide: {
+      type: [String],
+      required: false,
     },
     responsibilities: {
       type: [String],

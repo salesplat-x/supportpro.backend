@@ -60,7 +60,16 @@ const userSchema = new Schema<IUser>(
     verificationCode: String,
     verificationCodeExpiry: Date,
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: {
+      transform: function (doc, ret) {
+        delete ret.password;
+        delete ret.recoveryCode;
+        delete ret.verificationCode;
+      },
+    },
+  }
 );
 
 const profileSchema = new Schema<IProfile>({

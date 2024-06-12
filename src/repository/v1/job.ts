@@ -10,7 +10,7 @@ export const createJob = async (job: IJob): Promise<HydratedDocument<IJob>> => {
 
 export const findJobById = async (id: Types.ObjectId | string) => {
   return await Job.findById(id).populate({
-    path: "role",
+    path: "role postedBy",
     select: "-__v -createdAt -updatedAt",
     strictPopulate: false,
   });
@@ -22,7 +22,7 @@ export const findAllJobs = async (match: Partial<IJob>, paging: Paging = {}) => 
     .skip(Number(paging.offset) || Page.Offset)
     .limit(Number(paging.limit) || Page.Limit)
     .populate({
-      path: "role",
+      path: "role postedBy",
       select: "-__v -createdAt -updatedAt",
       strictPopulate: false,
     });
@@ -30,7 +30,7 @@ export const findAllJobs = async (match: Partial<IJob>, paging: Paging = {}) => 
 
 export const findJobByMatch = async (data: IJob | Record<string, any>) => {
   return await Job.findOne(data).populate({
-    path: "role",
+    path: "role postedBy",
     select: "-__v -createdAt -updatedAt",
     strictPopulate: false,
   });
@@ -41,7 +41,7 @@ export const findJobByIdAndUpdate = async (
   data: Partial<IJob>
 ) => {
   return await Job.findByIdAndUpdate(JobId, data, { new: true }).populate({
-    path: "role",
+    path: "role postedBy",
     select: "-__v -createdAt -updatedAt",
     strictPopulate: false,
   });

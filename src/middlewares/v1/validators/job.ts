@@ -17,8 +17,35 @@ export const job = Joi.object({
       state: Joi.string().required(),
       country: Joi.string().required(),
     }).optional(),
-    remote: Joi.boolean().required(),
+    remote: Joi.boolean().optional(),
     responsibilities: Joi.array().items(Joi.string()).optional(),
+    recruiterGuide: Joi.array().items(Joi.string()).optional(),
+    skills: Joi.array().items(Joi.string()).optional(),
+    goals: Joi.array().items(Joi.string()).optional(),
+  }),
+}).required();
+
+export const updateJob = Joi.object({
+  params: Joi.object({
+    _id: Joi.string().required(),
+  }),
+  body: Joi.object<IJob>({
+    role: Joi.string().optional(),
+    description: Joi.string().optional(),
+    experienceLevel: Joi.string()
+      .optional()
+      .valid(...Object.values(Experience)),
+    maxSalary: Joi.number().optional(),
+    minSalary: Joi.number().less(Joi.ref("maxSalary")).optional(),
+    address: Joi.string().optional(),
+    location: Joi.object({
+      city: Joi.string().required(),
+      state: Joi.string().required(),
+      country: Joi.string().required(),
+    }).optional(),
+    remote: Joi.boolean().optional(),
+    responsibilities: Joi.array().items(Joi.string()).optional(),
+    recruiterGuide: Joi.array().items(Joi.string()).optional(),
     skills: Joi.array().items(Joi.string()).optional(),
     goals: Joi.array().items(Joi.string()).optional(),
   }),

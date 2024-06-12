@@ -1,10 +1,12 @@
 import { Types } from "mongoose";
 import { IRole } from "./role";
 import { Paging } from "./customs";
+import { IUser } from "./user";
 
 export interface IJob {
   _id: Types.ObjectId;
   role: string | Types.ObjectId | IRole;
+  postedBy: string | Types.ObjectId | IUser;
   description: string;
   maxSalary: number;
   minSalary: number;
@@ -12,6 +14,7 @@ export interface IJob {
   location: ILocation;
   address?: string;
   remote: boolean;
+  recruiterGuide?: Types.Array<string>;
   responsibilities?: Types.Array<string>;
   skills?: Types.Array<string>;
   goals?: Types.Array<string>;

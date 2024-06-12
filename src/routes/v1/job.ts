@@ -16,6 +16,13 @@ router.post(
   asyncHandler(job.create)
 );
 
+router.patch(
+  "/:_id",
+  validateAccess([Roles.Recruiter]),
+  validate(jobValidator.updateJob, { params: true, body: true }),
+  asyncHandler(job.update)
+);
+
 router.get(
   "/",
   validate(jobValidator.allJobs, { query: true }),

@@ -13,8 +13,9 @@ import {
   convertSimilarityToPercentage,
   preprocessText,
 } from "../../helpers/func";
+import { IUser } from "../../typings/user";
 
-export const createJob = async (payload: IJob) => {
+export const createJob = async (user: IUser, payload: IJob) => {
   if (!mongoose.Types.ObjectId.isValid(payload.role as string)) {
     return makeResponse(false, "Invalid role id", {}, 400);
   }
@@ -36,6 +37,7 @@ export const createJob = async (payload: IJob) => {
     );
   }
 
+  payload.postedBy = user._id;
   let job = await jobRepository.createJob(payload);
 
   // Save job embedding in vectorDB
@@ -49,6 +51,45 @@ export const createJob = async (payload: IJob) => {
   }
 
   return makeResponse(true, "Job posted successfully", job, 200);
+};
+
+export const updateJob = async (user: IUser, payload: IJob) => {
+  const { _id, ...update } = payload;
+
+  const existingJob = await jobRepository.findJobById(_id);
+  if (!existingJob) {
+    return makeResponse(false, "Job does not exist", {}, 404);
+  }
+
+  if ((existingJob.postedBy as IUser)._id.toString() !== user._id.toString()) {
+    return makeResponse(
+      false,
+      "You are not authorized to perform this action",
+      403
+    );
+  }
+
+  if (update.role) {
+    if (!mongoose.Types.ObjectId.isValid(update.role as string)) {
+      return makeResponse(false, "Invalid role id", {}, 400);
+    }
+    const existingRole = await roleRepository.findRoleById(
+      update.role as string
+    );
+    if (!existingRole) {
+      return makeResponse(false, "Role does not exist", {}, 404);
+    }
+  }
+  console.log(update);
+  const job = await jobRepository.findJobByIdAndUpdate(_id, update);
+  if (!job) {
+    return makeResponse(false, "Unable to update job", {}, 400);
+  }
+  if (update.description) {
+    //@TODO create and replace job embedding if
+  }
+
+  return makeResponse(true, "Job updated successfully", job, 200);
 };
 
 export const fetchAllJobs = async (payload: FetchJobs) => {
