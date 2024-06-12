@@ -37,7 +37,7 @@ export const answers = Joi.object({
   }),
 }).required();
 
-export const answersPersonality = Joi.object({
+export const evaluatePersonality = Joi.object({
   body: Joi.object({
     jobId: Joi.string().required(),
     answers: Joi.array()
@@ -85,7 +85,7 @@ export const personalizedQuestions = Joi.object({
   }),
 }).required();
 
-export const personalityQuestions = Joi.object({
+export const generatePersonalityQuestions = Joi.object({
   body: Joi.object({
     jobId: Joi.string().required(),
     dichotomyPair: Joi.string()

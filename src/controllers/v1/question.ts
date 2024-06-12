@@ -49,16 +49,18 @@ export const answerPersonalizedQuestions = async (
   return responseHandler(res, response);
 };
 
-export const personalityQuestion = async (req: Request, res: Response) => {
-  const response = await questionController.personalityQuestion(req.body);
-  return responseHandler(res, response);
-};
-
-export const answerPersonalityQuestions = async (
+export const generatePersonalityQuestion = async (
   req: Request,
   res: Response
 ) => {
-  const response = await questionController.answerPersonalityQuestions(
+  const response = await questionController.generatePersonalityQuestion(
+    req.body
+  );
+  return responseHandler(res, response);
+};
+
+export const evaluatePersonalityType = async (req: Request, res: Response) => {
+  const response = await questionController.evaluatePersonalityType(
     req.user,
     req.body
   );

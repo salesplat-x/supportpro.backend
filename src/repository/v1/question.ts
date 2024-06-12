@@ -18,7 +18,7 @@ export const findQuestionById = async (id: Types.ObjectId | string) => {
   });
 };
 
-export const createOrUpdatePersonalityQuestion = async (
+export const createOrUpdatePersonalityEvaluation = async (
   job: string | Types.ObjectId,
   criteria: string,
   update: Partial<IQuestion>

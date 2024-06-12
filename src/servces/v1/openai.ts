@@ -120,7 +120,7 @@ export const gradePersonalizedAnswers = async (
   1. question: The questions that was asked to a candidate.
   2. answer: the candidates answer to the question.
   
-  For each assessment object, your task is to generate an appropriate score of the candidate's answer based on the personality traits exhibited in the response, you should score the candidate's answers  on a 1 to 5 scale. The scale is defined below:
+  For each assessment object, your task is to generate an appropriate score of the candidate's answer, you should score the candidate's answers  on a 1 to 5 scale. The scale is defined below:
 
   1 - poor
   2 - unsatisfactory
@@ -143,7 +143,7 @@ export const gradePersonalizedAnswers = async (
 };
 
 // Function to generate questions to determine MBTI/personality type
-export const generatePersonalityQuestion = async (
+export const getPersonalityEvaluationQuestion = async (
   jobDescription: string,
   dichotomyPair: TDichotomyPair
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
@@ -175,10 +175,10 @@ export const generatePersonalityQuestion = async (
   return completion.choices[0];
 };
 
-export const determinePersonalityType = async (
+export const evaluatePersonalityType = async (
   questionsJSON: string
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
-  const prompt = `You are an automated MBTI personality assessment system.
+  const prompt = `You are an automated MBTI personality evaluation system.
 
   You will be given a JSON stringified array of 4 objects. The objects are called the Assessment object. The content of each Assessment object is explained as follows:
 

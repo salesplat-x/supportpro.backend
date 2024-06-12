@@ -38,10 +38,10 @@ router.get(
 );
 
 router.post(
-  "/personality",
+  "/personality/generate",
   validateAccess([Roles.Recruiter]),
-  validate(questionValidator.personalityQuestions, { body: true }),
-  asyncHandler(question.personalityQuestion)
+  validate(questionValidator.generatePersonalityQuestions, { body: true }),
+  asyncHandler(question.generatePersonalityQuestion)
 );
 
 router.post(
@@ -54,8 +54,8 @@ router.post(
 router.post(
   "/answer/personality",
   validateAccess([Roles.Talent]),
-  validate(questionValidator.answersPersonality, { body: true }),
-  asyncHandler(question.answerPersonalityQuestions)
+  validate(questionValidator.evaluatePersonality, { body: true }),
+  asyncHandler(question.evaluatePersonalityType)
 );
 
 router.post(

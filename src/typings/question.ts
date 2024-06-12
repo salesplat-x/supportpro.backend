@@ -21,7 +21,7 @@ export interface AnswerQuestionPayload {
   answers: IAnswerQuestion[];
 }
 
-export interface AnswerPersonalityPayload {
+export interface EvaluatePersonalityPayload {
   jobId: Types.ObjectId | string;
   answers: IAnswerQuestion[];
 }

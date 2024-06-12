@@ -6,7 +6,7 @@ import * as jobRepository from "../../repository/v1/job";
 import * as jobTalentRepository from "../../repository/v1/jobTalent";
 import { makeResponse } from "../../helpers/response";
 import {
-  AnswerPersonalityPayload,
+  EvaluatePersonalityPayload,
   AnswerPersonalizedPayload,
   AnswerQuestionPayload,
   IGeneratePersonalityQuestions,
@@ -225,7 +225,7 @@ export const personalizedQuestions = async (
 
   return makeResponse(
     true,
-    "Question generated successfully",
+    "Personalized questions generated successfully",
     { questions },
     200
   );
@@ -240,7 +240,7 @@ export const fetchPersonalizedQuestions = async (user: IUser, jobId: string) => 
 
   return makeResponse(
     true,
-    "Personality questions fetched successfully",
+    "Personalized questions fetched successfully",
     { questions },
     200
   );
@@ -289,8 +289,8 @@ export const answerPersonalizedQuestions = async (
   );
 };
 
-// Function to generate personality questions
-export const personalityQuestion = async (
+// Function to generate personality evaluation question
+export const generatePersonalityQuestion = async (
   payload: IGeneratePersonalityQuestions
 ) => {
   const job = await getJob(payload.jobId);
@@ -298,7 +298,7 @@ export const personalityQuestion = async (
     return makeResponse(false, "Job not found", {}, 404);
   }
 
-  const response = await AI.generatePersonalityQuestion(
+  const response = await AI.getPersonalityEvaluationQuestion(
     job.job_description,
     payload.dichotomyPair
   );
@@ -308,7 +308,7 @@ export const personalityQuestion = async (
   const question = JSON.parse(response.message.content).question;
 
   // Save question to job
-  const pQuestion = await questionRepository.createOrUpdatePersonalityQuestion(
+  const pQuestion = await questionRepository.createOrUpdatePersonalityEvaluation(
     payload.jobId,
     payload.dichotomyPair,
     { question, type: QuestionType.Personality }
@@ -320,9 +320,9 @@ export const personalityQuestion = async (
 };
 
 // Function to answer personality questions
-export const answerPersonalityQuestions = async (
+export const evaluatePersonalityType = async (
   user: IUser,
-  payload: AnswerPersonalityPayload
+  payload: EvaluatePersonalityPayload
 ) => {
   const { answers, jobId } = payload;
   if (answers.length != 4) {
@@ -372,7 +372,7 @@ export const answerPersonalityQuestions = async (
   const questionsJSON = JSON.stringify(questionsConstruct);
 
   // Use LLM to determine MBTI personality type
-  const response = await AI.determinePersonalityType(questionsJSON);
+  const response = await AI.evaluatePersonalityType(questionsJSON);
   if (!response || !response.message.content) {
     return makeResponse(false, "Error with LLM", {}, 400);
   }
@@ -381,7 +381,7 @@ export const answerPersonalityQuestions = async (
   await jobTalentRepository.createOrUpdateJobTalent(jobId, user._id, {
     mbtiType,
   });
-  return makeResponse(true, "Personality assessment completed", {
+  return makeResponse(true, "Personality evaluation completed", {
     mbtiType,
   });
 };
