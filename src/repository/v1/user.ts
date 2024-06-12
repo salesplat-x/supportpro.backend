@@ -22,7 +22,7 @@ export const findUserById = async (id: Types.ObjectId | string) => {
 export const findUserAndScoreById = async (id: Types.ObjectId | string) => {
   return await User.findById(id).populate({
     path: "profile",
-    select: "bio cv role experience maxSalary minSalary assessmentScore",
+    select: "bio cv role experience maxSalary minSalary prescreeningScore",
     strictPopulate: false,
     populate: { path: "role", model: "role", select: "-__v " },
   });
@@ -106,11 +106,11 @@ export const findProfileByIdAndUpdate = async (
 
 export const updateUserScore = async (
   profileId: string | Types.ObjectId,
-  assessmentScore: number
+  prescreeningScore: number
 ) => {
   return await Profile.findByIdAndUpdate(
     profileId,
-    { assessmentScore },
+    { prescreeningScore },
     { new: true }
   ).populate({
     path: "role",

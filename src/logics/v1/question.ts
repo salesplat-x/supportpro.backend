@@ -85,12 +85,12 @@ export const fetchQuestion = async (payload: Pick<IQuestion, "_id">) => {
   return makeResponse(true, "Question fetched successfully", question, 200);
 };
 
-// Function to answer assessment questions
-export const answerAssessmentQuestions = async (
+// Function to answer prescreening assessment questions
+export const answerPrescreening = async (
   user: IUser,
   payload: AnswerQuestionPayload
 ) => {
-  if ((user.profile as IProfile).assessmentScore) {
+  if ((user.profile as IProfile).prescreeningScore) {
     return makeResponse(false, "User has already taken assessment");
   }
 

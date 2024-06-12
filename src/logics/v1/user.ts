@@ -118,7 +118,9 @@ export const viewProfilesForRole = async (payload: FetchProfiles) => {
   }
   if (payload.minScore) {
     pipeline.push({
-      $match: { "profile.assessmentScore": { $gte: Number(payload.minScore) } },
+      $match: {
+        "profile.prescreeningScore": { $gte: Number(payload.minScore) },
+      },
     });
   }
   if (payload.maxSalary) {
@@ -129,7 +131,7 @@ export const viewProfilesForRole = async (payload: FetchProfiles) => {
   if (payload.incomplete != "true") {
     pipeline.push({
       $match: {
-        "profile.assessmentScore": { $exists: true },
+        "profile.prescreeningScore": { $exists: true },
       },
     });
   }
@@ -144,7 +146,7 @@ export const viewProfilesForRole = async (payload: FetchProfiles) => {
         as: "profile.role",
       },
     },
-    { $sort: { "profile.assessmentScore": -1 } }
+    { $sort: { "profile.prescreeningScore": -1 } }
   );
 
   // Use an aggregation to get all users with the specified role

@@ -17,8 +17,8 @@ export const fetch = async (req: Request, res: Response) => {
   return responseHandler(res, response);
 };
 
-export const answerAssessmentQuestions = async (req: Request, res: Response) => {
-  const response = await questionController.answerAssessmentQuestions(
+export const answerPrescreening = async (req: Request, res: Response) => {
+  const response = await questionController.answerPrescreening(
     req.user,
     req.body
   );

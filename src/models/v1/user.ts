@@ -91,7 +91,7 @@ const profileSchema = new Schema<IProfile>({
     type: Number,
     required: true,
   },
-  assessmentScore: {
+  prescreeningScore: {
     type: Number,
     // select: false,
   },

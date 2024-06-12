@@ -55,7 +55,7 @@ export interface IGeneratePersonalityQuestions {
 }
 
 export const QuestionType = {
-  Assessment: "assessment",
+  Prescreening: "prescreening",
   Personality: "personality",
   Personalized: "personalized",
 } as const;

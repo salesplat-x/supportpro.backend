@@ -48,7 +48,7 @@ router.post(
   "/answer",
   validateAccess([Roles.Talent]),
   validate(questionValidator.answers, { body: true }),
-  asyncHandler(question.answerAssessmentQuestions)
+  asyncHandler(question.answerPrescreening)
 );
 
 router.post(
