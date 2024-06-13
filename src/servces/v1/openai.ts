@@ -13,12 +13,13 @@ export const gradeAssessmentAnswers = async (
 
   You will be given a JSON stringified array of objects. The objects are called the Assessment object. The content of each Assessment object is explained as follows:
 
-  The Assessment object has 3 fields. Each field is described as follows:
+  The Assessment object has 4 fields. Each field is described as follows:
 
-  1. question: The questions that was asked to a candidate.
-  2. answer: the candidates answer to the question.
-  3. criteria: The criteria that is being considered for scoring the candidate's a answer to the question.
-  
+  1. question: The question that was asked to a candidate.
+  2. questionId: The question's unique id.
+  3. answer: the candidates answer to the question.
+  4. criteria: The criteria that is being considered for scoring the candidate's a answer to the question.
+
   For each assessment object, your task is to generate an appropriate score of the candidate's answer based on the criteria field. That is, based on the criteria stated in the scoring criteria field, you should score the candidate's answers  on a 1 to 5 scale. The scale is defined below:
 
   1 - poor
@@ -29,15 +30,15 @@ export const gradeAssessmentAnswers = async (
 
   For each score, question and answer you will generate a Response object has 3 fields similar to the Assessment object. Each field is described as follows:
 
-  1. question: The questions that was asked to a candidate.
+  1. question: The unique id of the question that was asked to a candidate.
   2. answer: the candidates answer to the question.
   3. score: The score you generated for that question. 
   
   Your output should be a JSON array of the Response objects. For example 
   '{
     "responses":[
-      {"question": ..., "answer": ...,"score":3},
-      {"question": ..., "answer": ...,"score":4},
+      {"question": "665db00404f56afe4af4209d", "answer": ...,"score":3},
+      {"question": "665d75ed550cfb80a8993390", "answer": ...,"score":4},
       ...
     ]
   }', the length of the array of Response objects must match the length of the array of the Assessment object`;
@@ -118,7 +119,8 @@ export const gradePersonalizedAnswers = async (
   The Assessment object has 2 fields. Each field is described as follows:
 
   1. question: The questions that was asked to a candidate.
-  2. answer: the candidates answer to the question.
+  2. questionId: The question's unique id.
+  3. answer: the candidates answer to the question.
   
   For each assessment object, your task is to generate an appropriate score of the candidate's answer, you should score the candidate's answers  on a 1 to 5 scale. The scale is defined below:
 
@@ -128,7 +130,20 @@ export const gradePersonalizedAnswers = async (
   4 - very satisfactory
   5 - outstanding.
 
-  Your result should be a JSON stringified array of the numeric scores of the candidate's answers, for example '{"scores":[3,4,2,3,...]}', the length of the array of Response objects must match the length of the array of the Assessment object`;
+  For each score, question and answer you will generate a Response object has 3 fields similar to the Assessment object. Each field is described as follows:
+
+  1. question: The unique id of the question that was asked to a candidate.
+  2. answer: the candidates answer to the question.
+  3. score: The score you generated for that question. 
+  
+  Your output should be a JSON array of the Response objects. For example 
+  '{
+    "responses":[
+      {"question": "665db00404f56afe4af4209d", "answer": ...,"score":3},
+      {"question": "665d75ed550cfb80a8993390", "answer": ...,"score":4},
+      ...
+    ]
+  }', the length of the array of Response objects must match the length of the array of the Assessment object`;
 
   const completion = await openai.chat.completions.create({
     messages: [
@@ -185,15 +200,27 @@ export const evaluatePersonalityType = async (
   The Assessment object has 3 fields. Each field is described as follows:
 
   1. question: The questions that was asked to a candidate to determine the personality.
-  2. answer: the candidates answer to the question.
-  3. dichotomy: The dichotomy pair being tested for, which could be one of the following "EI", "SN", "TF", or "JP".
+  2. questionId: The question's unique id.
+  3. answer: the candidates answer to the question.
+  4. dichotomy: The dichotomy pair being tested for, which could be one of the following "EI", "SN", "TF", or "JP".
   
-  For each assessment object, your task is to determine the appropriate preference from the candidate's answer based on the dichotomy field. 
 
-  Use each personality gotten to determine which of the 16 personality types the candidate falls under based on their preferences in four dichotomies
+  For each assessment object, your task is to determine the appropriate preference from the candidate's answer based on the dichotomy field. 
+  For each preference, question and answer you will generate a Response object has 3 fields similar to the Assessment object. Each field is described as follows:
+  Use each preference gotten to determine which of the 16 personality types the candidate falls under based on their preferences in four dichotomies
+
+  1. question: The unique id of the question that was asked to a candidate.
+  2. answer: the candidates answer to the question.
+  3. preference: The preference determined for that question. 
   
-  Your output should be a JSON object with the personality. For example 
+  Your output should be a JSON containing the mbti personality and the Response objects. For example 
   '{
+    "responses":[
+      {"question": "665db00404f56afe4af4209d", "answer": ...,"preference":E},
+      {"question": "665d75ed550cfb80a8993390", "answer": ...,"preference":S},
+      {"question": "665db00404f56afe4af4230d", "answer": ...,"preference":T},
+      {"question": "665d75ed550cfb80a8993690", "answer": ...,"preference":J},
+    ],
     "personality": "ESTJ"
   }'`;
 
