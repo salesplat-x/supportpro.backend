@@ -106,15 +106,15 @@ export const answerPrescreening = async (
     _id: { $in: questionIds },
   });
 
-  // if (
-  //   payload.roleId !=
-  //   ((user.profile as IProfile).role[0]! as IRole)._id.toString()
-  // ) {
-  //   return makeResponse(
-  //     false,
-  //     "User is not permitted to take assessment for this role"
-  //   );
-  // }
+  if (
+    payload.roleId !=
+    ((user.profile as IProfile).role[0]! as IRole)._id.toString()
+  ) {
+    return makeResponse(
+      false,
+      "User is not permitted to take assessment for this role"
+    );
+  }
 
   if (questions.length !== payload.answers.length) {
     return makeResponse(false, "One of more questions do not belong to role");
