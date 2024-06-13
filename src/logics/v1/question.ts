@@ -3,7 +3,8 @@ import * as roleRepository from "../../repository/v1/role";
 import * as userRepository from "../../repository/v1/user";
 import * as answerRepository from "../../repository/v1/answer";
 import * as jobRepository from "../../repository/v1/job";
-import * as jobTalentRepository from "../../repository/v1/jobTalent";
+import * as pgRepository from "../../repository/v1/pg";
+import * as applicationRepository from "../../repository/v1/application";
 import { makeResponse } from "../../helpers/response";
 import {
   EvaluatePersonalityPayload,
@@ -21,7 +22,7 @@ import { Paging } from "../../typings/customs";
 import * as AI from "../../servces/v1/openai";
 import { IRole } from "../../typings/role";
 import { IResponse } from "../../typings/answer";
-import { getJob, getTalents } from "../../repository/v1/pg";
+import { ApplicationType } from "../../typings/application";
 
 // Function to create/add question for role
 export const createQuestion = async (payload: IQuestion) => {
@@ -105,15 +106,15 @@ export const answerPrescreening = async (
     _id: { $in: questionIds },
   });
 
-  if (
-    payload.roleId !=
-    ((user.profile as IProfile).role[0]! as IRole)._id.toString()
-  ) {
-    return makeResponse(
-      false,
-      "User is not permitted to take assessment for this role"
-    );
-  }
+  // if (
+  //   payload.roleId !=
+  //   ((user.profile as IProfile).role[0]! as IRole)._id.toString()
+  // ) {
+  //   return makeResponse(
+  //     false,
+  //     "User is not permitted to take assessment for this role"
+  //   );
+  // }
 
   if (questions.length !== payload.answers.length) {
     return makeResponse(false, "One of more questions do not belong to role");
@@ -176,9 +177,9 @@ export const answerPrescreening = async (
   const maxScore = 5 * responseArray.length;
   const scorePercent = Number(((totalScore / maxScore) * 100).toFixed(2));
 
+  // Save answers to DB
   await answerRepository.saveOrUpdateAnswer(
-    user._id,
-    payload.roleId,
+    { user: user._id, role: payload.roleId },
     responseArray
   );
 
@@ -194,16 +195,30 @@ export const personalizedQuestions = async (
   payload: IGeneratePersonalizedQuestions
 ) => {
   const { jobId, talentId } = payload;
-  const job = await getJob(jobId);
+
+  // Check if user already has personalized question
+  const application = await applicationRepository.findApplicationsByMatch({
+    job: jobId,
+    talent: talentId,
+  });
+  if (application[0]?.personalizedQuestions?.length) {
+    return makeResponse(
+      false,
+      "personalized questions already generated for this talent"
+    );
+  }
+
+  const job = await pgRepository.getJob(jobId);
   if (!job) {
     return makeResponse(false, "Job not found", {}, 404);
   }
 
-  const talent = await getTalents(talentId);
+  const talent = await pgRepository.getTalents(talentId);
   if (talent.length == 0) {
     return makeResponse(false, "Talent not found", {}, 404);
   }
   const cv = talent.map((t) => t.cv_text);
+  // @TODO get recruiter's guide from job in DB
   const recruiterGuide = payload.recruiterGuide?.length
     ? payload.recruiterGuide
     : [
@@ -219,8 +234,19 @@ export const personalizedQuestions = async (
     return makeResponse(false, "Error with LLM", {}, 400);
   }
   const questions = JSON.parse(response.message.content).questions;
-  await jobTalentRepository.createOrUpdateJobTalent(jobId, talentId, {
-    personalizedQuestions: questions,
+
+  // save questions in DB
+  let questionIds: mongoose.Types.ObjectId[] = [];
+  const questionObjects = questions.map((question: string): IQuestion => {
+    const _id = new mongoose.Types.ObjectId();
+    questionIds.push(_id);
+    return { _id, type: QuestionType.Personalized, question, job: jobId };
+  });
+
+  await questionRepository.insertMany(questionObjects);
+  await applicationRepository.createOrUpdateApplication(jobId, talentId, {
+    personalizedQuestions: questionIds,
+    $setOnInsert: { applicationType: ApplicationType.Invitation },
   });
 
   return makeResponse(
@@ -233,7 +259,7 @@ export const personalizedQuestions = async (
 
 // Function to get personalized questions for a talent based on job
 export const fetchPersonalizedQuestions = async (user: IUser, jobId: string) => {
-  const questions = await jobTalentRepository.findJobTalentsByMatch({
+  const questions = await applicationRepository.findApplicationsByMatch({
     job: jobId,
     talent: user._id,
   });
@@ -277,7 +303,7 @@ export const answerPersonalizedQuestions = async (
   const maxScore = 5 * scoresArray.length;
   const scorePercent = Number(((totalScore / maxScore) * 100).toFixed(2));
 
-  await jobTalentRepository.createOrUpdateJobTalent(jobId, user._id, {
+  await applicationRepository.createOrUpdateApplication(jobId, user._id, {
     personalizedScore: scorePercent,
   });
 
@@ -293,7 +319,7 @@ export const answerPersonalizedQuestions = async (
 export const generatePersonalityQuestion = async (
   payload: IGeneratePersonalityQuestions
 ) => {
-  const job = await getJob(payload.jobId);
+  const job = await pgRepository.getJob(payload.jobId);
   if (!job) {
     return makeResponse(false, "Job not found", {}, 404);
   }
@@ -378,7 +404,7 @@ export const evaluatePersonalityType = async (
   }
   const mbtiType = JSON.parse(response.message.content).personality;
 
-  await jobTalentRepository.createOrUpdateJobTalent(jobId, user._id, {
+  await applicationRepository.createOrUpdateApplication(jobId, user._id, {
     mbtiType,
   });
   return makeResponse(true, "Personality evaluation completed", {
