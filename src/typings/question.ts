@@ -1,6 +1,7 @@
 import { Types } from "mongoose";
 import { IRole } from "./role";
 import { IJob } from "./job";
+import { Paging } from "./customs";
 
 export interface IQuestion {
   _id?: Types.ObjectId;
@@ -8,8 +9,15 @@ export interface IQuestion {
   job?: string | Types.ObjectId | IJob;
   type: TQuestionType;
   question: string;
-  category: string;
-  criteria: string;
+  category?: string;
+  criteria?: string;
+}
+
+export interface FetchQuestions extends Paging {
+  jobId?: string;
+  roleId?: string;
+  talentId?: string;
+  questionType?: string;
 }
 
 export interface IAnswerQuestion {
@@ -28,10 +36,7 @@ export interface EvaluatePersonalityPayload {
 
 export interface AnswerPersonalizedPayload {
   jobId: Types.ObjectId | string;
-  answers: {
-    question: string;
-    answer: string;
-  }[];
+  answers: IAnswerQuestion[];
 }
 
 export interface IQuestionConstruct {
