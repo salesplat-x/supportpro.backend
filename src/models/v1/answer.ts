@@ -1,31 +1,46 @@
 import { Schema, model } from "mongoose";
 import { IAnswer, IResponse } from "../../typings/answer";
+import { QuestionType } from "../../typings/question";
 
-const gradeSchema = new Schema<IResponse>({
-  question: {
-    type: String,
-    required: true,
+const gradeSchema = new Schema<IResponse>(
+  {
+    question: {
+      type: Schema.Types.ObjectId,
+      ref: "question",
+      required: true,
+    },
+    answer: {
+      type: String,
+      required: true,
+    },
+    score: {
+      type: Number,
+    },
+    dichotomyPreference: {
+      type: String,
+    },
   },
-  answer: {
-    type: String,
-    required: true,
-  },
-  score: {
-    type: Number,
-    required: true,
-  },
-});
+  { _id: false }
+);
 
 const answerSchema = new Schema<IAnswer>(
   {
     role: {
       type: Schema.Types.ObjectId,
       ref: "role",
-      required: true,
+    },
+    job: {
+      type: Schema.Types.ObjectId,
+      ref: "job",
     },
     user: {
       type: Schema.Types.ObjectId,
       ref: "user",
+      required: true,
+    },
+    questionType: {
+      type: String,
+      enum: Object.values(QuestionType),
       required: true,
     },
     responses: [gradeSchema],
