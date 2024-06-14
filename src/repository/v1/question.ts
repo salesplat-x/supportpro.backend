@@ -1,6 +1,6 @@
 import Question from "../../models/v1/question";
 import { Page, Paging } from "../../typings/customs";
-import { IQuestion, QuestionType } from "../../typings/question";
+import { IQuestion } from "../../typings/question";
 import { HydratedDocument, Types } from "mongoose";
 import * as func from "../../helpers/func";
 
@@ -8,6 +8,10 @@ export const createQuestion = async (
   question: IQuestion
 ): Promise<HydratedDocument<IQuestion>> => {
   return await new Question(question).save();
+};
+
+export const insertMany = async (questions: any) => {
+  return await Question.insertMany(questions);
 };
 
 export const findQuestionById = async (id: Types.ObjectId | string) => {
