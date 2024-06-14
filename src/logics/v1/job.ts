@@ -1,5 +1,5 @@
 import * as jobRepository from "../../repository/v1/job";
-import * as jobTalentRepository from "../../repository/v1/jobTalent";
+import * as applicationRepository from "../../repository/v1/application";
 import * as roleRepository from "../../repository/v1/role";
 import * as userRepository from "../../repository/v1/user";
 import * as pgRepository from "../../repository/v1/pg";
@@ -14,6 +14,7 @@ import {
   preprocessText,
 } from "../../helpers/func";
 import { IUser } from "../../typings/user";
+import { ApplicationType } from "../../typings/application";
 
 export const createJob = async (user: IUser, payload: IJob) => {
   if (!mongoose.Types.ObjectId.isValid(payload.role as string)) {
@@ -228,7 +229,10 @@ export const topTalents = async (user: IUser, payload: TopTalents) => {
     return {
       updateOne: {
         filter: { job: jobId, talent: talentId },
-        update: { $set: { cvSimilarityScore } },
+        update: {
+          $set: { cvSimilarityScore },
+          $setOnInsert: { applicationType: ApplicationType.Invitation },
+        },
         upsert: true,
       },
     };
@@ -236,7 +240,7 @@ export const topTalents = async (user: IUser, payload: TopTalents) => {
 
   // Execute bulk operations in MongoDB
   if (bulkOps.length > 0) {
-    await jobTalentRepository.bulkWrite(bulkOps);
+    await applicationRepository.bulkWrite(bulkOps);
   }
 
   const talents = await userRepository.findUsersByMatch({
