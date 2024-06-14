@@ -22,7 +22,6 @@ const questionSchema = new Schema<IQuestion>(
     },
     criteria: {
       type: String,
-      required: true,
     },
     category: {
       type: String,
