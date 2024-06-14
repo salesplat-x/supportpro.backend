@@ -25,15 +25,12 @@ export const answerPrescreening = async (req: Request, res: Response) => {
   return responseHandler(res, response);
 };
 
-export const personalizedQuestions = async (req: Request, res: Response) => {
-  const response = await questionController.personalizedQuestions(req.body);
-  return responseHandler(res, response);
-};
-
-export const getPersonalizedQuestions = async (req: Request, res: Response) => {
-  const response = await questionController.fetchPersonalizedQuestions(
-    req.user,
-    req.params._id!
+export const generatePersonalizedQuestions = async (
+  req: Request,
+  res: Response
+) => {
+  const response = await questionController.generatePersonalizedQuestions(
+    req.body
   );
   return responseHandler(res, response);
 };
