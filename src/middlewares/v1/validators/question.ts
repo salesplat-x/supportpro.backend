@@ -1,6 +1,5 @@
 import Joi from "joi";
 import {
-  TDichotomyPair,
   IQuestion,
   DichotomyPair,
   QuestionType,
@@ -58,7 +57,7 @@ export const answersPersonalized = Joi.object({
     answers: Joi.array()
       .items(
         Joi.object({
-          question: Joi.string().required(),
+          questionId: Joi.string().required(),
           answer: Joi.string().required(),
         }).required()
       )
@@ -70,6 +69,7 @@ export const getQuestions = Joi.object({
   query: Joi.object({
     jobId: Joi.string(),
     roleId: Joi.string(),
+    talentId: Joi.string(),
     questionType: Joi.string().valid(...Object.values(QuestionType)),
     limit: Joi.number(),
     offset: Joi.number(),
