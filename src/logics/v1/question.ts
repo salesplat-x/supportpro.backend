@@ -15,6 +15,7 @@ import {
   IQuestion,
   IQuestionConstruct,
   QuestionType,
+  FetchQuestions,
 } from "../../typings/question";
 import mongoose from "mongoose";
 import { IProfile, IUser } from "../../typings/user";
@@ -38,39 +39,62 @@ export const createQuestion = async (payload: IQuestion) => {
 };
 
 // Function to fetch all questions
-export const fetchQuestions = async (payload: any) => {
+export const fetchQuestions = async (payload: FetchQuestions) => {
   const query: mongoose.RootQuerySelector<IQuestion> = {};
-  if (payload.jobId) {
-    const job = await jobRepository.findJobById(payload.jobId);
-    if (!job) {
-      return makeResponse(false, "Job not found", {}, 404);
+  let questions: IQuestion[];
+
+  if (payload.questionType == QuestionType.Personalized) {
+    if (!payload.talentId || !payload.jobId) {
+      return makeResponse(
+        false,
+        "talentId and jobId required to fetch personalized questions"
+      );
     }
-    query.job = payload.jobId;
-  }
 
-  if (payload.roleId) {
-    const role = await roleRepository.findRoleById(payload.roleId);
-    if (!role) {
-      return makeResponse(false, "Role not found", {}, 404);
+    const application = await applicationRepository.findApplicationByMatch({
+      job: payload.jobId,
+      talent: payload.talentId,
+    });
+    if (!application) {
+      return makeResponse(false, "Application record not found", {}, 404);
     }
-    query.role = payload.roleId;
-  }
-  if (payload.questionType) {
-    query.type = payload.questionType;
-  }
 
-  const paging: Paging = {};
-  if (payload.limit) {
-    paging.limit = payload.limit;
-  }
-  if (payload.offset) {
-    paging.offset = payload.offset;
-  }
-  if (payload.sort) {
-    paging.sort = payload.sort;
-  }
+    questions = await questionRepository.findQuestionsByMatch({
+      _id: { $in: application?.personalizedQuestions },
+    });
+  } else {
+    if (payload.jobId) {
+      const job = await jobRepository.findJobById(payload.jobId);
+      if (!job) {
+        return makeResponse(false, "Job not found", {}, 404);
+      }
+      query.job = payload.jobId;
+    }
 
-  const questions = await questionRepository.findQuestionsByMatch(query, paging);
+    if (payload.roleId) {
+      const role = await roleRepository.findRoleById(payload.roleId);
+      if (!role) {
+        return makeResponse(false, "Role not found", {}, 404);
+      }
+      query.role = payload.roleId;
+    }
+    if (payload.questionType) {
+      query.type = payload.questionType;
+    }
+
+    const paging: Paging = {};
+    if (payload.limit) {
+      paging.limit = payload.limit;
+    }
+    if (payload.offset) {
+      paging.offset = payload.offset;
+    }
+    if (payload.sort) {
+      paging.sort = payload.sort;
+    }
+
+    questions = await questionRepository.findQuestionsByMatch(query, paging);
+  }
   return makeResponse(true, "Questions fetched successfully", questions, 200);
 };
 
@@ -169,17 +193,21 @@ export const answerPrescreening = async (
 
   let totalScore = 0;
   for (const response of responseArray) {
-    if (response.score > 5) {
+    if (response.score! > 5) {
       return makeResponse(false, "Score exceeds the maximum assignable score");
     }
-    totalScore += response.score;
+    totalScore += response.score!;
   }
   const maxScore = 5 * responseArray.length;
   const scorePercent = Number(((totalScore / maxScore) * 100).toFixed(2));
 
   // Save answers to DB
   await answerRepository.saveOrUpdateAnswer(
-    { user: user._id, role: payload.roleId },
+    {
+      user: user._id,
+      role: payload.roleId,
+      questionType: QuestionType.Prescreening,
+    },
     responseArray
   );
 
@@ -191,21 +219,24 @@ export const answerPrescreening = async (
 };
 
 // Function to generate personalized questions
-export const personalizedQuestions = async (
+export const generatePersonalizedQuestions = async (
   payload: IGeneratePersonalizedQuestions
 ) => {
   const { jobId, talentId } = payload;
 
   // Check if user already has personalized question
-  const application = await applicationRepository.findApplicationsByMatch({
+  const application = await applicationRepository.findApplicationByMatch({
     job: jobId,
     talent: talentId,
   });
-  if (application[0]?.personalizedQuestions?.length) {
-    return makeResponse(
-      false,
-      "personalized questions already generated for this talent"
-    );
+
+  if (application) {
+    if (application.personalizedQuestions?.length) {
+      return makeResponse(
+        false,
+        "personalized questions already generated for this talent"
+      );
+    }
   }
 
   const job = await pgRepository.getJob(jobId);
@@ -257,21 +288,6 @@ export const personalizedQuestions = async (
   );
 };
 
-// Function to get personalized questions for a talent based on job
-export const fetchPersonalizedQuestions = async (user: IUser, jobId: string) => {
-  const questions = await applicationRepository.findApplicationsByMatch({
-    job: jobId,
-    talent: user._id,
-  });
-
-  return makeResponse(
-    true,
-    "Personalized questions fetched successfully",
-    { questions },
-    200
-  );
-};
-
 // Function to answer personalized questions
 export const answerPersonalizedQuestions = async (
   user: IUser,
@@ -287,25 +303,43 @@ export const answerPersonalizedQuestions = async (
     return makeResponse(false, "Error with LLM", {}, 400);
   }
 
-  const scoresArray: number[] = JSON.parse(response.message.content).scores;
+  const responseArray: IResponse[] = JSON.parse(
+    response.message.content
+  ).responses;
 
-  if (scoresArray.length != answers.length) {
+  if (responseArray.length != answers.length) {
     return makeResponse(
       false,
       "Length of response array doesn't match length of input array"
     );
   }
 
-  let totalScore = scoresArray.reduce((arg, current) => {
-    return arg + current;
-  }, 0);
+  let totalScore = 0;
+  for (const response of responseArray) {
+    if (response.score! > 5) {
+      return makeResponse(false, "Score exceeds the maximum assignable score");
+    }
+    totalScore += response.score!;
+  }
 
-  const maxScore = 5 * scoresArray.length;
+  const maxScore = 5 * responseArray.length;
   const scorePercent = Number(((totalScore / maxScore) * 100).toFixed(2));
 
-  await applicationRepository.createOrUpdateApplication(jobId, user._id, {
-    personalizedScore: scorePercent,
-  });
+  const application = await applicationRepository.findApplicationByIdAndUpdate(
+    { job: jobId, talent: user._id },
+    {
+      personalizedScore: scorePercent,
+    }
+  );
+
+  if (!application) {
+    return makeResponse(false, "Job application not found", {}, 404);
+  }
+
+  await answerRepository.saveOrUpdateAnswer(
+    { job: jobId, user: user._id, questionType: QuestionType.Personalized },
+    responseArray
+  );
 
   return makeResponse(
     true,
@@ -402,10 +436,18 @@ export const evaluatePersonalityType = async (
   if (!response || !response.message.content) {
     return makeResponse(false, "Error with LLM", {}, 400);
   }
-  const mbtiType = JSON.parse(response.message.content).personality;
+
+  // Save answers and personality
+  const { mbtiType, responses } = JSON.parse(response.message.content);
+
+  await answerRepository.saveOrUpdateAnswer(
+    { user: user._id, job: jobId, questionType: QuestionType.Personality },
+    responses
+  );
 
   await applicationRepository.createOrUpdateApplication(jobId, user._id, {
     mbtiType,
+    $setOnInsert: { applicationType: ApplicationType.Application },
   });
   return makeResponse(true, "Personality evaluation completed", {
     mbtiType,
