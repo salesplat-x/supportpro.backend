@@ -1,6 +1,6 @@
 import Answer from "../../models/v1/answer";
 import { IAnswer, IResponse } from "../../typings/answer";
-import { HydratedDocument, Types } from "mongoose";
+import { FilterQuery, HydratedDocument, Types } from "mongoose";
 
 export const startSession = async () => {
   return await Answer.startSession();
@@ -17,12 +17,11 @@ export const createAnswer = async (
 };
 
 export const saveOrUpdateAnswer = async (
-  user: string | Types.ObjectId,
-  role: string | Types.ObjectId,
+  filter: FilterQuery<IAnswer>,
   responses: IResponse[]
 ) => {
   return await Answer.findOneAndUpdate(
-    { user, role },
+    filter,
     { responses },
     {
       upsert: true,
