@@ -20,7 +20,7 @@ import {
 import mongoose from "mongoose";
 import { IProfile, IUser } from "../../typings/user";
 import { Paging } from "../../typings/customs";
-import * as AI from "../../servces/v1/openai";
+import * as AI from "../../services/v1/openai";
 import { IRole } from "../../typings/role";
 import { IResponse } from "../../typings/answer";
 import { ApplicationType } from "../../typings/application";
