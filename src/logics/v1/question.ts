@@ -277,7 +277,22 @@ export const answerPersonalizedQuestions = async (
 ) => {
   const { answers, jobId } = payload;
 
-  const answersJSON = JSON.stringify(answers);
+  const questionIds = Object.keys(answers);
+  const questions = await questionRepository.findQuestionsByMatch({
+    job: jobId,
+    _id: { $in: questionIds },
+  });
+  // const scorePercent = questions;
+
+  const questionConstruct = questions.map((q) => {
+    return {
+      question: q.question,
+      questionId: q._id,
+      answer: answers[q._id.toString()],
+    };
+  });
+
+  const answersJSON = JSON.stringify(questionConstruct);
 
   // Use LLM to grade answers
   const response = await AI.gradePersonalizedAnswers(answersJSON);
@@ -289,7 +304,7 @@ export const answerPersonalizedQuestions = async (
     response.message.content
   ).responses;
 
-  if (responseArray.length != answers.length) {
+  if (responseArray.length != questionIds.length) {
     return makeResponse(
       false,
       "Length of response array doesn't match length of input array"
