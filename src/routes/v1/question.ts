@@ -31,14 +31,14 @@ router.post(
 );
 
 router.post(
-  "/personality/generate",
+  "/personality",
   validateAccess([Roles.Recruiter]),
   validate(questionValidator.generatePersonalityQuestions, { body: true }),
   asyncHandler(question.generatePersonalityQuestion)
 );
 
 router.post(
-  "/answer",
+  "/answer/prescreening",
   validateAccess([Roles.Talent]),
   validate(questionValidator.answers, { body: true }),
   asyncHandler(question.answerPrescreening)
