@@ -45,14 +45,7 @@ export const evaluatePersonality = Joi.object({
 export const answersPersonalized = Joi.object({
   body: Joi.object({
     jobId: Joi.string().required(),
-    answers: Joi.array()
-      .items(
-        Joi.object({
-          questionId: Joi.string().required(),
-          answer: Joi.string().required(),
-        }).required()
-      )
-      .required(),
+    answers: Joi.object().pattern(Joi.string(), Joi.string()).required(),
   }),
 }).required();
 
