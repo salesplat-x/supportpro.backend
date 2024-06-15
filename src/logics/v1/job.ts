@@ -8,7 +8,7 @@ import { FetchJobs, IJob, MatchJob, TopTalents } from "../../typings/job";
 import mongoose from "mongoose";
 import { IRole } from "../../typings/role";
 import { Roles } from "../../typings/customs";
-import { createEmbedding } from "../../servces/v1/openai";
+import { createEmbedding } from "../../services/v1/openai";
 import {
   convertSimilarityToPercentage,
   preprocessText,
