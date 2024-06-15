@@ -1,6 +1,6 @@
 import { makeResponse } from "../../helpers/response";
 import { Request } from "express";
-import { handleUpload } from "../../servces/v1/cloudinary";
+import { handleUpload } from "../../services/v1/cloudinary";
 import {
   chunkText,
   extractText,
@@ -8,7 +8,7 @@ import {
   overlapChunkText,
   preprocessText,
 } from "../../helpers/func";
-import { createEmbedding } from "../../servces/v1/openai";
+import { createEmbedding } from "../../services/v1/openai";
 import { saveTalentEmbedding } from "../../repository/v1/pg";
 import { IProfile } from "../../typings/user";
 import { Roles } from "../../typings/customs";
