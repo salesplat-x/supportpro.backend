@@ -23,16 +23,7 @@ export const id = Joi.object({
 export const answers = Joi.object({
   body: Joi.object({
     roleId: Joi.string().required(),
-    answers: Joi.array()
-      .items(
-        // Joi.object<IAnswerQuestion>({
-        Joi.object({
-          questionId: Joi.string().required(),
-          question: Joi.string().optional(),
-          answer: Joi.string().required(),
-        }).required()
-      )
-      .required(),
+    answers: Joi.object().pattern(Joi.string(), Joi.string()).required(),
   }),
 }).required();
 

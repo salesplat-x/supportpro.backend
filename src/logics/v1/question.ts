@@ -119,16 +119,10 @@ export const answerPrescreening = async (
     return makeResponse(false, "User has already taken assessment");
   }
 
-  if (payload.answers.length > 15) {
+  const questionIds = Object.keys(payload.answers);
+  if (questionIds.length > 15) {
     return makeResponse(false, "Maximum length of answers 15 has been exceeded");
   }
-
-  // Get all question by Id
-  const questionIds = payload.answers.map((answer) => answer.questionId);
-  const questions = await questionRepository.findQuestionsByMatch({
-    role: payload.roleId,
-    _id: { $in: questionIds },
-  });
 
   if (
     payload.roleId !=
@@ -140,37 +134,25 @@ export const answerPrescreening = async (
     );
   }
 
-  if (questions.length !== payload.answers.length) {
-    return makeResponse(false, "One of more questions do not belong to role");
+  // Get all questions by Id
+  const questions = await questionRepository.findQuestionsByMatch({
+    role: payload.roleId,
+    _id: { $in: questionIds },
+  });
+
+  if (questions.length !== questionIds.length) {
+    return makeResponse(false, "One or more questions do not belong to role");
   }
 
-  // Map questions by ID for efficient lookup
-  const questionMap = new Map(
-    questions.map((q) => [
-      q._id.toString(),
-      {
-        question: q.question,
-        criteria: q.criteria,
-      },
-    ])
-  );
-
-  // Validate answers and prepare valid answers for grading
-  const questionsConstruct = payload.answers.reduce(
-    (questionConstruct: IQuestionConstruct[], ans) => {
-      const question = questionMap.get(ans.questionId as string);
-      if (question) {
-        questionConstruct.push({
-          questionId: ans.questionId,
-          question: question.question,
-          answer: ans.answer,
-          criteria: question.criteria,
-        });
-      }
-      return questionConstruct;
-    },
-    []
-  );
+  // Create the Assessment object for the Ai Model
+  const questionsConstruct = questions.map((q): IQuestionConstruct => {
+    return {
+      question: q.question,
+      questionId: q._id.toString()!,
+      criteria: q.criteria,
+      answer: payload.answers[q._id.toString()]!,
+    };
+  });
 
   const questionsJSON = JSON.stringify(questionsConstruct);
 

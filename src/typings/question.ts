@@ -26,7 +26,7 @@ export interface IAnswerQuestion {
 }
 export interface AnswerQuestionPayload {
   roleId: Types.ObjectId | string;
-  answers: IAnswerQuestion[];
+  answers: Record<string, string>;
 }
 
 export interface EvaluatePersonalityPayload {
