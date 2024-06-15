@@ -36,7 +36,7 @@ export interface EvaluatePersonalityPayload {
 
 export interface AnswerPersonalizedPayload {
   jobId: Types.ObjectId | string;
-  answers: IAnswerQuestion[];
+  answers: Record<string, string>;
 }
 
 export interface IQuestionConstruct {
