@@ -24,7 +24,7 @@ export interface IAnswerQuestion {
   questionId: Types.ObjectId | string;
   answer: string;
 }
-export interface AnswerQuestionPayload {
+export interface AnswerPrescreeningPayload {
   roleId: Types.ObjectId | string;
   answers: Record<string, string>;
 }

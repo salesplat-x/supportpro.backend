@@ -9,7 +9,7 @@ import { makeResponse } from "../../helpers/response";
 import {
   EvaluatePersonalityPayload,
   AnswerPersonalizedPayload,
-  AnswerQuestionPayload,
+  AnswerPrescreeningPayload,
   IGeneratePersonalityQuestions,
   IGeneratePersonalizedQuestions,
   IQuestion,
@@ -113,7 +113,7 @@ export const fetchQuestion = async (payload: Pick<IQuestion, "_id">) => {
 // Function to answer prescreening assessment questions
 export const answerPrescreening = async (
   user: IUser,
-  payload: AnswerQuestionPayload
+  payload: AnswerPrescreeningPayload
 ) => {
   if ((user.profile as IProfile).prescreeningScore) {
     return makeResponse(false, "User has already taken assessment");
