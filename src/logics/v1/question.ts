@@ -382,49 +382,31 @@ export const evaluatePersonalityType = async (
   payload: EvaluatePersonalityPayload
 ) => {
   const { answers, jobId } = payload;
-  if (answers.length != 4) {
+  const questionIds = Object.keys(answers);
+
+  if (questionIds.length != 4) {
     return makeResponse(false, "You must answer exactly 4 questions");
   }
 
   // Get all question by Id
-  const questionIds = answers.map((answer) => answer.questionId);
   const questions = await questionRepository.findQuestionsByMatch({
     job: jobId,
     type: QuestionType.Personality,
     _id: { $in: questionIds },
   });
 
-  if (questions.length !== answers.length) {
+  if (questions.length !== questionIds.length) {
     return makeResponse(false, "One of more questions do not belong to job");
   }
 
-  // Map questions by ID for efficient lookup
-  const questionMap = new Map(
-    questions.map((q) => [
-      q._id.toString(),
-      {
-        question: q.question,
-        criteria: q.criteria,
-      },
-    ])
-  );
-
-  // Validate answers and prepare valid answers for grading
-  const questionsConstruct = answers.reduce(
-    (questionConstruct: IQuestionConstruct[], ans) => {
-      const question = questionMap.get(ans.questionId as string);
-      if (question) {
-        questionConstruct.push({
-          questionId: ans.questionId,
-          question: question.question,
-          answer: ans.answer,
-          dichotomy: question.criteria,
-        });
-      }
-      return questionConstruct;
-    },
-    []
-  );
+  const questionsConstruct = questions.map((q) => {
+    return {
+      question: q.question,
+      questionId: q._id.toString(),
+      answer: answers[q._id.toString()],
+      dichotomy: q.criteria,
+    };
+  });
 
   const questionsJSON = JSON.stringify(questionsConstruct);
 
