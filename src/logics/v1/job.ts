@@ -81,7 +81,7 @@ export const updateJob = async (user: IUser, payload: IJob) => {
       return makeResponse(false, "Role does not exist", {}, 404);
     }
   }
-  console.log(update);
+
   const job = await jobRepository.findJobByIdAndUpdate(_id, update);
   if (!job) {
     return makeResponse(false, "Unable to update job", {}, 400);

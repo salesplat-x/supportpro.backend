@@ -3,7 +3,6 @@
 // import { IJob } from "../../typings/job";
 
 // const jobSchema = new Schema<IJob>({
-//   //@TODO switch role to ID
 //   role: {
 //     type: String,
 //     required: true,
