@@ -4,8 +4,14 @@ import * as roleRepository from "../../repository/v1/role";
 import * as userRepository from "../../repository/v1/user";
 import * as pgRepository from "../../repository/v1/pg";
 import { makeResponse } from "../../helpers/response";
-import { FetchJobs, IJob, MatchJob, TopTalents } from "../../typings/job";
-import mongoose from "mongoose";
+import {
+  FetchJobs,
+  IFetchApplications,
+  IJob,
+  MatchJob,
+  TopTalents,
+} from "../../typings/job";
+import { Types, PipelineStage } from "mongoose";
 import { IRole } from "../../typings/role";
 import { Roles } from "../../typings/customs";
 import { createEmbedding } from "../../services/v1/openai";
@@ -17,7 +23,7 @@ import { IUser } from "../../typings/user";
 import { ApplicationType } from "../../typings/application";
 
 export const createJob = async (user: IUser, payload: IJob) => {
-  if (!mongoose.Types.ObjectId.isValid(payload.role as string)) {
+  if (!Types.ObjectId.isValid(payload.role as string)) {
     return makeResponse(false, "Invalid role id", {}, 400);
   }
   const existingRole = await roleRepository.findRoleById(payload.role as string);
@@ -71,7 +77,7 @@ export const updateJob = async (user: IUser, payload: IJob) => {
   }
 
   if (update.role) {
-    if (!mongoose.Types.ObjectId.isValid(update.role as string)) {
+    if (!Types.ObjectId.isValid(update.role as string)) {
       return makeResponse(false, "Invalid role id", {}, 400);
     }
     const existingRole = await roleRepository.findRoleById(
@@ -96,7 +102,7 @@ export const updateJob = async (user: IUser, payload: IJob) => {
 export const fetchAllJobs = async (payload: FetchJobs) => {
   let jobs: IJob[] = [];
   if (payload.roleId) {
-    if (!mongoose.Types.ObjectId.isValid(payload.roleId)) {
+    if (!Types.ObjectId.isValid(payload.roleId)) {
       return makeResponse(false, "Invalid role id", {}, 400);
     }
     const role = await roleRepository.findRoleById(payload.roleId);
@@ -111,7 +117,7 @@ export const fetchAllJobs = async (payload: FetchJobs) => {
 };
 
 export const fetchJob = async (payload: Pick<IJob, "_id">) => {
-  if (!mongoose.Types.ObjectId.isValid(payload._id)) {
+  if (!Types.ObjectId.isValid(payload._id)) {
     return makeResponse(false, "Invalid job id", {}, 400);
   }
   let job = await jobRepository.findJobById(payload._id);
@@ -123,7 +129,7 @@ export const fetchJob = async (payload: Pick<IJob, "_id">) => {
 
 // Function to to get talents based on profile and job similarity
 export const matchJob = async (user: IUser, payload: MatchJob) => {
-  if (!mongoose.Types.ObjectId.isValid(payload._id)) {
+  if (!Types.ObjectId.isValid(payload._id)) {
     return makeResponse(false, "Invalid job id", {}, 400);
   }
   let job = await jobRepository.findJobById(payload._id);
@@ -143,7 +149,7 @@ export const matchJob = async (user: IUser, payload: MatchJob) => {
     );
   }
 
-  let pipeline: mongoose.PipelineStage[] = [
+  let pipeline: PipelineStage[] = [
     {
       $match: {
         userRole: Roles.Talent,
@@ -192,14 +198,19 @@ export const matchJob = async (user: IUser, payload: MatchJob) => {
   }
   const talents = await userRepository.userAggregate(pipeline);
 
-  return makeResponse(true, "Job fetched successfully", { talents }, 200);
+  return makeResponse(
+    true,
+    "Job matches fetched successfully",
+    { talents },
+    200
+  );
 };
 
 // Function to get talents based on CV and JD embedding similarity
 export const topTalents = async (user: IUser, payload: TopTalents) => {
   const { jobId } = payload;
 
-  if (!mongoose.Types.ObjectId.isValid(jobId)) {
+  if (!Types.ObjectId.isValid(jobId)) {
     return makeResponse(false, "Invalid job id", {}, 400);
   }
   const job = await jobRepository.findJobById(jobId);
@@ -249,4 +260,129 @@ export const topTalents = async (user: IUser, payload: TopTalents) => {
   //@TODO send out invitations to talents
 
   return makeResponse(true, "Top talents fetched", { talents }, 200);
+};
+
+// Function to get job Applications
+export const applications = async (user: IUser, payload: IFetchApplications) => {
+  const {
+    jobId,
+    minCvSimilarityScore,
+    minPersonalizedScore,
+    experience,
+    minSalary,
+    maxSalary,
+    offset,
+    limit,
+  } = payload;
+
+  const job = await jobRepository.findJobById(jobId);
+  if (!job) {
+    return makeResponse(false, "Job not found", {}, 404);
+  }
+  if ((job.postedBy as IUser)._id.toString() !== user._id.toString()) {
+    return makeResponse(
+      false,
+      "You are not authorized to perform this action",
+      {},
+      403
+    );
+  }
+
+  // Build the match conditions for the application
+  const applicationMatch: any = { job: new Types.ObjectId(jobId) };
+  if (minCvSimilarityScore) {
+    applicationMatch.cvSimilarityScore = { $gte: Number(minCvSimilarityScore) };
+  }
+  if (minPersonalizedScore) {
+    applicationMatch.personalizedScore = { $gte: Number(minPersonalizedScore) };
+  }
+
+  // Build the match conditions for the profile
+  const profileMatch: any = {};
+  if (experience) {
+    profileMatch["profile.experience"] = experience;
+  }
+  // if (minSalary) {
+  //   profileMatch["profile.minSalary"] = { $gte: Number(minSalary) };
+  // }
+  if (maxSalary) {
+    profileMatch["profile.maxSalary"] = { $lte: Number(maxSalary) };
+  }
+
+  // Aggregation pipeline
+  const pipeline: PipelineStage[] = [
+    {
+      $match: applicationMatch,
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "talent",
+        foreignField: "_id",
+        as: "talent",
+      },
+    },
+    {
+      $unwind: "$talent",
+    },
+    {
+      $lookup: {
+        from: "profiles",
+        localField: "talent.profile",
+        foreignField: "_id",
+        as: "profile",
+      },
+    },
+    {
+      $unwind: "$profile",
+    },
+    {
+      $match: profileMatch,
+    },
+    {
+      $sort: {
+        cvSimilarityScore: -1,
+        personalizedScore: -1,
+        createdAt: -1,
+      },
+    },
+  ];
+
+  // Add optional pagination stages if limit and skip are provided
+  if (offset) {
+    pipeline.push({ $skip: Number(offset) });
+  }
+  if (limit) {
+    pipeline.push({ $limit: Number(limit) });
+  }
+
+  pipeline.push({
+    $project: {
+      _id: 1,
+      job: 1,
+      talent: {
+        _id: "$talent._id",
+        email: "$talent.email",
+        firstName: "$talent.firstName",
+        lastName: "$talent.lastName",
+        profile: {
+          _id: "$profile._id",
+          bio: "$profile.bio",
+          experience: "$profile.experience",
+          maxSalary: "$profile.maxSalary",
+          minSalary: "$profile.minSalary",
+        },
+      },
+      personalizedScore: 1,
+      cvSimilarityScore: 1,
+      mbtiType: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    },
+  });
+
+  const applications = await applicationRepository.applicationAggregate(
+    pipeline
+  );
+  return makeResponse(true, "Job applications fetched", { applications });
 };
