@@ -40,3 +40,12 @@ export interface TopTalents {
   percentage: number;
   limit: number;
 }
+
+export interface IFetchApplications extends Paging {
+  jobId: string;
+  experience: string;
+  minCvSimilarityScore: number;
+  minPersonalizedScore: number;
+  minSalary: number;
+  maxSalary: number;
+}
