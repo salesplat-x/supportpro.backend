@@ -44,6 +44,13 @@ router.get(
   validate(jobValidator.matchJob, { params: true, query: true }),
   asyncHandler(job.matchJob)
 );
+// Endpoint to get talents based on profile and Job similarity
+router.get(
+  "/applications/:jobId",
+  validateAccess([Roles.Recruiter]),
+  validate(jobValidator.getApplications, { params: true, query: true }),
+  asyncHandler(job.applications)
+);
 
 router.get(
   "/:_id",
