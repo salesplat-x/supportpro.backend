@@ -55,9 +55,23 @@ export const matchJob = Joi.object({
   params: Joi.object({
     _id: Joi.string().required(),
   }),
-  query: {
+  query: Joi.object({
     incomplete: Joi.boolean().optional(),
-  },
+  }),
+}).required();
+
+export const getApplications = Joi.object({
+  params: Joi.object({
+    jobId: Joi.string().required(),
+  }),
+  query: Joi.object({
+    experience: Joi.string().optional(),
+    minCvSimilarityScore: Joi.number().max(100).min(0).optional(),
+    minPersonalizedScore: Joi.number().max(100).min(0).optional(),
+    maxSalary: Joi.number().optional(),
+    offset: Joi.number().optional(),
+    skip: Joi.number().optional(),
+  }),
 }).required();
 
 export const allJobs = Joi.object({
