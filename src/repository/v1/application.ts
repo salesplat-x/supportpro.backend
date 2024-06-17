@@ -1,7 +1,7 @@
 import Application from "../../models/v1/application";
 import { Page, Paging } from "../../typings/customs";
 import { IApplication } from "../../typings/application";
-import { FilterQuery, Types, UpdateQuery } from "mongoose";
+import { FilterQuery, PipelineStage, Types, UpdateQuery } from "mongoose";
 import * as func from "../../helpers/func";
 
 export const createApplication = async (application: IApplication) => {
@@ -69,4 +69,11 @@ export const findApplicationByIdAndUpdate = async (
   return await Application.findOneAndUpdate(filter, data, {
     new: true,
   });
+};
+
+export const applicationAggregate = async (
+  data: PipelineStage[],
+  paging: Paging = {}
+) => {
+  return await Application.aggregate(data);
 };
