@@ -64,6 +64,12 @@ export const matchJob = Joi.object({
   }),
 }).required();
 
+export const apply = Joi.object({
+  params: Joi.object({
+    jobId: Joi.string().required(),
+  }),
+}).required();
+
 export const getApplications = Joi.object({
   params: Joi.object({
     jobId: Joi.string().required(),
