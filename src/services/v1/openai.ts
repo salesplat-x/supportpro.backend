@@ -70,11 +70,12 @@ export const createEmbedding = async (text: string | string[]) => {
 export const generatePersonalizedQuestions = async (
   jobDescription: string,
   cv: Array<string>,
+  bio: string,
   recruiterGuide: Array<string>
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
   const system = `
   You are an automated system for generating personalized questions tailor made for job applicants/talents in order to get a wholesome idea of job applicants.
-  You will be given the job description, the talent's CV and the recruiter's guide use them to generate 15 tailor-made personalized questions to ask the talent,  
+  You will be given the job description,the talent's bio, the talent's CV and the recruiter's guide use them to generate 15 tailor-made personalized questions to ask the talent,  
   
   Your output should be a JSON array of the Questions. For example 
   '{
@@ -92,7 +93,7 @@ export const generatePersonalizedQuestions = async (
   
   Here is the recruiter's guide below.
   ${recruiterGuide}
-  Make sure the generated personalized questions are lays emphasis on the recruiter's guide especially
+  Make sure the generated personalized questions lays emphasis on the recruiter's guide especially, also factor in the talent's cv and bio
 `;
 
   const completion = await openai.chat.completions.create({
