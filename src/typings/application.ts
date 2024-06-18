@@ -13,6 +13,7 @@ export interface IApplication {
   personalizedScore?: number;
   cvSimilarityScore?: number;
   mbtiType?: string;
+  status: TApplicationStatus;
 }
 
 export const ApplicationType = {
@@ -21,3 +22,12 @@ export const ApplicationType = {
 } as const;
 
 type TApplicationType = (typeof ApplicationType)[keyof typeof ApplicationType];
+
+export const ApplicationStatus = {
+  Pending: "pending",
+  Accepted: "accepted",
+  Rejected: "rejected",
+} as const;
+
+type TApplicationStatus =
+  (typeof ApplicationStatus)[keyof typeof ApplicationStatus];
