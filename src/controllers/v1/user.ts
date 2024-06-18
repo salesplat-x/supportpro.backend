@@ -26,3 +26,8 @@ export const viewProfile = async (req: Request, res: Response) => {
   const response = await userController.viewProfile(req.params as any);
   return responseHandler(res, response);
 };
+
+export const applications = async (req: Request, res: Response) => {
+  const response = await userController.applications(req.user, req.query);
+  return responseHandler(res, response);
+};
