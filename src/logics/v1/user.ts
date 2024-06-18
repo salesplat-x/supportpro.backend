@@ -1,10 +1,10 @@
 import { FetchProfiles, IProfile, IUser } from "../../typings/user";
 import * as userRepository from "../../repository/v1/user";
 import * as roleRepository from "../../repository/v1/role";
+import * as applicationRepository from "../../repository/v1/application";
 import { makeResponse } from "../../helpers/response";
 import mongoose from "mongoose";
 import { Roles } from "../../typings/customs";
-import { Profile } from "../../models/v1/user";
 
 export const uploadProfile = async (payload: IProfile, user: IUser) => {
   let existingUser = await userRepository.findUserById(user._id);
@@ -152,4 +152,23 @@ export const viewProfilesForRole = async (payload: FetchProfiles) => {
   // Use an aggregation to get all users with the specified role
   talents = await userRepository.userAggregate(pipeline, payload);
   return makeResponse(true, "User details fetched", { talents });
+};
+
+export const applications = async (user: IUser, payload: any) => {
+  const { applicationType, applicationStatus } = payload;
+
+  const query: Record<string, any> = { talent: user._id };
+
+  if (applicationType) {
+    query.applicationType = applicationType;
+  }
+  if (applicationStatus) {
+    query.status = applicationStatus;
+  }
+
+  const applications = await applicationRepository.findApplicationsByMatch(
+    query
+  );
+
+  return makeResponse(true, "User's job applications fetched", { applications });
 };
