@@ -231,6 +231,9 @@ export const generatePersonalizedQuestions = async (
     return makeResponse(false, "Talent not found", {}, 404);
   }
   const cv = talent.map((t) => t.cv_text);
+
+  const user = await userRepository.findUserById(talentId);
+  const bio = (user?.profile as IProfile).bio;
   // @TODO get recruiter's guide from job in DB
   const recruiterGuide = payload.recruiterGuide?.length
     ? payload.recruiterGuide
@@ -241,6 +244,7 @@ export const generatePersonalizedQuestions = async (
   const response = await AI.generatePersonalizedQuestions(
     job.job_description,
     cv,
+    bio,
     recruiterGuide
   );
   if (!response || !response.message.content) {
