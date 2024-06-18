@@ -1,5 +1,9 @@
 import { Schema, model } from "mongoose";
-import { ApplicationType, IApplication } from "../../typings/application";
+import {
+  ApplicationStatus,
+  ApplicationType,
+  IApplication,
+} from "../../typings/application";
 
 const schema = new Schema<IApplication>(
   {
@@ -21,6 +25,11 @@ const schema = new Schema<IApplication>(
       type: String,
       enum: Object.values(ApplicationType),
       required: true,
+    },
+    status: {
+      type: String,
+      enum: Object.values(ApplicationStatus),
+      default: ApplicationStatus.Pending,
     },
     personalizedQuestions: {
       type: [String],
