@@ -6,6 +6,7 @@ import * as pgRepository from "../../repository/v1/pg";
 import { makeResponse } from "../../helpers/response";
 import {
   FetchJobs,
+  IApply,
   IFetchApplications,
   IJob,
   MatchJob,
@@ -395,4 +396,25 @@ export const applications = async (user: IUser, payload: IFetchApplications) => 
     pipeline
   );
   return makeResponse(true, "Job applications fetched", { applications });
+};
+
+// Function to apply for job
+export const apply = async (user: IUser, payload: IApply) => {
+  const { jobId } = payload;
+
+  let application = await applicationRepository.findApplicationByMatch({
+    talent: user._id,
+    job: jobId,
+  });
+  if (application) {
+    return makeResponse(false, "You have already applied for this job");
+  }
+
+  application = await applicationRepository.createApplication({
+    talent: user._id,
+    job: jobId,
+    applicationType: ApplicationType.Application,
+  });
+
+  return makeResponse(true, "Application successful", { application });
 };
