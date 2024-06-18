@@ -51,3 +51,7 @@ export interface IFetchApplications extends Paging {
   minSalary: number;
   maxSalary: number;
 }
+
+export interface IApply {
+  jobId: string | Types.ObjectId;
+}
