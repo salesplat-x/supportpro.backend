@@ -39,4 +39,11 @@ router.get(
   asyncHandler(user.viewProfile)
 );
 
+router.get(
+  "/applications",
+  validateAccess([Roles.Talent]),
+  validate(userValidator.applications, { query: true }),
+  asyncHandler(user.applications)
+);
+
 export default (app: Router) => app.use("/user", router);
