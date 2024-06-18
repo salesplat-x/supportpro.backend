@@ -52,12 +52,23 @@ export const findAllApplications = async (paging: Paging = {}) => {
 };
 
 export const findApplicationByMatch = async (
+  data: IApplication | Record<string, any>
+) => {
+  return await Application.findOne(data).select("personalizedQuestions");
+};
+
+export const findApplicationsByMatch = async (
   data: IApplication | Record<string, any>,
   paging: Paging = {}
 ) => {
-  return await Application.findOne(data)
-    .select("personalizedQuestions")
-    .sort({ updatedAt: func.sortDirection(paging.sort!) || Page.Sort })
+  return await Application.find(data)
+    .populate({
+      path: "job",
+      select: "-recruiterGuide",
+      strictPopulate: false,
+    })
+    .select("-personalizedQuestions")
+    .sort({ updatedAt: -1 })
     .skip(Number(paging.offset) || Page.Offset)
     .limit(Number(paging.limit) || Page.Limit);
 };
