@@ -4,7 +4,7 @@ import { IApplication } from "../../typings/application";
 import { FilterQuery, PipelineStage, Types, UpdateQuery } from "mongoose";
 import * as func from "../../helpers/func";
 
-export const createApplication = async (application: IApplication) => {
+export const createApplication = async (application: Partial<IApplication>) => {
   return await new Application(application).save();
 };
 
