@@ -266,6 +266,8 @@ export const topTalents = async (user: IUser, payload: TopTalents) => {
 export const applications = async (user: IUser, payload: IFetchApplications) => {
   const {
     jobId,
+    applicationType,
+    applicationStatus,
     minCvSimilarityScore,
     minPersonalizedScore,
     experience,
@@ -290,6 +292,12 @@ export const applications = async (user: IUser, payload: IFetchApplications) => 
 
   // Build the match conditions for the application
   const applicationMatch: any = { job: new Types.ObjectId(jobId) };
+  if (applicationType) {
+    applicationMatch.applicationType = applicationType;
+  }
+  if (applicationStatus) {
+    applicationMatch.status = applicationStatus;
+  }
   if (minCvSimilarityScore) {
     applicationMatch.cvSimilarityScore = { $gte: Number(minCvSimilarityScore) };
   }
@@ -373,6 +381,8 @@ export const applications = async (user: IUser, payload: IFetchApplications) => 
           minSalary: "$profile.minSalary",
         },
       },
+      applicationType: 1,
+      status: 1,
       personalizedScore: 1,
       cvSimilarityScore: 1,
       mbtiType: 1,
