@@ -1,6 +1,10 @@
 import Joi from "joi";
 import { Experience } from "../../../typings/customs";
 import { FetchProfiles } from "../../../typings/user";
+import {
+  ApplicationStatus,
+  ApplicationType,
+} from "../../../typings/application";
 
 export const profile = Joi.object({
   body: Joi.object({
@@ -33,5 +37,19 @@ export const userProfiles = Joi.object({
     minScore: Joi.number().max(99).min(0).optional(),
     maxSalary: Joi.number().optional(),
     incomplete: Joi.boolean().optional(),
+  }),
+}).required();
+
+export const applications = Joi.object({
+  query: Joi.object({
+    applicationType: Joi.string()
+      .valid(...Object.values(ApplicationType))
+      .optional(),
+    applicationStatus: Joi.string()
+      .valid(...Object.values(ApplicationStatus))
+      .optional(),
+    limit: Joi.number(),
+    offset: Joi.number(),
+    sort: Joi.string().valid("asc", "desc"),
   }),
 }).required();
