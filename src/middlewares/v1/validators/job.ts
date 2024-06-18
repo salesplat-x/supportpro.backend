@@ -1,6 +1,10 @@
 import Joi from "joi";
 import { Experience } from "../../../typings/customs";
 import { IJob, TopTalents } from "../../../typings/job";
+import {
+  ApplicationStatus,
+  ApplicationType,
+} from "../../../typings/application";
 
 export const job = Joi.object({
   body: Joi.object<IJob>({
@@ -68,6 +72,12 @@ export const getApplications = Joi.object({
     experience: Joi.string().optional(),
     minCvSimilarityScore: Joi.number().max(100).min(0).optional(),
     minPersonalizedScore: Joi.number().max(100).min(0).optional(),
+    applicationType: Joi.string()
+      .valid(...Object.values(ApplicationType))
+      .optional(),
+    applicationStatus: Joi.string()
+      .valid(...Object.values(ApplicationStatus))
+      .optional(),
     maxSalary: Joi.number().optional(),
     offset: Joi.number().optional(),
     skip: Joi.number().optional(),
