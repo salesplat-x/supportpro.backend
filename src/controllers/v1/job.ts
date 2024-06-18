@@ -42,3 +42,8 @@ export const applications = async (req: Request, res: Response) => {
   const response = await jobController.applications(req.user, payload as any);
   return responseHandler(res, response);
 };
+
+export const apply = async (req: Request, res: Response) => {
+  const response = await jobController.apply(req.user, req.params as any);
+  return responseHandler(res, response);
+};
