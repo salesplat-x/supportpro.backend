@@ -39,34 +39,6 @@ export interface IProfile {
   prescreeningScore: number;
 }
 
-export interface IOrganization {
-  _id: Types.ObjectId | string;
-  email: string;
-  name: string;
-  password: string;
-  emailVerified: boolean;
-  size: number;
-  logo: string;
-  website: string;
-  address: string;
-  industry: Types.ObjectId | string;
-  logoInEmail: boolean;
-  logoInReport: boolean;
-  twitter: string;
-  linkedin: string;
-  facebook: string;
-  role: string;
-  recoveryCode: string | null;
-  recoveryCodeExpiry: Date | null;
-  verificationCode: string | null;
-  verificationCodeExpiry: Date | null;
-  active: boolean;
-  onboarded: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-  __v: number;
-}
-
 export interface IUserPasswordUpdate {
   oldPassword: string;
   newPassword: string;
