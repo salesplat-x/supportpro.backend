@@ -1,14 +1,14 @@
 import { Response, Request } from "express";
-import * as orgController from "../../logics/v1/organization";
+import * as orgLogic from "../../logics/v1/organization";
 import { responseHandler } from "../../middlewares/v1/handler";
 
-// export const create = async (req: Request, res: Response) => {
-//   const response = await orgController.createJob(req.user, req.body);
-//   return responseHandler(res, response);
-// };
+export const registerOrganization = async (req: Request, res: Response) => {
+  const response = await orgLogic.createOrganization(req.body);
+  return responseHandler(res, response);
+};
 
 // export const update = async (req: Request, res: Response) => {
-//   const response = await orgController.updateJob(req.user, {
+//   const response = await orgLogic.updateJob(req.user, {
 //     ...req.params,
 //     ...req.body,
 //   });
@@ -16,21 +16,21 @@ import { responseHandler } from "../../middlewares/v1/handler";
 // };
 
 // export const fetchAll = async (req: Request, res: Response) => {
-//   const response = await orgController.fetchAllJobs(req.query);
+//   const response = await orgLogic.fetchAllJobs(req.query);
 //   return responseHandler(res, response);
 // };
 
 // export const fetch = async (req: Request, res: Response) => {
-//   const response = await orgController.fetchJob(req.params as any);
+//   const response = await orgLogic.fetchJob(req.params as any);
 //   return responseHandler(res, response);
 // };
 
 export const setAIConfig = async (req: Request, res: Response) => {
-  const response = await orgController.setAIConfig(req.user, req.body);
+  const response = await orgLogic.setAIConfig(req.user, req.body);
   return responseHandler(res, response);
 };
 
 export const getAIConfig = async (req: Request, res: Response) => {
-  const response = await orgController.getAIConfig(req.user);
+  const response = await orgLogic.getAIConfig(req.user);
   return responseHandler(res, response);
 };
