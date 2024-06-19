@@ -20,6 +20,12 @@ router.post(
 );
 
 router.post(
+  "/register/organization",
+  validate(authValidator.organization, { body: true }),
+  asyncHandler(auth.registerOrganization)
+);
+
+router.post(
   "/login",
   validate(authValidator.login, { body: true }),
   asyncHandler(auth.login)
