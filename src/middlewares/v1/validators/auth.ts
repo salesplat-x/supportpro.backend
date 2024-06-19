@@ -43,20 +43,6 @@ export const profile = Joi.object({
   }),
 }).required();
 
-export const organization = Joi.object({
-  body: Joi.object({
-    email: Joi.string().email().required(),
-    name: Joi.string().required(),
-    phone: Joi.string().required(),
-    website: Joi.string().required(),
-    address: Joi.string().required(),
-    industry: Joi.string(),
-    twitter: Joi.string(),
-    linkedin: Joi.string(),
-    facebook: Joi.string(),
-  }),
-}).required();
-
 export const passwordUpdate = Joi.object({
   body: Joi.object({
     newPassword: Joi.string()
