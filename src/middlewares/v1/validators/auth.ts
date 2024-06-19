@@ -1,4 +1,5 @@
 import Joi from "joi";
+import { Experience } from "../../../typings/customs";
 
 export const register = Joi.object({
   body: Joi.object({
@@ -31,12 +32,28 @@ export const login = Joi.object({
 
 export const profile = Joi.object({
   body: Joi.object({
-    bio: Joi.string().email().required(),
+    bio: Joi.string().required(),
     cv: Joi.string().required(),
-    experience: Joi.string().required(),
+    experience: Joi.string()
+      .valid(...Object.values(Experience))
+      .required(),
     maxSalary: Joi.number().required(),
     minSalary: Joi.number().required(),
     role: Joi.array().items(Joi.string()),
+  }),
+}).required();
+
+export const organization = Joi.object({
+  body: Joi.object({
+    email: Joi.string().email().required(),
+    name: Joi.string().required(),
+    phone: Joi.string().required(),
+    website: Joi.string().required(),
+    address: Joi.string().required(),
+    industry: Joi.string(),
+    twitter: Joi.string(),
+    linkedin: Joi.string(),
+    facebook: Joi.string(),
   }),
 }).required();
 
