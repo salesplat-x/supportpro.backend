@@ -14,6 +14,11 @@ export const registerRecruiter = async (req: Request, res: Response) => {
   return responseHandler(res, response);
 };
 
+export const registerOrganization = async (req: Request, res: Response) => {
+  const response = await authController.createOrganization(req.body);
+  return responseHandler(res, response);
+};
+
 export const login = async (req: Request, res: Response) => {
   const response = await authController.loginUser(req.body);
   return responseHandler(res, response);
