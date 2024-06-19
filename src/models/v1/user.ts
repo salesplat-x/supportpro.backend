@@ -43,6 +43,11 @@ const userSchema = new Schema<IUser>(
       ref: "profile",
       required: false,
     },
+    organization: {
+      type: Schema.Types.ObjectId,
+      ref: "organization",
+      required: false,
+    },
     emailVerified: {
       type: Boolean,
       default: false,
