@@ -6,8 +6,6 @@ import * as auth from "../../controllers/v1/auth";
 import validate from "../../middlewares/v1/validators/validate";
 import * as authValidator from "../../middlewares/v1/validators/auth";
 import { asyncHandler } from "../../middlewares/v1/handler";
-import { validateAccess } from "../../middlewares/v1/auth";
-import { Roles } from "../../typings/customs";
 
 router.post(
   "/register",
@@ -19,13 +17,6 @@ router.post(
   "/register/recruiter",
   validate(authValidator.register, { body: true }),
   asyncHandler(auth.registerRecruiter)
-);
-
-router.post(
-  "/register/organization",
-  validateAccess([Roles.Admin]),
-  validate(authValidator.organization, { body: true }),
-  asyncHandler(auth.registerOrganization)
 );
 
 router.post(
