@@ -1,5 +1,4 @@
 import { IUser } from "../../typings/user";
-import * as organizationRepository from "../../repository/v1/organization";
 import * as userRepository from "../../repository/v1/user";
 import { makeResponse } from "../../helpers/response";
 import { validateEmail } from "../../helpers/func";
@@ -8,7 +7,6 @@ import {
   generateHashedPassword,
   signToken,
 } from "../../helpers/utils";
-import { IOrganization } from "../../typings/organization";
 
 export const createUser = async (userPayload: IUser) => {
   if (!validateEmail(userPayload.email)) {
@@ -40,46 +38,6 @@ export const createUser = async (userPayload: IUser) => {
     true,
     "User Registered Successfully",
     { user, token },
-    201
-  );
-};
-
-export const createOrganization = async (payload: IOrganization) => {
-  let { email, phone } = payload;
-
-  if (!validateEmail(email)) {
-    return makeResponse(false, "Invalid Email Address");
-  }
-  email = email!.toLowerCase();
-
-  let exists = await organizationRepository.findOrganizationByEmail(email);
-  if (exists) {
-    return makeResponse(
-      false,
-      "Organization already registered with this email"
-    );
-  }
-
-  exists = await organizationRepository.findOrganizationByMatch({ phone });
-  if (exists) {
-    return makeResponse(
-      false,
-      "Organization already registered with this phone number"
-    );
-  }
-
-  const organization = await organizationRepository.createOrganization(payload);
-  if (!organization) {
-    return makeResponse(
-      false,
-      "Organization registration Failed, Please Try Again"
-    );
-  }
-
-  return makeResponse(
-    true,
-    "Organization registered Successfully",
-    { organization },
     201
   );
 };
