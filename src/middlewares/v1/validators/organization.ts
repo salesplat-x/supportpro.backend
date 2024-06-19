@@ -7,6 +7,7 @@ export const aiConfig = Joi.object({
     cvSimilarity: Joi.boolean().required(),
     personalizedAssessment: Joi.boolean().required(),
     personalityEvaluation: Joi.boolean().required(),
+    noPersonalizedQuestions: Joi.number().optional(),
     recruiterGuide: Joi.array().items(Joi.string()).optional(),
   }),
 }).required();
