@@ -7,5 +7,6 @@ export interface IAIConfig {
   cvSimilarity: boolean;
   personalizedAssessment: boolean;
   personalityEvaluation: boolean;
+  noPersonalizedQuestions: number;
   recruiterGuide: string[];
 }
