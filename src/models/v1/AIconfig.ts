@@ -14,6 +14,10 @@ const schema = new Schema<IAIConfig>(
     recruiterGuide: {
       type: [String],
     },
+    noPersonalizedQuestions: {
+      type: Number,
+      default: 15,
+    },
     prescreeningAssessment: {
       type: Boolean,
       default: true,
