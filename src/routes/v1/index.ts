@@ -7,6 +7,7 @@ import role from "./role";
 import user from "./user";
 import upload from "./upload";
 import question from "./question";
+import organization from "./organization";
 
 export default (router: Router) => {
   main(router);
@@ -16,4 +17,5 @@ export default (router: Router) => {
   role(router);
   upload(router);
   question(router);
+  organization(router);
 };
