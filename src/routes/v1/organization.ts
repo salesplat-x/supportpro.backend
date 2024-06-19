@@ -9,12 +9,12 @@ import { asyncHandler } from "../../middlewares/v1/handler";
 import { validateAccess } from "../../middlewares/v1/auth";
 import { Roles } from "../../typings/customs";
 
-// router.post(
-//   "/",
-//   validateAccess([Roles.Recruiter]),
-//   validate(orgValidator.org, { body: true }),
-//   asyncHandler(org.create)
-// );
+router.post(
+  "/",
+  validateAccess([Roles.Admin]),
+  validate(orgValidator.organization, { body: true }),
+  asyncHandler(org.registerOrganization)
+);
 
 // router.patch(
 //   "/:_id",
