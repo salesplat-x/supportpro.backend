@@ -29,19 +29,4 @@ router.post(
 //   asyncHandler(org.fetchAll)
 // );
 
-// Endpoint to set AI configuration
-router.post(
-  "/config",
-  validateAccess([Roles.Recruiter, Roles.Admin]),
-  validate(orgValidator.aiConfig, { body: true }),
-  asyncHandler(org.setAIConfig)
-);
-
-// Endpoint to get AI configuration
-router.get(
-  "/config",
-  validateAccess([Roles.Recruiter, Roles.Admin]),
-  asyncHandler(org.getAIConfig)
-);
-
 export default (app: Router) => app.use("/organizations", router);
