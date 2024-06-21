@@ -2,11 +2,13 @@ import { Types } from "mongoose";
 import { IRole } from "./role";
 import { Paging } from "./customs";
 import { IUser } from "./user";
+import { IAIConfig } from "./AIconfig";
 
 export interface IJob {
   _id: Types.ObjectId;
   role: string | Types.ObjectId | IRole;
   postedBy: string | Types.ObjectId | IUser;
+  aiConfig: string | Types.ObjectId | IAIConfig;
   description: string;
   maxSalary: number;
   minSalary: number;
