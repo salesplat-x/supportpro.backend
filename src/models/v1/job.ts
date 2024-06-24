@@ -14,6 +14,10 @@ const jobSchema = new Schema<IJob>(
       ref: "user",
       required: true,
     },
+    aiConfig: {
+      type: Schema.Types.ObjectId,
+      ref: "ai_config",
+    },
     description: {
       type: String,
       required: true,
