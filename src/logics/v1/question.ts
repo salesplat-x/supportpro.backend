@@ -43,6 +43,12 @@ export const fetchQuestions = async (payload: FetchQuestions) => {
   const query: mongoose.RootQuerySelector<IQuestion> = {};
   let questions: IQuestion[];
 
+  // @TODO select a number of questions randomly
+  // const randomQuestions = await Question.aggregate([
+  //   { $match: { role } },
+  //   { $sample: { size: numberOfQuestions } } // Randomly sample the specified number of questions
+  // ]);
+
   if (payload.questionType == QuestionType.Personalized) {
     if (!payload.talentId || !payload.jobId) {
       return makeResponse(
