@@ -3,33 +3,52 @@ import { IAIConfig } from "../../typings/AIconfig";
 
 const schema = new Schema<IAIConfig>(
   {
+    name: {
+      type: String,
+      lowercase: true,
+    },
     recruiter: {
       type: Schema.Types.ObjectId,
       ref: "user",
+      required: true,
     },
     organization: {
       type: Schema.Types.ObjectId,
       ref: "organization",
     },
-    recruiterGuide: {
-      type: [String],
-    },
-    noPersonalizedQuestions: {
-      type: Number,
-      default: 15,
-    },
     prescreeningAssessment: {
       type: Boolean,
       default: true,
+    },
+    minPrescreeningScore: {
+      type: Number,
     },
     cvSimilarity: {
       type: Boolean,
       default: true,
     },
+    minCvSimilarityScore: {
+      type: Number,
+    },
+    noOfCvSimilarCandidates: {
+      type: Number,
+    },
     personalizedAssessment: {
       type: Boolean,
       default: true,
     },
+    noPersonalizedQuestions: {
+      type: Number,
+      default: 15,
+    },
+    recruiterGuide: {
+      type: String,
+    },
+    uploadedQuestions: [
+      {
+        type: String,
+      },
+    ],
     personalityEvaluation: {
       type: Boolean,
       default: true,
