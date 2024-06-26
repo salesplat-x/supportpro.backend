@@ -24,13 +24,3 @@ export const registerOrganization = async (req: Request, res: Response) => {
 //   const response = await orgLogic.fetchJob(req.params as any);
 //   return responseHandler(res, response);
 // };
-
-export const setAIConfig = async (req: Request, res: Response) => {
-  const response = await orgLogic.setAIConfig(req.user, req.body);
-  return responseHandler(res, response);
-};
-
-export const getAIConfig = async (req: Request, res: Response) => {
-  const response = await orgLogic.getAIConfig(req.user);
-  return responseHandler(res, response);
-};
