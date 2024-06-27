@@ -240,7 +240,7 @@ export const generatePersonalizedQuestions = async (
 
   const user = await userRepository.findUserById(talentId);
   const bio = (user?.profile as IProfile).bio;
-  // @TODO get recruiter's guide from job in DB
+  // @TODO get recruiter's guide from aiConfig of job in DB
   const recruiterGuide = payload.recruiterGuide?.length
     ? payload.recruiterGuide
     : [
