@@ -9,6 +9,7 @@ import {
 export const job = Joi.object({
   body: Joi.object<IJob>({
     role: Joi.string().required(),
+    aiConfig: Joi.string().optional(),
     description: Joi.string().required(),
     experienceLevel: Joi.string()
       .required()
@@ -23,7 +24,6 @@ export const job = Joi.object({
     }).optional(),
     remote: Joi.boolean().optional(),
     responsibilities: Joi.array().items(Joi.string()).optional(),
-    recruiterGuide: Joi.array().items(Joi.string()).optional(),
     skills: Joi.array().items(Joi.string()).optional(),
     goals: Joi.array().items(Joi.string()).optional(),
   }),
@@ -35,6 +35,7 @@ export const updateJob = Joi.object({
   }),
   body: Joi.object<IJob>({
     role: Joi.string().optional(),
+    aiConfig: Joi.string().optional(),
     description: Joi.string().optional(),
     experienceLevel: Joi.string()
       .optional()
@@ -49,7 +50,6 @@ export const updateJob = Joi.object({
     }).optional(),
     remote: Joi.boolean().optional(),
     responsibilities: Joi.array().items(Joi.string()).optional(),
-    recruiterGuide: Joi.array().items(Joi.string()).optional(),
     skills: Joi.array().items(Joi.string()).optional(),
     goals: Joi.array().items(Joi.string()).optional(),
   }),
