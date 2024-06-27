@@ -64,7 +64,7 @@ export const findApplicationsByMatch = async (
   return await Application.find(data)
     .populate({
       path: "job",
-      select: "-recruiterGuide",
+      select: "-ai_config",
       strictPopulate: false,
     })
     .select("-personalizedQuestions")
