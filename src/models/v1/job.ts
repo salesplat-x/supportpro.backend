@@ -57,10 +57,6 @@ const jobSchema = new Schema<IJob>(
       type: Boolean,
       required: true,
     },
-    recruiterGuide: {
-      type: [String],
-      required: false,
-    },
     responsibilities: {
       type: [String],
       required: false,
