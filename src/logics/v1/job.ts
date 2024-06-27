@@ -1,5 +1,6 @@
 import * as jobRepository from "../../repository/v1/job";
 import * as applicationRepository from "../../repository/v1/application";
+import * as aiConfigRepository from "../../repository/v1/AIconfig";
 import * as roleRepository from "../../repository/v1/role";
 import * as userRepository from "../../repository/v1/user";
 import * as pgRepository from "../../repository/v1/pg";
@@ -30,6 +31,18 @@ export const createJob = async (user: IUser, payload: IJob) => {
   const existingRole = await roleRepository.findRoleById(payload.role as string);
   if (!existingRole) {
     return makeResponse(false, "Role does not exist", {}, 404);
+  }
+
+  if (payload.aiConfig) {
+    if (!Types.ObjectId.isValid(payload.aiConfig as string)) {
+      return makeResponse(false, "Invalid aiConfig id", {}, 400);
+    }
+    const existingRole = await aiConfigRepository.findAIconfigById(
+      payload.aiConfig as string
+    );
+    if (!existingRole) {
+      return makeResponse(false, "Config does not exist", {}, 404);
+    }
   }
   //@TODO check if job already exists under organization
 
