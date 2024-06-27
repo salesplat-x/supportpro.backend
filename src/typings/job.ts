@@ -16,7 +16,6 @@ export interface IJob {
   location: ILocation;
   address?: string;
   remote: boolean;
-  recruiterGuide?: Types.Array<string>;
   responsibilities?: Types.Array<string>;
   skills?: Types.Array<string>;
   goals?: Types.Array<string>;
