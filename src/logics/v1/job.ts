@@ -37,10 +37,10 @@ export const createJob = async (user: IUser, payload: IJob) => {
     if (!Types.ObjectId.isValid(payload.aiConfig as string)) {
       return makeResponse(false, "Invalid aiConfig id", {}, 400);
     }
-    const existingRole = await aiConfigRepository.findAIconfigById(
+    const existingConfig = await aiConfigRepository.findAIconfigById(
       payload.aiConfig as string
     );
-    if (!existingRole) {
+    if (!existingConfig) {
       return makeResponse(false, "Config does not exist", {}, 404);
     }
   }
