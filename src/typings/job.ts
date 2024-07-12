@@ -28,6 +28,11 @@ export interface ILocation {
 }
 
 export interface FetchJobs extends Paging {
+  city?: string;
+  state?: string;
+  country?: string;
+  remote?: string;
+  experienceLevel?: string;
   roleId?: string;
 }
 
