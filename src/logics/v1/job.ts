@@ -13,7 +13,7 @@ import {
   MatchJob,
   TopTalents,
 } from "../../typings/job";
-import { Types, PipelineStage } from "mongoose";
+import { Types, PipelineStage, FilterQuery } from "mongoose";
 import { IRole } from "../../typings/role";
 import { Roles } from "../../typings/customs";
 import { createEmbedding } from "../../services/v1/openai";
@@ -115,6 +115,8 @@ export const updateJob = async (user: IUser, payload: IJob) => {
 
 export const fetchAllJobs = async (payload: FetchJobs) => {
   let jobs: IJob[] = [];
+  let query: FilterQuery<IJob> = {};
+
   if (payload.roleId) {
     if (!Types.ObjectId.isValid(payload.roleId)) {
       return makeResponse(false, "Invalid role id", {}, 400);
@@ -123,10 +125,24 @@ export const fetchAllJobs = async (payload: FetchJobs) => {
     if (!role) {
       return makeResponse(false, "Role does not exist", {}, 404);
     }
-    jobs = await jobRepository.findAllJobs({ role: payload.roleId }, payload);
-  } else {
-    jobs = await jobRepository.findAllJobs({}, payload);
+    query.role = payload.roleId;
   }
+  if (payload.experienceLevel) {
+    query.experienceLevel = payload.experienceLevel;
+  }
+  if (payload.city) {
+    query.location.city = payload.city;
+  }
+  if (payload.state) {
+    query.location.state = payload.state;
+  }
+  if (payload.country) {
+    query.location.country = payload.country;
+  }
+  if (payload.remote) {
+    query.remote = payload.remote;
+  }
+  jobs = await jobRepository.findAllJobs(query, payload);
   return makeResponse(true, "Jobs fetched successfully", jobs, 200);
 };
 
