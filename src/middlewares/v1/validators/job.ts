@@ -1,6 +1,6 @@
 import Joi from "joi";
 import { Experience } from "../../../typings/customs";
-import { IJob, TopTalents } from "../../../typings/job";
+import { FetchJobs, IJob, TopTalents } from "../../../typings/job";
 import {
   ApplicationStatus,
   ApplicationType,
@@ -91,11 +91,17 @@ export const getApplications = Joi.object({
 }).required();
 
 export const allJobs = Joi.object({
-  query: Joi.object({
+  query: Joi.object<FetchJobs>({
+    roleId: Joi.string().optional(),
+    experienceLevel: Joi.string().optional(),
+    city: Joi.string().optional(),
+    state: Joi.string().optional(),
+    country: Joi.string().optional(),
+    remote: Joi.string().optional(),
+
     limit: Joi.number(),
     offset: Joi.number(),
     sort: Joi.string().valid("asc", "desc"),
-    roleId: Joi.string().optional(),
   }),
 }).required();
 
