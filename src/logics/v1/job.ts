@@ -130,14 +130,17 @@ export const fetchAllJobs = async (payload: FetchJobs) => {
   if (payload.experienceLevel) {
     query.experienceLevel = payload.experienceLevel;
   }
-  if (payload.city) {
-    query.location.city = payload.city;
-  }
-  if (payload.state) {
-    query.location.state = payload.state;
-  }
-  if (payload.country) {
-    query.location.country = payload.country;
+  if (payload.city || payload.state || payload.country) {
+    query.location = {};
+    if (payload.city) {
+      query.location.city = payload.city;
+    }
+    if (payload.state) {
+      query.location.state = payload.state;
+    }
+    if (payload.country) {
+      query.location.country = payload.country;
+    }
   }
   if (payload.remote) {
     query.remote = payload.remote;
