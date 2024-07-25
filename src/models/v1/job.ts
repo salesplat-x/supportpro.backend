@@ -39,14 +39,17 @@ const jobSchema = new Schema<IJob>(
       city: {
         type: String,
         required: true,
+        lowercase: true,
       },
       state: {
         type: String,
         required: true,
+        lowercase: true,
       },
       country: {
         type: String,
         required: true,
+        lowercase: true,
       },
     },
     address: {
