@@ -47,7 +47,7 @@ router.get(
 
 // Endpoint to apply for a job
 router.post(
-  "/apply/:jobId",
+  "/applications/:jobId",
   validateAccess([Roles.Talent]),
   validate(jobValidator.apply, { params: true }),
   asyncHandler(job.apply)
