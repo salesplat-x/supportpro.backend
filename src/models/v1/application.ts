@@ -3,6 +3,7 @@ import {
   ApplicationStatus,
   ApplicationType,
   IApplication,
+  ScreeningStage,
 } from "../../typings/application";
 
 const schema = new Schema<IApplication>(
@@ -30,6 +31,11 @@ const schema = new Schema<IApplication>(
       type: String,
       enum: Object.values(ApplicationStatus),
       default: ApplicationStatus.Pending,
+    },
+    currentStage: {
+      type: String,
+      enum: Object.values(ScreeningStage),
+      default: ScreeningStage.Prescreening,
     },
     personalizedQuestions: {
       type: [String],
