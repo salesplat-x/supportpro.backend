@@ -37,6 +37,13 @@ router.get(
   asyncHandler(job.topTalents)
 );
 
+// Endpoint to grade user CV
+router.patch(
+  "/cv-similarity/:jobId",
+  validateAccess([Roles.Talent]),
+  asyncHandler(job.gradeCv)
+);
+
 // Endpoint to get talents based on profile and Job similarity
 router.get(
   "/match/:_id",
