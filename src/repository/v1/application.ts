@@ -1,11 +1,11 @@
 import Application from "../../models/v1/application";
 import { Page, Paging } from "../../typings/customs";
-import { IApplication } from "../../typings/application";
+import { IApplication, TScreeningStage } from "../../typings/application";
 import { FilterQuery, PipelineStage, Types, UpdateQuery } from "mongoose";
 import * as func from "../../helpers/func";
 
-export const createApplication = async (application: Partial<IApplication>) => {
-  return await new Application(application).save();
+export const createApplication = (application: Partial<IApplication>) => {
+  return new Application(application);
 };
 
 export const bulkWrite = async (
@@ -73,7 +73,7 @@ export const findApplicationsByMatch = async (
     .limit(Number(paging.limit) || Page.Limit);
 };
 
-export const findApplicationByIdAndUpdate = async (
+export const findApplicationByMatchAndUpdate = async (
   filter: FilterQuery<IApplication>,
   data: Partial<IApplication>
 ) => {
@@ -87,4 +87,18 @@ export const applicationAggregate = async (
   paging: Paging = {}
 ) => {
   return await Application.aggregate(data);
+};
+
+// Update current stage of application
+export const updateCurrentStage = (
+  currentStage: TScreeningStage,
+  stages: Map<TScreeningStage, TScreeningStage>
+) => {
+  const nextStage = stages.get(currentStage);
+
+  if (nextStage) {
+    return nextStage;
+  } else {
+    throw new Error("Next stage not found");
+  }
 };
