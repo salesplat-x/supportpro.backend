@@ -53,6 +53,7 @@ const schema = new Schema<IAIConfig>(
       type: Boolean,
       default: true,
     },
+    stages: { type: Map, of: String },
   },
   { timestamps: true }
 );
