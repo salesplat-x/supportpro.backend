@@ -71,7 +71,7 @@ export const generatePersonalizedQuestions = async (
   jobDescription: string,
   cv: Array<string>,
   bio: string,
-  recruiterGuide: Array<string>
+  recruiterGuide: string
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
   const system = `
   You are an automated system for generating personalized questions tailor made for job applicants/talents in order to get a wholesome idea of job applicants.
@@ -90,6 +90,9 @@ export const generatePersonalizedQuestions = async (
 
   Here is the talent's CV below,
   ${cv}
+
+  Here is the talent's bio below,
+  ${bio}
   
   Here is the recruiter's guide below.
   ${recruiterGuide}
@@ -111,7 +114,8 @@ export const generatePersonalizedQuestions = async (
 
 // Function to grade personalized questions
 export const gradePersonalizedAnswers = async (
-  questionsJSON: string
+  questionsJSON: string,
+  recruiterGuide: string
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
   const prompt = `You are an automated response scoring system.
 
@@ -130,6 +134,8 @@ export const gradePersonalizedAnswers = async (
   3 - satisfactory
   4 - very satisfactory
   5 - outstanding.
+
+  Consider this guide for grading ${recruiterGuide}
 
   For each score, question and answer you will generate a Response object has 3 fields similar to the Assessment object. Each field is described as follows:
 
