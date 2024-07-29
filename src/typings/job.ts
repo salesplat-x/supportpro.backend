@@ -19,6 +19,7 @@ export interface IJob {
   responsibilities?: Types.Array<string>;
   skills?: Types.Array<string>;
   goals?: Types.Array<string>;
+  noOfApplicants: number;
 }
 
 export interface ILocation {
