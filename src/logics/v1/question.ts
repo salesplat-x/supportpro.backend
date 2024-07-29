@@ -23,7 +23,8 @@ import { Paging } from "../../typings/customs";
 import * as AI from "../../services/v1/openai";
 import { IRole } from "../../typings/role";
 import { IResponse } from "../../typings/answer";
-import { ApplicationType } from "../../typings/application";
+import { ApplicationType, ScreeningStage } from "../../typings/application";
+import { findAIconfigById } from "../../repository/v1/AIconfig";
 
 // Function to create/add question for role
 export const createQuestion = async (payload: IQuestion) => {
@@ -293,6 +294,10 @@ export const answerPersonalizedQuestions = async (
     _id: { $in: questionIds },
   });
   // const scorePercent = questions;
+  const job = await jobRepository.findJobById(jobId);
+  if (!job) {
+    return makeResponse(false, "Job not found!", {}, 404);
+  }
 
   const questionConstruct = questions.map((q) => {
     return {
@@ -303,6 +308,11 @@ export const answerPersonalizedQuestions = async (
   });
 
   const answersJSON = JSON.stringify(questionConstruct);
+
+  const aiConfig = await findAIconfigById(job.aiConfig as string);
+  if (!aiConfig) {
+    return makeResponse(false, "AI configuration for job not found!", {}, 404);
+  }
 
   // Use LLM to grade answers
   const response = await AI.gradePersonalizedAnswers(answersJSON);
@@ -332,11 +342,16 @@ export const answerPersonalizedQuestions = async (
   const maxScore = 5 * responseArray.length;
   const scorePercent = Number(((totalScore / maxScore) * 100).toFixed(2));
 
+  const currentStage = applicationRepository.updateCurrentStage(
+    ScreeningStage.Personalized,
+    aiConfig.stages
+  );
   const application =
     await applicationRepository.findApplicationByMatchAndUpdate(
       { job: jobId, talent: user._id },
       {
         personalizedScore: scorePercent,
+        currentStage,
       }
     );
 
@@ -393,6 +408,11 @@ export const evaluatePersonalityType = async (
   payload: EvaluatePersonalityPayload
 ) => {
   const { answers, jobId } = payload;
+  const job = await jobRepository.findJobById(jobId);
+  if (!job) {
+    return makeResponse(false, "Job not found!", {}, 404);
+  }
+
   const questionIds = Object.keys(answers);
 
   if (questionIds.length != 4) {
@@ -435,10 +455,28 @@ export const evaluatePersonalityType = async (
     responses
   );
 
-  await applicationRepository.createOrUpdateApplication(jobId, user._id, {
-    mbtiType,
-    $setOnInsert: { applicationType: ApplicationType.Application },
-  });
+  const aiConfig = await findAIconfigById(job.aiConfig as string);
+  if (!aiConfig) {
+    return makeResponse(false, "AI configuration for job not found!", {}, 404);
+  }
+
+  const currentStage = applicationRepository.updateCurrentStage(
+    ScreeningStage.Personalized,
+    aiConfig.stages
+  );
+  const application =
+    await applicationRepository.findApplicationByMatchAndUpdate(
+      { job: jobId, talent: user._id },
+      {
+        mbtiType,
+        currentStage,
+      }
+    );
+
+  // await applicationRepository.createOrUpdateApplication(jobId, user._id, {
+  //   mbtiType,
+  //   $setOnInsert: { applicationType: ApplicationType.Application },
+  // });
   return makeResponse(true, "Personality evaluation completed", {
     mbtiType,
   });
