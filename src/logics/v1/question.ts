@@ -332,12 +332,13 @@ export const answerPersonalizedQuestions = async (
   const maxScore = 5 * responseArray.length;
   const scorePercent = Number(((totalScore / maxScore) * 100).toFixed(2));
 
-  const application = await applicationRepository.findApplicationByIdAndUpdate(
-    { job: jobId, talent: user._id },
-    {
-      personalizedScore: scorePercent,
-    }
-  );
+  const application =
+    await applicationRepository.findApplicationByMatchAndUpdate(
+      { job: jobId, talent: user._id },
+      {
+        personalizedScore: scorePercent,
+      }
+    );
 
   if (!application) {
     return makeResponse(false, "Job application not found", {}, 404);
