@@ -109,6 +109,27 @@ FROM (
   return res.rows;
 };
 
+//Function to calculate similarity score for a single user
+export const getCVSimilarityScore = async (profileId: string, jobId: string) => {
+  const queryText = `
+    WITH jd_cte AS (
+      SELECT job_embedding 
+      FROM public.jobs 
+      WHERE job_id = $1
+    ),
+    talent_cte AS (
+      SELECT cv_embedding 
+      FROM public.talents 
+      WHERE profile_id = $2
+    )
+    SELECT 
+      ABS ((SELECT job_embedding FROM jd_cte) <=> (SELECT cv_embedding FROM talent_cte)) AS similarity_score;
+  `;
+  const values = [jobId, profileId];
+  const res = await query(queryText, values);
+  return res.rows[0].similarity_score;
+};
+
 //  Function to get a job
 export const getJob = async (jobId: string) => {
   const queryText = `
