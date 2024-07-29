@@ -213,6 +213,25 @@ export const generatePersonalizedQuestions = async (
 ) => {
   const { jobId, talentId } = payload;
 
+  const existingJob = await jobRepository.findJobById(jobId);
+  if (!existingJob) {
+    return makeResponse(false, "Job not found!", {}, 404);
+  }
+
+  const aiConfig = await findAIconfigById(existingJob.aiConfig as string);
+  if (!aiConfig) {
+    return makeResponse(false, "AI configuration for job not found!", {}, 404);
+  }
+
+  if (!aiConfig.personalizedAssessment) {
+    return makeResponse(
+      false,
+      "This feature was not configured for this job!",
+      {},
+      400
+    );
+  }
+
   // Check if user already has personalized question
   const application = await applicationRepository.findApplicationByMatch({
     job: jobId,
@@ -241,18 +260,12 @@ export const generatePersonalizedQuestions = async (
 
   const user = await userRepository.findUserById(talentId);
   const bio = (user?.profile as IProfile).bio;
-  // @TODO get recruiter's guide from aiConfig of job in DB
-  const recruiterGuide = payload.recruiterGuide?.length
-    ? payload.recruiterGuide
-    : [
-        "Make sure to check the talent's CV and ask questions to test the validity of the claims",
-      ];
 
   const response = await AI.generatePersonalizedQuestions(
     job.job_description,
     cv,
     bio,
-    recruiterGuide
+    aiConfig.recruiterGuide
   );
   if (!response || !response.message.content) {
     return makeResponse(false, "Error with LLM", {}, 400);
@@ -288,16 +301,31 @@ export const answerPersonalizedQuestions = async (
 ) => {
   const { answers, jobId } = payload;
 
+  const job = await jobRepository.findJobById(jobId);
+  if (!job) {
+    return makeResponse(false, "Job not found!", {}, 404);
+  }
+
+  const aiConfig = await findAIconfigById(job.aiConfig as string);
+  if (!aiConfig) {
+    return makeResponse(false, "AI configuration for job not found!", {}, 404);
+  }
+
+  if (!aiConfig.personalizedAssessment) {
+    return makeResponse(
+      false,
+      "This feature was not configured for this job!",
+      {},
+      400
+    );
+  }
+
   const questionIds = Object.keys(answers);
   const questions = await questionRepository.findQuestionsByMatch({
     job: jobId,
     _id: { $in: questionIds },
   });
   // const scorePercent = questions;
-  const job = await jobRepository.findJobById(jobId);
-  if (!job) {
-    return makeResponse(false, "Job not found!", {}, 404);
-  }
 
   const questionConstruct = questions.map((q) => {
     return {
@@ -309,13 +337,11 @@ export const answerPersonalizedQuestions = async (
 
   const answersJSON = JSON.stringify(questionConstruct);
 
-  const aiConfig = await findAIconfigById(job.aiConfig as string);
-  if (!aiConfig) {
-    return makeResponse(false, "AI configuration for job not found!", {}, 404);
-  }
-
   // Use LLM to grade answers
-  const response = await AI.gradePersonalizedAnswers(answersJSON);
+  const response = await AI.gradePersonalizedAnswers(
+    answersJSON,
+    aiConfig.recruiterGuide
+  );
   if (!response || !response.message.content) {
     return makeResponse(false, "Error with LLM", {}, 400);
   }
@@ -367,7 +393,7 @@ export const answerPersonalizedQuestions = async (
   return makeResponse(
     true,
     "Answers graded successfully",
-    { scorePercent },
+    { scorePercent, application },
     200
   );
 };
@@ -413,6 +439,20 @@ export const evaluatePersonalityType = async (
     return makeResponse(false, "Job not found!", {}, 404);
   }
 
+  const aiConfig = await findAIconfigById(job.aiConfig as string);
+  if (!aiConfig) {
+    return makeResponse(false, "AI configuration for job not found!", {}, 404);
+  }
+
+  if (!aiConfig.personalityEvaluation) {
+    return makeResponse(
+      false,
+      "This feature was not configured for this job!",
+      {},
+      400
+    );
+  }
+
   const questionIds = Object.keys(answers);
 
   if (questionIds.length != 4) {
@@ -455,11 +495,6 @@ export const evaluatePersonalityType = async (
     responses
   );
 
-  const aiConfig = await findAIconfigById(job.aiConfig as string);
-  if (!aiConfig) {
-    return makeResponse(false, "AI configuration for job not found!", {}, 404);
-  }
-
   const currentStage = applicationRepository.updateCurrentStage(
     ScreeningStage.Personalized,
     aiConfig.stages
@@ -478,6 +513,7 @@ export const evaluatePersonalityType = async (
   //   $setOnInsert: { applicationType: ApplicationType.Application },
   // });
   return makeResponse(true, "Personality evaluation completed", {
+    application,
     mbtiType,
   });
 };
