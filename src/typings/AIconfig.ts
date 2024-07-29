@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { TScreeningStage } from "./application";
 
 export interface IAIConfig {
   _id?: string | Types.ObjectId;
@@ -15,4 +16,5 @@ export interface IAIConfig {
   recruiterGuide: string;
   uploadedQuestions: string[];
   personalityEvaluation: boolean;
+  stages: Map<TScreeningStage, TScreeningStage>;
 }
