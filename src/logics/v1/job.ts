@@ -21,8 +21,12 @@ import {
   convertSimilarityToPercentage,
   preprocessText,
 } from "../../helpers/func";
-import { IUser } from "../../typings/user";
-import { ApplicationType } from "../../typings/application";
+import { IProfile, IUser } from "../../typings/user";
+import {
+  ApplicationStatus,
+  ApplicationType,
+  ScreeningStage,
+} from "../../typings/application";
 
 export const createJob = async (user: IUser, payload: IJob) => {
   if (!Types.ObjectId.isValid(payload.role as string)) {
@@ -260,18 +264,42 @@ export const topTalents = async (user: IUser, payload: TopTalents) => {
     );
   }
 
+  // CV Similarity Logic
+  const aiConfig = await aiConfigRepository.findAIconfigById(
+    job.aiConfig as string
+  );
+  if (!aiConfig) {
+    return makeResponse(false, "AI configuration for job not found!", {}, 404);
+  }
+
+  if (!aiConfig.cvSimilarity) {
+    return makeResponse(
+      false,
+      "This feature was not configured for this job!",
+      {},
+      400
+    );
+  }
+  payload.limit = aiConfig.noOfCvSimilarCandidates;
+  payload.percentage = aiConfig.minCvSimilarityScore;
   const res = await pgRepository.getTopCVEmbedding(payload);
 
   const talentIds = res.map((r: any) => r.profile_id);
 
+  const currentStage = applicationRepository.updateCurrentStage(
+    ScreeningStage.CvSimilarity,
+    aiConfig.stages
+  );
+
   const bulkOps = res.map((r: any) => {
     const talentId = r.profile_id;
     const cvSimilarityScore = convertSimilarityToPercentage(r.similarity);
+
     return {
       updateOne: {
         filter: { job: jobId, talent: talentId },
         update: {
-          $set: { cvSimilarityScore },
+          $set: { cvSimilarityScore, currentStage },
           $setOnInsert: { applicationType: ApplicationType.Invitation },
         },
         upsert: true,
@@ -279,17 +307,72 @@ export const topTalents = async (user: IUser, payload: TopTalents) => {
     };
   });
 
+  let newApplicants = 0;
+
   // Execute bulk operations in MongoDB
   if (bulkOps.length > 0) {
-    await applicationRepository.bulkWrite(bulkOps);
+    const { insertedCount } = await applicationRepository.bulkWrite(bulkOps);
+    newApplicants = insertedCount;
   }
 
   const talents = await userRepository.findUsersByMatch({
     _id: { $in: talentIds },
   });
+
+  job.noOfApplicants += newApplicants;
+  await job.save();
   //@TODO send out invitations to talents
 
   return makeResponse(true, "Top talents fetched", { talents }, 200);
+};
+
+// Function for talents to grade CV and JD embedding similarity
+export const gradeCv = async (user: IUser, jobId: string) => {
+  if (!Types.ObjectId.isValid(jobId)) {
+    return makeResponse(false, "Invalid job id", {}, 400);
+  }
+  const job = await jobRepository.findJobById(jobId);
+  if (!job) {
+    return makeResponse(false, "Job does not exist", {}, 404);
+  }
+
+  // CV Similarity Logic
+  const aiConfig = await aiConfigRepository.findAIconfigById(
+    job.aiConfig as string
+  );
+  if (!aiConfig) {
+    return makeResponse(false, "AI configuration for job not found!", {}, 404);
+  }
+
+  if (!aiConfig.cvSimilarity) {
+    return makeResponse(
+      false,
+      "This feature was not configured for this job!",
+      {},
+      400
+    );
+  }
+
+  let cvSimilarityScore = await pgRepository.getCVSimilarityScore(
+    user._id as string,
+    jobId
+  );
+
+  const currentStage = applicationRepository.updateCurrentStage(
+    ScreeningStage.CvSimilarity,
+    aiConfig.stages
+  );
+
+  cvSimilarityScore = convertSimilarityToPercentage(cvSimilarityScore);
+
+  await applicationRepository.findApplicationByMatchAndUpdate(
+    { job: jobId, talent: user._id },
+    { cvSimilarityScore, currentStage }
+  );
+
+  await job.save();
+
+  return makeResponse(true, "CV similarity graded", { cvSimilarityScore }, 200);
 };
 
 // Function to get job Applications
@@ -431,6 +514,11 @@ export const applications = async (user: IUser, payload: IFetchApplications) => 
 export const apply = async (user: IUser, payload: IApply) => {
   const { jobId } = payload;
 
+  const job = await jobRepository.findJobById(jobId);
+  if (!job) {
+    return makeResponse(false, "Job not found!", {}, 404);
+  }
+
   let application = await applicationRepository.findApplicationByMatch({
     talent: user._id,
     job: jobId,
@@ -439,11 +527,38 @@ export const apply = async (user: IUser, payload: IApply) => {
     return makeResponse(false, "You have already applied for this job");
   }
 
-  application = await applicationRepository.createApplication({
+  const aiConfig = await aiConfigRepository.findAIconfigById(
+    job.aiConfig as string
+  );
+  if (!aiConfig) {
+    return makeResponse(false, "AI configuration for job not found!", {}, 404);
+  }
+
+  application = applicationRepository.createApplication({
     talent: user._id,
     job: jobId,
     applicationType: ApplicationType.Application,
   });
+
+  job.noOfApplicants += 1;
+  await job.save();
+  if (
+    (user.profile as IProfile).prescreeningScore < aiConfig.minPrescreeningScore
+  ) {
+    application.status = ApplicationStatus.RetakeAssessment;
+    await application.save();
+    return makeResponse(
+      false,
+      "Your prescreening score is too low to apply for this job"
+    );
+  }
+
+  application.currentStage = applicationRepository.updateCurrentStage(
+    application.currentStage,
+    aiConfig.stages
+  );
+  await application.save();
+  application.set("personalizedQuestions", undefined);
 
   return makeResponse(true, "Application successful", { application });
 };
