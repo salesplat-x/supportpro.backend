@@ -14,6 +14,7 @@ export interface IApplication {
   cvSimilarityScore?: number;
   mbtiType?: string;
   status: TApplicationStatus;
+  currentStage: TScreeningStage;
 }
 
 export const ApplicationType = {
@@ -23,8 +24,23 @@ export const ApplicationType = {
 
 type TApplicationType = (typeof ApplicationType)[keyof typeof ApplicationType];
 
+export const ScreeningStage = {
+  Prescreening: "prescreening",
+  CvSimilarity: "cv_similarity",
+  Personalized: "personalized",
+  Personality: "personality",
+  Completed: "completed",
+} as const;
+
+export type TScreeningStage =
+  (typeof ScreeningStage)[keyof typeof ScreeningStage];
+
 export const ApplicationStatus = {
   Pending: "pending",
+  RetakeAssessment: "retake_assessment",
+  NotProceeding: "not_proceeding",
+  Shortlisted: "shortlisted",
+
   Accepted: "accepted",
   Rejected: "rejected",
 } as const;
