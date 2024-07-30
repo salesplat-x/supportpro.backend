@@ -54,7 +54,7 @@ export const findAllApplications = async (paging: Paging = {}) => {
 export const findApplicationByMatch = async (
   data: IApplication | Record<string, any>
 ) => {
-  return await Application.findOne(data).select("personalizedQuestions");
+  return await Application.findOne(data);
 };
 
 export const findApplicationsByMatch = async (
