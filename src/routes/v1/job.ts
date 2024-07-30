@@ -53,7 +53,7 @@ router.get(
 );
 
 // Endpoint to apply for a job
-router.post(
+router.patch(
   "/applications/:jobId",
   validateAccess([Roles.Talent]),
   validate(jobValidator.apply, { params: true }),
