@@ -524,7 +524,7 @@ export const apply = async (user: IUser, payload: IApply) => {
     job: jobId,
   });
   if (application) {
-    return makeResponse(false, "You have already applied for this job", {
+    return makeResponse(true, "You have already applied for this job", {
       application,
     });
   }
