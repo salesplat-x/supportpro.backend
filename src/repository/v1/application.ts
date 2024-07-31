@@ -64,8 +64,12 @@ export const findApplicationsByMatch = async (
 ) => {
   return await Application.find(data)
     .populate({
+      path: "role",
+      strictPopulate: false,
+    })
+    .populate({
       path: "job",
-      select: "-ai_config",
+      select: "-aiConfig",
       strictPopulate: false,
     })
     .select("-personalizedQuestions")
