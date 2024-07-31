@@ -365,14 +365,31 @@ export const gradeCv = async (user: IUser, jobId: string) => {
 
   cvSimilarityScore = convertSimilarityToPercentage(cvSimilarityScore);
 
-  await applicationRepository.findApplicationByMatchAndUpdate(
-    { job: jobId, talent: user._id },
-    { cvSimilarityScore, currentStage }
+  const applicationRes = await applicationRepository.createOrUpdateApplication(
+    jobId,
+    user._id,
+    {
+      cvSimilarityScore,
+      currentStage,
+      $setOnInsert: { applicationType: ApplicationType.Invitation },
+    }
   );
+
+  // Increase number of applications if new application created
+  if (!applicationRes.lastErrorObject?.updatedExisting) {
+    await jobRepository.findJobByIdAndUpdate(jobId, {
+      $inc: { noOfApplicants: 1 },
+    });
+  }
 
   await job.save();
 
-  return makeResponse(true, "CV similarity graded", { cvSimilarityScore }, 200);
+  return makeResponse(
+    true,
+    "CV similarity graded",
+    { cvSimilarityScore, application: applicationRes.value },
+    200
+  );
 };
 
 // Function to get job Applications
