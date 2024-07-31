@@ -33,6 +33,8 @@ export const createOrUpdateApplication = async (
     { ...update },
     {
       upsert: true,
+      new: true,
+      includeResultMetadata: true,
       runValidators: true,
     }
   );
