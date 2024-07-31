@@ -510,7 +510,7 @@ export const evaluatePersonalityType = async (
   );
 
   const currentStage = applicationRepository.updateCurrentStage(
-    ScreeningStage.Personalized,
+    ScreeningStage.Personality,
     aiConfig.stages
   );
   const application =
