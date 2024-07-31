@@ -29,6 +29,7 @@ export interface ILocation {
 }
 
 export interface FetchJobs extends Paging {
+  postedBy?: string;
   city?: string;
   state?: string;
   country?: string;
