@@ -134,6 +134,9 @@ export const fetchAllJobs = async (payload: FetchJobs) => {
   if (payload.experienceLevel) {
     query.experienceLevel = payload.experienceLevel.toLowerCase();
   }
+  if (payload.postedBy) {
+    query.postedBy = payload.postedBy;
+  }
   if (payload.city) {
     query["location.city"] = payload.city.toLowerCase();
   }
