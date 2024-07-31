@@ -164,15 +164,73 @@ export const applications = async (user: IUser, payload: FetchApplications) => {
 
   const query: Record<string, any> = { talent: user._id };
 
+  let pipeline: mongoose.PipelineStage[] = [
+    { $match: { talent: new mongoose.Types.ObjectId(user._id) } },
+  ];
+
   if (applicationType) {
-    query.applicationType = applicationType;
+    pipeline.push({ $match: { applicationType } });
   }
   if (applicationStatus) {
-    query.status = applicationStatus;
+    pipeline.push({ $match: { status: applicationStatus } });
   }
 
-  const applications = await applicationRepository.findApplicationsByMatch(
-    query
+  pipeline.push(
+    {
+      $lookup: {
+        from: "roles",
+        localField: "role",
+        foreignField: "_id",
+        as: "role",
+      },
+    },
+    { $unwind: { path: "$role", preserveNullAndEmptyArrays: true } },
+    {
+      $lookup: {
+        from: "jobs",
+        localField: "job",
+        foreignField: "_id",
+        as: "job",
+      },
+    },
+    { $unwind: "$job" },
+    {
+      $lookup: {
+        from: "users",
+        localField: "job.postedBy",
+        foreignField: "_id",
+        as: "postedBy",
+      },
+    },
+    { $unwind: "$postedBy" },
+    {
+      $project: {
+        _id: 1,
+        applicationType: 1,
+        status: 1,
+        currentStage: 1,
+        personalizedQuestions: 1,
+        personalizedScore: 1,
+        cvSimilarityScore: 1,
+        mbtiType: 1,
+        "role.name": 1,
+        "role.description": 1,
+        "job.description": 1,
+        "job.maxSalary": 1,
+        "job.minSalary": 1,
+        "job.experienceLevel": 1,
+        "job.location": 1,
+        "job.address": 1,
+        "job.remote": 1,
+        "postedBy.firstName": 1,
+        "postedBy.lastName": 1,
+        "postedBy.email": 1,
+      },
+    }
+  );
+
+  const applications = await applicationRepository.applicationAggregate(
+    pipeline
   );
 
   return makeResponse(true, "User's job applications fetched", { applications });
