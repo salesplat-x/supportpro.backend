@@ -178,15 +178,6 @@ export const applications = async (user: IUser, payload: FetchApplications) => {
   pipeline.push(
     {
       $lookup: {
-        from: "roles",
-        localField: "role",
-        foreignField: "_id",
-        as: "role",
-      },
-    },
-    { $unwind: { path: "$role", preserveNullAndEmptyArrays: true } },
-    {
-      $lookup: {
         from: "jobs",
         localField: "job",
         foreignField: "_id",
@@ -203,6 +194,15 @@ export const applications = async (user: IUser, payload: FetchApplications) => {
       },
     },
     { $unwind: "$postedBy" },
+    {
+      $lookup: {
+        from: "roles",
+        localField: "job.role",
+        foreignField: "_id",
+        as: "role",
+      },
+    },
+    { $unwind: "$role" },
     {
       $project: {
         _id: 1,
@@ -235,3 +235,21 @@ export const applications = async (user: IUser, payload: FetchApplications) => {
 
   return makeResponse(true, "User's job applications fetched", { applications });
 };
+
+// export const applications = async (user: IUser, payload: FetchApplications) => {
+//   const { applicationType, applicationStatus } = payload;
+
+//   const query: Record<string, any> = { talent: user._id };
+//   if (applicationType) {
+//     query.applicationType = applicationType;
+//   }
+//   if (applicationStatus) {
+//     query.status = applicationStatus;
+//   }
+
+//   const applications = await applicationRepository.findApplicationsByMatch(
+//     query
+//   );
+
+//   return makeResponse(true, "User's job applications fetched", { applications });
+// };
