@@ -1,7 +1,7 @@
 import Job from "../../models/v1/job";
 import { Page, Paging } from "../../typings/customs";
 import { IJob } from "../../typings/job";
-import { HydratedDocument, Types } from "mongoose";
+import { HydratedDocument, Types, UpdateQuery } from "mongoose";
 import * as func from "../../helpers/func";
 
 export const createJob = async (job: IJob): Promise<HydratedDocument<IJob>> => {
@@ -38,7 +38,7 @@ export const findJobByMatch = async (data: IJob | Record<string, any>) => {
 
 export const findJobByIdAndUpdate = async (
   JobId: string | Types.ObjectId,
-  data: Partial<IJob>
+  data: UpdateQuery<IJob>
 ) => {
   return await Job.findByIdAndUpdate(JobId, data, { new: true }).populate({
     path: "role postedBy",
