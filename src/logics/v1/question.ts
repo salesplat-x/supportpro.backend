@@ -233,17 +233,19 @@ export const generatePersonalizedQuestions = async (
   }
 
   // Check if user already has personalized question
-  const application = await applicationRepository.findApplicationByMatch({
+  let application = await applicationRepository.findApplicationByMatch({
     job: jobId,
     talent: talentId,
   });
 
   if (application) {
     if (application.personalizedQuestions?.length) {
-      return makeResponse(
-        false,
-        "personalized questions already generated for this talent"
-      );
+      const questions = await questionRepository.findQuestionsByMatch({
+        _id: { $in: application.personalizedQuestions },
+      });
+      return makeResponse(true, "Personalized questions already created", {
+        questions: questions,
+      });
     }
   }
 
@@ -281,15 +283,26 @@ export const generatePersonalizedQuestions = async (
   });
 
   await questionRepository.insertMany(questionObjects);
-  await applicationRepository.createOrUpdateApplication(jobId, talentId, {
-    personalizedQuestions: questionIds,
-    $setOnInsert: { applicationType: ApplicationType.Invitation },
-  });
+  application = await applicationRepository.createOrUpdateApplication(
+    jobId,
+    talentId,
+    {
+      personalizedQuestions: questionIds,
+      $setOnInsert: { applicationType: ApplicationType.Invitation },
+    }
+  );
+
+  // Increase number of applications if new application created
+  if (!application) {
+    await jobRepository.findJobByIdAndUpdate(jobId, {
+      $inc: { noOfApplicants: 1 },
+    });
+  }
 
   return makeResponse(
     true,
     "Personalized questions generated successfully",
-    { questions },
+    { questions: questionObjects },
     200
   );
 };
