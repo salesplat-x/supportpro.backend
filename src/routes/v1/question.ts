@@ -25,7 +25,7 @@ router.get(
 
 router.post(
   "/personalized",
-  validateAccess([Roles.Recruiter, Roles.Admin]),
+  validateAccess([Roles.Recruiter, Roles.Talent]),
   validate(questionValidator.personalizedQuestions, { body: true }),
   asyncHandler(question.generatePersonalizedQuestions)
 );
