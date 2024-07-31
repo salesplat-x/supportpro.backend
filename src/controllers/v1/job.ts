@@ -20,6 +20,12 @@ export const fetchAll = async (req: Request, res: Response) => {
   return responseHandler(res, response);
 };
 
+export const jobsPosted = async (req: Request, res: Response) => {
+  req.query.postedBy = req.user._id as string;
+  const response = await jobController.fetchAllJobs(req.query);
+  return responseHandler(res, response);
+};
+
 export const fetch = async (req: Request, res: Response) => {
   const response = await jobController.fetchJob(req.params as any);
   return responseHandler(res, response);
