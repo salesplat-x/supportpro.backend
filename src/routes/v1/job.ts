@@ -29,6 +29,13 @@ router.get(
   asyncHandler(job.fetchAll)
 );
 
+router.get(
+  "/me",
+  validateAccess([Roles.Recruiter]),
+  validate(jobValidator.allJobs, { query: true }),
+  asyncHandler(job.jobsPosted)
+);
+
 // Endpoint to get talents based on CV and JD embedding similarity
 router.get(
   "/talents/:jobId",
