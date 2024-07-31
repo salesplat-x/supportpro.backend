@@ -245,6 +245,7 @@ export const generatePersonalizedQuestions = async (
       });
       return makeResponse(true, "Personalized questions already created", {
         questions: questions,
+        application,
       });
     }
   }
@@ -283,7 +284,7 @@ export const generatePersonalizedQuestions = async (
   });
 
   await questionRepository.insertMany(questionObjects);
-  application = await applicationRepository.createOrUpdateApplication(
+  const applicationRes = await applicationRepository.createOrUpdateApplication(
     jobId,
     talentId,
     {
@@ -293,7 +294,7 @@ export const generatePersonalizedQuestions = async (
   );
 
   // Increase number of applications if new application created
-  if (!application) {
+  if (!applicationRes.lastErrorObject?.updatedExisting) {
     await jobRepository.findJobByIdAndUpdate(jobId, {
       $inc: { noOfApplicants: 1 },
     });
@@ -302,7 +303,7 @@ export const generatePersonalizedQuestions = async (
   return makeResponse(
     true,
     "Personalized questions generated successfully",
-    { questions: questionObjects },
+    { application: applicationRes.value, questions: questionObjects },
     200
   );
 };
