@@ -15,6 +15,7 @@ export default async function startApplication(app: Application): Promise<void> 
   app.use(express.urlencoded({ extended: true }));
   app.use(express.json());
   app.use(express.raw());
+  // @TODO restrict origin
   app.use(cors());
   app.use(
     helmet({

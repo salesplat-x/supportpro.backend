@@ -215,6 +215,7 @@ export const applications = async (user: IUser, payload: FetchApplications) => {
         mbtiType: 1,
         "role.name": 1,
         "role.description": 1,
+        "job._id": 1,
         "job.description": 1,
         "job.maxSalary": 1,
         "job.minSalary": 1,
