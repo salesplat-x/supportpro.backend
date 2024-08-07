@@ -49,6 +49,7 @@ const schema = new Schema<IApplication>(
     mbtiType: {
       type: String,
     },
+    stages: { type: Map, of: String },
   },
   { timestamps: true }
 );
