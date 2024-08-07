@@ -303,7 +303,10 @@ export const topTalents = async (user: IUser, payload: TopTalents) => {
         filter: { job: jobId, talent: talentId },
         update: {
           $set: { cvSimilarityScore, currentStage },
-          $setOnInsert: { applicationType: ApplicationType.Invitation },
+          $setOnInsert: {
+            applicationType: ApplicationType.Invitation,
+            stages: aiConfig.stages,
+          },
         },
         upsert: true,
       },
@@ -374,7 +377,10 @@ export const gradeCv = async (user: IUser, jobId: string) => {
     {
       cvSimilarityScore,
       currentStage,
-      $setOnInsert: { applicationType: ApplicationType.Invitation },
+      $setOnInsert: {
+        applicationType: ApplicationType.Invitation,
+        stages: aiConfig.stages,
+      },
     }
   );
 
@@ -567,6 +573,7 @@ export const apply = async (user: IUser, payload: IApply) => {
     talent: user._id,
     job: jobId,
     applicationType: ApplicationType.Application,
+    stages: aiConfig.stages,
   });
 
   job.noOfApplicants += 1;
