@@ -289,7 +289,10 @@ export const generatePersonalizedQuestions = async (
     talentId,
     {
       personalizedQuestions: questionIds,
-      $setOnInsert: { applicationType: ApplicationType.Invitation },
+      $setOnInsert: {
+        applicationType: ApplicationType.Invitation,
+        stages: aiConfig.stages,
+      },
     }
   );
 
