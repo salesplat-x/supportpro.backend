@@ -15,6 +15,7 @@ export interface IApplication {
   mbtiType?: string;
   status: TApplicationStatus;
   currentStage: TScreeningStage;
+  stages: Map<TScreeningStage, TScreeningStage>;
 }
 
 export const ApplicationType = {
