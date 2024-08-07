@@ -549,6 +549,13 @@ export const apply = async (user: IUser, payload: IApply) => {
     });
   }
 
+  if (!(user.profile as IProfile).prescreeningScore) {
+    return makeResponse(
+      false,
+      "You have to take the prescreening test before you can apply for a job"
+    );
+  }
+
   const aiConfig = await aiConfigRepository.findAIconfigById(
     job.aiConfig as string
   );
@@ -570,8 +577,9 @@ export const apply = async (user: IUser, payload: IApply) => {
     application.status = ApplicationStatus.RetakeAssessment;
     await application.save();
     return makeResponse(
-      false,
-      "Your prescreening score is too low to apply for this job"
+      true,
+      "Your prescreening score is too low to proceed with application",
+      { application }
     );
   }
 
