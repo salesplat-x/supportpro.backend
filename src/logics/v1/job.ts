@@ -292,7 +292,7 @@ export const topTalents = async (user: IUser, payload: TopTalents) => {
   const currentStage = applicationRepository.updateCurrentStage(
     ScreeningStage.CvSimilarity,
     aiConfig.stages
-  );
+  ).currentStage;
 
   const bulkOps = res.map((r: any) => {
     const talentId = r.profile_id;
@@ -364,18 +364,23 @@ export const gradeCv = async (user: IUser, jobId: string) => {
     jobId
   );
 
-  const currentStage = applicationRepository.updateCurrentStage(
-    ScreeningStage.CvSimilarity,
-    aiConfig.stages
-  );
+  let { currentStage, applicationStatus } =
+    applicationRepository.updateCurrentStage(
+      ScreeningStage.CvSimilarity,
+      aiConfig.stages
+    );
 
   cvSimilarityScore = convertSimilarityToPercentage(cvSimilarityScore);
+  if (cvSimilarityScore < aiConfig.minCvSimilarityScore) {
+    applicationStatus = ApplicationStatus.RetakeAssessment;
+  }
 
   const applicationRes = await applicationRepository.createOrUpdateApplication(
     jobId,
     user._id,
     {
       cvSimilarityScore,
+      status: applicationStatus || ApplicationStatus.Pending,
       currentStage,
       $setOnInsert: {
         applicationType: ApplicationType.Invitation,
@@ -545,6 +550,13 @@ export const apply = async (user: IUser, payload: IApply) => {
     return makeResponse(false, "Job not found!", {}, 404);
   }
 
+  const aiConfig = await aiConfigRepository.findAIconfigById(
+    job.aiConfig as string
+  );
+  if (!aiConfig) {
+    return makeResponse(false, "AI configuration for job not found!", {}, 404);
+  }
+
   let application = await applicationRepository.findApplicationByMatch({
     talent: user._id,
     job: jobId,
@@ -562,11 +574,15 @@ export const apply = async (user: IUser, payload: IApply) => {
     );
   }
 
-  const aiConfig = await aiConfigRepository.findAIconfigById(
-    job.aiConfig as string
-  );
-  if (!aiConfig) {
-    return makeResponse(false, "AI configuration for job not found!", {}, 404);
+  if (
+    (user.profile as IProfile).prescreeningScore < aiConfig.minPrescreeningScore
+  ) {
+    return makeResponse(
+      false,
+      "Sorry your prescreening score is too low to proceed!",
+      {},
+      403
+    );
   }
 
   application = applicationRepository.createApplication({
@@ -593,7 +609,7 @@ export const apply = async (user: IUser, payload: IApply) => {
   application.currentStage = applicationRepository.updateCurrentStage(
     application.currentStage,
     aiConfig.stages
-  );
+  ).currentStage;
   await application.save();
   application.set("personalizedQuestions", undefined);
 

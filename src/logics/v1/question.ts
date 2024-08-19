@@ -23,7 +23,11 @@ import { Paging } from "../../typings/customs";
 import * as AI from "../../services/v1/openai";
 import { IRole } from "../../typings/role";
 import { IResponse } from "../../typings/answer";
-import { ApplicationType, ScreeningStage } from "../../typings/application";
+import {
+  ApplicationStatus,
+  ApplicationType,
+  ScreeningStage,
+} from "../../typings/application";
 import { findAIconfigById } from "../../repository/v1/AIconfig";
 
 // Function to create/add question for role
@@ -122,22 +126,38 @@ export const answerPrescreening = async (
   user: IUser,
   payload: AnswerPrescreeningPayload
 ) => {
-  if ((user.profile as IProfile).prescreeningScore) {
-    return makeResponse(false, "User has already taken assessment");
+  const profile = user.profile as IProfile;
+
+  if (!profile || !profile.role || !profile.role[0]) {
+    return makeResponse(false, "User profile is incomplete", {}, 400);
+  }
+
+  if (!profile.canTakeAssessment()) {
+    return makeResponse(
+      false,
+      "Sorry, you cannot take this assessment at the moment",
+      {},
+      403
+    );
+  }
+
+  if (payload.roleId !== (profile.role[0] as IRole).id) {
+    return makeResponse(
+      false,
+      "User is not permitted to take assessment for this role",
+      {},
+      403
+    );
   }
 
   const questionIds = Object.keys(payload.answers);
-  if (questionIds.length > 15) {
-    return makeResponse(false, "Maximum length of answers 15 has been exceeded");
-  }
-
-  if (
-    payload.roleId !=
-    ((user.profile as IProfile).role[0]! as IRole)._id.toString()
-  ) {
+  const MAX_ANSWERS = 15;
+  if (questionIds.length > MAX_ANSWERS) {
     return makeResponse(
       false,
-      "User is not permitted to take assessment for this role"
+      `Maximum length of answers ${MAX_ANSWERS} has been exceeded`,
+      {},
+      400
     );
   }
 
@@ -148,7 +168,12 @@ export const answerPrescreening = async (
   });
 
   if (questions.length !== questionIds.length) {
-    return makeResponse(false, "One or more questions do not belong to role");
+    return makeResponse(
+      false,
+      "One or more questions do not belong to the role",
+      {},
+      400
+    );
   }
 
   // Create the Assessment object for the Ai Model
@@ -165,7 +190,7 @@ export const answerPrescreening = async (
 
   // Use LLM to grade scores
   const response = await AI.gradeAssessmentAnswers(questionsJSON);
-  if (!response || !response.message.content) {
+  if (!response || !response.message || !response.message.content) {
     return makeResponse(false, "Error with LLM", {}, 400);
   }
 
@@ -173,20 +198,23 @@ export const answerPrescreening = async (
     response.message.content
   ).responses;
 
-  if (responseArray.length != questionsConstruct.length) {
+  if (responseArray.length !== questionsConstruct.length) {
     return makeResponse(
       false,
-      "Length of response array doesn't match length of input array"
+      "Length of response array doesn't match length of input array",
+      {},
+      400
     );
   }
 
   let totalScore = 0;
-  for (const response of responseArray) {
-    if (response.score! > 5) {
-      return makeResponse(false, "Score exceeds the maximum assignable score");
+  for (const res of responseArray) {
+    if (res.score == null || res.score > 5) {
+      return makeResponse(false, "Invalid score received", {}, 400);
     }
-    totalScore += response.score!;
+    totalScore += res.score;
   }
+
   const maxScore = 5 * responseArray.length;
   const scorePercent = Number(((totalScore / maxScore) * 100).toFixed(2));
 
@@ -200,11 +228,13 @@ export const answerPrescreening = async (
     responseArray
   );
 
-  await userRepository.updateUserScore(
-    (user.profile as IProfile)._id,
-    scorePercent
-  );
-  return makeResponse(true, "Answers submitted successfully", { scorePercent });
+  profile.setAssessmentRetryDate();
+  profile.prescreeningScore = scorePercent;
+  await profile.save();
+
+  return makeResponse(true, "Answers submitted successfully", {
+    scorePercent,
+  });
 };
 
 // Function to generate personalized questions
@@ -318,16 +348,42 @@ export const answerPersonalizedQuestions = async (
 ) => {
   const { answers, jobId } = payload;
 
+  // Validate input
+  if (!answers || Object.keys(answers).length === 0) {
+    return makeResponse(false, "No answers provided", {}, 400);
+  }
+
+  // Fetch job details
   const job = await jobRepository.findJobById(jobId);
   if (!job) {
     return makeResponse(false, "Job not found!", {}, 404);
   }
 
+  // Fetch application details
+  const application = await applicationRepository.findApplicationByMatch({
+    job: jobId,
+    talent: user._id,
+  });
+  if (!application) {
+    return makeResponse(false, "Job application not found", {}, 404);
+  }
+
+  if (!application.canTakeAssessment()) {
+    return makeResponse(
+      false,
+      "Sorry, you cannot take this assessment at the moment",
+      {},
+      403
+    );
+  }
+
+  // Fetch AI configuration
   const aiConfig = await findAIconfigById(job.aiConfig as string);
   if (!aiConfig) {
     return makeResponse(false, "AI configuration for job not found!", {}, 404);
   }
 
+  // Check if personalized assessment is configured
   if (!aiConfig.personalizedAssessment) {
     return makeResponse(
       false,
@@ -337,12 +393,12 @@ export const answerPersonalizedQuestions = async (
     );
   }
 
+  // Find the questions in the DB using their ids
   const questionIds = Object.keys(answers);
   const questions = await questionRepository.findQuestionsByMatch({
     job: jobId,
     _id: { $in: questionIds },
   });
-  // const scorePercent = questions;
 
   const questionConstruct = questions.map((q) => {
     return {
@@ -367,41 +423,51 @@ export const answerPersonalizedQuestions = async (
     response.message.content
   ).responses;
 
-  if (responseArray.length != questionIds.length) {
+  if (responseArray.length !== questionIds.length) {
     return makeResponse(
       false,
-      "Length of response array doesn't match length of input array"
+      "Length of response array doesn't match length of input array",
+      {},
+      400
     );
   }
 
+  const MAX_SCORE = 5;
   let totalScore = 0;
   for (const response of responseArray) {
-    if (response.score! > 5) {
-      return makeResponse(false, "Score exceeds the maximum assignable score");
+    if (response.score! > MAX_SCORE) {
+      return makeResponse(
+        false,
+        "Score exceeds the maximum assignable score",
+        {},
+        400
+      );
     }
     totalScore += response.score!;
   }
 
-  const maxScore = 5 * responseArray.length;
+  const maxScore = MAX_SCORE * responseArray.length;
   const scorePercent = Number(((totalScore / maxScore) * 100).toFixed(2));
 
-  const currentStage = applicationRepository.updateCurrentStage(
-    ScreeningStage.Personalized,
-    aiConfig.stages
-  );
-  const application =
-    await applicationRepository.findApplicationByMatchAndUpdate(
-      { job: jobId, talent: user._id },
-      {
-        personalizedScore: scorePercent,
-        currentStage,
-      }
-    );
-
-  if (!application) {
-    return makeResponse(false, "Job application not found", {}, 404);
+  // Update application status based on score
+  if (scorePercent < aiConfig.minPrescreeningScore) {
+    application.currentStage = ScreeningStage.Personalized;
+    application.status = ApplicationStatus.RetakeAssessment;
+    application.setAssessmentRetryDate();
+  } else {
+    const { currentStage, applicationStatus } =
+      applicationRepository.updateCurrentStage(
+        ScreeningStage.Personalized,
+        aiConfig.stages
+      );
+    application.currentStage = currentStage;
+    application.status = applicationStatus || application.status;
   }
+  application.personalizedScore = scorePercent;
 
+  await application.save();
+
+  // Save answers to DB
   await answerRepository.saveOrUpdateAnswer(
     { job: jobId, user: user._id, questionType: QuestionType.Personalized },
     responseArray
@@ -454,6 +520,23 @@ export const evaluatePersonalityType = async (
   const job = await jobRepository.findJobById(jobId);
   if (!job) {
     return makeResponse(false, "Job not found!", {}, 404);
+  }
+
+  const application = await applicationRepository.findApplicationByMatch({
+    job: jobId,
+    talent: user._id,
+  });
+  if (!application) {
+    return makeResponse(false, "Job application not found", {}, 404);
+  }
+
+  if (!application.canTakeAssessment()) {
+    return makeResponse(
+      false,
+      "Sorry, you cannot take this assessment at the moment",
+      {},
+      403
+    );
   }
 
   const aiConfig = await findAIconfigById(job.aiConfig as string);
@@ -512,18 +595,19 @@ export const evaluatePersonalityType = async (
     responses
   );
 
-  const currentStage = applicationRepository.updateCurrentStage(
-    ScreeningStage.Personality,
-    aiConfig.stages
-  );
-  const application =
-    await applicationRepository.findApplicationByMatchAndUpdate(
-      { job: jobId, talent: user._id },
-      {
-        mbtiType,
-        currentStage,
-      }
+  // Update application status based on score
+  application.setAssessmentRetryDate();
+  const { currentStage, applicationStatus } =
+    applicationRepository.updateCurrentStage(
+      ScreeningStage.Personality,
+      aiConfig.stages
     );
+  application.currentStage = currentStage;
+  application.status = applicationStatus;
+
+  application.mbtiType = mbtiType;
+
+  await application.save();
 
   // await applicationRepository.createOrUpdateApplication(jobId, user._id, {
   //   mbtiType,

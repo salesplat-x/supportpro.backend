@@ -1,6 +1,13 @@
 import Application from "../../models/v1/application";
 import { Page, Paging } from "../../typings/customs";
-import { IApplication, TScreeningStage } from "../../typings/application";
+import {
+  ApplicationStatus,
+  IApplication,
+  ScreeningStage,
+  TApplicationStatus,
+  TApplicationType,
+  TScreeningStage,
+} from "../../typings/application";
 import { FilterQuery, PipelineStage, Types, UpdateQuery } from "mongoose";
 import * as func from "../../helpers/func";
 
@@ -101,14 +108,16 @@ export const applicationAggregate = async (
 
 // Update current stage of application
 export const updateCurrentStage = (
-  currentStage: TScreeningStage,
+  stage: TScreeningStage,
   stages: Map<TScreeningStage, TScreeningStage>
-) => {
-  const nextStage = stages.get(currentStage);
+): { currentStage: TScreeningStage; applicationStatus: TApplicationStatus } => {
+  const currentStage = stages.get(stage);
 
-  if (nextStage) {
-    return nextStage;
-  } else {
+  if (!currentStage) {
     throw new Error("Next stage not found");
   }
+  if (currentStage == ScreeningStage.Completed) {
+    return { currentStage, applicationStatus: ApplicationStatus.Shortlisted };
+  }
+  return { currentStage, applicationStatus: ApplicationStatus.Pending };
 };

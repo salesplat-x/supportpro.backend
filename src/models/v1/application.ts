@@ -50,8 +50,29 @@ const schema = new Schema<IApplication>(
       type: String,
     },
     stages: { type: Map, of: String },
+    assessmentRetryDate: Date,
   },
   { timestamps: true }
 );
+
+// Instance method to check if the candidate can retake the assessment
+schema.methods.canTakeAssessment = function (): boolean {
+  // If no assessmentRetryDate is set, the candidate can retake the assessment
+  if (!this.assessmentRetryDate) {
+    return true;
+  }
+
+  const currentDate = new Date();
+  // Check if the current date is after the retry date
+  return currentDate >= this.assessmentRetryDate;
+};
+
+// Instance method to set the assessmentRetryDate to one week from now
+schema.methods.setAssessmentRetryDate = function (days = 7): void {
+  const currentDate = new Date();
+  this.assessmentRetryDate = new Date(
+    currentDate.setDate(currentDate.getDate() + days)
+  );
+};
 
 export default model<IApplication>("application", schema);

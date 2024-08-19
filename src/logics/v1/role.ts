@@ -23,10 +23,11 @@ export const fetchAllRoles = async (payload: Paging) => {
 };
 
 export const fetchRole = async (payload: Pick<IRole, "_id">) => {
-  if (!mongoose.Types.ObjectId.isValid(payload._id)) {
+  const _id = payload._id as string;
+  if (!mongoose.Types.ObjectId.isValid(_id)) {
     return makeResponse(false, "Invalid role id", {}, 400);
   }
-  let role = await roleRepository.findRoleById(payload._id);
+  let role = await roleRepository.findRoleById(_id);
   if (!role) {
     return makeResponse(false, "Role not found", {}, 404);
   }
@@ -34,16 +35,17 @@ export const fetchRole = async (payload: Pick<IRole, "_id">) => {
 };
 
 export const questions = async (payload: Pick<IRole, "_id">, paging: Paging) => {
-  if (!mongoose.Types.ObjectId.isValid(payload._id)) {
+  const _id = payload._id as string;
+  if (!mongoose.Types.ObjectId.isValid(_id)) {
     return makeResponse(false, "Invalid role id", {}, 400);
   }
-  let role = await roleRepository.findRoleById(payload._id);
+  let role = await roleRepository.findRoleById(_id);
   if (!role) {
     return makeResponse(false, "Role not found", {}, 404);
   }
   let questions = await questionRepository.findQuestionsByMatch(
     {
-      role: payload._id,
+      role: _id,
     },
     paging
   );

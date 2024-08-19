@@ -48,8 +48,8 @@ export const gradeAssessmentAnswers = async (
       { role: "system", content: prompt },
       { role: "user", content: questionsJSON },
     ],
-    model: "gpt-3.5-turbo-16k",
-    // response_format: { type: "json_object" },
+    model: "gpt-4o",
+    response_format: { type: "json_object" },
   });
 
   return completion.choices[0];
@@ -104,9 +104,8 @@ export const generatePersonalizedQuestions = async (
       { role: "system", content: system },
       { role: "user", content: prompt },
     ],
-    // model: "gpt-3.5-turbo",
-    model: "gpt-3.5-turbo-16k",
-    // response_format: { type: "json_object" },
+    model: "gpt-4o",
+    response_format: { type: "json_object" },
   });
 
   return completion.choices[0];
@@ -157,8 +156,8 @@ export const gradePersonalizedAnswers = async (
       { role: "system", content: prompt },
       { role: "user", content: questionsJSON },
     ],
-    model: "gpt-3.5-turbo-16k",
-    // response_format: { type: "json_object" },
+    model: "gpt-4o",
+    response_format: { type: "json_object" },
   });
 
   return completion.choices[0];
@@ -189,9 +188,8 @@ export const getPersonalityEvaluationQuestion = async (
       { role: "system", content: system },
       { role: "user", content: prompt },
     ],
-    // model: "gpt-3.5-turbo",
-    model: "gpt-3.5-turbo-16k",
-    // response_format: { type: "json_object" },
+    model: "gpt-4o",
+    response_format: { type: "json_object" },
   });
 
   return completion.choices[0];
@@ -232,8 +230,8 @@ export const evaluatePersonalityType = async (
       { role: "system", content: prompt },
       { role: "user", content: questionsJSON },
     ],
-    model: "gpt-3.5-turbo-16k",
-    // response_format: { type: "json_object" },
+    model: "gpt-4o",
+    response_format: { type: "json_object" },
   });
 
   return completion.choices[0];

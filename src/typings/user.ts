@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import { Document, Types } from "mongoose";
 import { Paging, Roles } from "./customs";
 import { IRole } from "./role";
 
@@ -28,7 +28,7 @@ export interface IUser {
   __v: number;
 }
 
-export interface IProfile {
+export interface IProfile extends Document {
   _id: Types.ObjectId | string;
   bio: string;
   cv: string;
@@ -37,6 +37,9 @@ export interface IProfile {
   maxSalary: number;
   minSalary: number;
   prescreeningScore: number;
+  assessmentRetryDate?: Date;
+  canTakeAssessment: () => boolean;
+  setAssessmentRetryDate: (days?: number) => void;
 }
 
 export interface IUserPasswordUpdate {

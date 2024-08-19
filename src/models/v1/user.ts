@@ -108,7 +108,28 @@ const profileSchema = new Schema<IProfile>({
     type: Number,
     // select: false,
   },
+  assessmentRetryDate: Date,
 });
+
+// Instance method to check if the candidate can retake the assessment
+profileSchema.methods.canTakeAssessment = function (): boolean {
+  // If no assessmentRetryDate is set, the candidate can retake the assessment
+  if (!this.assessmentRetryDate) {
+    return true;
+  }
+
+  const currentDate = new Date();
+  // Check if the current date is after the retry date
+  return currentDate >= this.assessmentRetryDate;
+};
+
+// Instance method to set the assessmentRetryDate to one week from now
+profileSchema.methods.setAssessmentRetryDate = function (days = 7): void {
+  const currentDate = new Date();
+  this.assessmentRetryDate = new Date(
+    currentDate.setDate(currentDate.getDate() + days)
+  );
+};
 
 export const User = model<IUser>("user", userSchema);
 export const Profile = model<IProfile>("profile", profileSchema);

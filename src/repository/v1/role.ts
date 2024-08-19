@@ -1,7 +1,7 @@
 import Role from "../../models/v1/role";
 import { Page, Paging } from "../../typings/customs";
 import { IRole } from "../../typings/role";
-import { HydratedDocument, Types } from "mongoose";
+import { FilterQuery, HydratedDocument, Types } from "mongoose";
 import * as func from "../../helpers/func";
 
 export const createRole = async (
@@ -21,7 +21,7 @@ export const findAllRoles = async (paging: Paging = {}) => {
     .limit(Number(paging.limit) || Page.Limit);
 };
 
-export const findRoleByMatch = async (data: IRole | Record<string, any>) => {
+export const findRoleByMatch = async (data: FilterQuery<IRole>) => {
   return await Role.findOne(data);
 };
 

@@ -16,6 +16,9 @@ export interface IApplication {
   status: TApplicationStatus;
   currentStage: TScreeningStage;
   stages: Map<TScreeningStage, TScreeningStage>;
+  assessmentRetryDate?: Date;
+  canTakeAssessment: () => boolean;
+  setAssessmentRetryDate: (days?: number) => void;
 }
 
 export const ApplicationType = {
@@ -23,7 +26,8 @@ export const ApplicationType = {
   Application: "by application",
 } as const;
 
-type TApplicationType = (typeof ApplicationType)[keyof typeof ApplicationType];
+export type TApplicationType =
+  (typeof ApplicationType)[keyof typeof ApplicationType];
 
 export const ScreeningStage = {
   Prescreening: "prescreening",
@@ -41,10 +45,7 @@ export const ApplicationStatus = {
   RetakeAssessment: "retake_assessment",
   NotProceeding: "not_proceeding",
   Shortlisted: "shortlisted",
-
-  Accepted: "accepted",
-  Rejected: "rejected",
 } as const;
 
-type TApplicationStatus =
+export type TApplicationStatus =
   (typeof ApplicationStatus)[keyof typeof ApplicationStatus];
