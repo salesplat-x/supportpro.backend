@@ -19,6 +19,19 @@ export const profile = Joi.object({
   }),
 }).required();
 
+export const updateProfile = Joi.object({
+  body: Joi.object({
+    bio: Joi.string().optional(),
+    cv: Joi.string().optional(),
+    experience: Joi.string()
+      .optional()
+      .valid(...Object.values(Experience)),
+    maxSalary: Joi.number().optional(),
+    minSalary: Joi.number().less(Joi.ref("maxSalary")).optional(),
+    role: Joi.array().items(Joi.string()),
+  }),
+}).required();
+
 export const userId = Joi.object({
   params: Joi.object({
     _id: Joi.string().required(),
