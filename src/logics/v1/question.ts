@@ -44,7 +44,7 @@ export const createQuestion = async (payload: IQuestion) => {
 };
 
 // Function to fetch all questions
-export const fetchQuestions = async (payload: FetchQuestions) => {
+export const fetchQuestions = async (user: IUser, payload: FetchQuestions) => {
   const query: mongoose.RootQuerySelector<IQuestion> = {};
   let questions: IQuestion[];
 
@@ -90,6 +90,18 @@ export const fetchQuestions = async (payload: FetchQuestions) => {
       query.role = payload.roleId;
     }
     if (payload.questionType) {
+      if (
+        payload.questionType === QuestionType.Prescreening &&
+        !(user.profile as IProfile).canTakeAssessment
+      ) {
+        return makeResponse(
+          false,
+          "Sorry, you cannot take this assessment at the moment",
+          {},
+          403
+        );
+      }
+
       query.type = payload.questionType;
     }
 
