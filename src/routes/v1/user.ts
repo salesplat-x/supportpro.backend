@@ -19,7 +19,7 @@ router.post(
 router.patch(
   "/profile",
   validateAccess([Roles.Talent]),
-  validate(userValidator.profile, { body: true }),
+  validate(userValidator.updateProfile, { body: true }),
   asyncHandler(user.editProfile)
 );
 
