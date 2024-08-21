@@ -1,8 +1,9 @@
 import Joi from "joi";
-import { IAIConfig } from "../../../typings/AIconfig";
+import { IAIConfig, IAIConfigPayload } from "../../../typings/AIconfig";
 
 export const aiConfig = Joi.object({
-  body: Joi.object<IAIConfig>({
+  body: Joi.object<IAIConfigPayload>({
+    jobId: Joi.string().required(),
     name: Joi.string().required(),
     prescreeningAssessment: Joi.boolean().required(),
     minPrescreeningScore: Joi.number().optional(),

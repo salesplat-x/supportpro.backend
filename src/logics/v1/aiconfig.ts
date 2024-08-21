@@ -1,10 +1,11 @@
 import { IUser } from "../../typings/user";
 import * as aiConfigRepository from "../../repository/v1/AIconfig";
-import { IAIConfig } from "../../typings/AIconfig";
+import { IAIConfig, IAIConfigPayload } from "../../typings/AIconfig";
 import { makeResponse } from "../../helpers/response";
 import { Roles } from "../../typings/customs";
+import { findJobByIdAndUpdate } from "../../repository/v1/job";
 
-export const createAIConfig = async (user: IUser, payload: IAIConfig) => {
+export const createAIConfig = async (user: IUser, payload: IAIConfigPayload) => {
   payload.recruiter = user._id;
 
   const existing = await aiConfigRepository.findAIconfigByMatch({
@@ -21,6 +22,7 @@ export const createAIConfig = async (user: IUser, payload: IAIConfig) => {
     ...payload,
     recruiter: user._id,
   });
+  await findJobByIdAndUpdate(payload.jobId, { aiConfig: config.id });
   return makeResponse(true, "AI configuration created", { config });
 };
 
