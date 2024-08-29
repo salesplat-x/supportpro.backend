@@ -29,6 +29,7 @@ import {
   ScreeningStage,
 } from "../../typings/application";
 import { findAIconfigById } from "../../repository/v1/AIconfig";
+import { calculateTimeLeft } from "../../helpers/func";
 
 // Function to create/add question for role
 export const createQuestion = async (payload: IQuestion) => {
@@ -45,8 +46,15 @@ export const createQuestion = async (payload: IQuestion) => {
 
 // Function to fetch all questions
 export const fetchQuestions = async (user: IUser, payload: FetchQuestions) => {
-  const query: mongoose.RootQuerySelector<IQuestion> = {};
+  const query: Partial<IQuestion> = { type: payload.questionType };
+  const profile = user.profile as IProfile;
   let questions: IQuestion[];
+
+  // Check if user wants to retake assessment and is allowed to
+
+  if (!profile || !profile.role || !profile.role[0]) {
+    return makeResponse(false, "User profile is incomplete!", {}, 400);
+  }
 
   // @TODO select a number of questions randomly
   // const randomQuestions = await Question.aggregate([
@@ -54,17 +62,11 @@ export const fetchQuestions = async (user: IUser, payload: FetchQuestions) => {
   //   { $sample: { size: numberOfQuestions } } // Randomly sample the specified number of questions
   // ]);
 
+  // For Personalized questions get the application and fetch the personalized questions
   if (payload.questionType == QuestionType.Personalized) {
-    if (!payload.talentId || !payload.jobId) {
-      return makeResponse(
-        false,
-        "talentId and jobId required to fetch personalized questions"
-      );
-    }
-
     const application = await applicationRepository.findApplicationByMatch({
       job: payload.jobId,
-      talent: payload.talentId,
+      talent: user._id,
     });
     if (!application) {
       return makeResponse(false, "Application record not found", {}, 404);
@@ -82,27 +84,27 @@ export const fetchQuestions = async (user: IUser, payload: FetchQuestions) => {
       query.job = payload.jobId;
     }
 
-    if (payload.roleId) {
-      const role = await roleRepository.findRoleById(payload.roleId);
-      if (!role) {
-        return makeResponse(false, "Role not found", {}, 404);
-      }
-      query.role = payload.roleId;
-    }
-    if (payload.questionType) {
-      if (
-        payload.questionType === QuestionType.Prescreening &&
-        !(user.profile as IProfile).canTakeAssessment
-      ) {
+    if (payload.questionType === QuestionType.Prescreening) {
+      if (!profile.canTakeAssessment()) {
+        const days = calculateTimeLeft(profile.assessmentRetryDate!);
         return makeResponse(
           false,
-          "Sorry, you cannot take this assessment at the moment",
+          `Sorry, you cannot take this assessment at the moment, retry ${days}`,
           {},
           403
         );
       }
 
-      query.type = payload.questionType;
+      // Check if input role is a role of user
+      if ((profile.role[0] as IRole).id !== payload.roleId!) {
+        return makeResponse(
+          false,
+          "User is not permitted to take assessment for this role",
+          {},
+          403
+        );
+      }
+      query.role = payload.roleId;
     }
 
     const paging: Paging = {};
@@ -141,13 +143,14 @@ export const answerPrescreening = async (
   const profile = user.profile as IProfile;
 
   if (!profile || !profile.role || !profile.role[0]) {
-    return makeResponse(false, "User profile is incomplete", {}, 400);
+    return makeResponse(false, "User profile is incomplete!", {}, 400);
   }
 
   if (!profile.canTakeAssessment()) {
+    const days = calculateTimeLeft(profile.assessmentRetryDate!);
     return makeResponse(
       false,
-      "Sorry, you cannot take this assessment at the moment",
+      `Sorry, you cannot take this assessment at the moment, retry ${days}`,
       {},
       403
     );
@@ -381,9 +384,10 @@ export const answerPersonalizedQuestions = async (
   }
 
   if (!application.canTakeAssessment()) {
+    const days = calculateTimeLeft(application.assessmentRetryDate!);
     return makeResponse(
       false,
-      "Sorry, you cannot take this assessment at the moment",
+      `Sorry, you cannot take this assessment at the moment, retry ${days}`,
       {},
       403
     );
@@ -543,9 +547,10 @@ export const evaluatePersonalityType = async (
   }
 
   if (!application.canTakeAssessment()) {
+    const days = calculateTimeLeft(application.assessmentRetryDate!);
     return makeResponse(
       false,
-      "Sorry, you cannot take this assessment at the moment",
+      `Sorry, you cannot take this assessment at the moment, retry ${days}`,
       {},
       403
     );
