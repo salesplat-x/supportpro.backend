@@ -9,14 +9,19 @@ export function calculateTimeLeft(date: Date): string {
   const timeDifference = dateObj.getTime() - today.getTime();
 
   // If less than a day away
-  const millisecondsPerHour = 1000 * 3600;
+  const millisecondsPerMin = 1000 * 60;
+  const millisecondsPerHour = millisecondsPerMin * 60;
   const millisecondsPerDay = millisecondsPerHour * 24;
 
-  if (timeDifference < millisecondsPerDay) {
-    const hours = Math.floor(timeDifference / millisecondsPerHour);
-    if (hours === 0) {
+  if (timeDifference < millisecondsPerHour) {
+    const minute = Math.floor(timeDifference / millisecondsPerMin);
+    if (minute === 0) {
       return "in less than an hour";
     }
+    return minute === 1 ? "in a minute" : `in ${minute} minutes`;
+  }
+  if (timeDifference < millisecondsPerDay) {
+    const hours = Math.floor(timeDifference / millisecondsPerHour);
     return hours === 1 ? "in an hour" : `in ${hours} hours`;
   }
 
