@@ -43,10 +43,18 @@ export const answersPersonalized = Joi.object({
 
 export const getQuestions = Joi.object({
   query: Joi.object({
-    jobId: Joi.string(),
-    roleId: Joi.string(),
+    questionType: Joi.string()
+      .valid(...Object.values(QuestionType))
+      .required(),
+    jobId: Joi.string().when("questionType", {
+      not: QuestionType.Prescreening,
+      then: Joi.required(),
+    }),
+    roleId: Joi.string().when("questionType", {
+      is: QuestionType.Prescreening,
+      then: Joi.required(),
+    }),
     talentId: Joi.string(),
-    questionType: Joi.string().valid(...Object.values(QuestionType)),
     limit: Joi.number(),
     offset: Joi.number(),
     sort: Joi.string().valid("asc", "desc"),
