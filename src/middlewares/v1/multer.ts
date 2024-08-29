@@ -28,4 +28,4 @@ const diskStorage = multer.diskStorage({
 const memoryStorage = multer.memoryStorage();
 
 export const diskUpload = multer({ storage: diskStorage });
-export const cloudinaryUpload = multer({ storage: memoryStorage });
+export const memoryUpload = multer({ storage: memoryStorage });

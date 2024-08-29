@@ -4,6 +4,7 @@ import { Pool } from "pg";
 import OpenAI from "openai";
 import logger from "../../config/logger";
 import { TopTalents } from "../../typings/job";
+import { Embedding } from "openai/resources/embeddings.mjs";
 
 const pool = new Pool({
   user: env.pg_user,
@@ -152,6 +153,25 @@ export const getTalents = async (userId: string) => {
   return res.rows;
 };
 
+// Function to save a job embedding
+export const saveCvBatch = async (
+  batchId: string,
+  talentName: string,
+  cvText: string,
+  coverLetterText: string,
+  combinedEmbedding: Embedding[]
+) => {
+  const insertionString =
+    "INSERT INTO cv_batches (batch_id, talent_name, cv_text, cover_letter_text, combined_embedding) VALUES ($1, $2, $3) RETURNING *";
+
+  const embedding = `[${combinedEmbedding.toString()}]`;
+
+  const values = [batchId, talentName, cvText, coverLetterText, embedding];
+
+  const res = await query(insertionString, values);
+  return res.rows[0];
+};
+
 // Function to create necessary tables
 export const setupPostgresDB = async () => {
   try {
@@ -177,6 +197,19 @@ export const setupPostgresDB = async () => {
       cv_embedding VECTOR(512) NOT NULL
     );
     `);
+
+    // Create talents table
+    await client.query(`
+    CREATE TABLE IF NOT EXISTS cv_batches (
+      id SERIAL PRIMARY KEY,
+      batch_id VARCHAR(255) NOT NULL,
+      talent_name VARCHAR(255) NOT NULL,
+      cv_text TEXT NOT NULL,
+      cover_letter_text TEXT NOT NULL,
+      combined_embedding VECTOR(512) NOT NULL
+    );
+    `);
+
     client.release();
     logger.log("Connected to Postgres successfully");
   } catch (error: any) {

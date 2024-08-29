@@ -2,7 +2,7 @@ import { Router } from "express";
 import * as uploadHandler from "../../controllers/v1/upload";
 import { asyncHandler } from "../../middlewares/v1/handler";
 import { loginRequired } from "../../middlewares/v1/auth";
-import { cloudinaryUpload, diskUpload } from "../../middlewares/v1/multer";
+import { memoryUpload, diskUpload } from "../../middlewares/v1/multer";
 
 const router = Router();
 // const upload = multer({ dest: "uploads/"});
@@ -10,7 +10,7 @@ const router = Router();
 router.post(
   "/",
   loginRequired,
-  cloudinaryUpload.single("file"),
+  memoryUpload.single("file"),
   asyncHandler(uploadHandler.uploadCloudinary)
 );
 
