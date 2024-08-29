@@ -26,9 +26,11 @@ import { IResponse } from "../../typings/answer";
 import {
   ApplicationStatus,
   ApplicationType,
+  IApplication,
   ScreeningStage,
 } from "../../typings/application";
 import { findAIconfigById } from "../../repository/v1/AIconfig";
+import { calculateTimeLeft } from "../../helpers/func";
 
 // Function to create/add question for role
 export const createQuestion = async (payload: IQuestion) => {
@@ -45,79 +47,94 @@ export const createQuestion = async (payload: IQuestion) => {
 
 // Function to fetch all questions
 export const fetchQuestions = async (user: IUser, payload: FetchQuestions) => {
-  const query: mongoose.RootQuerySelector<IQuestion> = {};
+  const query: Partial<IQuestion> = { type: payload.questionType };
+  const profile = user.profile as IProfile;
   let questions: IQuestion[];
+  let application: IApplication | null;
 
-  // @TODO select a number of questions randomly
-  // const randomQuestions = await Question.aggregate([
-  //   { $match: { role } },
-  //   { $sample: { size: numberOfQuestions } } // Randomly sample the specified number of questions
-  // ]);
+  // Check if user wants to retake assessment and is allowed to
 
-  if (payload.questionType == QuestionType.Personalized) {
-    if (!payload.talentId || !payload.jobId) {
-      return makeResponse(
-        false,
-        "talentId and jobId required to fetch personalized questions"
-      );
+  if (!profile || !profile.role || !profile.role[0]) {
+    return makeResponse(false, "User profile is incomplete!", {}, 400);
+  }
+
+  if (payload.jobId) {
+    // Check if user can retake assessment for the job
+    const job = await jobRepository.findJobById(payload.jobId);
+    if (!job) {
+      return makeResponse(false, "Job not found", {}, 404);
     }
-
-    const application = await applicationRepository.findApplicationByMatch({
+    query.job = payload.jobId;
+    application = await applicationRepository.findApplicationByMatch({
       job: payload.jobId,
-      talent: payload.talentId,
+      talent: user._id,
     });
     if (!application) {
       return makeResponse(false, "Application record not found", {}, 404);
     }
+    if (!application.canTakeAssessment()) {
+      const days = calculateTimeLeft(application.assessmentRetryDate!);
+      return makeResponse(
+        false,
+        `Sorry, you cannot take this assessment at the moment, retry ${days}`,
+        {},
+        403
+      );
+    }
+    if (payload.questionType == QuestionType.Personalized) {
+      // For Personalized questions get the application and fetch the personalized questions
+      questions = await questionRepository.findQuestionsByMatch({
+        _id: { $in: application?.personalizedQuestions },
+      });
 
-    questions = await questionRepository.findQuestionsByMatch({
-      _id: { $in: application?.personalizedQuestions },
-    });
-  } else {
-    if (payload.jobId) {
-      const job = await jobRepository.findJobById(payload.jobId);
-      if (!job) {
-        return makeResponse(false, "Job not found", {}, 404);
-      }
-      query.job = payload.jobId;
+      return makeResponse(
+        true,
+        "Questions fetched successfully",
+        questions,
+        200
+      );
     }
-
-    if (payload.roleId) {
-      const role = await roleRepository.findRoleById(payload.roleId);
-      if (!role) {
-        return makeResponse(false, "Role not found", {}, 404);
-      }
-      query.role = payload.roleId;
-    }
-    if (payload.questionType) {
-      if (
-        payload.questionType === QuestionType.Prescreening &&
-        !(user.profile as IProfile).canTakeAssessment
-      ) {
-        return makeResponse(
-          false,
-          "Sorry, you cannot take this assessment at the moment",
-          {},
-          403
-        );
-      }
-
-      query.type = payload.questionType;
-    }
-
-    const paging: Paging = {};
-    if (payload.limit) {
-      paging.limit = payload.limit;
-    }
-    if (payload.offset) {
-      paging.offset = payload.offset;
-    }
-    if (payload.sort) {
-      paging.sort = payload.sort;
-    }
-
-    questions = await questionRepository.findQuestionsByMatch(query, paging);
   }
+  if (payload.questionType === QuestionType.Prescreening) {
+    if (!profile.canTakeAssessment()) {
+      const days = calculateTimeLeft(profile.assessmentRetryDate!);
+      return makeResponse(
+        false,
+        `Sorry, you cannot take this assessment at the moment, retry ${days}`,
+        {},
+        403
+      );
+    }
+
+    // @TODO select a number of questions randomly
+    // const randomQuestions = await Question.aggregate([
+    //   { $match: { role } },
+    //   { $sample: { size: numberOfQuestions } } // Randomly sample the specified number of questions
+    // ]);
+    // Check if input role is a role of user
+    if ((profile.role[0] as IRole).id !== payload.roleId!) {
+      return makeResponse(
+        false,
+        "User is not permitted to take assessment for this role",
+        {},
+        403
+      );
+    }
+    query.role = payload.roleId;
+  }
+
+  const paging: Paging = {};
+  if (payload.limit) {
+    paging.limit = payload.limit;
+  }
+  if (payload.offset) {
+    paging.offset = payload.offset;
+  }
+  if (payload.sort) {
+    paging.sort = payload.sort;
+  }
+
+  questions = await questionRepository.findQuestionsByMatch(query, paging);
   return makeResponse(true, "Questions fetched successfully", questions, 200);
 };
 
@@ -141,13 +158,14 @@ export const answerPrescreening = async (
   const profile = user.profile as IProfile;
 
   if (!profile || !profile.role || !profile.role[0]) {
-    return makeResponse(false, "User profile is incomplete", {}, 400);
+    return makeResponse(false, "User profile is incomplete!", {}, 400);
   }
 
   if (!profile.canTakeAssessment()) {
+    const days = calculateTimeLeft(profile.assessmentRetryDate!);
     return makeResponse(
       false,
-      "Sorry, you cannot take this assessment at the moment",
+      `Sorry, you cannot take this assessment at the moment, retry ${days}`,
       {},
       403
     );
@@ -381,9 +399,10 @@ export const answerPersonalizedQuestions = async (
   }
 
   if (!application.canTakeAssessment()) {
+    const days = calculateTimeLeft(application.assessmentRetryDate!);
     return makeResponse(
       false,
-      "Sorry, you cannot take this assessment at the moment",
+      `Sorry, you cannot take this assessment at the moment, retry ${days}`,
       {},
       403
     );
@@ -511,7 +530,7 @@ export const generatePersonalityQuestion = async (
   }
   const question = JSON.parse(response.message.content).question;
 
-  // Save question to job
+  // Save or replace question for job
   const pQuestion = await questionRepository.createOrUpdatePersonalityEvaluation(
     payload.jobId,
     payload.dichotomyPair,
@@ -543,9 +562,10 @@ export const evaluatePersonalityType = async (
   }
 
   if (!application.canTakeAssessment()) {
+    const days = calculateTimeLeft(application.assessmentRetryDate!);
     return makeResponse(
       false,
-      "Sorry, you cannot take this assessment at the moment",
+      `Sorry, you cannot take this assessment at the moment, retry ${days}`,
       {},
       403
     );

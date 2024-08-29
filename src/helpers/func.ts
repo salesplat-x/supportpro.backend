@@ -2,6 +2,33 @@ import mammoth from "mammoth";
 import path from "path";
 import pdfParse from "pdf-parse";
 
+export function calculateTimeLeft(date: Date): string {
+  const dateObj = new Date(date);
+  const today = new Date();
+
+  const timeDifference = dateObj.getTime() - today.getTime();
+
+  // If less than a day away
+  const millisecondsPerMin = 1000 * 60;
+  const millisecondsPerHour = millisecondsPerMin * 60;
+  const millisecondsPerDay = millisecondsPerHour * 24;
+
+  if (timeDifference < millisecondsPerHour) {
+    const minute = Math.floor(timeDifference / millisecondsPerMin);
+    if (minute === 0) {
+      return "in less than an hour";
+    }
+    return minute === 1 ? "in a minute" : `in ${minute} minutes`;
+  }
+  if (timeDifference < millisecondsPerDay) {
+    const hours = Math.floor(timeDifference / millisecondsPerHour);
+    return hours === 1 ? "in an hour" : `in ${hours} hours`;
+  }
+
+  const days = Math.floor(timeDifference / millisecondsPerDay);
+  return days === 1 ? "tomorrow" : `in ${days} days`;
+}
+
 export function convertSimilarityToPercentage(similarityScore: number) {
   if (similarityScore < 0 || similarityScore > 1) {
     throw new Error("Similarity score must be between 0 and 1");

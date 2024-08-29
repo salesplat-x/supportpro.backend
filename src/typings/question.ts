@@ -17,7 +17,7 @@ export interface FetchQuestions extends Paging {
   jobId?: string;
   roleId?: string;
   talentId?: string;
-  questionType?: string;
+  questionType?: TQuestionType;
 }
 
 export interface IAnswerQuestion {
