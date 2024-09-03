@@ -7,7 +7,7 @@ import role from "./role";
 import user from "./user";
 import upload from "./upload";
 import question from "./question";
-import cvBatching from "./cvBatching";
+import scout from "./scout";
 import application from "./application";
 import organization from "./organization";
 import aiconfig from "./aiconfig";
@@ -20,7 +20,7 @@ export default (router: Router) => {
   role(router);
   upload(router);
   aiconfig(router);
-  cvBatching(router);
+  scout(router);
   question(router);
   application(router);
   organization(router);
