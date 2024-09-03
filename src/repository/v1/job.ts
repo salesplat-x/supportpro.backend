@@ -8,12 +8,11 @@ export const createJob = async (job: IJob): Promise<HydratedDocument<IJob>> => {
   return await new Job(job).save();
 };
 
-export const findJobById = async (id: Types.ObjectId | string) => {
-  return await Job.findById(id).populate({
-    path: "role postedBy",
-    select: "-__v -createdAt -updatedAt",
-    strictPopulate: false,
-  });
+export const findJobById = async (
+  id: Types.ObjectId | string,
+  projection = "role postedBy"
+) => {
+  return await Job.findById(id).populate(projection);
 };
 
 export const findAllJobs = async (match: Partial<IJob>, paging: Paging = {}) => {
