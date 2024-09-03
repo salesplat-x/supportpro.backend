@@ -120,7 +120,7 @@ export const gradePersonalizedAnswers = async (
 
   You will be given a JSON stringified array of objects. The objects are called the Assessment object. The content of each Assessment object is explained as follows:
 
-  The Assessment object has 2 fields. Each field is described as follows:
+  The Assessment object has 3 fields. Each field is described as follows:
 
   1. question: The questions that was asked to a candidate.
   2. questionId: The question's unique id.
@@ -229,6 +229,79 @@ export const evaluatePersonalityType = async (
     messages: [
       { role: "system", content: prompt },
       { role: "user", content: questionsJSON },
+    ],
+    model: "gpt-4o",
+    response_format: { type: "json_object" },
+  });
+
+  return completion.choices[0];
+};
+
+export const assessCVandCoverLetter = async (
+  input: string
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const prompt = `
+  You are an automated CV evaluation system.
+
+  Input: You will receive a JSON object with the following four fields:
+
+  1. cv: A string containing the CV of the job applicant.
+  2. coverLetter: A string containing the cover letter of the job applicant.
+  3. jobDescription: A string containing the job description for the position.
+  4. recruiterGuide: A string with instructions on how to assess the CV and cover letter against the job description to generate a percentage match.
+  Output: You should produce a JSON object with the following structure:
+
+  {
+    "cvScore": <cvPercentage>
+    "coverLetterScore": <coverLetterPercentage>
+  }
+  Where <cvPercentage> is the calculated match percentage of the applicant's CV against the job description based on the recruiter guide, and <coverLetterPercentage> is the calculated match percentage of the applicant's coverLetter against the job description based on the recruiter guide.
+
+  Example Output:
+  {
+    "cvScore": 60
+    "coverLetterScore": 73
+  } `;
+
+  const completion = await openai.chat.completions.create({
+    messages: [
+      { role: "system", content: prompt },
+      { role: "user", content: input },
+    ],
+    model: "gpt-4o",
+    response_format: { type: "json_object" },
+  });
+
+  return completion.choices[0];
+};
+
+export const assessCV = async (
+  input: string
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const prompt = `
+  You are an automated CV evaluation system.
+
+  Input: You will receive a JSON object with the following three fields:
+
+  1. cv: A string containing the CV of the job applicant.
+  2. jobDescription: A string containing the job description for the position.
+  3. recruiterGuide: A string with instructions on how to assess the CV against the job description to generate a percentage match.
+  Output: You should produce a JSON object with the following structure:
+
+  {
+    "cvScore": <cvPercentage>
+  }
+  Where <cvPercentage> is the calculated match percentage of the applicant's CV against the job description based on the recruiter guide.
+
+  Example Output:
+  {
+    "cvScore": 60
+  } `;
+
+  const completion = await openai.chat.completions.create({
+    messages: [
+      { role: "system", content: prompt },
+      { role: "user", content: input },
     ],
     model: "gpt-4o",
     response_format: { type: "json_object" },

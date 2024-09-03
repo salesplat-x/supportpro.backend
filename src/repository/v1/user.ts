@@ -1,7 +1,7 @@
 import { User, Profile } from "../../models/v1/user";
 import { Page, Paging } from "../../typings/customs";
 import { IUser, IProfile } from "../../typings/user";
-import mongoose, { HydratedDocument, Types } from "mongoose";
+import mongoose, { FilterQuery, HydratedDocument, Types } from "mongoose";
 import * as func from "../../helpers/func";
 
 export const createUser = async (
@@ -37,7 +37,7 @@ export const findUserByEmail = async (email: string) => {
   });
 };
 
-export const findUserByMatch = async (data: IUser | Record<string, any>) => {
+export const findUserByMatch = async (data: FilterQuery<IUser>) => {
   return await User.findOne(data).populate({
     path: "profile",
     select: "-__v -createdAt -updatedAt ",
@@ -47,7 +47,7 @@ export const findUserByMatch = async (data: IUser | Record<string, any>) => {
 };
 
 export const findUsersByMatch = async (
-  data: IUser | Record<string, any>,
+  data: FilterQuery<IUser>,
   paging: Paging = {}
 ) => {
   return await User.find(data)

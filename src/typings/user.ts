@@ -2,7 +2,7 @@ import { Document, Types } from "mongoose";
 import { Paging, Roles } from "./customs";
 import { IRole } from "./role";
 
-export interface IUser {
+export interface IUser extends Document {
   _id: Types.ObjectId | string;
   email: string;
   firstName: string;
