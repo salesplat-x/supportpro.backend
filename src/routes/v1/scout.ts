@@ -5,6 +5,7 @@ import { validateAccess } from "../../middlewares/v1/auth";
 import { memoryUpload } from "../../middlewares/v1/multer";
 import {
   getScoutReports,
+  scoutTalents,
   validateCv,
   validateCvAndCoverLetter,
 } from "../../middlewares/v1/validators/scout";
@@ -12,6 +13,13 @@ import { Roles } from "../../typings/customs";
 import validate from "../../middlewares/v1/validators/validate";
 const router = Router();
 // const upload = multer({ dest: "uploads/"});
+
+router.get(
+  "/talents",
+  validateAccess([Roles.Recruiter, Roles.Admin]),
+  validate(scoutTalents, { query: true }),
+  asyncHandler(controller.scoutTalents)
+);
 
 router.get(
   "/batch/:id",

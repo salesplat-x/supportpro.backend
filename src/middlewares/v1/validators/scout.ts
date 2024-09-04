@@ -1,5 +1,21 @@
 import { Request, Response, NextFunction } from "express";
 import Joi from "joi";
+import { Experience } from "../../../typings/customs";
+
+export const scoutTalents = Joi.object({
+  query: Joi.object({
+    roleId: Joi.string().required(),
+    experience: Joi.string()
+      .valid(...Object.values(Experience))
+      .required(),
+    remote: Joi.boolean(),
+    location: Joi.string(),
+
+    limit: Joi.number(),
+    offset: Joi.number(),
+    sort: Joi.string().valid("asc", "desc"),
+  }),
+});
 
 export const getScoutReports = Joi.object({
   params: Joi.object({

@@ -10,9 +10,18 @@ import * as AI from "../../services/v1/openai";
 import { saveCvBatch } from "../../repository/v1/pg";
 import { findJobById } from "../../repository/v1/job";
 import { IAIConfig } from "../../typings/AIconfig";
-import { IScout, IScoutResponse, ICvAndCoverLetter } from "../../typings/scout";
+import {
+  IScout,
+  IScoutResponse,
+  ICvAndCoverLetter,
+  IScoutTalents,
+} from "../../typings/scout";
 import { IUser } from "../../typings/user";
 import * as scoutRepository from "../../repository/v1/scout";
+import mongoose from "mongoose";
+import { findRoleById } from "../../repository/v1/role";
+import { Roles } from "../../typings/customs";
+import { userAggregate } from "../../repository/v1/user";
 
 // Function to get all records for a batchID
 export const fetchScoutReports = async (user: IUser, batchId?: string) => {
@@ -24,6 +33,75 @@ export const fetchScoutReports = async (user: IUser, batchId?: string) => {
 export const fetchScoutReport = async (user: IUser, id?: string) => {
   const resp = await scoutRepository.findScoutById(id!);
   return makeResponse(true, "Scout report fetched", { scoutReports: resp });
+};
+
+// Function find talents
+export const scoutTalents = async (payload: IScoutTalents) => {
+  let talents: IUser[] = [];
+  //@TODO handle pagination
+
+  // Create aggregation pipeline
+  let pipeline: mongoose.PipelineStage[] = [
+    {
+      $match: {
+        userRole: Roles.Talent,
+      },
+    },
+    {
+      $project: {
+        password: 0, // Exclude password field from user object
+      },
+    },
+    {
+      $lookup: {
+        from: "profiles",
+        localField: "profile",
+        foreignField: "_id",
+        as: "profile",
+      },
+    },
+  ];
+  pipeline.push({
+    $match: {
+      "profile.prescreeningScore": { $exists: true },
+    },
+  });
+
+  if (payload.roleId) {
+    if (!mongoose.Types.ObjectId.isValid(payload.roleId)) {
+      return makeResponse(false, "Invalid role id", {}, 400);
+    }
+    const role = await findRoleById(payload.roleId);
+    if (!role) {
+      return makeResponse(false, "Role does not exist", {}, 404);
+    }
+    pipeline.push({
+      $match: {
+        "profile.role": new mongoose.Types.ObjectId(payload.roleId),
+      },
+    });
+  }
+
+  if (payload.experience) {
+    pipeline.push({ $match: { "profile.experience": payload.experience } });
+  }
+
+  pipeline.push(
+    { $unwind: "$profile" },
+    {
+      $lookup: {
+        from: "roles",
+        localField: "profile.role",
+        foreignField: "_id",
+        as: "profile.role",
+      },
+    },
+    { $sort: { "profile.prescreeningScore": -1 } }
+  );
+
+  // Use an aggregation to get all users with the specified role
+  talents = await userAggregate(pipeline, payload);
+  return makeResponse(true, "User details fetched", { talents });
 };
 
 // Logic to scout using CV and Cover Letter (CL)

@@ -1,5 +1,6 @@
 import { Document, Types } from "mongoose";
 import { IUser } from "./user";
+import { Paging } from "./customs";
 
 export interface IScout extends Document {
   batchId: string;
@@ -23,4 +24,12 @@ export interface ICvAndCoverLetter {
 export interface IScoutResponse {
   cvScore?: number;
   coverLetterScore?: number;
+}
+
+export interface IScoutTalents extends Paging {
+  roleId?: string;
+  experience?: string;
+  //Not used
+  remote?: boolean;
+  location?: string;
 }

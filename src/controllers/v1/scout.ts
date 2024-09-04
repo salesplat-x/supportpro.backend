@@ -2,6 +2,11 @@ import { Response, Request } from "express";
 import * as logic from "../../logics/v1/scout";
 import { responseHandler } from "../../middlewares/v1/handler";
 
+export const scoutTalents = async (req: Request, res: Response) => {
+  const response = await logic.scoutTalents(req.query);
+  return responseHandler(res, response);
+};
+
 export const fetchScoutReports = async (req: Request, res: Response) => {
   const response = await logic.fetchScoutReports(req.user, req.params.id);
   return responseHandler(res, response);
