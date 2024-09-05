@@ -16,9 +16,9 @@ export interface IScout extends Document {
 
 export interface ICvAndCoverLetter {
   batchId?: string;
-  jobId: string;
   files: Express.Multer.File[];
   file: Express.Multer.File;
+  scoutJobId: string;
 }
 
 export interface IScoutResponse {
