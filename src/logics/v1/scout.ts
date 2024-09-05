@@ -22,6 +22,7 @@ import mongoose from "mongoose";
 import { findRoleById } from "../../repository/v1/role";
 import { Roles } from "../../typings/customs";
 import { userAggregate } from "../../repository/v1/user";
+import { findScoutJobById } from "../../repository/v1/scoutJob";
 
 // Function to get all records for a batchID
 export const fetchScoutReports = async (user: IUser, batchId?: string) => {
@@ -106,13 +107,11 @@ export const scoutTalents = async (payload: IScoutTalents) => {
 
 // Logic to scout using CV and Cover Letter (CL)
 export const scoutCvAndCl = async (user: IUser, payload: ICvAndCoverLetter) => {
-  const job = await findJobById(payload.jobId, "aiConfig");
+  const job = await findScoutJobById(payload.scoutJobId, "role");
   if (!job) {
     return makeResponse(false, "Job not found!", {}, 404);
   }
-  if (!job.aiConfig) {
-    return makeResponse(false, "Job AI configuration not set!");
-  }
+
   if (job.postedBy.toString() !== user.id) {
     return makeResponse(
       false,
@@ -122,7 +121,7 @@ export const scoutCvAndCl = async (user: IUser, payload: ICvAndCoverLetter) => {
     );
   }
 
-  const recruiterGuide = (job.aiConfig as IAIConfig).recruiterGuide;
+  const recruiterGuide = job.recruiterGuide;
 
   const files: any = payload.files;
   if (!files) {
@@ -205,12 +204,9 @@ export const scoutCvAndCl = async (user: IUser, payload: ICvAndCoverLetter) => {
 
 // Logic to scout using CV
 export const scoutCv = async (user: IUser, payload: ICvAndCoverLetter) => {
-  const job = await findJobById(payload.jobId, "aiConfig");
+  const job = await findScoutJobById(payload.scoutJobId, "role");
   if (!job) {
     return makeResponse(false, "Job not found!", {}, 404);
-  }
-  if (!job.aiConfig) {
-    return makeResponse(false, "Job AI configuration not set!");
   }
   if (job.postedBy.toString() !== user.id) {
     return makeResponse(
@@ -221,7 +217,7 @@ export const scoutCv = async (user: IUser, payload: ICvAndCoverLetter) => {
     );
   }
 
-  const recruiterGuide = (job.aiConfig as IAIConfig).recruiterGuide;
+  const recruiterGuide = job.recruiterGuide;
 
   const file: Express.Multer.File = payload.file;
   if (!file) {
