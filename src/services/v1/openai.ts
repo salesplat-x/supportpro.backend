@@ -71,11 +71,12 @@ export const generatePersonalizedQuestions = async (
   jobDescription: string,
   cv: Array<string>,
   bio: string,
+  questionNo: number,
   recruiterGuide: string
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
   const system = `
   You are an automated system for generating personalized questions tailor made for job applicants/talents in order to get a wholesome idea of job applicants.
-  You will be given the job description,the talent's bio, the talent's CV and the recruiter's guide use them to generate 15 tailor-made personalized questions to ask the talent,  
+  You will be given the job description,the talent's bio, the talent's CV and the recruiter's guide use them to generate ${questionNo} tailor-made personalized questions to ask the talent,  
   
   Your output should be a JSON array of the Questions. For example 
   '{

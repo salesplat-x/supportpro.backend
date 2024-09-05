@@ -328,6 +328,7 @@ export const generatePersonalizedQuestions = async (
     job.job_description,
     cv,
     bio,
+    aiConfig.noPersonalizedQuestions,
     aiConfig.recruiterGuide
   );
   if (!response || !response.message.content) {
