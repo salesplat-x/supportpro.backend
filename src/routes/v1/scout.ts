@@ -9,10 +9,31 @@ import {
   validateCv,
   validateCvAndCoverLetter,
 } from "../../middlewares/v1/validators/scout";
+import * as scoutJob from "../../controllers/v1/scoutJob";
+import * as scoutJobValidator from "../../middlewares/v1/validators/scoutJob";
 import { Roles } from "../../typings/customs";
 import validate from "../../middlewares/v1/validators/validate";
 const router = Router();
-// const upload = multer({ dest: "uploads/"});
+
+router.post(
+  "/jobs/",
+  validateAccess([Roles.Recruiter]),
+  validate(scoutJobValidator.scoutJob, { body: true }),
+  asyncHandler(scoutJob.create)
+);
+
+router.put(
+  "/jobs/:_id",
+  validateAccess([Roles.Recruiter]),
+  validate(scoutJobValidator.updateScoutJob, { query: true }),
+  asyncHandler(scoutJob.update)
+);
+
+router.get(
+  "/jobs/:_id",
+  validateAccess([Roles.Recruiter]),
+  asyncHandler(scoutJob.fetch)
+);
 
 router.get(
   "/talents",
