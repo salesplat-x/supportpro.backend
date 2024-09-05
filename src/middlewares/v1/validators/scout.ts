@@ -25,7 +25,7 @@ export const getScoutReports = Joi.object({
 
 const schema = Joi.object({
   batchId: Joi.string().optional(),
-  jobId: Joi.string().required(),
+  scoutJobId: Joi.string().required(),
 });
 
 export const validateCvAndCoverLetter = (
