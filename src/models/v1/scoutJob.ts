@@ -18,7 +18,7 @@ const schema = new Schema<IScoutJob>(
       type: String,
       required: true,
     },
-    companyName: {
+    name: {
       type: String,
       required: true,
     },
