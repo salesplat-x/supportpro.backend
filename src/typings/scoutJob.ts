@@ -5,7 +5,7 @@ import { IUser } from "./user";
 
 export interface IScoutJob {
   _id: Types.ObjectId;
-  companyName: string;
+  name: string;
   role: string | Types.ObjectId | IRole;
   postedBy: string | Types.ObjectId | IUser;
   description: string;
