@@ -2,6 +2,7 @@ import { makeResponse } from "../../helpers/response";
 import { Request } from "express";
 import { v4 as uuidv4 } from "uuid";
 import {
+  convertSimilarityToPercentage,
   extractText,
   overlapChunkText,
   preprocessText,
@@ -38,7 +39,7 @@ export const fetchScoutReport = async (user: IUser, id?: string) => {
 
 // Function find talents
 export const scoutTalents = async (payload: IScoutTalents) => {
-  let talents: IUser[] = [];
+  let users: IUser[] = [];
   //@TODO add location and remote filter
 
   // Create aggregation pipeline
@@ -101,13 +102,25 @@ export const scoutTalents = async (payload: IScoutTalents) => {
   );
 
   // Use an aggregation to get all users with the specified role
-  talents = await userAggregate(pipeline, payload);
+  users = await userAggregate(pipeline, payload);
 
   //Use vector similarity to compare the talents cv to the JD
-  const talentIds = talents.map((talent) => talent._id.toString());
+  const talentIds = users.map((talent) => talent._id.toString());
   const res = await getScoutCVEmbedding(payload.scoutJobId!, talentIds);
 
-  return makeResponse(true, "User details fetched", { res, talents });
+  const resMap = new Map(
+    res.map((item) => [
+      item.profile_id,
+      convertSimilarityToPercentage(item.similarity),
+    ])
+  );
+
+  const talents = users.map((talent) => ({
+    ...talent,
+    similarity: resMap.get(talent._id.toString()) || null,
+  }));
+
+  return makeResponse(true, "User details fetched", { talents });
 };
 
 // Logic to scout using CV and Cover Letter (CL)

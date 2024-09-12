@@ -127,42 +127,6 @@ FROM (
   return res.rows;
 };
 
-// //  Function to get top scout cv_embeddings for a job
-// export const getScoutCVEmbedding = async (
-//   scoutJobId: string,
-//   talentIds: string[]
-// ) => {
-//   const queryText = `
-//   WITH jd_cte AS (
-//     SELECT *
-//     FROM public.scout_jobs
-//     WHERE scout_job_id = $1
-//   ),
-//   similarity_cte AS (
-//     SELECT
-//         talents.profile_id,
-//         talents.cv_text,
-//         ABS ((SELECT job_embedding FROM jd_cte) <=> talents.cv_embedding) AS similarity
-//     FROM public.talents
-//     WHERE talents.profile_id = ANY($2)
-//   )
-// SELECT
-//     profile_id,
-//     similarity
-// FROM (
-//     SELECT
-//         profile_id,
-//         similarity,
-//         ROW_NUMBER() OVER (PARTITION BY profile_id ORDER BY similarity DESC) AS rn
-//     FROM similarity_cte
-// ) ranked
-//   WHERE rn = 1
-//   `;
-//   const values = [scoutJobId, talentIds];
-//   const res = await query(queryText, values);
-//   console.log(res);
-//   return res.rows;
-// };
 //  Function to get top scout cv_embeddings for a job
 export const getScoutCVEmbedding = async (
   scoutJobId: string,
@@ -170,9 +134,9 @@ export const getScoutCVEmbedding = async (
 ) => {
   const queryText = `
   WITH jd_cte AS (
-    SELECT * 
-    FROM public.scout_jobs 
-    WHERE scout_job_id = '66e27dca60d35d9cc009fba7'
+    SELECT *
+    FROM public.scout_jobs
+    WHERE scout_job_id = $1
   ),
   similarity_cte AS (
     SELECT
@@ -180,7 +144,7 @@ export const getScoutCVEmbedding = async (
         talents.cv_text,
         ABS ((SELECT job_embedding FROM jd_cte) <=> talents.cv_embedding) AS similarity
     FROM public.talents
-    WHERE talents.profile_id = ANY(ARRAY['6656ca0bf18a5fcd8743b9cb'])
+    WHERE talents.profile_id = ANY($2)
   )
 SELECT
     profile_id,
@@ -194,8 +158,8 @@ FROM (
 ) ranked
   WHERE rn = 1
   `;
-  // const values = [scoutJobId, talentIds];
-  const res = await query(queryText);
+  const values = [scoutJobId, talentIds];
+  const res = await query(queryText, values);
   return res.rows;
 };
 
