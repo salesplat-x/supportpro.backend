@@ -27,6 +27,7 @@ export interface IScoutResponse {
 }
 
 export interface IScoutTalents extends Paging {
+  scoutJobId?: string;
   roleId?: string;
   experience?: string;
   //Not used

@@ -3,7 +3,7 @@ import * as logic from "../../logics/v1/scout";
 import { responseHandler } from "../../middlewares/v1/handler";
 
 export const scoutTalents = async (req: Request, res: Response) => {
-  const response = await logic.scoutTalents(req.query);
+  const response = await logic.scoutTalents({ ...req.params, ...req.query });
   return responseHandler(res, response);
 };
 

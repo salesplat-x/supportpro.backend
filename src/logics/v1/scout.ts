@@ -7,7 +7,7 @@ import {
   preprocessText,
 } from "../../helpers/func";
 import * as AI from "../../services/v1/openai";
-import { saveCvBatch } from "../../repository/v1/pg";
+import { getScoutCVEmbedding, saveCvBatch } from "../../repository/v1/pg";
 import { findJobById } from "../../repository/v1/job";
 import { IAIConfig } from "../../typings/AIconfig";
 import {
@@ -39,7 +39,7 @@ export const fetchScoutReport = async (user: IUser, id?: string) => {
 // Function find talents
 export const scoutTalents = async (payload: IScoutTalents) => {
   let talents: IUser[] = [];
-  //@TODO handle pagination
+  //@TODO add location and remote filter
 
   // Create aggregation pipeline
   let pipeline: mongoose.PipelineStage[] = [
@@ -48,11 +48,11 @@ export const scoutTalents = async (payload: IScoutTalents) => {
         userRole: Roles.Talent,
       },
     },
-    {
-      $project: {
-        password: 0, // Exclude password field from user object
-      },
-    },
+    // {
+    //   $project: {
+    //     password: 0, // Exclude password field from user object
+    //   },
+    // },
     {
       $lookup: {
         from: "profiles",
@@ -102,7 +102,12 @@ export const scoutTalents = async (payload: IScoutTalents) => {
 
   // Use an aggregation to get all users with the specified role
   talents = await userAggregate(pipeline, payload);
-  return makeResponse(true, "User details fetched", { talents });
+
+  //Use vector similarity to compare the talents cv to the JD
+  const talentIds = talents.map((talent) => talent._id.toString());
+  const res = await getScoutCVEmbedding(payload.scoutJobId!, talentIds);
+
+  return makeResponse(true, "User details fetched", { res, talents });
 };
 
 // Logic to scout using CV and Cover Letter (CL)
@@ -175,7 +180,7 @@ export const scoutCvAndCl = async (user: IUser, payload: ICvAndCoverLetter) => {
   if (!cvScore || !coverLetterScore) {
     return makeResponse(false, "Error assessing CV and Cover Letter!");
   }
-  console.log();
+
   const evaluationScore = Number(((cvScore + coverLetterScore) / 2).toFixed(2));
 
   const batchId = payload.batchId ?? uuidv4();

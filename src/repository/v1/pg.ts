@@ -40,6 +40,23 @@ export const saveJobEmbedding = async (
   return res.rows[0];
 };
 
+// Function to save scout job embedding
+export const saveScoutJobEmbedding = async (
+  jobId: string,
+  jobDescription: string,
+  jobEmbedding: number[]
+) => {
+  const insertionString =
+    "INSERT INTO scout_jobs (scout_job_id, job_description, job_embedding) VALUES ($1, $2, $3) RETURNING *";
+
+  const embedding = `[${jobEmbedding.toString()}]`;
+
+  const values = [jobId, jobDescription, embedding];
+
+  const res = await query(insertionString, values);
+  return res.rows[0];
+};
+
 // Function to save a talent cv embedding
 export const saveTalentEmbedding = async (
   profileId: string,
@@ -107,6 +124,78 @@ FROM (
   `;
   const values = [input.jobId, strictness, limit];
   const res = await query(queryText, values);
+  return res.rows;
+};
+
+// //  Function to get top scout cv_embeddings for a job
+// export const getScoutCVEmbedding = async (
+//   scoutJobId: string,
+//   talentIds: string[]
+// ) => {
+//   const queryText = `
+//   WITH jd_cte AS (
+//     SELECT *
+//     FROM public.scout_jobs
+//     WHERE scout_job_id = $1
+//   ),
+//   similarity_cte AS (
+//     SELECT
+//         talents.profile_id,
+//         talents.cv_text,
+//         ABS ((SELECT job_embedding FROM jd_cte) <=> talents.cv_embedding) AS similarity
+//     FROM public.talents
+//     WHERE talents.profile_id = ANY($2)
+//   )
+// SELECT
+//     profile_id,
+//     similarity
+// FROM (
+//     SELECT
+//         profile_id,
+//         similarity,
+//         ROW_NUMBER() OVER (PARTITION BY profile_id ORDER BY similarity DESC) AS rn
+//     FROM similarity_cte
+// ) ranked
+//   WHERE rn = 1
+//   `;
+//   const values = [scoutJobId, talentIds];
+//   const res = await query(queryText, values);
+//   console.log(res);
+//   return res.rows;
+// };
+//  Function to get top scout cv_embeddings for a job
+export const getScoutCVEmbedding = async (
+  scoutJobId: string,
+  talentIds: string[]
+) => {
+  const queryText = `
+  WITH jd_cte AS (
+    SELECT * 
+    FROM public.scout_jobs 
+    WHERE scout_job_id = '66e27dca60d35d9cc009fba7'
+  ),
+  similarity_cte AS (
+    SELECT
+        talents.profile_id,
+        talents.cv_text,
+        ABS ((SELECT job_embedding FROM jd_cte) <=> talents.cv_embedding) AS similarity
+    FROM public.talents
+    WHERE talents.profile_id = ANY(ARRAY['6656ca0bf18a5fcd8743b9cb'])
+  )
+SELECT
+    profile_id,
+    similarity
+FROM (
+    SELECT
+        profile_id,
+        similarity,
+        ROW_NUMBER() OVER (PARTITION BY profile_id ORDER BY similarity DESC) AS rn
+    FROM similarity_cte
+) ranked
+  WHERE rn = 1
+  `;
+  // const values = [scoutJobId, talentIds];
+  const res = await query(queryText);
   return res.rows;
 };
 
@@ -210,6 +299,15 @@ export const setupPostgresDB = async () => {
     );
     `);
 
+    // Create scout jobs table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS scout_jobs (
+        id SERIAL PRIMARY KEY,
+        scout_job_id VARCHAR(255) NOT NULL,
+        job_description TEXT NOT NULL,
+        job_embedding VECTOR(512) NOT NULL
+      );
+    `);
     client.release();
     logger.log("Connected to Postgres successfully");
   } catch (error: any) {

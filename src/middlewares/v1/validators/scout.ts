@@ -15,6 +15,9 @@ export const scoutTalents = Joi.object({
     offset: Joi.number(),
     sort: Joi.string().valid("asc", "desc"),
   }),
+  params: Joi.object({
+    scoutJobId: Joi.string().required(),
+  }),
 });
 
 export const getScoutReports = Joi.object({

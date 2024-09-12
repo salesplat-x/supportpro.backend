@@ -4,6 +4,9 @@ import { makeResponse } from "../../helpers/response";
 import { IScoutJob } from "../../typings/scoutJob";
 import { Types } from "mongoose";
 import { IUser } from "../../typings/user";
+import { preprocessText } from "../../helpers/func";
+import { createEmbedding } from "../../services/v1/openai";
+import { saveScoutJobEmbedding } from "../../repository/v1/pg";
 
 export const createJob = async (user: IUser, payload: IScoutJob) => {
   if (!Types.ObjectId.isValid(payload.role as string)) {
@@ -14,8 +17,32 @@ export const createJob = async (user: IUser, payload: IScoutJob) => {
     return makeResponse(false, "Role does not exist", {}, 404);
   }
 
+  // create embedding for job description
+  const jd = preprocessText(
+    `${payload.description} \n ${payload.recruiterGuide}`
+  );
+  const jobEmbedding = await createEmbedding(jd);
+  if (!jobEmbedding || !jobEmbedding[0]?.embedding) {
+    return makeResponse(
+      false,
+      "Unable to create vector embedding for JD",
+      {},
+      400
+    );
+  }
+
   payload.postedBy = user._id;
   let scoutJob = await scoutJobRepository.createScoutJob(payload);
+
+  // Save job embedding in vectorDB
+  const res = await saveScoutJobEmbedding(
+    scoutJob.id,
+    scoutJob.description,
+    jobEmbedding[0]?.embedding!
+  );
+  if (!res) {
+    return makeResponse(false, "Unable to save job embedding", {}, 500);
+  }
 
   return makeResponse(true, "Job posted successfully", scoutJob, 200);
 };

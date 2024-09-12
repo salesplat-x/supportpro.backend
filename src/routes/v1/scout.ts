@@ -36,9 +36,9 @@ router.get(
 );
 
 router.get(
-  "/talents",
+  "/:scoutJobId/talents",
   validateAccess([Roles.Recruiter, Roles.Admin]),
-  validate(scoutTalents, { query: true }),
+  validate(scoutTalents, { params: true, query: true }),
   asyncHandler(controller.scoutTalents)
 );
 
