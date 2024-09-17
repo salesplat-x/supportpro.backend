@@ -1,6 +1,6 @@
 import { Types } from "mongoose";
 import { IRole } from "./role";
-import { Paging } from "./customs";
+import { ILocation, Paging } from "./customs";
 import { IUser } from "./user";
 import { IAIConfig } from "./AIconfig";
 
@@ -20,12 +20,6 @@ export interface IJob {
   skills?: Types.Array<string>;
   goals?: Types.Array<string>;
   noOfApplicants: number;
-}
-
-export interface ILocation {
-  city: string;
-  state: string;
-  country: string;
 }
 
 export interface FetchJobs extends Paging {
