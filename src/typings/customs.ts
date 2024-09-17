@@ -47,3 +47,8 @@ export interface MakeResponse<T = Record<string, any>> {
   data?: T;
   statusCode?: number;
 }
+export interface ILocation {
+  city: string;
+  state: string;
+  country: string;
+}
