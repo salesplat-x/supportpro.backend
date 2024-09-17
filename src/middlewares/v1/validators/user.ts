@@ -14,7 +14,7 @@ export const profile = Joi.object({
       city: Joi.string().optional(),
       state: Joi.string().required(),
       country: Joi.string().required(),
-    }).optional(),
+    }).required(),
     experience: Joi.string()
       .required()
       .valid(...Object.values(Experience)),
