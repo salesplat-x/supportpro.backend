@@ -32,6 +32,12 @@ export interface IProfile extends Document {
   _id: Types.ObjectId | string;
   bio: string;
   cv: string;
+  remote: boolean;
+  location?: {
+    city?: string;
+    state: string;
+    country: string;
+  };
   role: Types.Array<Types.ObjectId> | Types.Array<string> | Types.Array<IRole>;
   experience: string;
   maxSalary: number;
