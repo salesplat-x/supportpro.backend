@@ -37,19 +37,19 @@ export const uploadProfile = async (payload: IProfile, user: IUser) => {
   return makeResponse(true, "User profile added", { user: existingUser });
 };
 
-export const editProfile = async (payload: IProfile, user: IUser) => {
-  let existingUser = await userRepository.findUserById(user._id);
+export const editProfile = async (payload: IProfile, _user: IUser) => {
+  let existingUser = await userRepository.findUserById(_user._id);
   if (!existingUser) {
     return makeResponse(false, "Authenticated user no longer exist!", {});
   }
 
-  await userRepository.findProfileByIdAndUpdate(
-    (user.profile as IProfile)._id,
+  const user = await userRepository.findProfileByIdAndUpdate(
+    (_user.profile as IProfile)._id,
     payload
   );
 
   existingUser?.set("password", undefined);
-  return makeResponse(true, "User profile added", { user: existingUser });
+  return makeResponse(true, "User profile added", { user });
 };
 
 export const me = async (user: IUser) => {
