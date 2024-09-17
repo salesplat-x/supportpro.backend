@@ -2,6 +2,13 @@ import mammoth from "mammoth";
 import path from "path";
 import pdfParse from "pdf-parse";
 
+export const stringToBool = (str: string) => {
+  if (str.toLowerCase() === "true") {
+    return true;
+  }
+  return false;
+};
+
 export function calculateTimeLeft(date: Date): string {
   const dateObj = new Date(date);
   const today = new Date();
