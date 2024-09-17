@@ -1,6 +1,6 @@
 import { Document, Types } from "mongoose";
 import { IUser } from "./user";
-import { Paging } from "./customs";
+import { ILocation, Paging } from "./customs";
 
 export interface IScout extends Document {
   batchId: string;
@@ -26,11 +26,10 @@ export interface IScoutResponse {
   coverLetterScore?: number;
 }
 
-export interface IScoutTalents extends Paging {
+export interface IScoutTalents extends ILocation, Paging {
   scoutJobId?: string;
   roleId?: string;
   experience?: string;
   //Not used
-  remote?: boolean;
-  location?: string;
+  remote?: string;
 }
