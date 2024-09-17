@@ -1,5 +1,5 @@
 import { Document, Types } from "mongoose";
-import { Paging, Roles } from "./customs";
+import { ILocation, Paging, Roles } from "./customs";
 import { IRole } from "./role";
 
 export interface IUser extends Document {
@@ -33,11 +33,7 @@ export interface IProfile extends Document {
   bio: string;
   cv: string;
   remote: boolean;
-  location?: {
-    city?: string;
-    state: string;
-    country: string;
-  };
+  location?: ILocation;
   role: Types.Array<Types.ObjectId> | Types.Array<string> | Types.Array<IRole>;
   experience: string;
   maxSalary: number;
