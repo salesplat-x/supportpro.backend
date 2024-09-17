@@ -9,7 +9,9 @@ export const scoutTalents = Joi.object({
       .valid(...Object.values(Experience))
       .required(),
     remote: Joi.boolean(),
-    location: Joi.string(),
+    country: Joi.string(),
+    state: Joi.string(),
+    city: Joi.string(),
 
     limit: Joi.number(),
     offset: Joi.number(),
