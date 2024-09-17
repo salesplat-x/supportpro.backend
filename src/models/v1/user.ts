@@ -86,6 +86,12 @@ const profileSchema = new Schema<IProfile>({
     type: String,
     required: true,
   },
+  remote: Boolean,
+  location: {
+    city: String,
+    state: String,
+    country: String,
+  },
   role: [
     {
       type: Schema.Types.ObjectId,
