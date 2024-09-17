@@ -6,6 +6,7 @@ import {
   extractText,
   overlapChunkText,
   preprocessText,
+  stringToBool,
 } from "../../helpers/func";
 import * as AI from "../../services/v1/openai";
 import { getScoutCVEmbedding, saveCvBatch } from "../../repository/v1/pg";
@@ -38,9 +39,16 @@ export const fetchScoutReport = async (user: IUser, id?: string) => {
 };
 
 // Function find talents
-export const scoutTalents = async (payload: IScoutTalents) => {
+export const scoutTalents = async (payload: Partial<IScoutTalents>) => {
   let users: IUser[] = [];
   //@TODO add location and remote filter
+
+  if (
+    !payload.scoutJobId ||
+    !mongoose.Types.ObjectId.isValid(payload.scoutJobId!)
+  ) {
+    return makeResponse(false, "Invalid scout job id", {}, 400);
+  }
 
   // Create aggregation pipeline
   let pipeline: mongoose.PipelineStage[] = [
@@ -86,6 +94,24 @@ export const scoutTalents = async (payload: IScoutTalents) => {
 
   if (payload.experience) {
     pipeline.push({ $match: { "profile.experience": payload.experience } });
+  }
+
+  if (payload.country) {
+    pipeline.push({ $match: { "profile.location.country": payload.country } });
+  }
+
+  if (payload.state) {
+    pipeline.push({ $match: { "profile.location.state": payload.state } });
+  }
+
+  if (payload.city) {
+    pipeline.push({ $match: { "profile.location.city": payload.city } });
+  }
+
+  if (payload.remote !== undefined) {
+    pipeline.push({
+      $match: { "profile.remote": stringToBool(payload.remote) },
+    });
   }
 
   pipeline.push(
