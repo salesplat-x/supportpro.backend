@@ -10,6 +10,11 @@ export const profile = Joi.object({
   body: Joi.object({
     bio: Joi.string().required(),
     cv: Joi.string().required(),
+    location: Joi.object({
+      city: Joi.string().optional(),
+      state: Joi.string().required(),
+      country: Joi.string().required(),
+    }).optional(),
     experience: Joi.string()
       .required()
       .valid(...Object.values(Experience)),
@@ -23,6 +28,11 @@ export const updateProfile = Joi.object({
   body: Joi.object({
     bio: Joi.string().optional(),
     cv: Joi.string().optional(),
+    location: Joi.object({
+      city: Joi.string().optional(),
+      state: Joi.string().required(),
+      country: Joi.string().required(),
+    }).optional(),
     experience: Joi.string()
       .optional()
       .valid(...Object.values(Experience)),
