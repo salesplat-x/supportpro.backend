@@ -86,7 +86,9 @@ const profileSchema = new Schema<IProfile>({
     type: String,
     required: true,
   },
-  remote: Boolean,
+  remote: { type: Boolean, default: false },
+  onSite: { type: Boolean, default: false },
+  hybrid: { type: Boolean, default: false },
   location: {
     city: String,
     state: String,
