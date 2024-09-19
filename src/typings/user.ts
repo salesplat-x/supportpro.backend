@@ -33,6 +33,8 @@ export interface IProfile extends Document {
   bio: string;
   cv: string;
   remote: boolean;
+  onSite: boolean;
+  hybrid: boolean;
   location?: ILocation;
   role: Types.Array<Types.ObjectId> | Types.Array<string> | Types.Array<IRole>;
   experience: string;
