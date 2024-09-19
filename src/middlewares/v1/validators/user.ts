@@ -16,6 +16,8 @@ export const profile = Joi.object({
       country: Joi.string().required(),
     }).required(),
     remote: Joi.boolean().required(),
+    onSite: Joi.boolean().required(),
+    hybrid: Joi.boolean().required(),
     experience: Joi.string()
       .required()
       .valid(...Object.values(Experience)),
@@ -30,6 +32,8 @@ export const updateProfile = Joi.object({
     bio: Joi.string().optional(),
     cv: Joi.string().optional(),
     remote: Joi.boolean().required(),
+    onSite: Joi.boolean().required(),
+    hybrid: Joi.boolean().required(),
     location: Joi.object({
       city: Joi.string().optional(),
       state: Joi.string().required(),
