@@ -31,3 +31,8 @@ export const applications = async (req: Request, res: Response) => {
   const response = await userController.applications(req.user, req.query);
   return responseHandler(res, response);
 };
+
+export const recruiterDashboard = async (req: Request, res: Response) => {
+  const response = await userController.recruiterDashboard(req);
+  return responseHandler(res, response);
+};
