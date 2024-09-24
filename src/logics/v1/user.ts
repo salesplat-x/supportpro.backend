@@ -1,15 +1,14 @@
-import {
-  FetchApplications,
-  FetchProfiles,
-  IProfile,
-  IUser,
-} from "../../typings/user";
+import { FetchProfiles, IProfile, IUser } from "../../typings/user";
+import { ApplicationType, FetchApplications } from "../../typings/application";
 import * as userRepository from "../../repository/v1/user";
 import * as roleRepository from "../../repository/v1/role";
 import * as applicationRepository from "../../repository/v1/application";
 import { makeResponse } from "../../helpers/response";
 import mongoose from "mongoose";
 import { Roles } from "../../typings/customs";
+import Application from "../../models/v1/application";
+import { IJob } from "../../typings/job";
+import { Request } from "express";
 
 export const uploadProfile = async (payload: IProfile, user: IUser) => {
   let existingUser = await userRepository.findUserById(user._id);
@@ -235,6 +234,102 @@ export const applications = async (user: IUser, payload: FetchApplications) => {
   );
 
   return makeResponse(true, "User's job applications fetched", { applications });
+};
+
+export const recruiterDashboard = async (req: Request) => {
+  const { limit = 10, skip = 0 } = req.query; // Pagination params
+
+  const recruiter = req.user._id; // Assuming req.user.id contains the recruiter ID
+
+  const results = await Application.aggregate([
+    {
+      $facet: {
+        campaignCount: [{ $match: { recruiter } }, { $count: "count" }],
+
+        applicationsCount: [
+          {
+            $match: { recruiter, applicationType: ApplicationType.Application },
+          },
+          { $count: "count" },
+        ],
+
+        shortlistCount: [
+          { $match: { recruiter, status: "shortlisted" } },
+          { $count: "count" },
+        ],
+
+        recentApplications: [
+          { $match: { recruiter } },
+          { $sort: { updatedAt: -1 } },
+          // { $skip: parseInt(skip) },
+          // { $limit: parseInt(limit) },
+          {
+            $lookup: {
+              from: "users",
+              localField: "talent",
+              foreignField: "_id",
+              as: "talentDetails",
+            },
+          },
+          {
+            $lookup: {
+              from: "profiles",
+              localField: "talentDetails.profile",
+              foreignField: "_id",
+              as: "profileDetails",
+            },
+          },
+          {
+            $lookup: {
+              from: "roles",
+              localField: "profileDetails.role",
+              foreignField: "_id",
+              as: "role",
+            },
+          },
+          {
+            $unwind: "$talentDetails",
+          },
+          {
+            $unwind: "$profileDetails",
+          },
+          {
+            $unwind: "$role",
+          },
+          {
+            $project: {
+              applicantName: {
+                $concat: [
+                  "$talentDetails.firstName",
+                  " ",
+                  "$talentDetails.lastName",
+                ],
+              },
+              mbtiType: "$mbtiType",
+              prescreeningScore: "$profileDetails.prescreeningScore",
+              cvSimilarityScore: "$cvSimilarityScore",
+              status: "$status",
+              currentStage: "$currentStage",
+              role: "$role.name",
+              dateApplied: "$createdAt",
+            },
+          },
+        ],
+      },
+    },
+    {
+      $project: {
+        campaignCount: { $arrayElemAt: ["$campaignCount.count", 0] },
+        applicationsCount: { $arrayElemAt: ["$applicationsCount.count", 0] },
+        shortlistCount: { $arrayElemAt: ["$shortlistCount.count", 0] },
+        recentApplications: 1,
+      },
+    },
+  ]);
+
+  return makeResponse(true, "User's job applications fetched", {
+    data: results[0],
+  });
 };
 
 // export const applications = async (user: IUser, payload: FetchApplications) => {
