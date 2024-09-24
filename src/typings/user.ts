@@ -63,8 +63,3 @@ export interface FetchProfiles extends Paging {
   maxSalary?: number;
   incomplete?: string;
 }
-
-export interface FetchApplications extends Paging {
-  applicationType?: string;
-  applicationStatus?: string;
-}
