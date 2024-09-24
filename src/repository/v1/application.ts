@@ -23,11 +23,16 @@ export const bulkWrite = async (
 };
 
 export const findApplicationById = async (id: Types.ObjectId | string) => {
-  return await Application.findById(id).populate({
-    path: "role job talent",
-    select: "-__v -createdAt -updatedAt ",
-    strictPopulate: false,
-  });
+  return await Application.findById(id)
+    .populate({
+      path: "role job",
+      select: "-__v -createdAt -updatedAt ",
+      strictPopulate: false,
+    })
+    .populate({
+      path: "talent",
+      populate: "profile",
+    });
 };
 
 export const createOrUpdateApplication = async (
