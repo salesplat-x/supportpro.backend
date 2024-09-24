@@ -98,6 +98,7 @@ export const allJobs = Joi.object({
     state: Joi.string().optional(),
     country: Joi.string().optional(),
     remote: Joi.string().optional(),
+    postedBy: Joi.string().optional(),
 
     limit: Joi.number(),
     offset: Joi.number(),
