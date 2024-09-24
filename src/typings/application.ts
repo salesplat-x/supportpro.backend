@@ -2,12 +2,14 @@ import { Types } from "mongoose";
 import { IRole } from "./role";
 import { IUser } from "./user";
 import { IJob } from "./job";
+import { Paging } from "./customs";
 
 export interface IApplication {
   _id: Types.ObjectId;
   job: string | Types.ObjectId | IJob;
   role?: string | Types.ObjectId | IRole;
   talent: string | Types.ObjectId | IUser;
+  recruiter: string | Types.ObjectId | IUser;
   applicationType: TApplicationType;
   personalizedQuestions?: Types.ObjectId[];
   personalizedScore?: number;
@@ -45,7 +47,13 @@ export const ApplicationStatus = {
   RetakeAssessment: "retake_assessment",
   NotProceeding: "not_proceeding",
   Shortlisted: "shortlisted",
+  Rejected: "rejected",
 } as const;
 
 export type TApplicationStatus =
   (typeof ApplicationStatus)[keyof typeof ApplicationStatus];
+
+export interface FetchApplications extends Paging {
+  applicationType?: string;
+  applicationStatus?: string;
+}
