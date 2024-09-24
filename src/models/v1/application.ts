@@ -13,6 +13,11 @@ const schema = new Schema<IApplication>(
       ref: "job",
       required: true,
     },
+    recruiter: {
+      type: Schema.Types.ObjectId,
+      ref: "user",
+      required: true,
+    },
     talent: {
       type: Schema.Types.ObjectId,
       ref: "user",
@@ -75,4 +80,5 @@ schema.methods.setAssessmentRetryDate = function (days = 7): void {
   );
 };
 
-export default model<IApplication>("application", schema);
+const Application = model<IApplication>("application", schema);
+export default Application;
