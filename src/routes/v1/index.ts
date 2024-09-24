@@ -8,6 +8,7 @@ import user from "./user";
 import upload from "./upload";
 import question from "./question";
 import scout from "./scout";
+import recruiter from "./recruiter";
 import application from "./application";
 import organization from "./organization";
 import aiconfig from "./aiconfig";
@@ -20,6 +21,7 @@ export default (router: Router) => {
   role(router);
   upload(router);
   aiconfig(router);
+  recruiter(router);
   scout(router);
   question(router);
   application(router);
