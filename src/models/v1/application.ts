@@ -54,6 +54,8 @@ const schema = new Schema<IApplication>(
     mbtiType: {
       type: String,
     },
+    rank: Number,
+    averageScore: Number,
     stages: { type: Map, of: String },
     assessmentRetryDate: Date,
   },
