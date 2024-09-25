@@ -1,10 +1,14 @@
 import { FetchProfiles, IProfile, IUser } from "../../typings/user";
-import { ApplicationType, FetchApplications } from "../../typings/application";
+import {
+  ApplicationType,
+  FetchApplications,
+  IApplication,
+} from "../../typings/application";
 import * as userRepository from "../../repository/v1/user";
 import * as roleRepository from "../../repository/v1/role";
 import * as applicationRepository from "../../repository/v1/application";
 import { makeResponse } from "../../helpers/response";
-import mongoose from "mongoose";
+import mongoose, { FilterQuery } from "mongoose";
 import { Roles } from "../../typings/customs";
 import Application from "../../models/v1/application";
 import { IJob } from "../../typings/job";
@@ -237,9 +241,18 @@ export const applications = async (user: IUser, payload: FetchApplications) => {
 };
 
 export const recruiterDashboard = async (req: Request) => {
-  const { limit = 10, skip = 0 } = req.query; // Pagination params
+  const { jobId } = req.query; // Pagination params
 
   const recruiter = req.user._id; // Assuming req.user.id contains the recruiter ID
+  const recentCompilationsMatch: Partial<IApplication> = { recruiter };
+  const applicationMatch: Partial<IApplication> = {
+    recruiter,
+    applicationType: ApplicationType.Application,
+  };
+
+  if (jobId) {
+    recentCompilationsMatch.job = new mongoose.Types.ObjectId(jobId as string);
+  }
 
   const results = await Application.aggregate([
     {
@@ -248,7 +261,7 @@ export const recruiterDashboard = async (req: Request) => {
 
         applicationsCount: [
           {
-            $match: { recruiter, applicationType: ApplicationType.Application },
+            $match: applicationMatch,
           },
           { $count: "count" },
         ],
@@ -259,10 +272,51 @@ export const recruiterDashboard = async (req: Request) => {
         ],
 
         recentApplications: [
-          { $match: { recruiter } },
+          { $match: applicationMatch },
+          { $sort: { createdAt: -1 } },
+          { $limit: 3 },
+          {
+            $lookup: {
+              from: "users",
+              localField: "talent",
+              foreignField: "_id",
+              as: "talentDetails",
+            },
+          },
+          {
+            $lookup: {
+              from: "profiles",
+              localField: "talentDetails.profile",
+              foreignField: "_id",
+              as: "profileDetails",
+            },
+          },
+          {
+            $unwind: "$talentDetails",
+          },
+          {
+            $unwind: "$profileDetails",
+          },
+          {
+            $project: {
+              applicantName: {
+                $concat: [
+                  "$talentDetails.firstName",
+                  " ",
+                  "$talentDetails.lastName",
+                ],
+              },
+              prescreeningScore: "$profileDetails.prescreeningScore",
+              cvSimilarityScore: "$cvSimilarityScore",
+              dateApplied: "$createdAt",
+            },
+          },
+        ],
+        recentCompilations: [
+          { $match: recentCompilationsMatch },
           { $sort: { updatedAt: -1 } },
           // { $skip: parseInt(skip) },
-          // { $limit: parseInt(limit) },
+          { $limit: 4 },
           {
             $lookup: {
               from: "users",
@@ -310,6 +364,7 @@ export const recruiterDashboard = async (req: Request) => {
               cvSimilarityScore: "$cvSimilarityScore",
               status: "$status",
               currentStage: "$currentStage",
+              job: "$job",
               role: "$role.name",
               dateApplied: "$createdAt",
             },
@@ -319,10 +374,17 @@ export const recruiterDashboard = async (req: Request) => {
     },
     {
       $project: {
-        campaignCount: { $arrayElemAt: ["$campaignCount.count", 0] },
-        applicationsCount: { $arrayElemAt: ["$applicationsCount.count", 0] },
-        shortlistCount: { $arrayElemAt: ["$shortlistCount.count", 0] },
+        campaignCount: {
+          $ifNull: [{ $arrayElemAt: ["$campaignCount.count", 0] }, 0],
+        },
+        applicationsCount: {
+          $ifNull: [{ $arrayElemAt: ["$applicationsCount.count", 0] }, 0],
+        },
+        shortlistCount: {
+          $ifNull: [{ $arrayElemAt: ["$shortlistCount.count", 0] }, 0],
+        },
         recentApplications: 1,
+        recentCompilations: 1,
       },
     },
   ]);
