@@ -1,6 +1,7 @@
 import { Document, Types } from "mongoose";
 import { IUser } from "./user";
 import { ILocation, Paging } from "./customs";
+import { IScoutJob } from "./scoutJob";
 
 export interface IScout extends Document {
   batchId: string;
@@ -11,6 +12,7 @@ export interface IScout extends Document {
   cvScore: number;
   coverLetterScore?: number;
   evaluationScore: number;
+  scoutJob: Types.ObjectId | IScoutJob | string;
   recruiter: Types.ObjectId | IUser | string;
 }
 
