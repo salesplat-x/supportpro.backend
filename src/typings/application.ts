@@ -14,6 +14,8 @@ export interface IApplication {
   personalizedQuestions?: Types.ObjectId[];
   personalizedScore?: number;
   cvSimilarityScore?: number;
+  rank?: number;
+  averageScore?: number;
   mbtiType?: string;
   status: TApplicationStatus;
   currentStage: TScreeningStage;
