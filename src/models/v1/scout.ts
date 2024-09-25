@@ -24,6 +24,10 @@ const schema = new Schema<IScout>(
       type: Schema.Types.ObjectId,
       ref: "user",
     },
+    scoutJob: {
+      type: Schema.Types.ObjectId,
+      ref: "user",
+    },
   },
   { timestamps: true }
 );
