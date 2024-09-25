@@ -3,14 +3,16 @@ import * as scoutRepository from "../../repository/v1/scout";
 import { makeResponse } from "../../helpers/response";
 import { IJob } from "../../typings/job";
 
-import { IUser } from "../../typings/user";
+import { IProfile, IUser } from "../../typings/user";
 import {
   ApplicationStatus,
   FetchApplications,
   IApplication,
+  ScreeningStage,
   TApplicationStatus,
 } from "../../typings/application";
 import { FilterQuery } from "mongoose";
+import { Paging } from "../../typings/customs";
 
 // Function to get single job Application
 export const getApplication = async (user: IUser, applicationId: string) => {
@@ -33,7 +35,14 @@ export const getApplication = async (user: IUser, applicationId: string) => {
     );
   }
 
-  return makeResponse(true, "Job application details fetched", { application });
+  const count = await applicationRepository.countApplications({
+    currentStage: ScreeningStage.Completed,
+  });
+
+  return makeResponse(true, "Job application details fetched", {
+    application,
+    count,
+  });
 };
 
 export const getApplications = async (
@@ -53,10 +62,27 @@ export const getApplications = async (
 
 export const shortlist = async (user: IUser, payload: FetchApplications) => {
   const query: FilterQuery<IApplication> = { recruiter: user.id };
+  const paging: Paging = {};
+  if (payload.limit) {
+    paging.limit = payload.limit;
+  }
+  if (payload.offset) {
+    paging.offset = payload.offset;
+  }
+  if (payload.sort) {
+    paging.sort = payload.sort;
+  }
 
-  const campaigns = await applicationRepository.findApplicationsByMatch(query);
+  const campaigns = await applicationRepository.leanApplicationsByMatch(
+    query,
+    paging
+  );
 
-  const scouts = await scoutRepository.findScoutsByMatch(query);
+  const scouts = await scoutRepository.findScoutsByMatch(
+    query,
+    paging,
+    "title cvName evaluationScore"
+  );
 
   return makeResponse(true, "Job application details fetched", {
     campaigns,
