@@ -25,7 +25,7 @@ export const updateApplicationStatus = Joi.object({
   }),
   body: Joi.object({
     status: Joi.string()
-      .valid(...Object.values(ApplicationStatus))
+      .valid(ApplicationStatus.Rejected, ApplicationStatus.Shortlisted)
       .required(),
   }),
 }).required();
