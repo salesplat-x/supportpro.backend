@@ -307,6 +307,7 @@ export const scoutCv = async (user: IUser, payload: ICvAndCoverLetter) => {
     cvText,
     cvScore,
     evaluationScore,
+    scoutJob: payload.scoutJobId,
     recruiter: user.id,
   });
 
