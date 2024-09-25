@@ -257,14 +257,48 @@ export const recruiterDashboard = async (req: Request) => {
   const results = await Application.aggregate([
     {
       $facet: {
-        campaignCount: [{ $match: { recruiter } }, { $count: "count" }],
-
-        applicationsCount: [
+        campaignCount: [
+          { $match: { recruiter } },
           {
-            $match: applicationMatch,
+            $group: {
+              _id: null,
+              totalCampaigns: { $sum: 1 }, // Count all campaigns
+              completedCampaigns: {
+                $sum: {
+                  $cond: [{ $eq: ["$currentStage", "completed"] }, 1, 0],
+                },
+              }, // Count campaigns with completed stage
+            },
           },
-          { $count: "count" },
+          {
+            $project: {
+              totalCampaigns: 1,
+              completedCampaigns: 1,
+              completionRatio: {
+                $cond: [
+                  { $eq: ["$totalCampaigns", 0] },
+                  0,
+                  {
+                    $round: [
+                      {
+                        $multiply: [
+                          {
+                            $divide: ["$completedCampaigns", "$totalCampaigns"],
+                          },
+                          100,
+                        ],
+                      },
+                      0, // Rounding to 0 decimal places
+                    ],
+                  },
+                ],
+              },
+            },
+          },
         ],
+
+        // The rest of your facets (applicationsCount, shortlistCount, etc.)
+        applicationsCount: [{ $match: applicationMatch }, { $count: "count" }],
 
         shortlistCount: [
           { $match: { recruiter, status: "shortlisted" } },
@@ -315,7 +349,6 @@ export const recruiterDashboard = async (req: Request) => {
         recentCompilations: [
           { $match: recentCompilationsMatch },
           { $sort: { updatedAt: -1 } },
-          // { $skip: parseInt(skip) },
           { $limit: 4 },
           {
             $lookup: {
@@ -375,7 +408,16 @@ export const recruiterDashboard = async (req: Request) => {
     {
       $project: {
         campaignCount: {
-          $ifNull: [{ $arrayElemAt: ["$campaignCount.count", 0] }, 0],
+          $ifNull: [{ $arrayElemAt: ["$campaignCount.totalCampaigns", 0] }, 0],
+        },
+        completedCampaigns: {
+          $ifNull: [
+            { $arrayElemAt: ["$campaignCount.completedCampaigns", 0] },
+            0,
+          ],
+        },
+        completionRatio: {
+          $ifNull: [{ $arrayElemAt: ["$campaignCount.completionRatio", 0] }, 0],
         },
         applicationsCount: {
           $ifNull: [{ $arrayElemAt: ["$applicationsCount.count", 0] }, 0],
