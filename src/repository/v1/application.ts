@@ -66,13 +66,13 @@ export const findAllApplications = async (paging: Paging = {}) => {
 };
 
 export const findApplicationByMatch = async (
-  data: IApplication | Record<string, any>
+  data: FilterQuery<IApplication>
 ) => {
   return await Application.findOne(data);
 };
 
 export const findApplicationsByMatch = async (
-  data: IApplication | Record<string, any>,
+  data: FilterQuery<IApplication>,
   paging: Paging = {}
 ) => {
   return await Application.find(data)
@@ -97,7 +97,7 @@ export const findApplicationsByMatch = async (
 };
 
 export const leanApplicationsByMatch = async (
-  data: IApplication | Record<string, any>,
+  data: FilterQuery<IApplication>,
   paging: Paging = {}
 ) => {
   return await Application.find(data)
@@ -171,17 +171,16 @@ export const calculateAverageScore = (
   }
 };
 
-export const rankApplications = async (talent: IUser, app: IApplication) => {
-  const application = await Application.findById(app._id);
-  if (!application) {
-    return app;
-  }
+export const rankApplications = async (
+  talent: IUser,
+  application: IApplication
+) => {
   application.averageScore = calculateAverageScore(
     application,
     (talent.profile as IProfile).prescreeningScore
   );
 
-  // Step 2: Find the new rank based on the average score
+  // Find the new rank based on the average score
   const newRank = await Application.countDocuments({
     averageScore: { $gt: application.averageScore },
     job: application.job,
@@ -190,7 +189,7 @@ export const rankApplications = async (talent: IUser, app: IApplication) => {
   // New rank is newRank + 1 (since rank starts at 1)
   const newRankPosition = newRank + 1;
 
-  // Step 3: Adjust the ranks of other candidates
+  // Adjust the ranks of other candidates
   if (application.rank) {
     // Talent was ranked before, adjust ranks of other candidates accordingly
     if (application.rank < newRankPosition) {
@@ -214,7 +213,6 @@ export const rankApplications = async (talent: IUser, app: IApplication) => {
     );
   }
 
-  // Step 4: Assign the new rank to the affected talent
   application.rank = newRankPosition;
   await application.save();
   return application;
