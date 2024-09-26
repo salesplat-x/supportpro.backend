@@ -11,7 +11,7 @@ import { Roles } from "../../typings/customs";
 
 router.get(
   "/",
-  validateAccess([Roles.Recruiter]),
+  loginRequired,
   validate(applicationValidator.getApplications, { query: true }),
   asyncHandler(application.getApplications)
 );
