@@ -392,7 +392,7 @@ export const answerPersonalizedQuestions = async (
   }
 
   // Fetch application details
-  const application = await applicationRepository.findApplicationByMatch({
+  let application = await applicationRepository.findApplicationByMatch({
     job: jobId,
     talent: user._id,
   });
@@ -482,21 +482,19 @@ export const answerPersonalizedQuestions = async (
   const maxScore = MAX_SCORE * responseArray.length;
   const scorePercent = Number(((totalScore / maxScore) * 100).toFixed(2));
 
+  application.personalizedScore = scorePercent;
   // Update application status based on score
   if (scorePercent < aiConfig.minPrescreeningScore) {
     application.currentStage = ScreeningStage.Personalized;
     application.status = ApplicationStatus.RetakeAssessment;
     application.setAssessmentRetryDate();
   } else {
-    const { currentStage, applicationStatus } =
-      applicationRepository.updateCurrentStage(
-        ScreeningStage.Personalized,
-        aiConfig.stages
-      );
-    application.currentStage = currentStage;
-    application.status = applicationStatus || application.status;
+    application = await applicationRepository.processNextStage(
+      user,
+      application,
+      ScreeningStage.Personalized
+    );
   }
-  application.personalizedScore = scorePercent;
 
   await application.save();
 
@@ -555,7 +553,7 @@ export const evaluatePersonalityType = async (
     return makeResponse(false, "Job not found!", {}, 404);
   }
 
-  const application = await applicationRepository.findApplicationByMatch({
+  let application = await applicationRepository.findApplicationByMatch({
     job: jobId,
     talent: user._id,
   });
@@ -631,13 +629,11 @@ export const evaluatePersonalityType = async (
 
   // Update application status based on score
   application.setAssessmentRetryDate();
-  const { currentStage, applicationStatus } =
-    applicationRepository.updateCurrentStage(
-      ScreeningStage.Personality,
-      aiConfig.stages
-    );
-  application.currentStage = currentStage;
-  application.status = applicationStatus;
+  application = await applicationRepository.processNextStage(
+    user,
+    application,
+    ScreeningStage.Personality
+  );
 
   application.mbtiType = mbtiType;
 
