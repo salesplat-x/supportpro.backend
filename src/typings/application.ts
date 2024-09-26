@@ -1,11 +1,11 @@
-import { Types } from "mongoose";
+import { Document, Types } from "mongoose";
 import { IRole } from "./role";
 import { IUser } from "./user";
 import { IJob } from "./job";
 import { Paging } from "./customs";
 
-export interface IApplication {
-  _id: Types.ObjectId;
+export interface IApplication extends Document {
+  _id: unknown;
   job: string | Types.ObjectId | IJob;
   role?: string | Types.ObjectId | IRole;
   talent: string | Types.ObjectId | IUser;
