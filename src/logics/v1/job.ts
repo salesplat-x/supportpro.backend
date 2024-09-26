@@ -383,7 +383,8 @@ export const gradeCv = async (user: IUser, jobId: string) => {
       status: applicationStatus || ApplicationStatus.Pending,
       currentStage,
       $setOnInsert: {
-        applicationType: ApplicationType.Invitation,
+        recruiter: (job.postedBy as IUser)._id,
+        applicationType: ApplicationType.Application,
         stages: aiConfig.stages,
       },
     }
