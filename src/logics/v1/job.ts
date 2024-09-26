@@ -343,6 +343,20 @@ export const gradeCv = async (user: IUser, jobId: string) => {
     return makeResponse(false, "Job does not exist", {}, 404);
   }
 
+  let application = await applicationRepository.findApplicationByMatch({
+    talent: user._id,
+    job: jobId,
+  });
+  if (!application) {
+    return makeResponse(
+      true,
+      "You have to apply for this job before proceeding",
+      {
+        application,
+      }
+    );
+  }
+
   // CV Similarity Logic
   const aiConfig = await aiConfigRepository.findAIconfigById(
     job.aiConfig as string
@@ -376,34 +390,51 @@ export const gradeCv = async (user: IUser, jobId: string) => {
     applicationStatus = ApplicationStatus.RetakeAssessment;
   }
 
-  const applicationRes = await applicationRepository.createOrUpdateApplication(
-    jobId,
-    user._id,
-    {
-      cvSimilarityScore,
-      status: applicationStatus || ApplicationStatus.Pending,
-      currentStage,
-      $setOnInsert: {
-        recruiter: (job.postedBy as IUser)._id,
-        applicationType: ApplicationType.Application,
-        stages: aiConfig.stages,
-      },
-    }
-  );
-
-  // Increase number of applications if new application created
-  if (!applicationRes.lastErrorObject?.updatedExisting) {
-    await jobRepository.findJobByIdAndUpdate(jobId, {
-      $inc: { noOfApplicants: 1 },
-    });
+  application.cvSimilarityScore = cvSimilarityScore;
+  // Update application status based on score
+  if (cvSimilarityScore < aiConfig.minCvSimilarityScore) {
+    applicationStatus = ApplicationStatus.RetakeAssessment;
+    application.currentStage = ScreeningStage.CvSimilarity;
+    application.status = ApplicationStatus.RetakeAssessment;
+    application.setAssessmentRetryDate();
+  } else {
+    application = await applicationRepository.processNextStage(
+      user,
+      application,
+      ScreeningStage.CvSimilarity
+    );
   }
+
+  await application.save();
+
+  // const applicationRes = await applicationRepository.createOrUpdateApplication(
+  //   jobId,
+  //   user._id,
+  //   {
+  //     cvSimilarityScore,
+  //     status: applicationStatus,
+  //     currentStage,
+  //     $setOnInsert: {
+  //       recruiter: (job.postedBy as IUser)._id,
+  //       applicationType: ApplicationType.Application,
+  //       stages: aiConfig.stages,
+  //     },
+  //   }
+  // );
+
+  // // Increase number of applications if new application created
+  // if (!applicationRes.lastErrorObject?.updatedExisting) {
+  //   await jobRepository.findJobByIdAndUpdate(jobId, {
+  //     $inc: { noOfApplicants: 1 },
+  //   });
+  // }
 
   await job.save();
 
   return makeResponse(
     true,
     "CV similarity graded",
-    { cvSimilarityScore, application: applicationRes.value },
+    { cvSimilarityScore, application },
     200
   );
 };
