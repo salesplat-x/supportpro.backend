@@ -351,7 +351,8 @@ export const generatePersonalizedQuestions = async (
     {
       personalizedQuestions: questionIds,
       $setOnInsert: {
-        applicationType: ApplicationType.Invitation,
+        recruiter: aiConfig.recruiter,
+        applicationType: ApplicationType.Application,
         stages: aiConfig.stages,
       },
     }
@@ -642,10 +643,6 @@ export const evaluatePersonalityType = async (
 
   await application.save();
 
-  // await applicationRepository.createOrUpdateApplication(jobId, user._id, {
-  //   mbtiType,
-  //   $setOnInsert: { applicationType: ApplicationType.Application },
-  // });
   return makeResponse(true, "Personality evaluation completed", {
     application,
     mbtiType,
