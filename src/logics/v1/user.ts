@@ -244,8 +244,8 @@ export const recruiterDashboard = async (req: Request) => {
   const { jobId } = req.query; // Pagination params
 
   const recruiter = req.user._id; // Assuming req.user.id contains the recruiter ID
-  const recentCompilationsMatch: Partial<IApplication> = { recruiter };
-  const applicationMatch: Partial<IApplication> = {
+  const recentCompilationsMatch: FilterQuery<IApplication> = { recruiter };
+  const applicationMatch: FilterQuery<IApplication> = {
     recruiter,
     applicationType: ApplicationType.Application,
   };
@@ -254,7 +254,7 @@ export const recruiterDashboard = async (req: Request) => {
     recentCompilationsMatch.job = new mongoose.Types.ObjectId(jobId as string);
   }
 
-  const results = await Application.aggregate([
+  const results = await applicationRepository.applicationAggregate([
     {
       $facet: {
         campaignCount: [
@@ -297,7 +297,6 @@ export const recruiterDashboard = async (req: Request) => {
           },
         ],
 
-        // The rest of your facets (applicationsCount, shortlistCount, etc.)
         applicationsCount: [{ $match: applicationMatch }, { $count: "count" }],
 
         shortlistCount: [
