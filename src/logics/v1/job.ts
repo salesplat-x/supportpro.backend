@@ -304,6 +304,7 @@ export const topTalents = async (user: IUser, payload: TopTalents) => {
         update: {
           $set: { cvSimilarityScore, currentStage },
           $setOnInsert: {
+            recruiter: (job.postedBy as IUser)._id,
             applicationType: ApplicationType.Invitation,
             stages: aiConfig.stages,
           },
