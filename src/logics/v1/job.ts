@@ -590,6 +590,7 @@ export const apply = async (user: IUser, payload: IApply) => {
     job: jobId,
     applicationType: ApplicationType.Application,
     stages: aiConfig.stages,
+    recruiter: (job.postedBy as IUser)._id,
   });
 
   job.noOfApplicants += 1;
