@@ -12,7 +12,7 @@ import {
   TApplicationStatus,
 } from "../../typings/application";
 import { FilterQuery } from "mongoose";
-import { Paging } from "../../typings/customs";
+import { Paging, Roles } from "../../typings/customs";
 
 // Function to get single job Application
 export const getApplication = async (user: IUser, applicationId: string) => {
@@ -37,6 +37,7 @@ export const getApplication = async (user: IUser, applicationId: string) => {
 
   const count = await applicationRepository.countApplications({
     currentStage: ScreeningStage.Completed,
+    job: (application.job as IJob)._id,
   });
 
   return makeResponse(true, "Job application details fetched", {
@@ -49,7 +50,12 @@ export const getApplications = async (
   user: IUser,
   payload: FetchApplications
 ) => {
-  const query: FilterQuery<IApplication> = { recruiter: user.id };
+  const query: FilterQuery<IApplication> = {};
+  if (user.userRole === Roles.Recruiter) {
+    query.recruiter = user.id;
+  } else if (user.userRole === Roles.Talent) {
+    query.talent = user.id;
+  }
 
   const applications = await applicationRepository.findApplicationsByMatch(
     query
