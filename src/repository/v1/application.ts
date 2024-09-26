@@ -184,6 +184,7 @@ export const rankApplications = async (talent: IUser, app: IApplication) => {
   // Step 2: Find the new rank based on the average score
   const newRank = await Application.countDocuments({
     averageScore: { $gt: application.averageScore },
+    job: application.job,
   });
 
   // New rank is newRank + 1 (since rank starts at 1)
@@ -216,10 +217,12 @@ export const rankApplications = async (talent: IUser, app: IApplication) => {
   // Step 4: Assign the new rank to the affected talent
   application.rank = newRankPosition;
   await application.save();
+  return application;
 };
 
 // Update current stage of application
-export const processNextStage = (
+export const processNextStage = async (
+  talent: IUser,
   application: IApplication,
   stage: TScreeningStage
 ) => {
@@ -228,10 +231,14 @@ export const processNextStage = (
   if (!currentStage) {
     throw new Error("Next stage not found");
   }
+  application.currentStage = currentStage;
   if (currentStage == ScreeningStage.Completed) {
-    // calculate rank
+    application = await rankApplications(talent, application);
+    application.status = ApplicationStatus.Shortlisted;
 
-    return { currentStage, applicationStatus: ApplicationStatus.Shortlisted };
+    return application;
   }
-  return { currentStage, applicationStatus: ApplicationStatus.Pending };
+  application.status = ApplicationStatus.Pending;
+
+  return application;
 };
