@@ -10,6 +10,7 @@ import question from "./question";
 import scout from "./scout";
 import recruiter from "./recruiter";
 import application from "./application";
+import notification from "./notification";
 import organization from "./organization";
 import aiconfig from "./aiconfig";
 
@@ -25,5 +26,6 @@ export default (router: Router) => {
   scout(router);
   question(router);
   application(router);
+  notification(router);
   organization(router);
 };
