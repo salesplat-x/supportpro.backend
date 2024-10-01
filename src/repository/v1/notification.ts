@@ -21,8 +21,6 @@ export const findNotifications = async (
     .sort({ createdAt: -1 })
     .skip(Number(paging.offset))
     .limit(Number(paging.limit));
-  // .skip(Number(paging.offset) || Page.Offset)
-  // .limit(Number(paging.limit) || Page.Limit);
 };
 
 export const countUnreadNotifications = async (
