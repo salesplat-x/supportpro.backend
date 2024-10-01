@@ -10,6 +10,8 @@ import question from "./question";
 import scout from "./scout";
 import recruiter from "./recruiter";
 import application from "./application";
+import message from "./message";
+import conversation from "./conversation";
 import notification from "./notification";
 import organization from "./organization";
 import aiconfig from "./aiconfig";
@@ -26,6 +28,8 @@ export default (router: Router) => {
   scout(router);
   question(router);
   application(router);
+  conversation(router);
+  message(router);
   notification(router);
   organization(router);
 };
