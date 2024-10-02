@@ -212,7 +212,7 @@ export const applications = async (user: IUser, payload: FetchApplications) => {
         applicationType: 1,
         status: 1,
         currentStage: 1,
-        personalizedQuestions: 1,
+        createdAt: 1,
         personalizedScore: 1,
         cvSimilarityScore: 1,
         mbtiType: 1,
