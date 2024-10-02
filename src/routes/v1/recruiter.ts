@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import * as user from "../../controllers/v1/user";
+import * as recruiter from "../../controllers/v1/recruiter";
 import * as application from "../../controllers/v1/application";
 import validate from "../../middlewares/v1/validators/validate";
 import * as applicationValidator from "../../middlewares/v1/validators/application";
@@ -20,7 +20,19 @@ router.get(
 router.get(
   "/dashboard",
   validateAccess([Roles.Recruiter]),
-  asyncHandler(user.recruiterDashboard)
+  asyncHandler(recruiter.recruiterDashboard)
+);
+
+router.get(
+  "/applications",
+  validateAccess([Roles.Recruiter]),
+  asyncHandler(recruiter.recentApplications)
+);
+
+router.get(
+  "/compilations",
+  validateAccess([Roles.Recruiter]),
+  asyncHandler(recruiter.recentCompilations)
 );
 
 export default (app: Router) => app.use("/recruiter", router);

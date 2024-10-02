@@ -59,3 +59,7 @@ export interface FetchApplications extends Paging {
   applicationType?: string;
   applicationStatus?: string;
 }
+export interface IApplicationCompilation extends Paging {
+  job?: string;
+  applicationType?: TApplicationType;
+}

@@ -39,6 +39,7 @@ export interface Paging {
   limit?: number;
   offset?: number;
   sort?: string;
+  sortMethod?: Record<string, any>;
 }
 
 export interface MakeResponse<T = Record<string, any>> {
