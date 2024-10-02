@@ -96,16 +96,26 @@ export const findApplicationsByMatch = async (
     .limit(Number(paging.limit) || Page.Limit);
 };
 
-export const applicationsByMatch = async (
-  data: FilterQuery<IApplication>,
-  paging: Paging = {}
-) => {
-  return await Application.find(data)
-    .select("-personalizedQuestions")
-    .sort(paging.sortMethod)
-    .skip(Number(paging.offset) || Page.Offset)
-    .limit(Number(paging.limit) || Page.Limit);
-};
+//   export const applicationsByMatch = async (
+//     data: FilterQuery<IApplication>,
+//     paging: Paging = {}
+//   ) => {
+//     return await Application.find(data)
+//     .populate({
+//       path: "job",
+//       select: "role postedBy description",
+//       populate: [
+//         {
+//           path: "role",
+//           select: "name description",
+//         },
+//       ],
+//     })
+//     .select("-personalizedQuestions")
+//     .sort(paging.sortMethod)
+//     .skip(Number(paging.offset) || Page.Offset)
+//     .limit(Number(paging.limit) || Page.Limit);
+// };
 
 export const leanApplicationsByMatch = async (
   data: FilterQuery<IApplication>,

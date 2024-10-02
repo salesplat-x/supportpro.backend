@@ -9,11 +9,12 @@ import * as userRepository from "../../repository/v1/user";
 import * as roleRepository from "../../repository/v1/role";
 import * as applicationRepository from "../../repository/v1/application";
 import { makeResponse } from "../../helpers/response";
-import mongoose, { FilterQuery } from "mongoose";
+import mongoose, { FilterQuery, PipelineStage, Types } from "mongoose";
 import { Roles } from "../../typings/customs";
 import Application from "../../models/v1/application";
 import { IJob } from "../../typings/job";
 import { Request } from "express";
+import { findJobById } from "../../repository/v1/job";
 
 export const recruiterDashboard = async (req: Request) => {
   const { jobId } = req.query; // Pagination params
@@ -210,29 +211,137 @@ export const recruiterDashboard = async (req: Request) => {
   });
 };
 
+// export const applications = async (
+//   user: IUser,
+//   payload: IApplicationCompilation
+// ) => {
+//   const { job, applicationType } = payload;
+//   payload.sortMethod = { updatedAt: -1 };
+
+//   const query: FilterQuery<IApplication> = { recruiter: user.id };
+
+//   if (job) {
+//     query.job = job;
+//   }
+
+//   if (applicationType) {
+//     query.applicationType = applicationType;
+//     if (applicationType === ApplicationType.Application) {
+//       payload.sortMethod = { createdAt: -1 };
+//     }
+//   }
+
+//   const applications = await applicationRepository.applicationsByMatch(
+//     query,
+//     payload
+//   );
+
+//   return makeResponse(true, "User's job applications fetched", {
+//     applications,
+//   });
+// };
+
 export const applications = async (
   user: IUser,
   payload: IApplicationCompilation
 ) => {
-  const { job, applicationType } = payload;
-  payload.sortMethod = { updatedAt: -1 };
+  const { job, applicationType, offset, limit } = payload;
 
-  const query: FilterQuery<IApplication> = { recruiter: user.id };
-
+  const applicationMatch: any = { recruiter: user._id };
   if (job) {
-    query.job = job;
+    const _job = await findJobById(job);
+    if (!_job) {
+      return makeResponse(false, "Job not found", {}, 404);
+    }
+    if ((_job.postedBy as IUser)._id.toString() !== user._id.toString()) {
+      return makeResponse(
+        false,
+        "You are not authorized to perform this action",
+        {},
+        403
+      );
+    }
+    applicationMatch.job = new Types.ObjectId(job);
   }
 
   if (applicationType) {
-    query.applicationType = applicationType;
+    applicationMatch.applicationType = applicationType;
     if (applicationType === ApplicationType.Application) {
       payload.sortMethod = { createdAt: -1 };
     }
   }
 
-  const applications = await applicationRepository.applicationsByMatch(
-    query,
-    payload
+  // Aggregation pipeline
+  const pipeline: PipelineStage[] = [
+    {
+      $match: applicationMatch,
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "talent",
+        foreignField: "_id",
+        as: "talent",
+      },
+    },
+    {
+      $unwind: "$talent",
+    },
+    {
+      $lookup: {
+        from: "profiles",
+        localField: "talent.profile",
+        foreignField: "_id",
+        as: "profile",
+      },
+    },
+    {
+      $unwind: "$profile",
+    },
+    // {
+    //   $sort: payload.sortMethod!,
+    // },
+  ];
+
+  // Add optional pagination stages if limit and skip are provided
+  if (offset) {
+    pipeline.push({ $skip: Number(offset) });
+  }
+  if (limit) {
+    pipeline.push({ $limit: Number(limit) });
+  }
+
+  pipeline.push({
+    $project: {
+      _id: 1,
+      job: 1,
+      talent: {
+        _id: "$talent._id",
+        email: "$talent.email",
+        firstName: "$talent.firstName",
+        lastName: "$talent.lastName",
+        profile: {
+          _id: "$profile._id",
+          bio: "$profile.bio",
+          experience: "$profile.experience",
+          maxSalary: "$profile.maxSalary",
+          minSalary: "$profile.minSalary",
+          prescreeningScore: "$profile.prescreeningScore",
+        },
+      },
+      recruiter: 1,
+      applicationType: 1,
+      status: 1,
+      personalizedScore: 1,
+      cvSimilarityScore: 1,
+      mbtiType: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    },
+  });
+
+  const applications = await applicationRepository.applicationAggregate(
+    pipeline
   );
 
   return makeResponse(true, "User's job applications fetched", {
