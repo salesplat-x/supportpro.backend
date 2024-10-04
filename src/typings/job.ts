@@ -16,6 +16,7 @@ export interface IJob {
   location: ILocation;
   address?: string;
   remote: boolean;
+  status: TJobStatus;
   responsibilities?: Types.Array<string>;
   skills?: Types.Array<string>;
   goals?: Types.Array<string>;
@@ -57,3 +58,11 @@ export interface IFetchApplications extends Paging {
 export interface IApply {
   jobId: string | Types.ObjectId;
 }
+
+export const JobStatus = {
+  Active: "active",
+  Suspended: "suspended",
+  Closed: "closed",
+} as const;
+
+export type TJobStatus = (typeof JobStatus)[keyof typeof JobStatus];
