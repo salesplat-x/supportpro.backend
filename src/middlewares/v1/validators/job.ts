@@ -1,6 +1,6 @@
 import Joi from "joi";
 import { Experience } from "../../../typings/customs";
-import { FetchJobs, IJob, TopTalents } from "../../../typings/job";
+import { FetchJobs, IJob, JobStatus, TopTalents } from "../../../typings/job";
 import {
   ApplicationStatus,
   ApplicationType,
@@ -40,6 +40,9 @@ export const updateJob = Joi.object({
     experienceLevel: Joi.string()
       .optional()
       .valid(...Object.values(Experience)),
+    status: Joi.string()
+      .optional()
+      .valid(...Object.values(JobStatus)),
     maxSalary: Joi.number().optional(),
     minSalary: Joi.number().less(Joi.ref("maxSalary")).optional(),
     address: Joi.string().optional(),
