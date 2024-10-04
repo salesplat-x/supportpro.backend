@@ -1,6 +1,6 @@
 import { Schema, model } from "mongoose";
 import { Experience } from "../../typings/customs";
-import { IJob } from "../../typings/job";
+import { IJob, JobStatus } from "../../typings/job";
 
 const jobSchema = new Schema<IJob>(
   {
@@ -21,6 +21,11 @@ const jobSchema = new Schema<IJob>(
     description: {
       type: String,
       required: true,
+    },
+    status: {
+      type: String,
+      enum: Object.values(JobStatus),
+      default: JobStatus.Active,
     },
     maxSalary: {
       type: Number,
