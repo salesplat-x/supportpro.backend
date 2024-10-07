@@ -15,6 +15,15 @@ export const broadcastMessage = Joi.object({
   }),
 }).required();
 
+export const acknowledge = Joi.object({
+  body: Joi.object({
+    acknowledge: Joi.boolean().required(),
+  }),
+  params: Joi.object({
+    id: Joi.string().required(),
+  }),
+}).required();
+
 export const fetchApplicationMessages = Joi.object({
   query: Joi.object({
     application: Joi.string(),

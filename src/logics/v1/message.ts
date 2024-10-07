@@ -50,6 +50,27 @@ export const sendMessage = async (user: IUser, payload: IMessageInput) => {
   return makeResponse(true, "Message created", { message }, 200);
 };
 
+export const acknowledge = async (
+  user: IUser,
+  payload: { id: string; acknowledge: boolean }
+) => {
+  const { id, acknowledge } = payload;
+
+  const message = await messageRepository.findMessageById(id);
+  if (!message) {
+    return makeResponse(false, "Message not found!", {}, 404);
+  }
+  if (message.recipient.toString() !== user.id) {
+    return makeResponse(false, "You permitted to perform this action!", {}, 404);
+  }
+
+  message.acknowledged = acknowledge;
+  message.isRead = true;
+  await message.save();
+
+  return makeResponse(true, "Message created", { message }, 200);
+};
+
 export const broadcastMessage = async (
   user: IUser,
   payload: IBroadcastMessage

@@ -15,6 +15,13 @@ router.post(
   validate(validator.broadcastMessage, { body: true }),
   asyncHandler(message.broadcastMessage)
 );
+
+router.patch(
+  "/:id",
+  validateAccess([Roles.Talent]),
+  validate(validator.acknowledge, { params: true, body: true }),
+  asyncHandler(message.acknowledge)
+);
 router.use(loginRequired);
 
 router.post(

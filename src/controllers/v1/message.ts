@@ -12,6 +12,14 @@ export const broadcastMessage = async (req: Request, res: Response) => {
   return responseHandler(res, response);
 };
 
+export const acknowledge = async (req: Request, res: Response) => {
+  const response = await messageController.acknowledge(req.user, {
+    ...req.params,
+    ...req.body,
+  });
+  return responseHandler(res, response);
+};
+
 export const getMessages = async (req: Request, res: Response) => {
   const response = await messageController.getMessages(req.user, {
     ...req.query,
