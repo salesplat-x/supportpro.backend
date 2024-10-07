@@ -26,7 +26,11 @@ export const findMessages = async (
   return await Message.find({ ...match, deleted: false })
     .sort({ createdAt: -1 })
     .skip(Number(paging.offset))
-    .limit(Number(paging.limit));
+    .limit(Number(paging.limit))
+    .populate({
+      path: "sender",
+      select: "firstName lastName",
+    });
 };
 
 export const countUnreadMessages = async (match: FilterQuery<IMessage>) => {
