@@ -15,7 +15,7 @@ const messageSchema = new Schema<IMessage>(
     sender: { type: Schema.Types.ObjectId, ref: "user", required: true },
     recipient: { type: Schema.Types.ObjectId, ref: "user", required: true },
     content: { type: String, required: true },
-    acknowledged: { type: Boolean, default: false },
+    acknowledged: { type: Boolean },
     isRead: { type: Boolean, default: false },
     deleted: { type: Boolean, default: false },
   },
