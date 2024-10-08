@@ -123,6 +123,10 @@ export const leanApplicationsByMatch = async (
 ) => {
   return await Application.find(data)
     .populate({
+      path: "talent",
+      select: "firstName lastName",
+    })
+    .populate({
       path: "job",
       select: "role",
       populate: [
