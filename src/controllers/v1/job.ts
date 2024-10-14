@@ -1,6 +1,7 @@
 import { Response, Request } from "express";
 import * as jobController from "../../logics/v1/job";
 import { responseHandler } from "../../middlewares/v1/handler";
+import { JobStatus } from "../../typings/job";
 
 export const create = async (req: Request, res: Response) => {
   const response = await jobController.createJob(req.user, req.body);
@@ -16,6 +17,7 @@ export const update = async (req: Request, res: Response) => {
 };
 
 export const fetchAll = async (req: Request, res: Response) => {
+  req.query.status = JobStatus.Active;
   const response = await jobController.fetchAllJobs(req.query);
   return responseHandler(res, response);
 };

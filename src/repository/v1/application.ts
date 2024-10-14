@@ -172,9 +172,9 @@ export const updateCurrentStage = (
   if (!currentStage) {
     throw new Error("Next stage not found");
   }
-  if (currentStage == ScreeningStage.Completed) {
-    return { currentStage, applicationStatus: ApplicationStatus.Shortlisted };
-  }
+  // if (currentStage == ScreeningStage.Completed) {
+  //   return { currentStage, applicationStatus: ApplicationStatus.Shortlisted };
+  // }
   return { currentStage, applicationStatus: ApplicationStatus.Pending };
 };
 

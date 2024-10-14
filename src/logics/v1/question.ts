@@ -31,6 +31,7 @@ import {
 } from "../../typings/application";
 import { findAIconfigById } from "../../repository/v1/AIconfig";
 import { calculateTimeLeft } from "../../helpers/func";
+import { JobStatus } from "../../typings/job";
 
 // Function to create/add question for role
 export const createQuestion = async (payload: IQuestion) => {
@@ -277,6 +278,12 @@ export const generatePersonalizedQuestions = async (
   if (!existingJob) {
     return makeResponse(false, "Job not found!", {}, 404);
   }
+  if (existingJob.status === JobStatus.Closed) {
+    return makeResponse(
+      false,
+      `Applications for this job is currently ${existingJob.status}!`
+    );
+  }
 
   const aiConfig = await findAIconfigById(existingJob.aiConfig as string);
   if (!aiConfig) {
@@ -389,6 +396,12 @@ export const answerPersonalizedQuestions = async (
   const job = await jobRepository.findJobById(jobId);
   if (!job) {
     return makeResponse(false, "Job not found!", {}, 404);
+  }
+  if (job.status === JobStatus.Closed) {
+    return makeResponse(
+      false,
+      `Applications for this job is currently ${job.status}!`
+    );
   }
 
   // Fetch application details
@@ -551,6 +564,12 @@ export const evaluatePersonalityType = async (
   const job = await jobRepository.findJobById(jobId);
   if (!job) {
     return makeResponse(false, "Job not found!", {}, 404);
+  }
+  if (job.status === JobStatus.Closed) {
+    return makeResponse(
+      false,
+      `Applications for this job is currently ${job.status}!`
+    );
   }
 
   let application = await applicationRepository.findApplicationByMatch({

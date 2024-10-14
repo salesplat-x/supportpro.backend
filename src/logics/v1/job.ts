@@ -10,6 +10,7 @@ import {
   IApply,
   IFetchApplications,
   IJob,
+  JobStatus,
   MatchJob,
   TopTalents,
 } from "../../typings/job";
@@ -130,6 +131,9 @@ export const fetchAllJobs = async (payload: FetchJobs) => {
       return makeResponse(false, "Role does not exist", {}, 404);
     }
     query.role = payload.roleId;
+  }
+  if (payload.status) {
+    query.status = payload.status;
   }
   if (payload.experienceLevel) {
     query.experienceLevel = payload.experienceLevel.toLowerCase();
@@ -341,6 +345,13 @@ export const gradeCv = async (user: IUser, jobId: string) => {
   const job = await jobRepository.findJobById(jobId);
   if (!job) {
     return makeResponse(false, "Job does not exist", {}, 404);
+  }
+
+  if (job.status === JobStatus.Closed) {
+    return makeResponse(
+      false,
+      `Applications for this job is currently ${job.status}!`
+    );
   }
 
   let application = await applicationRepository.findApplicationByMatch({
@@ -581,6 +592,12 @@ export const apply = async (user: IUser, payload: IApply) => {
   const job = await jobRepository.findJobById(jobId);
   if (!job) {
     return makeResponse(false, "Job not found!", {}, 404);
+  }
+  if (job.status !== JobStatus.Active) {
+    return makeResponse(
+      false,
+      `Applications for this job is currently ${job.status}!`
+    );
   }
 
   const aiConfig = await aiConfigRepository.findAIconfigById(

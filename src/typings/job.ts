@@ -31,6 +31,7 @@ export interface FetchJobs extends Paging {
   remote?: string;
   experienceLevel?: string;
   roleId?: string;
+  status?: TJobStatus;
 }
 
 export interface MatchJob extends Paging {
