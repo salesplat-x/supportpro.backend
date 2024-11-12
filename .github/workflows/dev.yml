@@ -3,7 +3,7 @@ name: Deploy to EC2
 on:
   push:
     branches:
-      - main  # Deploy on pushes to the main branch
+      - main  # Trigger on push to main branch
 
 jobs:
   deploy:
@@ -14,26 +14,23 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
 
-    # Set up SSH keys to access EC2
+    # Set up SSH key to access EC2
     - name: Set up SSH key
       uses: webfactory/ssh-agent@v0.5.3
       with:
-        ssh-private-key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+        ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
 
     # Install SSH client on the runner
     - name: Install SSH client
       run: sudo apt-get install -y openssh-client
 
-    # Deploy to EC2 instance
-    - name: Deploy to EC2
+    # Deploy to EC2 without running any dependencies
+    - name: Deploy to EC2 (Checkout Code)
       run: |
-        # Connect to EC2, pull the latest code, install dependencies, and restart app
-        ssh -o StrictHostKeyChecking=no -i /tmp/private_key ubuntu@${{ secrets.EC2_PUBLIC_IP }} << 'EOF'
+        ssh -o StrictHostKeyChecking=no -i /tmp/private_key ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
           cd /home/ubuntu/supportpro || exit 1
           git pull origin main || exit 1
-          npm install --production || exit 1
-          pm2 restart supportpro || pm2 start dist/app.js --name supportpro
         EOF
       env:
-        EC2_SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-        EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
+        EC2_SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
+        EC2_PUBLIC_IP: ${{ secrets.EC2_HOST }}
