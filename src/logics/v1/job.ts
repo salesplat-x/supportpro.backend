@@ -1,4 +1,5 @@
 import * as jobRepository from "../../repository/v1/job";
+import * as notificationRepository from "../../repository/v1/notification";
 import * as applicationRepository from "../../repository/v1/application";
 import * as aiConfigRepository from "../../repository/v1/AIconfig";
 import * as roleRepository from "../../repository/v1/role";
@@ -26,8 +27,10 @@ import { IProfile, IUser } from "../../typings/user";
 import {
   ApplicationStatus,
   ApplicationType,
+  IApplication,
   ScreeningStage,
 } from "../../typings/application";
+import { INotification } from "../../typings/notification";
 
 export const createJob = async (user: IUser, payload: IJob) => {
   if (!Types.ObjectId.isValid(payload.role as string)) {
@@ -105,6 +108,29 @@ export const updateJob = async (user: IUser, payload: IJob) => {
     if (!existingRole) {
       return makeResponse(false, "Role does not exist", {}, 404);
     }
+  }
+
+  if (update.status && update.status !== existingJob.status) {
+    const applications = await applicationRepository.findApplicationsByMatch({
+      job: existingJob.id,
+      $and: [
+        { status: { $ne: ApplicationStatus.Shortlisted } },
+        { status: { $ne: ApplicationStatus.Rejected } },
+      ],
+    });
+
+    const notifications = applications.map(
+      (application: IApplication): Partial<INotification> => {
+        const _id = new Types.ObjectId();
+        return {
+          _id,
+          user: application.talent,
+          message: `Applications for this job has been ${update.status}`,
+        };
+      }
+    );
+
+    await notificationRepository.insertMany(notifications);
   }
 
   const job = await jobRepository.findJobByIdAndUpdate(_id, update);

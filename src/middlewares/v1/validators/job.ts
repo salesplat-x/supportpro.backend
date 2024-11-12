@@ -34,7 +34,7 @@ export const updateJob = Joi.object({
     _id: Joi.string().required(),
   }),
   body: Joi.object<IJob>({
-    role: Joi.string().optional(),
+    // role: Joi.string().optional(),
     aiConfig: Joi.string().optional(),
     description: Joi.string().optional(),
     experienceLevel: Joi.string()

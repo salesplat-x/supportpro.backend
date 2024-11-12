@@ -9,6 +9,10 @@ export const createNotification = async (
   return await Notification.create(notification);
 };
 
+export const insertMany = async (notifications: any) => {
+  return await Notification.insertMany(notifications);
+};
+
 export const findNotificationById = async (id: Types.ObjectId | string) => {
   return await Notification.findById(id);
 };
