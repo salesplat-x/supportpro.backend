@@ -10,7 +10,7 @@ const pool = new Pool({
   user: env.pg_user,
   host: env.pg_host,
   password: env.pg_password,
-  ssl: true,
+  ssl: { rejectUnauthorized: false },
   database: env.pg_db,
   port: Number(env.pg_port),
   connectionTimeoutMillis: 20000,
