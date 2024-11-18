@@ -1,0 +1,7 @@
+node_modules
+dist
+text.md
+.env
+questions.js
+new.js
+text.txt

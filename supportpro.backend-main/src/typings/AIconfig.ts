@@ -1,0 +1,38 @@
+import { Types } from "mongoose";
+import { TScreeningStage } from "./application";
+
+export interface IAIConfig {
+  _id?: string | Types.ObjectId;
+  name: string;
+  recruiter: string | Types.ObjectId;
+  organization?: string | Types.ObjectId;
+  prescreeningAssessment: boolean;
+  minPrescreeningScore: number;
+  cvSimilarity: boolean;
+  minCvSimilarityScore: number;
+  noOfCvSimilarCandidates: number;
+  personalizedAssessment: boolean;
+  noPersonalizedQuestions: number;
+  recruiterGuide: string;
+  uploadedQuestions: string[];
+  personalityEvaluation: boolean;
+  stages: Map<TScreeningStage, TScreeningStage>;
+}
+
+export interface IAIConfigPayload {
+  jobId: string;
+  name: string;
+  recruiter: string | Types.ObjectId;
+  organization?: string | Types.ObjectId;
+  prescreeningAssessment: boolean;
+  minPrescreeningScore: number;
+  cvSimilarity: boolean;
+  minCvSimilarityScore: number;
+  noOfCvSimilarCandidates: number;
+  personalizedAssessment: boolean;
+  noPersonalizedQuestions: number;
+  recruiterGuide: string;
+  uploadedQuestions: string[];
+  personalityEvaluation: boolean;
+  stages: Map<TScreeningStage, TScreeningStage>;
+}

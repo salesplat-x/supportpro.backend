@@ -1,0 +1,33 @@
+/* Visit https://aka.ms/tsconfig.json to read more about this file */
+{
+  "compilerOptions": {
+    "rootDir": "./src",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "target": "es2016",
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "moduleDetection": "force",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "./dist",
+    "sourceMap": true,
+    "typeRoots": ["./src/typings", "./node_modules/@types"]
+
+    // "paths": {
+    //   "@config/*": ["./src/config/*"],
+    //   "@controllers/*": ["./src/controllers/*"],
+    //   "@helpers/*": ["./src/helpers/*"],
+    //   "@logics/*": ["./src/logics/*"],
+    //   "@middlewares/*": ["./src/middlewares/*"],
+    //   "@models/*": ["./src/models/*"],
+    //   "@repository/*": ["./src/repository/*"],
+    //   "@routes/*": ["./src/routes/*"],
+    //   "@typings/*": ["./src/typings/*"],
+    //   "@version/*": ["./src/version/*"]
+    // }
+  },
+  "include": ["src/**/*.json", "src/**/*.ts", "src/**/*.tsx"]
+}
