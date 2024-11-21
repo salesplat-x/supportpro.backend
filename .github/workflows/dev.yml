@@ -1,42 +1,45 @@
-name: Deploy to DigitalOcean Droplet
+name: Deploy Backend to DigitalOcean
 
 on:
   push:
     branches:
-      - main
+      - main  # Trigger deployment when pushing to the main branch
 
 jobs:
   deploy:
-    name: Deploy to DigitalOcean Droplet
     runs-on: ubuntu-latest
 
     steps:
-    # Step 1: Checkout the repository from git
-    - name: Checkout code
-      uses: actions/checkout@v3
+      # Checkout the latest code from the repository
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-    # Step 2: Set up SSH to access the Droplet
-    - name: Set up SSH
-      uses: webfactory/ssh-agent@v0.7.0
-      with:
-        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      # Set up SSH to communicate with the server
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.5.3
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}  # Use your SSH private key stored in GitHub secrets
 
-    # Step 3: Deploy the application
-    - name: Deploy to Droplet
-      run: |
-        ssh -o StrictHostKeyChecking=no root@167.172.8.238 << 'EOF'
-          # Navigate to the project directory
-          cd /home/supportpro/supportpro.backend || exit 1
-          
-          # Pull the latest changes
-          git pull origin main
+      # SSH into the server and deploy
+      - name: SSH into server and deploy
+        run: |
+          ssh -o StrictHostKeyChecking=no root@167.172.8.238 << 'EOF'
+            # Navigate to the project directory
+            cd /home/supportpro/supportpro.backend || exit 1
+            
+            # Pull the latest changes
+            git pull origin main
+            
+            # Install dependencies and build the application
+            npm install
+            npm run build
 
-          # Build the application 
-          npm install
-          npm run build
-          # Stop existing instances (if running)
-          pm2 delete supportpro || true
+            # Stop any existing PM2 processes named "supportpro"
+            pm2 delete supportpro || true
 
-          # Restart the service 
-          pm2 start supportpro || pm2 start /home/supportpro/supportpro.backend/dist --name "supportpro"
-        EOF
+            # Start the application cleanly with PM2
+            pm2 start /home/supportpro/supportpro.backend/dist/app.js --name "supportpro"
+
+            # Save the PM2 process list to persist across server reboots
+            pm2 save
+          EOF
