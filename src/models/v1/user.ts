@@ -29,6 +29,9 @@ const userSchema = new Schema<IUser>(
       required: false,
       set: func.firstCharToUpperCase,
     },
+    picture: {
+      type: String,
+    },
     userRole: {
       type: String,
       enum: Roles,

@@ -7,6 +7,11 @@ export const uploadProfile = async (req: Request, res: Response) => {
   return responseHandler(res, response);
 };
 
+export const updateUser = async (req: Request, res: Response) => {
+  const response = await userController.updateUser(req.user, req.body);
+  return responseHandler(res, response);
+};
+
 export const editProfile = async (req: Request, res: Response) => {
   const response = await userController.editProfile(req.body, req.user);
   return responseHandler(res, response);
