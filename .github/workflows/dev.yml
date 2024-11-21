@@ -34,7 +34,9 @@ jobs:
           # Build the application 
           npm install
           npm run build
+          # Stop existing instances (if running)
+          pm2 delete supportpro || true
 
           # Restart the service 
-          pm2 restart supportpro || pm2 start /home/supportpro/supportpro.backend/dist --name "supportpro"
+          pm2 start supportpro || pm2 start /home/supportpro/supportpro.backend/dist --name "supportpro"
         EOF
