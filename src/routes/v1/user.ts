@@ -17,6 +17,13 @@ router.post(
 );
 
 router.patch(
+  "/me",
+  loginRequired,
+  validate(userValidator.updateUser, { body: true }),
+  asyncHandler(user.updateUser)
+);
+
+router.patch(
   "/profile",
   validateAccess([Roles.Talent]),
   validate(userValidator.updateProfile, { body: true }),

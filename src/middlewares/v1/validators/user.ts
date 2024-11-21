@@ -1,6 +1,6 @@
 import Joi from "joi";
 import { Experience } from "../../../typings/customs";
-import { FetchProfiles } from "../../../typings/user";
+import { FetchProfiles, IUser } from "../../../typings/user";
 import {
   ApplicationStatus,
   ApplicationType,
@@ -81,4 +81,15 @@ export const applications = Joi.object({
     offset: Joi.number(),
     sort: Joi.string().valid("asc", "desc"),
   }),
+}).required();
+
+export const updateUser = Joi.object({
+  body: Joi.object<IUser>({
+    firstName: Joi.string().optional(),
+    lastName: Joi.string().optional(),
+    middleName: Joi.string().optional(),
+    picture: Joi.string().optional(),
+    phone: Joi.string().optional(),
+  }),
+  country: Joi.string().optional(),
 }).required();
