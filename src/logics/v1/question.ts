@@ -136,6 +136,7 @@ export const fetchQuestions = async (user: IUser, payload: FetchQuestions) => {
     paging.sort = payload.sort;
   }
 
+  console.log(query);
   questions = await questionRepository.findQuestionsByMatch(query, paging);
   return makeResponse(true, "Questions fetched successfully", questions, 200);
 };
