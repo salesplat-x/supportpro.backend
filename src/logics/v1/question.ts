@@ -121,6 +121,7 @@ export const fetchQuestions = async (user: IUser, payload: FetchQuestions) => {
         403
       );
     }
+    delete query.type;
     query.role = payload.roleId;
   }
 
