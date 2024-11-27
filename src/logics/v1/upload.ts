@@ -29,7 +29,7 @@ export const uploadCloudinary = async (req: Request) => {
     return makeResponse(false, "No file uploaded");
   }
 
-  if (req.user.userRole === Roles.Talent && req.user.profile) {
+  if (req.user.userRole === Roles.Talent) {
     // extract text from CV
     const mimetype = req.file.mimetype;
     if (
