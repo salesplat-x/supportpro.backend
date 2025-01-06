@@ -1,5 +1,5 @@
 import Joi from "joi";
-import { Experience } from "../../../typings/customs";
+import { ExperienceLevel } from "../../../typings/customs";
 
 export const register = Joi.object({
   body: Joi.object({
@@ -35,7 +35,7 @@ export const profile = Joi.object({
     bio: Joi.string().required(),
     cv: Joi.string().required(),
     experience: Joi.string()
-      .valid(...Object.values(Experience))
+      .valid(...Object.values(ExperienceLevel))
       .required(),
     maxSalary: Joi.number().required(),
     minSalary: Joi.number().required(),

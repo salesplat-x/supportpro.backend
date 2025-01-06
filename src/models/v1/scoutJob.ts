@@ -1,5 +1,4 @@
 import { Schema, model } from "mongoose";
-import { Experience } from "../../typings/customs";
 import { IScoutJob } from "../../typings/scoutJob";
 
 const schema = new Schema<IScoutJob>(

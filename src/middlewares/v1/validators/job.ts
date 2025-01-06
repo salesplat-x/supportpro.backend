@@ -1,5 +1,5 @@
 import Joi from "joi";
-import { Experience } from "../../../typings/customs";
+import { ExperienceLevel } from "../../../typings/customs";
 import { FetchJobs, IJob, JobStatus, TopTalents } from "../../../typings/job";
 import {
   ApplicationStatus,
@@ -13,7 +13,7 @@ export const job = Joi.object({
     description: Joi.string().required(),
     experienceLevel: Joi.string()
       .required()
-      .valid(...Object.values(Experience)),
+      .valid(...Object.values(ExperienceLevel)),
     maxSalary: Joi.number().required(),
     minSalary: Joi.number().less(Joi.ref("maxSalary")).required(),
     address: Joi.string().optional(),
@@ -39,7 +39,7 @@ export const updateJob = Joi.object({
     description: Joi.string().optional(),
     experienceLevel: Joi.string()
       .optional()
-      .valid(...Object.values(Experience)),
+      .valid(...Object.values(ExperienceLevel)),
     status: Joi.string()
       .optional()
       .valid(...Object.values(JobStatus)),
@@ -113,7 +113,7 @@ export const jobQuery = Joi.object({
   query: Joi.object({
     role: Joi.string().optional(),
     experienceLevel: Joi.string()
-      .valid(...Object.values(Experience))
+      .valid(...Object.values(ExperienceLevel))
       .optional(),
     maxSalary: Joi.number().optional(),
     minSalary: Joi.number().optional(),

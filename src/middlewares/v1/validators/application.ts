@@ -1,10 +1,13 @@
 import Joi from "joi";
 import { ApplicationStatus } from "../../../typings/application";
+import { ExperienceLevel } from "../../../typings/customs";
 
 export const getApplications = Joi.object({
   query: Joi.object({
     roleId: Joi.string().optional(),
-    experienceLevel: Joi.string().optional(),
+    experienceLevel: Joi.string()
+      .valid(...Object.values(ExperienceLevel))
+      .optional(),
     job: Joi.string().optional(),
 
     limit: Joi.number(),
