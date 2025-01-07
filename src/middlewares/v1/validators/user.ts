@@ -1,5 +1,5 @@
 import Joi from "joi";
-import { Experience } from "../../../typings/customs";
+import { ExperienceLevel } from "../../../typings/customs";
 import { FetchProfiles, IUser } from "../../../typings/user";
 import {
   ApplicationStatus,
@@ -20,7 +20,7 @@ export const profile = Joi.object({
     hybrid: Joi.boolean().required(),
     experience: Joi.string()
       .required()
-      .valid(...Object.values(Experience)),
+      .valid(...Object.values(ExperienceLevel)),
     maxSalary: Joi.number().required(),
     minSalary: Joi.number().less(Joi.ref("maxSalary")).required(),
     role: Joi.array().items(Joi.string()),
@@ -41,7 +41,7 @@ export const updateProfile = Joi.object({
     }).optional(),
     experience: Joi.string()
       .optional()
-      .valid(...Object.values(Experience)),
+      .valid(...Object.values(ExperienceLevel)),
     maxSalary: Joi.number().optional(),
     minSalary: Joi.number().less(Joi.ref("maxSalary")).optional(),
     role: Joi.array().items(Joi.string()),
@@ -61,7 +61,7 @@ export const userProfiles = Joi.object({
     sort: Joi.string().valid("asc", "desc"),
     roleId: Joi.string().optional(),
     experience: Joi.string()
-      .valid(...Object.values(Experience))
+      .valid(...Object.values(ExperienceLevel))
       .optional(),
     minScore: Joi.number().max(99).min(0).optional(),
     maxSalary: Joi.number().optional(),

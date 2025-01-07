@@ -1,5 +1,5 @@
 import { Schema, model } from "mongoose";
-import { Experience } from "../../typings/customs";
+import { ExperienceLevel } from "../../typings/customs";
 import { IJob, JobStatus } from "../../typings/job";
 
 const jobSchema = new Schema<IJob>(
@@ -36,7 +36,7 @@ const jobSchema = new Schema<IJob>(
       required: true,
     },
     experienceLevel: {
-      enum: Experience,
+      enum: ExperienceLevel,
       type: String,
       required: true,
     },

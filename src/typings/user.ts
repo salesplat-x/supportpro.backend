@@ -1,5 +1,5 @@
 import { Document, Types } from "mongoose";
-import { ILocation, Paging, Roles } from "./customs";
+import { ILocation, Paging, Roles, TExperienceLevel } from "./customs";
 import { IRole } from "./role";
 
 export interface IUser extends Document {
@@ -38,7 +38,7 @@ export interface IProfile extends Document {
   hybrid: boolean;
   location?: ILocation;
   role: Types.Array<Types.ObjectId> | Types.Array<string> | Types.Array<IRole>;
-  experience: string;
+  experience: TExperienceLevel;
   maxSalary: number;
   minSalary: number;
   prescreeningScore: number;
@@ -59,7 +59,7 @@ export interface IEmailOnlyPayload {
 
 export interface FetchProfiles extends Paging {
   roleId?: string;
-  experience?: string;
+  experience?: TExperienceLevel;
   minScore?: number;
   maxSalary?: number;
   incomplete?: string;

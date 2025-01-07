@@ -1,12 +1,12 @@
 import { Request, Response, NextFunction } from "express";
 import Joi from "joi";
-import { Experience } from "../../../typings/customs";
+import { ExperienceLevel } from "../../../typings/customs";
 
 export const scoutTalents = Joi.object({
   query: Joi.object({
     roleId: Joi.string().required(),
     experience: Joi.string()
-      .valid(...Object.values(Experience))
+      .valid(...Object.values(ExperienceLevel))
       .required(),
     remote: Joi.boolean(),
     country: Joi.string(),

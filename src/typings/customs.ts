@@ -5,11 +5,15 @@ export const Roles = {
   Recruiter: "recruiter",
 } as const;
 
-export const Experience = {
-  Junior: "junior",
-  Intermediate: "intermediate",
-  Senior: "senior",
-};
+export const ExperienceLevel = {
+  oneToThreeYears: "1-3 years",
+  fourToSixYears: "4-6 years",
+  sevenToTenYears: "7-10 years",
+  elevenToFifteenYears: "11-15 years",
+  sixteenYearsAndAbove: "16 years and above",
+} as const;
+export type TExperienceLevel =
+  (typeof ExperienceLevel)[keyof typeof ExperienceLevel];
 
 export const Plan = {
   Basic: "basic",

@@ -2,6 +2,7 @@ import { Types } from "mongoose";
 import { IRole } from "./role";
 import { ILocation, Paging } from "./customs";
 import { IUser } from "./user";
+import { TExperienceLevel } from "./customs";
 import { IAIConfig } from "./AIconfig";
 
 export interface IJob {
@@ -12,7 +13,7 @@ export interface IJob {
   description: string;
   maxSalary: number;
   minSalary: number;
-  experienceLevel: string;
+  experienceLevel: TExperienceLevel;
   location: ILocation;
   address?: string;
   remote: boolean;
@@ -29,7 +30,7 @@ export interface FetchJobs extends Paging {
   state?: string;
   country?: string;
   remote?: string;
-  experienceLevel?: string;
+  experienceLevel?: TExperienceLevel;
   roleId?: string;
   status?: TJobStatus;
 }
