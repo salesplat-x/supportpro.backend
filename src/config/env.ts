@@ -23,6 +23,10 @@ const requiredEnvVars = {
   cloudinary_name: process.env.CLOUDINARY_NAME,
   cloudinary_key: process.env.CLOUDINARY_KEY,
   cloudinary_secret: process.env.CLOUDINARY_SECRET,
+  email_username: process.env.EMAIL_USERNAME,
+  email_password: process.env.EMAIL_PASSWORD,
+  email_host: process.env.EMAIL_HOST,
+  email_port: process.env.EMAIL_PORT || 465,
 } as const;
 
 const env = {

@@ -20,9 +20,39 @@ router.post(
 );
 
 router.post(
+  "/resend-otp",
+  validate(authValidator.emailOnly, { body: true }),
+  asyncHandler(auth.resendOtp)
+);
+
+router.post(
+  "/verify-email",
+  validate(authValidator.verifyEmail, { body: true }),
+  asyncHandler(auth.verifyEmail)
+);
+
+router.post(
   "/login",
   validate(authValidator.login, { body: true }),
   asyncHandler(auth.login)
+);
+
+router.post(
+  "/forgot-password",
+  validate(authValidator.emailOnly, { body: true }),
+  asyncHandler(auth.forgotPassword)
+);
+
+router.post(
+  "/reset-password",
+  validate(authValidator.resetPassword, { body: true }),
+  asyncHandler(auth.resetPassword)
+);
+
+router.post(
+  "/change-password",
+  validate(authValidator.changePassword, { body: true }),
+  asyncHandler(auth.changePassword)
 );
 
 export default (app: Router) => app.use("/auth", router);
