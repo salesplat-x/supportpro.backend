@@ -126,7 +126,6 @@ export const forgotPassword = async ({ email }: Pick<IUser, "email">) => {
 
   const { otp, expires } = await generateOTP(5);
 
-
   user.recoveryCode = otp;
   user.recoveryCodeExpiry = expires;
   await user.save();
@@ -162,7 +161,6 @@ export const resetPassword = async (payload: {
   await user.save();
 
   return makeResponse(true, "Password has been reset");
-  //return makeResponse(true, "Record has been found");
 };
 
 export const changePassword = async (
