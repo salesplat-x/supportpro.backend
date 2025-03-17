@@ -46,7 +46,7 @@ export interface Paging {
   sortMethod?: Record<string, any>;
 }
 
-export interface MakeResponse<T = Record<string, any>> {
+export interface MakeResponse<T = Record<string, any> | undefined> {
   status: boolean;
   message: string;
   data?: T;

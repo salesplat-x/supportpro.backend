@@ -18,10 +18,10 @@ export interface IUser extends Document {
   organization?: Types.ObjectId | string;
   userRole: string;
   profile: Types.ObjectId | string | IProfile;
-  recoveryCode: string | null;
-  recoveryCodeExpiry: Date | null;
-  verificationCode: string | null;
-  verificationCodeExpiry: Date | null;
+  recoveryCode?: string;
+  recoveryCodeExpiry?: Date;
+  verificationCode?: string;
+  verificationCodeExpiry?: Date;
   active: boolean;
   onboarded: boolean;
   createdAt: Date;
@@ -50,7 +50,6 @@ export interface IProfile extends Document {
 export interface IUserPasswordUpdate {
   oldPassword: string;
   newPassword: string;
-  authUserId: Types.ObjectId;
 }
 
 export interface IEmailOnlyPayload {
