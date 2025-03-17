@@ -1,3 +1,6 @@
+// import dotenv from "dotenv";
+
+// dotenv.config();
 const validEnvs = ["dev", "production", "staging", "test"] as const;
 type AppEnv = (typeof validEnvs)[number];
 
@@ -41,6 +44,7 @@ const missingEnvVars = Object.entries(requiredEnvVars)
   .map(([key, _]) => key);
 
 if (missingEnvVars.length > 0) {
+  console.log(process.env.PG_DB);
   throw new Error(
     `Missing required environment variables: ${missingEnvVars.join(", ")}`
   );

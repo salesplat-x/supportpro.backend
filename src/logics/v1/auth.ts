@@ -124,8 +124,11 @@ export const forgotPassword = async ({ email }: Pick<IUser, "email">) => {
     return makeResponse(false, "User not found!", {}, 404);
   }
 
-  const { otp } = await generateOTP(5);
+  const { otp, expires } = await generateOTP(5);
 
+
+  user.recoveryCode = otp;
+  user.recoveryCodeExpiry = expires;
   await user.save();
 
   await new Email().sendPasswordReset(user, otp);
@@ -142,7 +145,7 @@ export const resetPassword = async (payload: {
   const user = await userRepository.findUserByMatch({
     email,
     recoveryCode: otp,
-    recoveryCodeExpires: { $gt: Date.now() },
+    recoveryCodeExpiry: { $gte: Date.now() },
   });
 
   if (!user) {
@@ -159,6 +162,7 @@ export const resetPassword = async (payload: {
   await user.save();
 
   return makeResponse(true, "Password has been reset");
+  //return makeResponse(true, "Record has been found");
 };
 
 export const changePassword = async (

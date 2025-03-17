@@ -6,6 +6,7 @@ import * as auth from "../../controllers/v1/auth";
 import validate from "../../middlewares/v1/validators/validate";
 import * as authValidator from "../../middlewares/v1/validators/auth";
 import { asyncHandler } from "../../middlewares/v1/handler";
+import { loginRequired } from "../../middlewares/v1/auth";
 
 router.post(
   "/register",
@@ -51,6 +52,7 @@ router.post(
 
 router.post(
   "/change-password",
+  loginRequired,
   validate(authValidator.changePassword, { body: true }),
   asyncHandler(auth.changePassword)
 );

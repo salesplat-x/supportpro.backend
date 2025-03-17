@@ -97,7 +97,7 @@ export const resetPassword = Joi.object({
 
 export const changePassword = Joi.object({
   body: Joi.object({
-    password: Joi.string()
+    newPassword: Joi.string()
       .min(8)
       .pattern(
         /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#.?&])[A-Za-z\d@$!%*#?.&]{8,}$/

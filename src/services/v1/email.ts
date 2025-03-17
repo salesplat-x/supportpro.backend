@@ -66,11 +66,19 @@ class Email {
     });
   }
 
-  async sendPasswordReset(user: IUser, resetLink: string) {
+  // async sendPasswordReset(user: IUser, resetLink: string) {
+  //   await this.sendHtml(user.email, "password-reset", "Password Reset Request", {
+  //     firstName: user.firstName,
+  //     lastName: user.lastName,
+  //     resetLink,
+  //   });
+  // }
+
+  async sendPasswordReset(user: IUser, otp: string) {
     await this.sendHtml(user.email, "password-reset", "Password Reset Request", {
       firstName: user.firstName,
       lastName: user.lastName,
-      resetLink,
+      otp,
     });
   }
 }
