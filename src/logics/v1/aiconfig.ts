@@ -30,7 +30,7 @@ export const updateAIConfig = async (user: IUser, payload: IAIConfig) => {
   let config = await aiConfigRepository.findAIconfigById(payload._id!);
 
   if (!config) {
-    return makeResponse(false, "Configuration not found", {}, 403);
+    return makeResponse(false, "Configuration not found", {}, 404);
   }
 
   if (
@@ -83,7 +83,7 @@ export const fetchAIConfig = async (
   const config = await aiConfigRepository.findAIconfigById(payload._id!);
 
   if (!config) {
-    return makeResponse(false, "Configuration not found", {}, 403);
+    return makeResponse(false, "Configuration not found", {}, 404);
   }
 
   if (config.recruiter?.toString() != user._id.toString()) {
@@ -104,7 +104,7 @@ export const deleteAIConfig = async (
   const config = await aiConfigRepository.findAIconfigById(payload._id!);
 
   if (!config) {
-    return makeResponse(false, "Configuration not found", {}, 403);
+    return makeResponse(false, "Configuration not found", {}, 404);
   }
 
   if (config.recruiter?.toString() != user._id.toString()) {

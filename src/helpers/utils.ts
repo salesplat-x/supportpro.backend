@@ -80,13 +80,13 @@ export const generateRecoveryToken = async (user: IUser): Promise<string> => {
 
 // generateOTP generates a random 6 digit OTP
 export const generateOTP = async (
-  expiry: number = 5
-): Promise<{ token: string; expires: Date }> => {
+  expiry: number = 15
+): Promise<{ otp: string; expires: Date }> => {
   const expires = new Date(
     new Date().setMinutes(new Date().getMinutes() + expiry)
   );
-  const token = Math.floor(10000 + Math.random() * 900000).toString();
-  return { token, expires };
+  const otp = Math.floor(10000 + Math.random() * 900000).toString();
+  return { otp, expires };
 };
 
 // generateSecurePassword generates password that contains at least one number, one letter and one special character

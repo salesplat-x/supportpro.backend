@@ -23,6 +23,19 @@ export const register = Joi.object({
   country: Joi.string().optional(),
 }).required();
 
+export const emailOnly = Joi.object({
+  body: Joi.object({
+    email: Joi.string().email().required(),
+  }),
+}).required();
+
+export const verifyEmail = Joi.object({
+  body: Joi.object({
+    email: Joi.string().email().required(),
+    otp: Joi.string().required(),
+  }),
+}).required();
+
 export const login = Joi.object({
   body: Joi.object({
     email: Joi.string().email().required(),
@@ -78,7 +91,24 @@ export const resetPassword = Joi.object({
           "Password must contain at least one number, one letter and one special character",
         "string.min": "Password must be at least 8 characters long",
       }),
-    token: Joi.string().required(),
+    otp: Joi.string().required(),
+  }),
+}).required();
+
+export const changePassword = Joi.object({
+  body: Joi.object({
+    newPassword: Joi.string()
+      .min(8)
+      .pattern(
+        /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#.?&])[A-Za-z\d@$!%*#?.&]{8,}$/
+      )
+      .required()
+      .messages({
+        "string.pattern.base":
+          "Password must contain at least one number, one letter and one special character",
+        "string.min": "Password must be at least 8 characters long",
+      }),
+    oldPassword: Joi.string().required(),
   }),
 }).required();
 
