@@ -1,6 +1,6 @@
 import { Schema, model } from "mongoose";
 import { ExperienceLevel } from "../../typings/customs";
-import { IJob, JobStatus } from "../../typings/job";
+import { IJob, JobStatus, WorkMode } from "../../typings/job";
 
 const jobSchema = new Schema<IJob>(
   {
@@ -18,7 +18,7 @@ const jobSchema = new Schema<IJob>(
       type: Schema.Types.ObjectId,
       ref: "ai_config",
     },
-    description: {
+    jobBrief: {
       type: String,
       required: true,
     },
@@ -43,7 +43,7 @@ const jobSchema = new Schema<IJob>(
     location: {
       city: {
         type: String,
-        required: true,
+        required: false,
         lowercase: true,
       },
       state: {
@@ -57,16 +57,17 @@ const jobSchema = new Schema<IJob>(
         lowercase: true,
       },
     },
-    address: {
+    // address: {
+    //   type: String,
+    //   required: true,
+    // },
+    workMode: {
+      enum: WorkMode,
       type: String,
       required: true,
     },
-    remote: {
-      type: Boolean,
-      required: true,
-    },
-    responsibilities: {
-      type: [String],
+    requirements: {
+      type: String,
       required: false,
       lowercase: true,
     },

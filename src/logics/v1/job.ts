@@ -55,7 +55,7 @@ export const createJob = async (user: IUser, payload: IJob) => {
   //@TODO check if job already exists under organization
 
   // Create vector embedding for Job description
-  const jd = preprocessText(payload.description);
+  const jd = preprocessText(payload.jobBrief);
   const jobEmbedding = await createEmbedding(jd);
   if (!jobEmbedding || !jobEmbedding[0]?.embedding) {
     return makeResponse(
@@ -72,7 +72,7 @@ export const createJob = async (user: IUser, payload: IJob) => {
   // Save job embedding in vectorDB
   const res = await pgRepository.saveJobEmbedding(
     job._id.toString(),
-    job.description,
+    job.jobBrief,
     jobEmbedding[0]?.embedding!
   );
   if (!res) {
@@ -137,7 +137,7 @@ export const updateJob = async (user: IUser, payload: IJob) => {
   if (!job) {
     return makeResponse(false, "Unable to update job", {}, 400);
   }
-  if (update.description) {
+  if (update.jobBrief) {
     //@TODO create and replace job embedding if
   }
 
@@ -176,8 +176,8 @@ export const fetchAllJobs = async (payload: FetchJobs) => {
   if (payload.country) {
     query["location.country"] = payload.country.toLowerCase();
   }
-  if (payload.remote) {
-    query.remote = payload.remote;
+  if (payload.workMode) {
+    query.workMode = payload.workMode;
   }
   jobs = await jobRepository.findAllJobs(query, payload);
   return makeResponse(true, "Jobs fetched successfully", jobs, 200);

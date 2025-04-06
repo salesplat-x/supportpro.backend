@@ -10,15 +10,15 @@ export interface IJob {
   role: string | Types.ObjectId | IRole;
   postedBy: string | Types.ObjectId | IUser;
   aiConfig: string | Types.ObjectId | IAIConfig;
-  description: string;
+  jobBrief: string;
   maxSalary: number;
   minSalary: number;
   experienceLevel: TExperienceLevel;
   location: ILocation;
-  address?: string;
-  remote: boolean;
+  //address?: string;
+  workMode: TWorkMode;
   status: TJobStatus;
-  responsibilities?: Types.Array<string>;
+  requirements?: string;
   skills?: Types.Array<string>;
   goals?: Types.Array<string>;
   noOfApplicants: number;
@@ -29,7 +29,7 @@ export interface FetchJobs extends Paging {
   city?: string;
   state?: string;
   country?: string;
-  remote?: string;
+  workMode?: TWorkMode;
   experienceLevel?: TExperienceLevel;
   roleId?: string;
   status?: TJobStatus;
@@ -68,3 +68,11 @@ export const JobStatus = {
 } as const;
 
 export type TJobStatus = (typeof JobStatus)[keyof typeof JobStatus];
+
+export const WorkMode = {
+  Remote: "remote",
+  OnSite: "onSite",
+  Hybrid: "hybrid",
+} as const;
+
+export type TWorkMode = (typeof WorkMode)[keyof typeof WorkMode];

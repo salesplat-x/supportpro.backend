@@ -19,7 +19,7 @@ export const createJob = async (user: IUser, payload: IScoutJob) => {
 
   // create embedding for job description
   const jd = preprocessText(
-    `${payload.description} \n ${payload.recruiterGuide}`
+    `${payload.jobBrief} \n ${payload.recruiterGuide}`
   );
   const jobEmbedding = await createEmbedding(jd);
   if (!jobEmbedding || !jobEmbedding[0]?.embedding) {
@@ -37,7 +37,7 @@ export const createJob = async (user: IUser, payload: IScoutJob) => {
   // Save job embedding in vectorDB
   const res = await saveScoutJobEmbedding(
     scoutJob.id,
-    scoutJob.description,
+    scoutJob.jobBrief,
     jobEmbedding[0]?.embedding!
   );
   if (!res) {

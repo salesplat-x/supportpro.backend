@@ -4,7 +4,7 @@ import { IScoutJob } from "../../../typings/scoutJob";
 export const scoutJob = Joi.object({
   body: Joi.object<IScoutJob>({
     role: Joi.string().required(),
-    description: Joi.string().required(),
+    jobBrief: Joi.string().required(),
     name: Joi.string().required(),
     recruiterGuide: Joi.string().required(),
   }),
@@ -16,7 +16,7 @@ export const updateScoutJob = Joi.object({
   }),
   body: Joi.object<IScoutJob>({
     role: Joi.string().required(),
-    description: Joi.string().required(),
+    jobBrief: Joi.string().required(),
     name: Joi.string().required(),
     recruiterGuide: Joi.string().required(),
   }),

@@ -53,7 +53,7 @@ export interface MakeResponse<T = Record<string, any> | undefined> {
   statusCode?: number;
 }
 export interface ILocation {
-  city: string;
+  city?: string;
   state: string;
   country: string;
 }

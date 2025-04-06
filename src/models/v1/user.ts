@@ -96,7 +96,7 @@ const profileSchema = new Schema<IProfile>({
   onSite: { type: Boolean, default: false },
   hybrid: { type: Boolean, default: false },
   location: {
-    city: String,
+    city: { type: String, required: false },
     state: String,
     country: String,
   },
