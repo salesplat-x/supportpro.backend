@@ -78,7 +78,7 @@ export const findApplicationsByMatch = async (
   return await Application.find(data)
     .populate({
       path: "job",
-      select: "role postedBy description",
+      select: "role postedBy jobBrief",
       populate: [
         {
           path: "role",
