@@ -9,7 +9,7 @@ export const scoutTalents = Joi.object({
     experience: Joi.string()
       .valid(...Object.values(ExperienceLevel))
       .required(),
-    workMode: Joi.string().valid(...Object.values(WorkMode)),
+    workMode: Joi.string().valid(...Object.values(WorkMode)).optional(),
     country: Joi.string(),
     state: Joi.string(),
     city: Joi.string(),

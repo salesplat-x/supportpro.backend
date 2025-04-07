@@ -22,7 +22,7 @@ export const job = Joi.object({
       state: Joi.string().required(),
       country: Joi.string().required(),
     }).optional(),
-    workMode: Joi.boolean().optional(),
+    workMode: Joi.string().valid(...Object.values(WorkMode)).optional(),
     requirements: Joi.string().optional(),
     skills: Joi.array().items(Joi.string()).optional(),
     goals: Joi.array().items(Joi.string()).optional(),
@@ -51,7 +51,7 @@ export const updateJob = Joi.object({
       state: Joi.string().required(),
       country: Joi.string().required(),
     }).optional(),
-    workMode: Joi.boolean().optional(),
+    workMode: Joi.string().valid(...Object.values(WorkMode)).optional(),
     requirements: Joi.string().optional(),
     skills: Joi.array().items(Joi.string()).optional(),
     goals: Joi.array().items(Joi.string()).optional(),
@@ -96,11 +96,11 @@ export const getApplications = Joi.object({
 export const allJobs = Joi.object({
   query: Joi.object<FetchJobs>({
     roleId: Joi.string().optional(),
-    experienceLevel: Joi.string().optional(),
+    experienceLevel: Joi.string().valid(...Object.values(ExperienceLevel)).optional(),
     city: Joi.string().optional(),
     state: Joi.string().optional(),
     country: Joi.string().optional(),
-    workMode: Joi.string().optional(),
+    workMode: Joi.string().valid(...Object.values(WorkMode)).optional(),
     postedBy: Joi.string().optional(),
 
     limit: Joi.number(),
