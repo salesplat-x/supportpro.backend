@@ -15,7 +15,7 @@ import {
   MatchJob,
   TopTalents,
 } from "../../typings/job";
-import { Types, PipelineStage, FilterQuery } from "mongoose";
+import mongoose, { Types, PipelineStage, FilterQuery } from "mongoose";
 import { IRole } from "../../typings/role";
 import { Roles } from "../../typings/customs";
 import { createEmbedding } from "../../services/v1/openai";
@@ -36,9 +36,26 @@ export const createJob = async (user: IUser, payload: IJob) => {
   if (!Types.ObjectId.isValid(payload.role as string)) {
     return makeResponse(false, "Invalid role id", {}, 400);
   }
-  const existingRole = await roleRepository.findRoleById(payload.role as string);
-  if (!existingRole) {
-    return makeResponse(false, "Role does not exist", {}, 404);
+
+  const role = payload.role as string;
+
+  // check if the role id is used
+  if (mongoose.Types.ObjectId.isValid(role)) {
+    const existingRole = await roleRepository.findRoleById(
+      payload.role as string
+    );
+    if (!existingRole) {
+      return makeResponse(false, "Role does not exist", {}, 404);
+    }
+  } else {
+    // If role is not ObjectId but a string create it if it does not exist
+    let existingRole = await roleRepository.findRoleByMatch({
+      name: role.toLowerCase(),
+    });
+    if (!existingRole) {
+      existingRole = await roleRepository.createRole({ name: role });
+    }
+    payload.role = existingRole.id;
   }
 
   if (payload.aiConfig) {

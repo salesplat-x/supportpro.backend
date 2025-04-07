@@ -1,6 +1,12 @@
 import Joi from "joi";
 import { ExperienceLevel } from "../../../typings/customs";
-import { FetchJobs, IJob, JobStatus, TopTalents, WorkMode } from "../../../typings/job";
+import {
+  FetchJobs,
+  IJob,
+  JobStatus,
+  TopTalents,
+  WorkMode,
+} from "../../../typings/job";
 import {
   ApplicationStatus,
   ApplicationType,
@@ -8,7 +14,7 @@ import {
 
 export const job = Joi.object({
   body: Joi.object<IJob>({
-    role: Joi.string().required(),
+    role: Joi.string().trim().required(),
     aiConfig: Joi.string().optional(),
     jobBrief: Joi.string().required(),
     experienceLevel: Joi.string()
@@ -22,7 +28,9 @@ export const job = Joi.object({
       state: Joi.string().required(),
       country: Joi.string().required(),
     }).optional(),
-    workMode: Joi.string().valid(...Object.values(WorkMode)).optional(),
+    workMode: Joi.string()
+      .valid(...Object.values(WorkMode))
+      .optional(),
     requirements: Joi.string().optional(),
     skills: Joi.array().items(Joi.string()).optional(),
     goals: Joi.array().items(Joi.string()).optional(),
@@ -51,7 +59,9 @@ export const updateJob = Joi.object({
       state: Joi.string().required(),
       country: Joi.string().required(),
     }).optional(),
-    workMode: Joi.string().valid(...Object.values(WorkMode)).optional(),
+    workMode: Joi.string()
+      .valid(...Object.values(WorkMode))
+      .optional(),
     requirements: Joi.string().optional(),
     skills: Joi.array().items(Joi.string()).optional(),
     goals: Joi.array().items(Joi.string()).optional(),
@@ -96,11 +106,15 @@ export const getApplications = Joi.object({
 export const allJobs = Joi.object({
   query: Joi.object<FetchJobs>({
     roleId: Joi.string().optional(),
-    experienceLevel: Joi.string().valid(...Object.values(ExperienceLevel)).optional(),
+    experienceLevel: Joi.string()
+      .valid(...Object.values(ExperienceLevel))
+      .optional(),
     city: Joi.string().optional(),
     state: Joi.string().optional(),
     country: Joi.string().optional(),
-    workMode: Joi.string().valid(...Object.values(WorkMode)).optional(),
+    workMode: Joi.string()
+      .valid(...Object.values(WorkMode))
+      .optional(),
     postedBy: Joi.string().optional(),
 
     limit: Joi.number(),
@@ -117,7 +131,9 @@ export const jobQuery = Joi.object({
       .optional(),
     maxSalary: Joi.number().optional(),
     minSalary: Joi.number().optional(),
-    workMode: Joi.string().valid(...Object.values(WorkMode)).optional(),
+    workMode: Joi.string()
+      .valid(...Object.values(WorkMode))
+      .optional(),
   }),
 }).required();
 
