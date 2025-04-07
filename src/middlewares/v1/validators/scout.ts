@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import Joi from "joi";
 import { ExperienceLevel } from "../../../typings/customs";
+import { WorkMode } from "../../../typings/job";
 
 export const scoutTalents = Joi.object({
   query: Joi.object({
@@ -8,7 +9,7 @@ export const scoutTalents = Joi.object({
     experience: Joi.string()
       .valid(...Object.values(ExperienceLevel))
       .required(),
-    remote: Joi.boolean(),
+    workMode: Joi.string().valid(...Object.values(WorkMode)).optional(),
     country: Joi.string(),
     state: Joi.string(),
     city: Joi.string(),

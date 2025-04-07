@@ -13,7 +13,7 @@ const schema = new Schema<IScoutJob>(
       ref: "user",
       required: true,
     },
-    description: {
+    jobBrief: {
       type: String,
       required: true,
     },

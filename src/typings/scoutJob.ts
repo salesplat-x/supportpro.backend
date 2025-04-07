@@ -8,7 +8,7 @@ export interface IScoutJob {
   name: string;
   role: string | Types.ObjectId | IRole;
   postedBy: string | Types.ObjectId | IUser;
-  description: string;
+  jobBrief: string;
   recruiterGuide: string;
 }
 
@@ -17,7 +17,7 @@ export interface FetchScoutJobs extends Paging {
   city?: string;
   state?: string;
   country?: string;
-  remote?: string;
+  workMode?: string;
   experienceLevel?: string;
   roleId?: string;
 }
