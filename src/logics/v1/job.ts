@@ -33,10 +33,6 @@ import {
 import { INotification } from "../../typings/notification";
 
 export const createJob = async (user: IUser, payload: IJob) => {
-  if (!Types.ObjectId.isValid(payload.role as string)) {
-    return makeResponse(false, "Invalid role id", {}, 400);
-  }
-
   const role = payload.role as string;
 
   // check if the role id is used
