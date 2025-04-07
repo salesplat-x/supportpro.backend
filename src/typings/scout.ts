@@ -33,5 +33,5 @@ export interface IScoutTalents extends ILocation, Paging {
   roleId?: string;
   experience?: string;
   //Not used
-  remote?: string;
+  workMode?: string;
 }

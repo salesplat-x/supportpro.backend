@@ -1,6 +1,6 @@
 import Joi from "joi";
 import { ExperienceLevel } from "../../../typings/customs";
-import { FetchJobs, IJob, JobStatus, TopTalents } from "../../../typings/job";
+import { FetchJobs, IJob, JobStatus, TopTalents, WorkMode } from "../../../typings/job";
 import {
   ApplicationStatus,
   ApplicationType,
@@ -10,20 +10,20 @@ export const job = Joi.object({
   body: Joi.object<IJob>({
     role: Joi.string().required(),
     aiConfig: Joi.string().optional(),
-    description: Joi.string().required(),
+    jobBrief: Joi.string().required(),
     experienceLevel: Joi.string()
       .required()
       .valid(...Object.values(ExperienceLevel)),
     maxSalary: Joi.number().required(),
     minSalary: Joi.number().less(Joi.ref("maxSalary")).required(),
-    address: Joi.string().optional(),
+    //address: Joi.string().optional(),
     location: Joi.object({
-      city: Joi.string().required(),
+      city: Joi.string().optional(),
       state: Joi.string().required(),
       country: Joi.string().required(),
     }).optional(),
-    remote: Joi.boolean().optional(),
-    responsibilities: Joi.array().items(Joi.string()).optional(),
+    workMode: Joi.string().valid(...Object.values(WorkMode)).optional(),
+    requirements: Joi.string().optional(),
     skills: Joi.array().items(Joi.string()).optional(),
     goals: Joi.array().items(Joi.string()).optional(),
   }),
@@ -36,7 +36,7 @@ export const updateJob = Joi.object({
   body: Joi.object<IJob>({
     // role: Joi.string().optional(),
     aiConfig: Joi.string().optional(),
-    description: Joi.string().optional(),
+    jobBrief: Joi.string().optional(),
     experienceLevel: Joi.string()
       .optional()
       .valid(...Object.values(ExperienceLevel)),
@@ -45,14 +45,14 @@ export const updateJob = Joi.object({
       .valid(...Object.values(JobStatus)),
     maxSalary: Joi.number().optional(),
     minSalary: Joi.number().less(Joi.ref("maxSalary")).optional(),
-    address: Joi.string().optional(),
+    //address: Joi.string().optional(),
     location: Joi.object({
-      city: Joi.string().required(),
+      city: Joi.string().optional(),
       state: Joi.string().required(),
       country: Joi.string().required(),
     }).optional(),
-    remote: Joi.boolean().optional(),
-    responsibilities: Joi.array().items(Joi.string()).optional(),
+    workMode: Joi.string().valid(...Object.values(WorkMode)).optional(),
+    requirements: Joi.string().optional(),
     skills: Joi.array().items(Joi.string()).optional(),
     goals: Joi.array().items(Joi.string()).optional(),
   }),
@@ -96,11 +96,11 @@ export const getApplications = Joi.object({
 export const allJobs = Joi.object({
   query: Joi.object<FetchJobs>({
     roleId: Joi.string().optional(),
-    experienceLevel: Joi.string().optional(),
+    experienceLevel: Joi.string().valid(...Object.values(ExperienceLevel)).optional(),
     city: Joi.string().optional(),
     state: Joi.string().optional(),
     country: Joi.string().optional(),
-    remote: Joi.string().optional(),
+    workMode: Joi.string().valid(...Object.values(WorkMode)).optional(),
     postedBy: Joi.string().optional(),
 
     limit: Joi.number(),
@@ -117,7 +117,7 @@ export const jobQuery = Joi.object({
       .optional(),
     maxSalary: Joi.number().optional(),
     minSalary: Joi.number().optional(),
-    remote: Joi.boolean().optional(),
+    workMode: Joi.string().valid(...Object.values(WorkMode)).optional(),
   }),
 }).required();
 

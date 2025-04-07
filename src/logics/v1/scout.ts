@@ -108,9 +108,9 @@ export const scoutTalents = async (payload: Partial<IScoutTalents>) => {
     pipeline.push({ $match: { "profile.location.city": payload.city } });
   }
 
-  if (payload.remote !== undefined) {
+  if (payload.workMode !== undefined) {
     pipeline.push({
-      $match: { "profile.remote": stringToBool(payload.remote) },
+      $match: { "profile.remote": payload.workMode == "remote" },
     });
   }
 
@@ -203,7 +203,7 @@ export const scoutCvAndCl = async (user: IUser, payload: ICvAndCoverLetter) => {
   const inputJson = JSON.stringify({
     cv: cvText,
     coverLetter: coverLetterText,
-    jobDescription: job.description,
+    jobDescription: job.jobBrief,
     recruiterGuide,
   });
 
