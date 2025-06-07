@@ -1,0 +1,36 @@
+import { Schema, model } from "mongoose";
+import { IPlan, BillingInterval } from "../../typings/subscription";
+
+const planSchema = new Schema<IPlan>(
+    {
+        name: {
+            type: String,
+            required: true,
+        },
+        amount: {
+            type: Number,
+            required: true, // in kobo, e.g., ₦5000 = 500000
+        },
+        interval: {
+            type: String,
+            enum: Object.values(BillingInterval), // daily, weekly, monthly, yearly
+            required: true,
+        },
+        paystackPlanCode: {
+            type: String,
+            required: true,
+        },
+    },
+    {
+        timestamps: true,
+        toJSON: {
+            transform: function (doc, ret) {
+                delete ret.__v;
+                delete ret.createdAt;
+                delete ret.updatedAt;
+            },
+        },
+    }
+);
+
+export default model<IPlan>("plan", planSchema);
