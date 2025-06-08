@@ -1,5 +1,5 @@
 import { Schema, model } from "mongoose";
-import { IPlan, BillingInterval } from "../../typings/subscription";
+import {IPlan, BillingInterval, Currency} from "../../typings/plan";
 
 const planSchema = new Schema<IPlan>(
     {
@@ -18,8 +18,17 @@ const planSchema = new Schema<IPlan>(
         },
         paystackPlanCode: {
             type: String,
-            required: true,
+            required: false,
         },
+        currency: {
+            type: String,
+            enum: Object.values(Currency),
+            required: true
+        },
+        description: {
+            type: String,
+            required: true
+        }
     },
     {
         timestamps: true,

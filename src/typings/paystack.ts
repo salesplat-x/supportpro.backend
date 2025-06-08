@@ -1,3 +1,6 @@
+import {boolean} from "joi";
+import {TBillingInterval} from "./plan";
+
 export interface IPaystackConfig {
     amount: number;
     email: string;
@@ -13,6 +16,22 @@ export interface IPaystackConfig {
     plan?: string;
 }
 
+export interface IPlanConfig {
+    name: string;
+    interval: TBillingInterval;
+    amount: number;
+    currency: string;
+    description: string
+}
+
+export interface IPlanUpdateConfig {
+    name?: string;
+    interval?: TBillingInterval;
+    amount?: number;
+    currency?: string;
+    description?: string
+}
+
 export interface IPaystackInitRes {
     status: boolean;
     message: string;
@@ -21,6 +40,35 @@ export interface IPaystackInitRes {
         access_code: string;
         reference: string;
     };
+}
+
+export interface IPlanUpdateRes {
+    status: boolean;
+    message: string;
+}
+
+export interface IPaystackCreatePlanRes {
+    status: boolean;
+    message: string,
+    data: {
+        name: string,
+        interval: string,
+        amount: number,
+        description: string,
+        integration: number,
+        domain: string,
+        currency: string,
+        plan_code: string,
+        invoice_limit: number,
+        send_invoices: boolean,
+        send_sms: boolean,
+        hosted_page: boolean,
+        migrate: boolean,
+        is_archived: boolean,
+        id: number,
+        createdAt: string,
+        updatedAt: string
+    }
 }
 
 export const PaymentVerificationStatus = {
