@@ -1,5 +1,6 @@
 import { Schema, model } from "mongoose";
 import { ISubscription, SubscriptionStatus } from "../../typings/subscription";
+import {string} from "joi";
 
 const subscriptionSchema = new Schema<ISubscription>(
     {
@@ -32,9 +33,15 @@ const subscriptionSchema = new Schema<ISubscription>(
         },
         startDate: {
             type: Date,
+            required: false
         },
         nextPaymentDate: {
             type: Date,
+            required: false,
+        },
+        cron_expression:{
+            type: String,
+            required: false
         },
         history: [
             {

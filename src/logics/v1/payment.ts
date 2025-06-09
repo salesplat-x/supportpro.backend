@@ -1,11 +1,13 @@
 import * as paymentRepository from "../../repository/v1/payment";
+import * as subscriptionRepository from "../../repository/v1/subscription";
 import * as paystackService from "../../services/v1/paystack";
+import * as planRepository from "../../repository/v1/plan"
 import { makeResponse } from "../../helpers/response";
 import { IUser } from "../../typings/user";
 import { PaymentMethod, PaymentStatus } from "../../typings/payment";
 import { PaymentVerificationStatus } from "../../typings/paystack";
 import Email from "../../services/v1/email";
-import { findUserById } from "../../repository/v1/user";
+import {findUserById, findUserByMatch} from "../../repository/v1/user";
 import * as repository from "../../repository/v1/plan";
 
 
@@ -77,7 +79,7 @@ export const verify = async (payload: {id: string}) => {
 
 export const paystackWebhook = async (payload: {
     event: string;
-    data: Record<string, string>;
+    data: Record<string, any>;
 }) => {
     const { event, data } = payload;
     if (event === "charge.success" && data.status === "success") {
@@ -112,10 +114,40 @@ export const paystackWebhook = async (payload: {
 
         // TODO: Send email notification to user
         //await new Email().paymentSuccessful(user, order);
-        return makeResponse(true, "Payment successful.");
+        //return makeResponse(true, "Payment successful.");
     }
 
     if (event === "subscription.create" && data.status === "active"){
+        const plan = await planRepository.findPlanByMatch({
+            paystackPlanCode: data.plan.plan_code,
+        })
+        const user = await findUserByMatch({
+            email: data.customer.email
+        });
+        if (!user) {
+            return makeResponse(false, "User not found!", {}, 404);
+        }
+        const payment = await paymentRepository.findPaymentByMatch({
+            plan: plan?._id,
+            user: user?._id
+        })
+        if (!payment) {
+            return makeResponse(false, "Payment not found for reference!", {}, 404);
+        }
+
+
+        console.log("enter db");
+        const reply =  await subscriptionRepository.createSubscription({
+            user: payment?.user.toString(),
+            plan: payment?.plan.toString(),
+            paystackSubscriptionCode: data.subscription_code,
+            authorizationCode: data.authorization?.authorization_code,
+            status: data.status,
+            startDate: data.createdAt,
+            nextPaymentDate: data.next_payment_date,
+            cron_expression: data.cron_expression
+        });
+        //return makeResponse(true, "Subscription created successful.");
     }
 
 };

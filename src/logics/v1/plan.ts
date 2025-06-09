@@ -9,7 +9,6 @@ export const create = async (payload: IPlan) => {
     let existingPlan = await repository.findPlanByMatch({
         name: payload.name.toLowerCase(),
     });
-    console.log(existingPlan);
     if (existingPlan) {
         return makeResponse(
             false,

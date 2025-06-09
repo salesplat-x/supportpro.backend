@@ -9,13 +9,14 @@ export const SubscriptionStatus = {
 } as const;
 
 export interface ISubscription {
-    user: Types.ObjectId;
-    plan: Types.ObjectId;
+    user: Types.ObjectId | string;
+    plan: Types.ObjectId | string;
     paystackSubscriptionCode: string;
     authorizationCode: string;
     status: TSubscriptionStatus;
     startDate?: Date;
     nextPaymentDate?: Date;
+    cron_expression?: string;
     email_token?: string;
     history?: {
         description: string;

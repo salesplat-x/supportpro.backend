@@ -86,12 +86,12 @@ export const generatePaymentObject = (
     initiator: IUser
 ): IPaystackConfig => {
     return {
-        amount: plan.amount * 100,
+        amount: plan.amount,
         email: initiator.email as string,
         plan: plan.paystackPlanCode,
         currency: "NGN",
         // reference: `supportpro-${Date.now()}-${Math.floor(Math.random() * 9999999)}`,
-        callback_url: `${env.website}/orders`,
+        callback_url: `${env.website}`,
         channels: ["card", "bank"],
     };
 };
