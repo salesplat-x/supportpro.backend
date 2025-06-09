@@ -15,6 +15,8 @@ import conversation from "./conversation";
 import notification from "./notification";
 import organization from "./organization";
 import aiconfig from "./aiconfig";
+import payment from "./payment";
+import plan from "./plan";
 
 export default (router: Router) => {
   main(router);
@@ -32,4 +34,6 @@ export default (router: Router) => {
   message(router);
   notification(router);
   organization(router);
+  payment(router);
+  plan(router)
 };

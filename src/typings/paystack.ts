@@ -4,7 +4,7 @@ import {TBillingInterval} from "./plan";
 export interface IPaystackConfig {
     amount: number;
     email: string;
-    currency?: string;
+    currency: string;
     reference?: string;
     callback_url?: string;
     metadata?: Record<string, string>;

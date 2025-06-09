@@ -34,6 +34,7 @@ const requiredEnvVars = {
   email_password: process.env.EMAIL_PASSWORD,
   email_host: process.env.EMAIL_HOST,
   email_port: process.env.EMAIL_PORT || 465,
+  whitelisted_ips: process.env.PAYSTACK_WHITELISTED_IPS
 } as const;
 
 const env = {

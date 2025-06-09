@@ -6,6 +6,7 @@ import { PaymentMethod, PaymentStatus } from "../../typings/payment";
 import { PaymentVerificationStatus } from "../../typings/paystack";
 import Email from "../../services/v1/email";
 import { findUserById } from "../../repository/v1/user";
+import * as repository from "../../repository/v1/plan";
 
 
 export const verify = async (payload: { reference?: string }) => {
@@ -31,6 +32,9 @@ export const verify = async (payload: { reference?: string }) => {
     if (!response || !response.status) {
         return makeResponse(false, "Unable to verify payment!", {});
     }
+
+    const plan = await repository.findPlanByMatch({ paystackPlanCode: response.data.plan })
+
     if (
         response.data.status === "success" &&
         response.data.currency === "NGN" &&
@@ -51,7 +55,7 @@ export const verify = async (payload: { reference?: string }) => {
 
 
         // TODO: Send email notification to user
-        await new Email().paymentSuccessful(user, order);
+        // await new Email().paymentSuccessful(user, plan);
         return makeResponse(true, "Payment successful.");
     } else if (response.data.status === PaymentVerificationStatus.Failed) {
         await paymentRepository.findPaymentByIdAndUpdate(payment._id!, {
@@ -107,16 +111,19 @@ export const paystackWebhook = async (payload: {
 
 
         // TODO: Send email notification to user
-        await new Email().paymentSuccessful(user, order);
+        //await new Email().paymentSuccessful(user, order);
         return makeResponse(true, "Payment successful.");
     }
 };
 
-export const initiateTransaction = async (user: IUser, orderId: string) => {
-
+export const initiateTransaction = async (user: IUser, planId: string) => {
+    let plan = await repository.findPlanById(planId);
+    if (!plan) {
+        return makeResponse(false, `Plan not found`, {}, 404);
+    }
 
     const initialConfig = paystackService.generatePaymentObject(
-        order.totalPrice,
+        plan,
         user
     );
 
@@ -124,15 +131,16 @@ export const initiateTransaction = async (user: IUser, orderId: string) => {
 
     // create payment
     const payment = await paymentRepository.createPayment({
-        initialConfig,
+        ...initialConfig,
         method: PaymentMethod.Paystack,
         paymentLink: paymentResponse.data.authorization_url,
         reference:
             initialConfig.reference ||
-            `koneli-${Date.now()}-${Math.floor(Math.random() * 9999999)}`,
+            `supportpro-${Date.now()}-${Math.floor(Math.random() * 9999999)}`,
         paystackRef: paymentResponse.data.reference,
         user: user.id,
-        amount: order.totalPrice,
+        amount: plan.amount,
+        plan: plan._id
     });
 
     return makeResponse(true, "Payment link generated", {

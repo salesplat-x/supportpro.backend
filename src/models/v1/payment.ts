@@ -8,7 +8,7 @@ const schema = new Schema<IPayment>(
             ref: "user",
             required: true,
         },
-        order: {
+        plan: {
             type: Schema.Types.ObjectId,
             ref: "order",
             required: true,
@@ -16,6 +16,10 @@ const schema = new Schema<IPayment>(
         amount: {
             type: Number,
             required: true,
+        },
+        currency: {
+            type: String,
+            required: true
         },
         reference: {
             type: String,

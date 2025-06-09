@@ -51,6 +51,7 @@ export const verifyTransaction = async (payload: {
         message: string;
         amount: number;
         status: string;
+        plan: string;
         gateway_response: string;
         id: number;
         tx_ref: string;
@@ -80,12 +81,13 @@ export const webhookDataValidation = (req: Request) => {
 };
 
 export const generatePaymentObject = (
-    amount: number,
+    plan: IPlan,
     initiator: IUser
 ): IPaystackConfig => {
     return {
-        amount: amount * 100,
+        amount: plan.amount * 100,
         email: initiator.email as string,
+        plan: plan.paystackPlanCode,
         currency: "NGN",
         // reference: `supportpro-${Date.now()}-${Math.floor(Math.random() * 9999999)}`,
         callback_url: `${env.website}/orders`,

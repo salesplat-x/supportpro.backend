@@ -3,8 +3,9 @@ import { IUser } from "./user";
 
 export interface IPayment {
     user: string | Types.ObjectId;
-    order?: string | Types.ObjectId;
+    plan: string | Types.ObjectId;
     amount: number;
+    currency: string;
     method: TPaymentMethod;
     status?: TPaymentStatus;
     paymentLink?: string;
