@@ -21,6 +21,10 @@ const subscriptionSchema = new Schema<ISubscription>(
             type: String,
             required: true,
         },
+        email_token: {
+            type: String,
+            required: false
+        },
         status: {
             type: String,
             enum: Object.values(SubscriptionStatus), // e.g. active, pending, cancelled

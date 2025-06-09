@@ -3,12 +3,7 @@ import * as paystackService from "../../services/v1/paystack";
 import { makeResponse } from "../../helpers/response";
 import { IUser } from "../../typings/user";
 import { PaymentMethod, PaymentStatus } from "../../typings/payment";
-import {
-    findOrderById,
-    findOrderByIdAndUpdate,
-} from "../../repository/v1/order";
 import { PaymentVerificationStatus } from "../../typings/paystack";
-import { Order, OrderStatus } from "../../typings/order";
 import Email from "../../services/v1/email";
 import { findUserById } from "../../repository/v1/user";
 
@@ -54,19 +49,6 @@ export const verify = async (payload: { reference?: string }) => {
             },
         });
 
-        const order = await findOrderByIdAndUpdate(payment.order as string, {
-            status: OrderStatus.Paid,
-            $push: {
-                history: {
-                    description: "Payment made",
-                    author: payment.user,
-                    date: new Date(),
-                },
-            },
-        });
-        if (!order) {
-            return makeResponse(false, "Order not found!", {}, 404);
-        }
 
         // TODO: Send email notification to user
         await new Email().paymentSuccessful(user, order);
@@ -82,16 +64,6 @@ export const verify = async (payload: { reference?: string }) => {
             },
         });
 
-        await findOrderByIdAndUpdate(payment.order as string, {
-            status: OrderStatus.Failed,
-            $push: {
-                history: {
-                    description: "Payment failed",
-                    author: payment.user,
-                    date: new Date(),
-                },
-            },
-        });
 
         return makeResponse(false, "Payment failed!", {});
     }
@@ -133,19 +105,6 @@ export const paystackWebhook = async (payload: {
             },
         });
 
-        const order = await findOrderByIdAndUpdate(payment.order as string, {
-            status: OrderStatus.Paid,
-            $push: {
-                history: {
-                    description: "Payment made",
-                    author: payment.user,
-                    date: new Date(),
-                },
-            },
-        });
-        if (!order) {
-            return makeResponse(false, "Order not found!", {}, 404);
-        }
 
         // TODO: Send email notification to user
         await new Email().paymentSuccessful(user, order);
@@ -154,10 +113,7 @@ export const paystackWebhook = async (payload: {
 };
 
 export const initiateTransaction = async (user: IUser, orderId: string) => {
-    const order = await findOrderById(orderId);
-    if (!order) {
-        return makeResponse(false, "Order not found!", {}, 404);
-    }
+
 
     const initialConfig = paystackService.generatePaymentObject(
         order.totalPrice,

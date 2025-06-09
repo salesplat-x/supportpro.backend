@@ -16,6 +16,7 @@ export interface ISubscription {
     status: TSubscriptionStatus;
     startDate?: Date;
     nextPaymentDate?: Date;
+    email_token?: string;
     history?: {
         description: string;
         author: Types.ObjectId;

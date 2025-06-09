@@ -5,7 +5,7 @@ import {
     IPaystackConfig,
     IPaystackCreatePlanRes,
     IPlanConfig,
-    IPlanUpdateConfig, IPlanUpdateRes
+    IPlanUpdateConfig, IPlanUpdateRes, ISubConfig, ISubCreateRes, ISubDisOrEnableConfig, ISubGenerateLinkRes
 } from "../../typings/paystack";
 import { IUser } from "../../typings/user";
 import { createHmac } from "crypto";
@@ -146,6 +146,118 @@ export const updatePlan = async (
             "cache-control": "no-cache",
         },
         data: payload,
+    };
+
+    const charge = await axios(config);
+
+    return new Promise((resolve, reject) => {
+        axios(config)
+            .then((response) => {
+                console.log(response.data);
+                return resolve(response.data);
+            })
+            .catch((error) => {
+                return reject(error);
+            });
+    });
+};
+
+export const createSubscription = async (
+    payload: ISubConfig
+): Promise<ISubCreateRes> => {
+    let config = {
+        method: "post",
+        url: `${env.paystackUrl}/subscription`,
+        headers: {
+            Authorization: `Bearer ${env.paystackSecretKey}`,
+            "Content-Type": "application/json",
+            "cache-control": "no-cache",
+        },
+        data: payload,
+    };
+
+    const charge = await axios(config);
+
+    return new Promise((resolve, reject) => {
+        axios(config)
+            .then((response) => {
+                console.log(response.data);
+                return resolve(response.data);
+            })
+            .catch((error) => {
+                return reject(error);
+            });
+    });
+};
+
+export const enableSubscription = async (
+    payload: ISubDisOrEnableConfig
+): Promise<IPlanUpdateRes> => {
+    let config = {
+        method: "post",
+        url: `${env.paystackUrl}/subscription/enable`,
+        headers: {
+            Authorization: `Bearer ${env.paystackSecretKey}`,
+            "Content-Type": "application/json",
+            "cache-control": "no-cache",
+        },
+        data: payload,
+    };
+
+    const charge = await axios(config);
+
+    return new Promise((resolve, reject) => {
+        axios(config)
+            .then((response) => {
+                console.log(response.data);
+                return resolve(response.data);
+            })
+            .catch((error) => {
+                return reject(error);
+            });
+    });
+};
+
+export const disableSubscription = async (
+    payload: ISubDisOrEnableConfig
+): Promise<IPlanUpdateRes> => {
+    let config = {
+        method: "post",
+        url: `${env.paystackUrl}/subscription/disable`,
+        headers: {
+            Authorization: `Bearer ${env.paystackSecretKey}`,
+            "Content-Type": "application/json",
+            "cache-control": "no-cache",
+        },
+        data: payload,
+    };
+
+    const charge = await axios(config);
+
+    return new Promise((resolve, reject) => {
+        axios(config)
+            .then((response) => {
+                console.log(response.data);
+                return resolve(response.data);
+            })
+            .catch((error) => {
+                return reject(error);
+            });
+    });
+};
+
+export const generateUpdateSubscriptionLink = async (
+    payload: string
+): Promise<ISubGenerateLinkRes> => {
+    let config = {
+        method: "get",
+        url: `${env.paystackUrl}/subscription/${payload}/manage/link`,
+        headers: {
+            Authorization: `Bearer ${env.paystackSecretKey}`,
+            "Content-Type": "application/json",
+            "cache-control": "no-cache",
+        },
+        data: {},
     };
 
     const charge = await axios(config);
