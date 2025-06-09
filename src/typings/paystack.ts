@@ -1,5 +1,6 @@
 import {boolean} from "joi";
 import {TBillingInterval} from "./plan";
+import {TSubscriptionStatus} from "./subscription";
 
 export interface IPaystackConfig {
     amount: number;
@@ -28,7 +29,7 @@ export interface ISubConfig {
     customer: string;
     plan: string;
     authorization: string;
-    start_date?: string;
+    start_date?: Date;
 }
 
 export interface IPlanUpdateConfig {
@@ -64,7 +65,7 @@ export interface ISubCreateRes {
         integration: number;
         domain: string;
         start: number;
-        status: string;
+        status: TSubscriptionStatus;
         quantity: number;
         amount: number;
         authorization: {
@@ -91,7 +92,7 @@ export interface ISubCreateRes {
         createdAt: string;
         updatedAt: string;
         cron_expression?: string;
-        next_payment_date?: string;
+        next_payment_date?: Date;
     }
 }
 

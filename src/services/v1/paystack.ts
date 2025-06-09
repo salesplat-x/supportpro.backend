@@ -13,6 +13,7 @@ import { Request } from "express";
 import {IPlan} from "../../typings/plan";
 import plan from "../../models/v1/plan";
 import {AtLeastOne} from "../../helpers/utils";
+import {ISubscription} from "../../typings/subscription";
 
 export const makePayment = async (
     payload: IPaystackConfig
@@ -192,7 +193,6 @@ export const createSubscription = async (
             });
     });
 };
-
 export const enableSubscription = async (
     payload: ISubDisOrEnableConfig
 ): Promise<IPlanUpdateRes> => {

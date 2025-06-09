@@ -20,7 +20,7 @@ const subscriptionSchema = new Schema<ISubscription>(
         },
         authorizationCode: {
             type: String,
-            required: true,
+            required: false,
         },
         email_token: {
             type: String,

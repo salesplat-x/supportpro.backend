@@ -1,7 +1,5 @@
 import Joi from 'joi';
 import {IPlan} from "../../../typings/plan";
-
-// Replace these with your actual types
 const billingIntervals = ['daily', 'weekly', 'monthly', 'annually'] as const;
 const currencies = ['NGN'] as const;
 

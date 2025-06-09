@@ -17,6 +17,7 @@ import organization from "./organization";
 import aiconfig from "./aiconfig";
 import payment from "./payment";
 import plan from "./plan";
+import subscription from "./subscription";
 
 export default (router: Router) => {
   main(router);
@@ -35,5 +36,6 @@ export default (router: Router) => {
   notification(router);
   organization(router);
   payment(router);
-  plan(router)
+  plan(router);
+  subscription(router)
 };
