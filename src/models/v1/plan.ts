@@ -1,5 +1,6 @@
 import { Schema, model } from "mongoose";
 import {IPlan, BillingInterval, Currency} from "../../typings/plan";
+import {boolean} from "joi";
 
 const planSchema = new Schema<IPlan>(
     {
@@ -24,6 +25,15 @@ const planSchema = new Schema<IPlan>(
             type: String,
             enum: Object.values(Currency),
             required: true
+        },
+        update_existing_subscriptions: {
+            type:Boolean,
+            required: false
+        },
+        is_deleted: {
+            type: Boolean,
+            default: false,
+            required: false
         },
         description: {
             type: String,

@@ -24,7 +24,7 @@ router.patch(
 );
 
 router.delete(
-    "/:_id",
+    "/:id",
     validateAccess([Roles.Admin]),
     validate(planValidator.id, { params: true }),
     asyncHandler(plan.deleteItem)
@@ -32,7 +32,7 @@ router.delete(
 
 router.get(
   "/:id",
-  validate(planValidator.id, { query: true }),
+  validate(planValidator.id, { params: true }),
   asyncHandler(plan.fetchOne)
 );
 

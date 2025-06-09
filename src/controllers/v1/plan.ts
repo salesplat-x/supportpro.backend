@@ -13,7 +13,7 @@ export const fetch = async (req: Request, res: Response) => {
 };
 
 export const fetchOne = async (req: Request, res: Response) => {
-    const response = await logic.fetchOne(req.params._id as string);
+    const response = await logic.fetchOne(req.params.id as string);
     return responseHandler(res, response);
 };
 
@@ -23,6 +23,6 @@ export const update = async (req: Request, res: Response) => {
 };
 
 export const deleteItem = async (req: Request, res: Response) => {
-    const response = await logic.deleteItem(req.params._id as string);
+    const response = await logic.deleteItem(req.params.id as string);
     return responseHandler(res, response);
 };

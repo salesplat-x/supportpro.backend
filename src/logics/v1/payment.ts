@@ -9,10 +9,8 @@ import { findUserById } from "../../repository/v1/user";
 import * as repository from "../../repository/v1/plan";
 
 
-export const verify = async (payload: { reference?: string }) => {
-    const payment = await paymentRepository.findPaymentByMatch({
-        $or: [{ paystackRef: payload.reference }, { reference: payload.reference }],
-    });
+export const verify = async (payload: {id: string}) => {
+    const payment = await paymentRepository.findPaymentById(payload.id);
     if (!payment) {
         return makeResponse(false, "Payment not found for reference!", {}, 404);
     }
@@ -26,8 +24,10 @@ export const verify = async (payload: { reference?: string }) => {
     }
 
     const response = await paystackService.verifyTransaction({
-        reference: payload.reference!,
+        reference: payment.paystackRef!,
     });
+
+    console.log(response)
 
     if (!response || !response.status) {
         return makeResponse(false, "Unable to verify payment!", {});
@@ -38,7 +38,7 @@ export const verify = async (payload: { reference?: string }) => {
     if (
         response.data.status === "success" &&
         response.data.currency === "NGN" &&
-        response.data.amount / 100 >= payment.amount
+        response.data.amount >= payment.amount
     ) {
         await paymentRepository.findPaymentByIdAndUpdate(payment._id!, {
             status: PaymentStatus.Completed,
@@ -82,7 +82,7 @@ export const paystackWebhook = async (payload: {
     const { event, data } = payload;
     if (event === "charge.success" && data.status === "success") {
         const payment = await paymentRepository.findPaymentByMatch({
-            $or: [{ paystackRef: data.id }, { reference: data.id }],
+            $or: [{ paystackRef: data.reference }, { reference: data.reference }],
         });
         if (!payment) {
             return makeResponse(false, "Payment not found for reference!", {}, 404);
@@ -114,13 +114,18 @@ export const paystackWebhook = async (payload: {
         //await new Email().paymentSuccessful(user, order);
         return makeResponse(true, "Payment successful.");
     }
+
+    if (event === "subscription.create" && data.status === "active"){
+    }
+
 };
 
-export const initiateTransaction = async (user: IUser, planId: string) => {
-    let plan = await repository.findPlanById(planId);
+export const initiateTransaction = async (user: IUser, payload: { planId: string }) => {
+    let plan = await repository.findPlanById(payload.planId);
     if (!plan) {
-        return makeResponse(false, `Plan not found`, {}, 404);
+        return makeResponse(false, `Plan ${plan}not found`, {}, 404);
     }
+
 
     const initialConfig = paystackService.generatePaymentObject(
         plan,
@@ -149,91 +154,3 @@ export const initiateTransaction = async (user: IUser, planId: string) => {
         link: paymentResponse.data.authorization_url,
     });
 };
-
-// export const verifyFlw = async (payload: { tx_ref?: string }) => {
-//   const payment = await paymentRepository.findPaymentByMatch({
-//     reference: payload.tx_ref,
-//   });
-//   if (!payment) {
-//     return makeResponse(false, "Payment not found for reference!", {}, 404);
-//   }
-//   if (payment.status === PaymentStatus.Completed) {
-//     return makeResponse(false, "Payment already verified!", {}, 400);
-//   }
-
-//   const user = await findUserById(payment.user);
-//   if (!user) {
-//     return makeResponse(false, "User not found!", {}, 404);
-//   }
-
-//   const response = await verifyTransaction({
-//     reference: payload.tx_ref!,
-//   });
-
-//   if (!response || response.status === FlutterwaveStatus.Error) {
-//     return makeResponse(false, "Transaction not found for reference!", {});
-//   }
-
-//   if (
-//     response.status === FlutterwaveStatus.Success &&
-//     response.data.status === FlutterwaveStatus.Successful &&
-//     response.data.currency === "NGN" &&
-//     response.data.charged_amount >= payment.amount
-//   ) {
-//     await paymentRepository.findPaymentByIdAndUpdate(payment._id!, {
-//       status: PaymentStatus.Completed,
-//       finalConfig: response,
-//       paidAt: new Date(),
-//       $push: {
-//         history: {
-//           description: "Payment made",
-//           author: payment.user,
-//           date: new Date(),
-//         },
-//       },
-//     });
-
-//     const order = await findOrderByIdAndUpdate(payment.order as string, {
-//       status: OrderStatus.Paid,
-//       $push: {
-//         history: {
-//           description: "Payment made",
-//           author: payment.user,
-//           date: new Date(),
-//         },
-//       },
-//     });
-//     if (!order) {
-//       return makeResponse(false, "Order not found!", {}, 404);
-//     }
-
-//     // TODO: Send email notification to user
-//     await new Email().paymentSuccessful(user, order);
-//     return makeResponse(true, "Payment successful.", {});
-//   } else if (response.data.status === FlutterwaveStatus.Failed) {
-//     await paymentRepository.findPaymentByIdAndUpdate(payment._id!, {
-//       status: PaymentStatus.Failed,
-//       finalConfig: response,
-//       history: {
-//         description: "Payment failed!",
-//         createdAt: new Date(),
-//         author: payment.user,
-//       },
-//     });
-
-//     await findOrderByIdAndUpdate(payment.order as string, {
-//       status: OrderStatus.Failed,
-//       $push: {
-//         history: {
-//           description: "Payment failed",
-//           author: payment.user,
-//           date: new Date(),
-//         },
-//       },
-//     });
-
-//     return makeResponse(false, "Payment failed!", {});
-//   }
-
-//   return makeResponse(false, "Payment failed!", {});
-// };

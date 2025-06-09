@@ -28,9 +28,3 @@ export const findPlanByIdAndUpdate = async (
 ) => {
     return Plan.findByIdAndUpdate(planId, data, { new: true });
 };
-
-export const findPlanByIdAndDelete = async (
-    planId: string | Types.ObjectId
-) => {
-    return Plan.findByIdAndDelete(planId);
-};

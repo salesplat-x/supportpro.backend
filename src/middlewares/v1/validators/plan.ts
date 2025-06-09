@@ -35,6 +35,6 @@ export const update = Joi.object({
 
 export const id = Joi.object({
     params: Joi.object({
-        _id: Joi.string().required()
+        id: Joi.string().required()
     })
 })

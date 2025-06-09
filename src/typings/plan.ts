@@ -16,6 +16,8 @@ export interface IPlan {
     paystackPlanCode?: string;
     currency: TCurrency;
     description: string;
+    update_existing_subscriptions?: boolean;
+    is_deleted?: boolean;
 }
 
 export type TBillingInterval = (typeof BillingInterval)[keyof typeof BillingInterval];

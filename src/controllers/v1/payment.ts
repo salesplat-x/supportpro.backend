@@ -10,7 +10,7 @@ export const getPaymentLink = async (req: Request, res: Response) => {
 };
 
 export const verify = async (req: Request, res: Response) => {
-    const response = await logic.verify(req.query);
+    const response = await logic.verify(req.params as any);
     return responseHandler(res, response);
 };
 
@@ -19,6 +19,7 @@ export const paystackWebhook = async (req: Request, res: Response) => {
     if (!status) {
         return responseHandler(res, makeResponse(status, "", {}, 401));
     }
-    const response = await logic.verify(req.query);
-    return responseHandler(res, response);
+    const response = await logic.paystackWebhook(req.body);
+    //return responseHandler(res, response);
+    res.sendStatus(200);
 };

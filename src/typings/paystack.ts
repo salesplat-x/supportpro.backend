@@ -36,7 +36,8 @@ export interface IPlanUpdateConfig {
     interval?: TBillingInterval;
     amount?: number;
     currency?: string;
-    description?: string
+    description?: string;
+    update_existing_subscriptions?: boolean;
 }
 
 export interface IPaystackInitRes {

@@ -68,6 +68,7 @@ export const verifyTransaction = async (payload: {
             Authorization: `Bearer ${env.paystackSecretKey}`,
         },
     };
+    console.log(payload);
     const response: any = await axios(config);
     return response.data;
 };
@@ -141,7 +142,7 @@ export const updatePlan = async (
 ): Promise<IPlanUpdateRes> => {
     let config = {
         method: "put",
-        url: `${env.paystackUrl}/plan/:${planCode}`,
+        url: `${env.paystackUrl}/plan/${planCode}`,
         headers: {
             Authorization: `Bearer ${env.paystackSecretKey}`,
             "Content-Type": "application/json",
@@ -150,7 +151,7 @@ export const updatePlan = async (
         data: payload,
     };
 
-    const charge = await axios(config);
+    //const charge = await axios(config);
 
     return new Promise((resolve, reject) => {
         axios(config)
