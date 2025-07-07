@@ -1,6 +1,5 @@
 import { Schema, model } from "mongoose";
 import {IPlan, BillingInterval, Currency} from "../../typings/plan";
-import {boolean} from "joi";
 
 const planSchema = new Schema<IPlan>(
     {
@@ -14,7 +13,7 @@ const planSchema = new Schema<IPlan>(
         },
         interval: {
             type: String,
-            enum: Object.values(BillingInterval), // daily, weekly, monthly, yearly
+            enum: Object.values(BillingInterval),
             required: true,
         },
         paystackPlanCode: {
@@ -30,15 +29,18 @@ const planSchema = new Schema<IPlan>(
             type:Boolean,
             required: false
         },
-        is_deleted: {
-            type: Boolean,
-            default: false,
-            required: false
-        },
         description: {
             type: String,
             required: true
-        }
+        },
+        features: {
+            type: [String],
+            required: false
+        },
+        is_deleted: {
+            type: Boolean,
+            default: false,
+        },
     },
     {
         timestamps: true,

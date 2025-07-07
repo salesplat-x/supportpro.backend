@@ -2,11 +2,12 @@ export const BillingInterval = {
     Daily: "daily",
     Weekly: "weekly",
     Monthly: "monthly",
-    Yearly: "yearly",
+    Annually: "annually",
 } as const;
 
 export const Currency = {
-    naira: "NGN"
+    ngn: "NGN",
+    usd: "USD"
 }
 
 export interface IPlan {
@@ -16,6 +17,7 @@ export interface IPlan {
     paystackPlanCode?: string;
     currency: TCurrency;
     description: string;
+    features?: string[];
     update_existing_subscriptions?: boolean;
     is_deleted?: boolean;
 }

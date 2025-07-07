@@ -21,8 +21,8 @@ router.post("/",
     asyncHandler(controller.getPaymentLink));
 
 router.post(
-    "/webhook",
-    verifyWebhookIP,
+    "/dwhdbwnmdn229dnjkdnn83/webhook",
+    // verifyWebhookIP,
     asyncHandler(controller.paystackWebhook)
 )
 

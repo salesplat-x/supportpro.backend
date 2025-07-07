@@ -20,11 +20,8 @@ export const create = async (payload: IPlan) => {
     const planResponse = await paystackService.createPlan(initialConfig);
 
     const plan = await repository.createPlan({
-        name: initialConfig.name,
-        amount: initialConfig.amount,
-        interval: initialConfig.interval,
-        currency: initialConfig.currency,
-        description: initialConfig.description,
+        ...initialConfig,
+        features: payload.features,
         paystackPlanCode: planResponse.data.plan_code
     });
     if (!plan) {

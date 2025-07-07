@@ -29,12 +29,12 @@ const requiredEnvVars = {
   paystackUrl: process.env.PAYSTACK_PAYMENT_URL,
   paystackSecretKey: process.env.PAYSTACK_SECRET_KEY,
   paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY,
+  whitelisted_ips: process.env.PAYSTACK_WHITELISTED_IPS,
   website: process.env.FRONTEND_CALLBACK_URL,
   email_username: process.env.EMAIL_USERNAME,
   email_password: process.env.EMAIL_PASSWORD,
   email_host: process.env.EMAIL_HOST,
   email_port: process.env.EMAIL_PORT || 465,
-  whitelisted_ips: process.env.PAYSTACK_WHITELISTED_IPS
 } as const;
 
 const env = {

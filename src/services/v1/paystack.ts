@@ -29,13 +29,9 @@ export const makePayment = async (
         data: payload,
     };
 
-    const charge = await axios(config);
-
     return new Promise((resolve, reject) => {
         axios(config)
             .then((response) => {
-                const reference = charge.data.data.reference;
-                const link = charge.data.data.authorization_url;
                 return resolve(response.data);
             })
             .catch((error) => {
@@ -69,7 +65,6 @@ export const verifyTransaction = async (payload: {
             Authorization: `Bearer ${env.paystackSecretKey}`,
         },
     };
-    console.log(payload);
     const response: any = await axios(config);
     return response.data;
 };
@@ -123,12 +118,9 @@ export const createPlan = async (
         data: payload,
     };
 
-    const charge = await axios(config);
-
     return new Promise((resolve, reject) => {
         axios(config)
             .then((response) => {
-                console.log(response.data);
                 return resolve(response.data);
             })
             .catch((error) => {
@@ -152,12 +144,9 @@ export const updatePlan = async (
         data: payload,
     };
 
-    //const charge = await axios(config);
-
     return new Promise((resolve, reject) => {
         axios(config)
             .then((response) => {
-                console.log(response.data);
                 return resolve(response.data);
             })
             .catch((error) => {
@@ -180,12 +169,9 @@ export const createSubscription = async (
         data: payload,
     };
 
-    const charge = await axios(config);
-
     return new Promise((resolve, reject) => {
         axios(config)
             .then((response) => {
-                console.log(response.data);
                 return resolve(response.data);
             })
             .catch((error) => {
@@ -207,12 +193,9 @@ export const enableSubscription = async (
         data: payload,
     };
 
-    const charge = await axios(config);
-
     return new Promise((resolve, reject) => {
         axios(config)
             .then((response) => {
-                console.log(response.data);
                 return resolve(response.data);
             })
             .catch((error) => {
@@ -235,12 +218,9 @@ export const disableSubscription = async (
         data: payload,
     };
 
-    const charge = await axios(config);
-
     return new Promise((resolve, reject) => {
         axios(config)
             .then((response) => {
-                console.log(response.data);
                 return resolve(response.data);
             })
             .catch((error) => {
@@ -263,12 +243,9 @@ export const generateUpdateSubscriptionLink = async (
         data: {},
     };
 
-    const charge = await axios(config);
-
     return new Promise((resolve, reject) => {
         axios(config)
             .then((response) => {
-                console.log(response.data);
                 return resolve(response.data);
             })
             .catch((error) => {

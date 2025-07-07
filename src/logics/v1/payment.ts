@@ -39,7 +39,7 @@ export const verify = async (payload: {id: string}) => {
 
     if (
         response.data.status === "success" &&
-        response.data.currency === "NGN" &&
+        response.data.currency === payment.currency &&
         response.data.amount >= payment.amount
     ) {
         await paymentRepository.findPaymentByIdAndUpdate(payment._id!, {
