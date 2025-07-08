@@ -7,6 +7,7 @@ import versionRoutes from "./version/v1";
 import cors from "cors";
 import helmet from "helmet";
 import path from "path";
+import { Request, Response } from "express";
 import { setupPostgresDB } from "./repository/v1/pg";
 
 const PORT = env.port;
@@ -31,6 +32,11 @@ export default async function startApplication(app: Application): Promise<void> 
   // enable logging
   app.use(logger.logan);
   versionRoutes(app);
+
+  // <-- global 404 handler (this is the only modification made in server.ts) -->
+  app.use("*", (req: Request, res: Response) => {
+    res.status(404).json({ status: false, error: "Page not found" });
+  });
 
   // connect to mongodb via mongoose
   await newMongoDBConnection();

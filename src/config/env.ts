@@ -30,6 +30,9 @@ const requiredEnvVars = {
   email_password: process.env.EMAIL_PASSWORD,
   email_host: process.env.EMAIL_HOST,
   email_port: process.env.EMAIL_PORT || 465,
+  elevenlabs_api_key: process.env.ELEVENLABS_API_KEY,
+  elevenlabs_voice_id: process.env.ELEVENLABS_VOICE_ID, 
+  elevenlabs_model_id: process.env.ELEVENLABS_MODEL_ID,
 } as const;
 
 const env = {

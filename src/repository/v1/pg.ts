@@ -276,5 +276,6 @@ export const setupPostgresDB = async () => {
     logger.log("Connected to Postgres successfully");
   } catch (error: any) {
     logger.logErrorMessage("Unable to connect to Postgres");
+    console.error(error);
   }
 };

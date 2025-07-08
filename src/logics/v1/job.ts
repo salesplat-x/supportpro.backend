@@ -5,6 +5,8 @@ import * as aiConfigRepository from "../../repository/v1/AIconfig";
 import * as roleRepository from "../../repository/v1/role";
 import * as userRepository from "../../repository/v1/user";
 import * as pgRepository from "../../repository/v1/pg";
+import { IApplication } from "../../typings/application";
+import { Document } from "mongoose";
 import { makeResponse } from "../../helpers/response";
 import {
   FetchJobs,
@@ -27,7 +29,7 @@ import { IProfile, IUser } from "../../typings/user";
 import {
   ApplicationStatus,
   ApplicationType,
-  IApplication,
+  //IApplication,
   ScreeningStage,
 } from "../../typings/application";
 import { INotification } from "../../typings/notification";
@@ -393,10 +395,16 @@ export const gradeCv = async (user: IUser, jobId: string) => {
     );
   }
 
-  let application = await applicationRepository.findApplicationByMatch({
-    talent: user._id,
-    job: jobId,
-  });
+  //let application = await applicationRepository.findApplicationByMatch({
+  //  talent: user._id,
+  //  job: jobId,
+  //});
+
+  let application: (IApplication & Document) | null =
+    await applicationRepository.findApplicationByMatch(
+      { talent: user._id, job: jobId }
+    );
+
   if (!application) {
     return makeResponse(
       true,
@@ -447,14 +455,31 @@ export const gradeCv = async (user: IUser, jobId: string) => {
     application.currentStage = ScreeningStage.CvSimilarity;
     application.status = ApplicationStatus.RetakeAssessment;
     application.setAssessmentRetryDate();
+  //} else {
+  //  application = await applicationRepository.processNextStage(
+  //    user,
+  //    application,
+  //    ScreeningStage.CvSimilarity
+  //  );
+  //}
+  //
+  //await application.save();
+  
   } else {
-    application = await applicationRepository.processNextStage(
-      user,
-      application,
-      ScreeningStage.CvSimilarity
-    );
+    // processNextStage returns plain IApplication, so cast it back to a Document
+    application = (
+      await applicationRepository.processNextStage(
+        user,
+        application,
+        ScreeningStage.CvSimilarity
+      )
+    ) as IApplication & Document;
   }
-
+  
+  // Guard to ensure application is not null before calling save
+  if (!application) {
+    throw new Error("Application unexpectedly null after processing next stage");
+  }
   await application.save();
 
   // const applicationRes = await applicationRepository.createOrUpdateApplication(
@@ -646,10 +671,16 @@ export const apply = async (user: IUser, payload: IApply) => {
     return makeResponse(false, "AI configuration for job not found!", {}, 404);
   }
 
-  let application = await applicationRepository.findApplicationByMatch({
-    talent: user._id,
-    job: jobId,
-  });
+  //let application = await applicationRepository.findApplicationByMatch({
+  //  talent: user._id,
+  //  job: jobId,
+  //});
+
+  let application: (IApplication & Document) | null =
+    await applicationRepository.findApplicationByMatch(
+      { talent: user._id, job: jobId }
+    );
+
   if (application) {
     return makeResponse(true, "You have already applied for this job", {
       application,

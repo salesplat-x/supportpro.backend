@@ -15,6 +15,7 @@ import conversation from "./conversation";
 import notification from "./notification";
 import organization from "./organization";
 import aiconfig from "./aiconfig";
+import voice from "./voice"; // just included this
 
 export default (router: Router) => {
   main(router);
@@ -27,9 +28,10 @@ export default (router: Router) => {
   recruiter(router);
   scout(router);
   question(router);
-  application(router);
+  application(router); 
   conversation(router);
   message(router);
   notification(router);
   organization(router);
+  voice(router); //  voice router
 };

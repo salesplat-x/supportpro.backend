@@ -6,29 +6,55 @@ const openai = new OpenAI({
   apiKey: env.openai_secret,
 });
 
+// helper for voice integration
+/**
+ * chatGPT: Unified wrapper for text (default) or voice mode.
+ * @param userInput  The user's message
+ * @param mode       'text' or 'voice' (Grace persona)
+ */
+export async function chatGPT(
+  userInput: string,
+  mode: "text" | "voice" = "text"
+): Promise<string> {
+  const systemPrompt =
+    mode === "voice"
+      ? "You are Grace, a friendly and helpful voice assistant. Respond conversationally."
+      : "You are a helpful assistant. Respond with clarity and precision.";
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user",   content: userInput      },
+    ],
+  });
+
+  return completion.choices[0]?.message?.content ?? "";
+}
+
 export const gradeAssessmentAnswers = async (
   questionsJSON: string
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
   const prompt = `You are an automated response scoring system.
 
-  You will be given a JSON stringified array of objects. The objects are called the Assessment object. The content of each Assessment object is explained as follows:
+You will be given a JSON stringified array of objects. The objects are called the Assessment object. The content of each Assessment object is explained as follows:
 
-  The Assessment object has 4 fields. Each field is described as follows:
+The Assessment object has 4 fields. Each field is described as follows:
 
-  1. question: The question that was asked to a candidate.
-  2. questionId: The question's unique id.
-  3. answer: the candidates answer to the question.
-  4. criteria: The criteria that is being considered for scoring the candidate's a answer to the question.
+1. question: The question that was asked to a candidate.
+2. questionId: The question's unique id.
+3. answer: the candidate's answer to the question.
+4. criteria: The criteria that is being considered for scoring the candidate's answer to the question.
 
-  For each assessment object, your task is to generate an appropriate score of the candidate's answer based on the criteria field. That is, based on the criteria stated in the scoring criteria field, you should score the candidate's answers  on a 1 to 5 scale. The scale is defined below:
+For each assessment object, your task is to generate an appropriate score of the candidate's answer based on the criteria field. That is, based on the criteria stated in the scoring criteria field, you should score the candidate's answers on a 1 to 5 scale. The scale is defined below:
 
-  1 - poor
-  2 - unsatisfactory
-  3 - satisfactory
-  4 - very satisfactory
-  5 - outstanding.
+1 - poor  
+2 - unsatisfactory  
+3 - satisfactory  
+4 - very satisfactory  
+5 - outstanding.
 
-  For each score, question and answer you will generate a Response object has 3 fields similar to the Assessment object. Each field is described as follows:
+For each score, question and answer you will generate a Response object has 3 fields similar to the Assessment object. Each field is described as follows:
 
   1. question: The unique id of the question that was asked to a candidate.
   2. answer: the candidates answer to the question.
@@ -43,16 +69,19 @@ export const gradeAssessmentAnswers = async (
     ]
   }', the length of the array of Response objects must match the length of the array of the Assessment object`;
 
-  const completion = await openai.chat.completions.create({
-    messages: [
-      { role: "system", content: prompt },
-      { role: "user", content: questionsJSON },
-    ],
-    model: "gpt-4o",
-    response_format: { type: "json_object" },
-  });
+  // Call chatGPT to get back a JSON string
+  const raw = await chatGPT(`${prompt}\n${questionsJSON}`, "text");
 
-  return completion.choices[0];
+  // Parse it
+  let parsed: { responses?: OpenAI.Chat.Completions.ChatCompletion.Choice[] };
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    throw new Error("Failed to parse AI response for grading: " + e);
+  }
+
+  // Return the first graded choice (or undefined if none)
+  return parsed.responses ? parsed.responses[0] : undefined;
 };
 
 // Function to create embeddings
@@ -100,16 +129,9 @@ export const generatePersonalizedQuestions = async (
   Make sure the generated personalized questions lays emphasis on the recruiter's guide especially, also factor in the talent's cv and bio
 `;
 
-  const completion = await openai.chat.completions.create({
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: prompt },
-    ],
-    model: "gpt-4o",
-    response_format: { type: "json_object" },
-  });
-
-  return completion.choices[0];
+  const raw = await chatGPT(`${system}\n${prompt}`, "text");
+  const parsed = JSON.parse(raw);
+  return parsed.questions ? parsed.questions : undefined;
 };
 
 // Function to grade personalized questions
@@ -152,16 +174,20 @@ export const gradePersonalizedAnswers = async (
     ]
   }', the length of the array of Response objects must match the length of the array of the Assessment object`;
 
-  const completion = await openai.chat.completions.create({
-    messages: [
-      { role: "system", content: prompt },
-      { role: "user", content: questionsJSON },
-    ],
-    model: "gpt-4o",
-    response_format: { type: "json_object" },
-  });
+  const raw = await chatGPT(`${prompt}\n${questionsJSON}`, "text");
 
-  return completion.choices[0];
+  // Parse the JSON string into an object
+  let parsed: { responses?: OpenAI.Chat.Completions.ChatCompletion.Choice[] };
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new Error("Failed to parse AI response for grading: " + err);
+  }
+
+  // Return the full array of graded responses
+  return parsed.responses && parsed.responses.length > 0
+  ? parsed.responses[0]
+  : undefined;
 };
 
 // Function to generate questions to determine MBTI/personality type
@@ -184,16 +210,28 @@ export const getPersonalityEvaluationQuestion = async (
   }
 `;
 
-  const completion = await openai.chat.completions.create({
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: prompt },
-    ],
-    model: "gpt-4o",
-    response_format: { type: "json_object" },
-  });
+  const raw = await chatGPT(`${system}\n${prompt}`, "text");
 
-  return completion.choices[0];
+  let parsed: { question?: string };
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new Error("Failed to parse AI response for MBTI question: " + err);
+  }
+
+  if (!parsed.question) return undefined;
+
+  const choice: OpenAI.Chat.Completions.ChatCompletion.Choice = {
+    message: {
+      role: "assistant",
+      content: parsed.question,
+    },
+    index: 0,
+    finish_reason: "stop",
+    logprobs: null,
+  };
+
+  return choice;
 };
 
 export const evaluatePersonalityType = async (
@@ -226,16 +264,35 @@ export const evaluatePersonalityType = async (
 }
 '`;
 
-  const completion = await openai.chat.completions.create({
-    messages: [
-      { role: "system", content: prompt },
-      { role: "user", content: questionsJSON },
-    ],
-    model: "gpt-4o",
-    response_format: { type: "json_object" },
-  });
+  const raw = await chatGPT(`${prompt}\n${questionsJSON}`, "text");
 
-  return completion.choices[0];
+  let parsed: { responses?: Array<{
+    question: string;
+    answer: string;
+    dichotomyPreference: string;
+  }>; mbtiType?: string };
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new Error("Failed to parse AI response for personality evaluation: " + err);
+  }
+
+  if (!parsed.mbtiType || !parsed.responses) return undefined;
+
+  const choice: OpenAI.Chat.Completions.ChatCompletion.Choice = {
+    message: {
+      role: "assistant",
+      content: JSON.stringify({
+        responses: parsed.responses,
+        mbtiType: parsed.mbtiType,
+      }),
+    },
+    index: 0,
+    finish_reason: "stop",
+    logprobs: null,
+  };
+
+  return choice;
 };
 
 export const assessCVandCoverLetter = async (
@@ -264,16 +321,36 @@ export const assessCVandCoverLetter = async (
     "coverLetterScore": 73
   } `;
 
-  const completion = await openai.chat.completions.create({
-    messages: [
-      { role: "system", content: prompt },
-      { role: "user", content: input },
-    ],
-    model: "gpt-4o",
-    response_format: { type: "json_object" },
-  });
+  const raw = await chatGPT(`${prompt}\n${input}`, "text");
 
-  return completion.choices[0];
+  let parsed: { cvScore?: number; coverLetterScore?: number };
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new Error("Failed to parse AI response for CV assessment: " + err);
+  }
+
+  if (
+    typeof parsed.cvScore !== "number" ||
+    typeof parsed.coverLetterScore !== "number"
+  ) {
+    return undefined;
+  }
+
+  const choice: OpenAI.Chat.Completions.ChatCompletion.Choice = {
+    message: {
+      role: "assistant",
+      content: JSON.stringify({
+        cvScore: parsed.cvScore,
+        coverLetterScore: parsed.coverLetterScore,
+      }),
+    },
+    index: 0,
+    finish_reason: "stop",
+    logprobs: null,
+  };
+
+  return choice;
 };
 
 export const assessCV = async (
@@ -299,14 +376,28 @@ export const assessCV = async (
     "cvScore": 60
   } `;
 
-  const completion = await openai.chat.completions.create({
-    messages: [
-      { role: "system", content: prompt },
-      { role: "user", content: input },
-    ],
-    model: "gpt-4o",
-    response_format: { type: "json_object" },
-  });
+  const raw = await chatGPT(`${prompt}\n${input}`, "text");
 
-  return completion.choices[0];
+  let parsed: { cvScore?: number };
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new Error("Failed to parse AI response for CV scoring: " + err);
+  }
+
+  if (typeof parsed.cvScore !== "number") {
+    return undefined;
+  }
+
+  const choice: OpenAI.Chat.Completions.ChatCompletion.Choice = {
+    message: {
+      role: "assistant",
+      content: JSON.stringify({ cvScore: parsed.cvScore }),
+    },
+    index: 0,
+    finish_reason: "stop",
+    logprobs: null,
+  };
+
+  return choice;
 };

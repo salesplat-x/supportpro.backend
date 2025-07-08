@@ -48,3 +48,17 @@ export const handleValidationError = (
   const message = validateErrorData.details[0]!.message;
   return sendErrorResponse(res, message, {}, 400);
 };
+
+// Newly added line as regards to Voice integration for consistent audio streaming
+export const sendAudioResponse = (
+  res: Response,
+  buffer: Buffer,
+  filename = "response.mp3"
+) => {
+  res.set({
+    "Content-Type": "audio/mpeg",
+    "Content-Disposition": `inline; filename=${filename}`,
+    "Content-Length": buffer.length,
+  });
+  return res.send(buffer);
+};

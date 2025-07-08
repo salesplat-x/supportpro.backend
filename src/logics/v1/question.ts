@@ -5,6 +5,8 @@ import * as answerRepository from "../../repository/v1/answer";
 import * as jobRepository from "../../repository/v1/job";
 import * as pgRepository from "../../repository/v1/pg";
 import * as applicationRepository from "../../repository/v1/application";
+import { Document } from "mongoose";
+import { IApplication } from "../../typings/application";
 import { makeResponse } from "../../helpers/response";
 import {
   EvaluatePersonalityPayload,
@@ -26,7 +28,7 @@ import { IResponse } from "../../typings/answer";
 import {
   ApplicationStatus,
   ApplicationType,
-  IApplication,
+  //IApplication,
   ScreeningStage,
 } from "../../typings/application";
 import { findAIconfigById } from "../../repository/v1/AIconfig";
@@ -407,10 +409,16 @@ export const answerPersonalizedQuestions = async (
   }
 
   // Fetch application details
-  let application = await applicationRepository.findApplicationByMatch({
-    job: jobId,
-    talent: user._id,
-  });
+  //let application = await applicationRepository.findApplicationByMatch({
+  //  job: jobId,
+  //  talent: user._id,
+  //});
+
+  let application: (IApplication & Document) | null =
+      await applicationRepository.findApplicationByMatch(
+        { talent: user._id, job: jobId }
+      );
+
   if (!application) {
     return makeResponse(false, "Job application not found", {}, 404);
   }
@@ -574,10 +582,16 @@ export const evaluatePersonalityType = async (
     );
   }
 
-  let application = await applicationRepository.findApplicationByMatch({
-    job: jobId,
-    talent: user._id,
-  });
+  //let application = await applicationRepository.findApplicationByMatch({
+  //  job: jobId,
+  //  talent: user._id,
+  //});
+
+  let application: (IApplication & Document) | null =
+      await applicationRepository.findApplicationByMatch(
+        { talent: user._id, job: jobId }
+      );
+
   if (!application) {
     return makeResponse(false, "Job application not found", {}, 404);
   }
