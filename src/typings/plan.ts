@@ -1,3 +1,5 @@
+import { Document, Types } from "mongoose";
+
 export const BillingInterval = {
     Daily: "daily",
     Weekly: "weekly",
@@ -10,7 +12,8 @@ export const Currency = {
     usd: "USD"
 }
 
-export interface IPlan {
+export interface IPlan extends Document {
+    _id?: Types.ObjectId | string;
     name: string;
     amount: number;
     interval: TBillingInterval;

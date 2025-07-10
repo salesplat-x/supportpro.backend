@@ -36,3 +36,10 @@ export const id = Joi.object({
         id: Joi.string().required()
     })
 })
+
+export const fetchPlans = Joi.object({
+    query: Joi.object({
+        interval: Joi.string().valid(...Object.values(BillingInterval)).optional(),
+        currency: Joi.string().valid(...Object.values(Currency)).optional()
+    })
+})

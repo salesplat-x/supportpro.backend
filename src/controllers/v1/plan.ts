@@ -8,7 +8,7 @@ export const create = async (req: Request, res: Response)=> {
 }
 
 export const fetch = async (req: Request, res: Response) => {
-    const response = await logic.fetch();
+    const response = await logic.fetch(req.query);
     return responseHandler(res, response);
 };
 

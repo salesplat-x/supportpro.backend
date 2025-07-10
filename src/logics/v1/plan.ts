@@ -31,8 +31,9 @@ export const create = async (payload: IPlan) => {
     return makeResponse(true, "Plan added successfully", { plan }, 201);
 }
 
-export const fetch = async () => {
+export const fetch = async (payload: {currency?: string, interval?: string}) => {
     let plans = await repository.findPlansByMatch({
+        ...payload,
         is_deleted: false
     });
 
