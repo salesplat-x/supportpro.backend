@@ -9,7 +9,7 @@ const planSchema = new Schema<IPlan>(
         },
         amount: {
             type: Number,
-            required: true, // in kobo, e.g., ₦5000 = 500000
+            required: true,
         },
         interval: {
             type: String,
@@ -37,7 +37,7 @@ const planSchema = new Schema<IPlan>(
             type: [String],
             required: false
         },
-        is_deleted: {
+        isDeleted: {
             type: Boolean,
             default: false,
         },
