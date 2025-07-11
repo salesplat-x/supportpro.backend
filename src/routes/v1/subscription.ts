@@ -9,14 +9,6 @@ import { asyncHandler } from "../../middlewares/v1/handler";
 import {loginRequired, validateAccess} from "../../middlewares/v1/auth";
 import { Roles } from "../../typings/customs";
 
-router.post(
-    "/",
-    validateAccess([Roles.Admin]),
-    validate(subscriptionValidator.create, { body: true }),
-    asyncHandler(subscription.create)
-);
-
-
 router.get(
     "/enable/:id",
     loginRequired,

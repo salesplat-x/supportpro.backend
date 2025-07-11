@@ -1,5 +1,5 @@
 import { Schema, model } from "mongoose";
-import { IPayment, PaymentMethod, PaymentStatus } from "../../typings/payment";
+import { IPayment, PaymentStatus } from "../../typings/payment";
 
 const schema = new Schema<IPayment>(
     {
@@ -10,8 +10,7 @@ const schema = new Schema<IPayment>(
         },
         plan: {
             type: Schema.Types.ObjectId,
-            ref: "order",
-            required: true,
+            ref: "plan",
         },
         amount: {
             type: Number,
@@ -29,11 +28,6 @@ const schema = new Schema<IPayment>(
         },
         paymentLink: {
             type: String,
-        },
-        method: {
-            type: String,
-            enum: Object.values(PaymentMethod),
-            required: true,
         },
         status: {
             type: String,

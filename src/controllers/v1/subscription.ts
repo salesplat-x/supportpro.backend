@@ -2,11 +2,6 @@ import { Response, Request } from "express";
 import * as logic from "../../logics/v1/subscription";
 import { responseHandler } from "../../middlewares/v1/handler";
 
-export const create = async (req: Request, res: Response)=> {
-    const response = await logic.create(req.body);
-    return responseHandler(res, response);
-}
-
 export const fetch = async (req: Request, res: Response) => {
     const response = await logic.fetch();
     return responseHandler(res, response);

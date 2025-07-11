@@ -22,7 +22,7 @@ export interface IPlan extends Document {
     description: string;
     features?: string[];
     update_existing_subscriptions?: boolean;
-    is_deleted?: boolean;
+    isDeleted?: boolean;
 }
 
 export type TBillingInterval = (typeof BillingInterval)[keyof typeof BillingInterval];
