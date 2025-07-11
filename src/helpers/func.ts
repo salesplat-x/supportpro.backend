@@ -1,8 +1,6 @@
 import mammoth from "mammoth";
 import path from "path";
 import pdfParse from "pdf-parse";
-import crypto from 'crypto'
-import { findPaymentByMatch } from "../repository/v1/payment";
 
 export const stringToBool = (str: string) => {
   if (str.toLowerCase() === "true") {
@@ -194,17 +192,4 @@ export function handleFilename(filename: string) {
       : filename;
   const name = oldName.replace(/ /g, "-") + "_" + Date.now().toString();
   return { name, ext: filename.split(".").pop() };
-}
-
-export async function generateReference(length: number = 12) {
-  const randomBytes = crypto.randomBytes(Math.ceil(length / 2)).toString('hex').slice(0, length)
-  const timestamp = Date.now().toString(36)
-  const reference =  `Aux-${timestamp}${randomBytes}`.toUpperCase()
-  let codeDuplicate = await findPaymentByMatch({
-    reference,
-  });
-  if (codeDuplicate) {
-    return generateReference();
-  }
-  return reference;
 }
