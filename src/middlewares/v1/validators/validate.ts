@@ -22,7 +22,21 @@ export default (
     // validate the payload
     const validated = schema.validate(payload);
     if (validated.error) {
-      return handleValidationError(validated.error, res);
+      const formattedErrors = validated.error.details.map((detail) => {
+        // Get the message and clean it up
+        let message = detail.message
+          .replace(/^"|"$/g, '') // Remove double quotes
+          .replace(/^body\.|query\.|params\./, '') // Remove prefixes
+          .replace(/^[^:]+: /, '') // Remove field name prefix from message
+          .replace(/"\s/g, ' ')
+
+        return message;
+      });
+
+      return res.status(400).json({
+        status: false,
+        message: formattedErrors.join(', '),
+      });
     }
     // continue to the next middleware
     return next();
