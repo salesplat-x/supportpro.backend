@@ -9,8 +9,13 @@ export const getPaymentLink = async (req: Request, res: Response) => {
     return responseHandler(res, response);
 };
 
+export const getPaymentRecords = async (req: Request, res: Response) => {
+    const response = await logic.paymentRecords(req.user);
+    return responseHandler(res, response);
+};
+
 export const verify = async (req: Request, res: Response) => {
-    const response = await logic.verify(req.params as any);
+    const response = await logic.verify(req.body);
     return responseHandler(res, response);
 };
 

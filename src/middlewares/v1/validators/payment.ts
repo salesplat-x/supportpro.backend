@@ -11,10 +11,15 @@ import env from "../../../config/env";
     }),
 }).required();*/
 
+export const initializePayment = Joi.object({
+    body: Joi.object({
+        amount: Joi.number().optional(),
+        planId: Joi.string().optional(),
+    }).xor("amount", "planId"),
+}).required();
+
 export const verify = Joi.object({
-    params: Joi.object({
-        id: Joi.string().required(),
-        status: Joi.string().optional(),
-        transaction_id: Joi.string().optional(),
+    body: Joi.object({
+        reference: Joi.string().required(),
     }),
 }).required();

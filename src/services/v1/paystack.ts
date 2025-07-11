@@ -7,15 +7,12 @@ import {
     IPlanConfig,
     IPlanUpdateConfig, IPlanUpdateRes, ISubConfig, ISubCreateRes, ISubDisOrEnableConfig, ISubGenerateLinkRes
 } from "../../typings/paystack";
-import { IUser } from "../../typings/user";
 import { createHmac } from "crypto";
 import { Request } from "express";
 import {IPlan} from "../../typings/plan";
-import plan from "../../models/v1/plan";
 import {AtLeastOne} from "../../helpers/utils";
-import {ISubscription} from "../../typings/subscription";
 
-export const makePayment = async (
+export const initializePayment = async (
     payload: IPaystackConfig
 ): Promise<IPaystackInitRes> => {
     let config = {
@@ -29,13 +26,9 @@ export const makePayment = async (
         data: payload,
     };
 
-    const charge = await axios(config);
-
     return new Promise((resolve, reject) => {
         axios(config)
             .then((response) => {
-                const reference = charge.data.data.reference;
-                const link = charge.data.data.authorization_url;
                 return resolve(response.data);
             })
             .catch((error) => {
@@ -59,6 +52,9 @@ export const verifyTransaction = async (payload: {
         currency: string;
         amount_settled: number;
         charged_amount: number;
+        authorization: {
+            authorization_code: string
+        }
     };
 }> => {
     const config: AxiosRequestConfig = {
@@ -69,7 +65,6 @@ export const verifyTransaction = async (payload: {
             Authorization: `Bearer ${env.paystackSecretKey}`,
         },
     };
-    console.log(payload);
     const response: any = await axios(config);
     return response.data;
 };
@@ -83,18 +78,25 @@ export const webhookDataValidation = (req: Request) => {
 };
 
 export const generatePaymentObject = (
-    plan: IPlan,
-    initiator: IUser
+    amount: number,
+    email: string,
+    plan?: string,
+    currency = "NGN"
 ): IPaystackConfig => {
-    return {
-        amount: plan.amount,
-        email: initiator.email as string,
-        plan: plan.paystackPlanCode,
-        currency: "NGN",
-        // reference: `supportpro-${Date.now()}-${Math.floor(Math.random() * 9999999)}`,
+    const config: IPaystackConfig = {
+        amount: amount * 100,
+        email,
+        currency,
+        plan,
         callback_url: `${env.website}`,
         channels: ["card", "bank"],
     };
+
+    if (plan) {
+        config.channels = ["card"]
+    }
+
+    return config
 };
 
 export const generatePlanObject = (
@@ -123,12 +125,9 @@ export const createPlan = async (
         data: payload,
     };
 
-    const charge = await axios(config);
-
     return new Promise((resolve, reject) => {
         axios(config)
             .then((response) => {
-                console.log(response.data);
                 return resolve(response.data);
             })
             .catch((error) => {
@@ -152,12 +151,9 @@ export const updatePlan = async (
         data: payload,
     };
 
-    //const charge = await axios(config);
-
     return new Promise((resolve, reject) => {
         axios(config)
             .then((response) => {
-                console.log(response.data);
                 return resolve(response.data);
             })
             .catch((error) => {
@@ -180,12 +176,9 @@ export const createSubscription = async (
         data: payload,
     };
 
-    const charge = await axios(config);
-
     return new Promise((resolve, reject) => {
         axios(config)
             .then((response) => {
-                console.log(response.data);
                 return resolve(response.data);
             })
             .catch((error) => {
@@ -207,12 +200,9 @@ export const enableSubscription = async (
         data: payload,
     };
 
-    const charge = await axios(config);
-
     return new Promise((resolve, reject) => {
         axios(config)
             .then((response) => {
-                console.log(response.data);
                 return resolve(response.data);
             })
             .catch((error) => {
@@ -235,12 +225,9 @@ export const disableSubscription = async (
         data: payload,
     };
 
-    const charge = await axios(config);
-
     return new Promise((resolve, reject) => {
         axios(config)
             .then((response) => {
-                console.log(response.data);
                 return resolve(response.data);
             })
             .catch((error) => {
@@ -263,16 +250,26 @@ export const generateUpdateSubscriptionLink = async (
         data: {},
     };
 
-    const charge = await axios(config);
-
     return new Promise((resolve, reject) => {
         axios(config)
             .then((response) => {
-                console.log(response.data);
                 return resolve(response.data);
             })
             .catch((error) => {
                 return reject(error);
             });
     });
+};
+
+export const listSubscriptions = async (customerEmail: string) => {
+    const config = {
+        method: "get",
+        url: `${env.paystackUrl}/subscription?email=${encodeURIComponent(customerEmail)}`,
+        headers: {
+            Authorization: `Bearer ${env.paystackSecretKey}`,
+            "Content-Type": "application/json",
+        },
+    };
+    const response = await axios(config);
+    return response.data;
 };

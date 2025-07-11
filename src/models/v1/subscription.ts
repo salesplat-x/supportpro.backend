@@ -28,8 +28,8 @@ const subscriptionSchema = new Schema<ISubscription>(
         },
         status: {
             type: String,
-            enum: Object.values(SubscriptionStatus), // e.g. active, pending, cancelled
-            default: SubscriptionStatus.Pending,
+            enum: Object.values(SubscriptionStatus), 
+            default: SubscriptionStatus.Active,
         },
         startDate: {
             type: Date,

@@ -2,7 +2,7 @@ import Plan from "../../models/v1/plan";
 import { IPlan } from "../../typings/plan";
 import { FilterQuery, HydratedDocument, Types, UpdateQuery } from "mongoose";
 
-export const createPlan = async (plan: IPlan) => {
+export const createPlan = async (plan: Partial<IPlan>) => {
     return new Plan(plan).save();
 };
 

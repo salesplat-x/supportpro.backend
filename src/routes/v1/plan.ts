@@ -31,13 +31,14 @@ router.delete(
 );
 
 router.get(
-  "/:id",
-  validate(planValidator.id, { params: true }),
-  asyncHandler(plan.fetchOne)
+    "/:id",
+    validate(planValidator.id, { params: true }),
+    asyncHandler(plan.fetchOne)
 );
 
 router.get(
     "/",
+    validate(planValidator.fetchPlans, { query: true }),
     asyncHandler(plan.fetch)
 );
 

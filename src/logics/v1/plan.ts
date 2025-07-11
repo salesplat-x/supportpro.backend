@@ -7,12 +7,14 @@ import {IPlanUpdateConfig} from "../../typings/paystack";
 
 export const create = async (payload: IPlan) => {
     let existingPlan = await repository.findPlanByMatch({
-        name: payload.name.toLowerCase(),
+        name: payload.name,
+        interval: payload.interval,
+        currency: payload.currency
     });
     if (existingPlan) {
         return makeResponse(
             false,
-            `Plan with name ${payload.name} already exists`
+            `Plan already exists`
         );
     }
 
@@ -20,11 +22,9 @@ export const create = async (payload: IPlan) => {
     const planResponse = await paystackService.createPlan(initialConfig);
 
     const plan = await repository.createPlan({
-        name: initialConfig.name,
-        amount: initialConfig.amount,
-        interval: initialConfig.interval,
-        currency: initialConfig.currency,
-        description: initialConfig.description,
+        ...initialConfig,
+        amount: payload.amount,
+        features: payload.features,
         paystackPlanCode: planResponse.data.plan_code
     });
     if (!plan) {
@@ -34,9 +34,10 @@ export const create = async (payload: IPlan) => {
     return makeResponse(true, "Plan added successfully", { plan }, 201);
 }
 
-export const fetch = async () => {
+export const fetch = async (payload: {currency?: string, interval?: string}) => {
     let plans = await repository.findPlansByMatch({
-        is_deleted: false
+        ...payload,
+        isDeleted: false
     });
 
     return makeResponse(true, "Plans fetched successfully", { plans });
@@ -44,7 +45,7 @@ export const fetch = async () => {
 
 export const fetchOne = async (planId: string) => {
     let plan = await repository.findPlanById(planId);
-    if (!plan || plan.is_deleted === true) {
+    if (!plan || plan.isDeleted === true) {
         return makeResponse(false, `Plan not found or deleted`, {}, 404);
     }
 
@@ -55,7 +56,7 @@ export const fetchOne = async (planId: string) => {
 
 export const update = async (planId: string, payload: AtLeastOne<IPlanUpdateConfig>) => {
     let plan = await repository.findPlanById(planId);
-    if (!plan || plan.is_deleted === true) {
+    if (!plan || plan.isDeleted === true) {
         return makeResponse(false, `Plan not found or deleted`, {}, 404);
     }
 
@@ -92,7 +93,7 @@ export const update = async (planId: string, payload: AtLeastOne<IPlanUpdateConf
 
 export const deleteItem = async (planId: string) => {
     const plan = await repository.findPlanByIdAndUpdate(planId, {
-        is_deleted: true
+        isDeleted: true
     });
     if (!plan) {
         return makeResponse(false, "Delete operation failed");

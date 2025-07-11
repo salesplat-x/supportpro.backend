@@ -28,7 +28,7 @@ export interface IPlanConfig {
 export interface ISubConfig {
     customer: string;
     plan: string;
-    authorization: string;
+    authorization?: string;
     start_date?: Date;
 }
 

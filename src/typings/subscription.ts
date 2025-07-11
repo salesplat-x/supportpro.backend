@@ -4,8 +4,10 @@ import { Types } from "mongoose";
 export const SubscriptionStatus = {
     Active: "active",
     Pending: "pending",
-    Cancelled: "complete",
-    Expired: "expired",
+    NonRenewing: "non-renewing",
+    Attention: "attention",
+    Completed: "completed",
+    Cancelled: "cancelled",
 } as const;
 
 export interface ISubscription {

@@ -18,10 +18,6 @@ export const findPaymentsByMatch = async (data: FilterQuery<IPayment>) => {
     return Payment.find(data);
 };
 
-export const findAllPayment = async () => {
-    return Payment.find().sort({ name: 1 });
-};
-
 export const findPaymentByIdAndUpdate = async (
     paymentId: string | Types.ObjectId,
     data: UpdateQuery<IPayment>
