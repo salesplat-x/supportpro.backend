@@ -46,7 +46,7 @@ export const verify = async (payload: {reference: string}) => {
     if (
         response.data.status === "success" &&
         response.data.currency === payment.currency &&
-        response.data.amount/100 >= payment.amount
+        response.data.amount >= payment.amount
     ) {
         await paymentRepository.findPaymentByIdAndUpdate(payment._id!, {
             status: PaymentStatus.Completed,
@@ -244,7 +244,7 @@ export const initiateTransaction = async (user: IUser, payload: { amount?: numbe
             return makeResponse(false, "You already have an active subscription for this plan.", {}, 409);
         }
 
-        payload.amount = plan.amount;
+        payload.amount = plan.paystackAmount;
         initialConfig = paystackService.generatePaymentObject(payload.amount, user.email, plan.paystackPlanCode);
     } else {
         if (!payload.amount) {
@@ -258,7 +258,6 @@ export const initiateTransaction = async (user: IUser, payload: { amount?: numbe
     // create payment
     await paymentRepository.createPayment({
         ...initialConfig,
-        amount: payload.amount,
         paymentLink: paymentResponse.data.authorization_url,
         reference,
         paystackRef: paymentResponse.data.reference,

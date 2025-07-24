@@ -8,6 +8,7 @@ export const asyncHandler =
     try {
       await cb(req, res);
     } catch (error: any) {
+      console.log(error)
       logger.logErrorToConsole(error);
       return res.status(500).json({
         status: false,

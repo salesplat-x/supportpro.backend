@@ -11,6 +11,10 @@ const planSchema = new Schema<IPlan>(
             type: Number,
             required: true,
         },
+        paystackAmount: {
+            type: Number,
+            required: true,
+        },
         interval: {
             type: String,
             enum: Object.values(BillingInterval),

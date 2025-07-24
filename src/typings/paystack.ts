@@ -21,6 +21,7 @@ export interface IPlanConfig {
     name: string;
     interval: TBillingInterval;
     amount: number;
+    monthlyAmount?: number;
     currency: string;
     description: string
 }

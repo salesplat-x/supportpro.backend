@@ -18,12 +18,13 @@ export const create = async (payload: IPlan) => {
         );
     }
 
-    const initialConfig = paystackService.generatePlanObject(payload);
-    const planResponse = await paystackService.createPlan(initialConfig);
+    const {monthlyAmount , ...paystackConfig} = paystackService.generatePlanObject(payload);
+    const planResponse = await paystackService.createPlan(paystackConfig);
 
     const plan = await repository.createPlan({
-        ...initialConfig,
-        amount: payload.amount,
+        ...paystackConfig,
+        amount: monthlyAmount,
+        paystackAmount: paystackConfig.amount,
         features: payload.features,
         paystackPlanCode: planResponse.data.plan_code
     });

@@ -9,7 +9,7 @@ import {
 } from "../../typings/paystack";
 import { createHmac } from "crypto";
 import { Request } from "express";
-import {IPlan} from "../../typings/plan";
+import {BillingInterval, IPlan} from "../../typings/plan";
 import {AtLeastOne} from "../../helpers/utils";
 
 export const initializePayment = async (
@@ -102,10 +102,15 @@ export const generatePaymentObject = (
 export const generatePlanObject = (
     plan: IPlan
 ): IPlanConfig => {
+    let amount = plan.amount * 100
+    if (plan.interval == BillingInterval.Annually) {
+        amount *= 12
+    }
     return {
         name: plan.name,
         interval: plan.interval,
-        amount: plan.amount * 100,
+        amount,
+        monthlyAmount: plan.amount * 100,
         currency: plan.currency,
         description: plan.description
     }

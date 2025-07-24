@@ -32,14 +32,14 @@ router.get(
 
 router.get(
     "/",
-    validateAccess([Roles.Admin]),
+    loginRequired,
     validate(subscriptionValidator.find, {body: true}),
     asyncHandler(subscription.fetchByMatch)
 )
 
 router.get(
     "/",
-    validateAccess([Roles.Admin]),
+    loginRequired,
     asyncHandler(subscription.fetch)
 );
 
