@@ -5,7 +5,8 @@ import {
     IPaystackConfig,
     IPaystackCreatePlanRes,
     IPlanConfig,
-    IPlanUpdateConfig, IPlanUpdateRes, ISubConfig, ISubCreateRes, ISubDisOrEnableConfig, ISubGenerateLinkRes
+    IPlanUpdateConfig, IPlanUpdateRes, ISubConfig, ISubCreateRes, ISubDisOrEnableConfig, ISubGenerateLinkRes,
+    ICreatePaystackCustomer
 } from "../../typings/paystack";
 import { createHmac } from "crypto";
 import { Request } from "express";
@@ -191,6 +192,32 @@ export const createSubscription = async (
             });
     });
 };
+
+export const createCustomer = async (
+    payload: ICreatePaystackCustomer
+): Promise<ISubCreateRes> => {
+    let config = {
+        method: "post",
+        url: `${env.paystackUrl}/customer`,
+        headers: {
+            Authorization: `Bearer ${env.paystackSecretKey}`,
+            "Content-Type": "application/json",
+            "cache-control": "no-cache",
+        },
+        data: payload,
+    };
+
+    return new Promise((resolve, reject) => {
+        axios(config)
+            .then((response) => {
+                return resolve(response.data);
+            })
+            .catch((error) => {
+                return reject(error);
+            });
+    });
+};
+
 export const enableSubscription = async (
     payload: ISubDisOrEnableConfig
 ): Promise<IPlanUpdateRes> => {

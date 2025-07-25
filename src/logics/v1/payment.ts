@@ -239,6 +239,8 @@ export const initiateTransaction = async (user: IUser, payload: { amount?: numbe
             return makeResponse(false, `Plan not found`, {}, 404);
         }
 
+        await paystackService.createCustomer({email: user.email})
+
         const alreadySubscribed = await hasRunningSubscription(user, plan.id);
         if (alreadySubscribed) {
             return makeResponse(false, "You already have an active subscription for this plan.", {}, 409);
