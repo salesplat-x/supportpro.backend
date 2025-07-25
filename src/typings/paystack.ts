@@ -33,6 +33,13 @@ export interface ISubConfig {
     start_date?: Date;
 }
 
+export interface ICreatePaystackCustomer {
+    email: string;
+    phone?: string;
+    first_name?: string;
+    last_name?: string;
+}
+
 export interface IPlanUpdateConfig {
     name?: string;
     interval?: TBillingInterval;
