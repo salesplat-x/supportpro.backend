@@ -84,8 +84,11 @@ export const generatePaymentObject = (
     plan?: string,
     currency = "NGN"
 ): IPaystackConfig => {
+    if (!plan) {
+        amount *= 100
+    }
     const config: IPaystackConfig = {
-        amount: amount * 100,
+        amount,
         email,
         currency,
         plan,
@@ -111,7 +114,7 @@ export const generatePlanObject = (
         name: plan.name,
         interval: plan.interval,
         amount,
-        monthlyAmount: plan.amount * 100,
+        monthlyAmount: plan.amount,
         currency: plan.currency,
         description: plan.description
     }
