@@ -18,6 +18,7 @@ import aiconfig from "./aiconfig";
 import payment from "./payment";
 import plan from "./plan";
 import subscription from "./subscription";
+import errorLogs from "./errorLogs";
 
 export default (router: Router) => {
   main(router);
@@ -37,5 +38,6 @@ export default (router: Router) => {
   organization(router);
   payment(router);
   plan(router);
-  subscription(router)
+  subscription(router);
+  errorLogs(router);
 };
