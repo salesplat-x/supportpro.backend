@@ -42,7 +42,6 @@ export const verify = async (payload: {reference: string}) => {
         return makeResponse(false, "Unable to verify payment!", {});
     }
 
-
     if (
         response.data.status === "success" &&
         response.data.currency === payment.currency &&
@@ -259,12 +258,13 @@ export const initiateTransaction = async (user: IUser, payload: { amount?: numbe
 
     // create payment
     await paymentRepository.createPayment({
-        ...initialConfig,
-        paymentLink: paymentResponse.data.authorization_url,
-        reference,
-        paystackRef: paymentResponse.data.reference,
-        user: user.id,
-        ...{ plan: plan ? plan.id : undefined }
+      ...initialConfig,
+      amount: initialConfig.amount / 100,
+      paymentLink: paymentResponse.data.authorization_url,
+      reference,
+      paystackRef: paymentResponse.data.reference,
+      user: user.id,
+      ...{ plan: plan ? plan.id : undefined },
     });
 
     return makeResponse(true, "Payment link generated", {

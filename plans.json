@@ -48,7 +48,7 @@
 
     {
       "name": "SME (Basic) Plan",
-      "amount": 1500000,
+      "amount": 120000,
       "currency": "NGN",
       "interval": "annually",
       "description": "Everything in SME (Basic) plan…",
@@ -63,7 +63,7 @@
     },
     {
       "name": "Growth Plan",
-      "amount": 5000000,
+      "amount": 400000,
       "currency": "NGN",
       "interval": "annually",
       "description": "Everything in Growth plan…",
@@ -77,7 +77,7 @@
     },
     {
       "name": "Enterprise Plan",
-      "amount": 1000000,
+      "amount": 800000,
       "currency": "NGN",
       "interval": "annually",
       "description": "Everything in Enterprise plan…",
