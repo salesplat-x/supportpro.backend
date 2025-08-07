@@ -20,8 +20,8 @@ export const job = Joi.object({
     experienceLevel: Joi.string()
       .required()
       .valid(...Object.values(ExperienceLevel)),
-    maxSalary: Joi.number().required(),
-    minSalary: Joi.number().less(Joi.ref("maxSalary")).required(),
+    maxSalary: Joi.number().max(100000000).min(0).required(),
+    minSalary: Joi.number().max(100000000).min(0).less(Joi.ref("maxSalary")).required(),
     //address: Joi.string().optional(),
     location: Joi.object({
       city: Joi.string().optional(),
@@ -51,8 +51,8 @@ export const updateJob = Joi.object({
     status: Joi.string()
       .optional()
       .valid(...Object.values(JobStatus)),
-    maxSalary: Joi.number().optional(),
-    minSalary: Joi.number().less(Joi.ref("maxSalary")).optional(),
+    maxSalary: Joi.number().max(100000000).min(0).optional(),
+    minSalary: Joi.number().max(100000000).min(0).less(Joi.ref("maxSalary")).optional(),
     //address: Joi.string().optional(),
     location: Joi.object({
       city: Joi.string().optional(),
@@ -129,8 +129,8 @@ export const jobQuery = Joi.object({
     experienceLevel: Joi.string()
       .valid(...Object.values(ExperienceLevel))
       .optional(),
-    maxSalary: Joi.number().optional(),
-    minSalary: Joi.number().optional(),
+    maxSalary: Joi.number().max(100000000).min(0).optional(),
+    minSalary: Joi.number().max(100000000).min(0).optional(),
     workMode: Joi.string()
       .valid(...Object.values(WorkMode))
       .optional(),

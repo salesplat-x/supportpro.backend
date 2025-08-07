@@ -49,7 +49,7 @@ export const login = Joi.object({
 
 export const profile = Joi.object({
   body: Joi.object({
-    bio: Joi.string().required(),
+    bio: Joi.string().max(1000).required(),
     cv: Joi.string().required(),
     experience: Joi.string()
       .valid(...Object.values(ExperienceLevel))
@@ -122,7 +122,7 @@ export const accountUpdate = Joi.object({
     firstName: Joi.string(),
     lastName: Joi.string(),
     phone: Joi.string().phoneNumber(),
-    bio: Joi.string(),
+    bio: Joi.string().max(1000),
     image: Joi.string(),
     street: Joi.string(),
     city: Joi.string(),
