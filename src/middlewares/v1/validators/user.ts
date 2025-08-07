@@ -1,4 +1,4 @@
-import Joi from "joi";
+import { Joi } from '../../../helpers/joi-extensions';
 import { ExperienceLevel } from "../../../typings/customs";
 import { FetchProfiles, IUser } from "../../../typings/user";
 import {
@@ -55,7 +55,7 @@ export const userId = Joi.object({
 }).required();
 
 export const userProfiles = Joi.object({
-  query: Joi.object<FetchProfiles>({
+  query: Joi.object({
     limit: Joi.number(),
     offset: Joi.number(),
     sort: Joi.string().valid("asc", "desc"),
@@ -84,12 +84,12 @@ export const applications = Joi.object({
 }).required();
 
 export const updateUser = Joi.object({
-  body: Joi.object<IUser>({
+  body: Joi.object({
     firstName: Joi.string().optional(),
     lastName: Joi.string().optional(),
     middleName: Joi.string().optional(),
     picture: Joi.string().optional(),
-    phone: Joi.string().optional(),
+    phone: Joi.string().phoneNumber().optional().label('Phone Number'),
   }),
   country: Joi.string().optional(),
 }).required();
