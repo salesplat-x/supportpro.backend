@@ -48,7 +48,8 @@ class Email {
       html,
     };
 
-    await this.newTransport().sendMail(mailOptions);
+    //@TODO switch to brevo
+    // await this.newTransport().sendMail(mailOptions);
   }
 
   async sendOtp(user: IUser, otp: string) {
