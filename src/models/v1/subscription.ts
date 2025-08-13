@@ -39,9 +39,31 @@ const subscriptionSchema = new Schema<ISubscription>(
             type: Date,
             required: false,
         },
+        expiryDate: {
+            type: Date,
+            required: false,
+        },
         cron_expression:{
             type: String,
             required: false
+        },
+        usage: {
+            jobListingsUsed: {
+                type: Number,
+                default: 0,
+            },
+            candidatesAccessed: {
+                type: Number,
+                default: 0,
+            },
+            aiTestsUsed: {
+                type: Number,
+                default: 0,
+            },
+            lastResetDate: {
+                type: Date,
+                default: Date.now,
+            },
         },
         history: [
             {
@@ -57,6 +79,10 @@ const subscriptionSchema = new Schema<ISubscription>(
                 date: {
                     type: Date,
                     default: Date.now,
+                },
+                action: {
+                    type: String,
+                    required: false,
                 },
             },
         ],

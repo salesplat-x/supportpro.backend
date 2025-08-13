@@ -1,4 +1,4 @@
-import Joi from "joi";
+import { Joi } from '../../../helpers/joi-extensions';
 import { ExperienceLevel } from "../../../typings/customs";
 import { FetchProfiles, IUser } from "../../../typings/user";
 import {
@@ -8,7 +8,7 @@ import {
 
 export const profile = Joi.object({
   body: Joi.object({
-    bio: Joi.string().required(),
+    bio: Joi.string().max(1000).required(),
     cv: Joi.string().required(),
     location: Joi.object({
       city: Joi.string().optional(),
@@ -21,15 +21,15 @@ export const profile = Joi.object({
     experience: Joi.string()
       .required()
       .valid(...Object.values(ExperienceLevel)),
-    maxSalary: Joi.number().required(),
-    minSalary: Joi.number().less(Joi.ref("maxSalary")).required(),
+    maxSalary: Joi.number().max(100000000).min(0).required(),
+    minSalary: Joi.number().max(100000000).min(0).less(Joi.ref("maxSalary")).required(),
     role: Joi.array().items(Joi.string()),
   }),
 }).required();
 
 export const updateProfile = Joi.object({
   body: Joi.object({
-    bio: Joi.string().optional(),
+    bio: Joi.string().max(1000).optional(),
     cv: Joi.string().optional(),
     remote: Joi.boolean().required(),
     onSite: Joi.boolean().required(),
@@ -42,8 +42,8 @@ export const updateProfile = Joi.object({
     experience: Joi.string()
       .optional()
       .valid(...Object.values(ExperienceLevel)),
-    maxSalary: Joi.number().optional(),
-    minSalary: Joi.number().less(Joi.ref("maxSalary")).optional(),
+    maxSalary: Joi.number().max(100000000).min(0).optional(),
+    minSalary: Joi.number().max(100000000).min(0).less(Joi.ref("maxSalary")).optional(),
     role: Joi.array().items(Joi.string()),
   }),
 }).required();
@@ -55,7 +55,7 @@ export const userId = Joi.object({
 }).required();
 
 export const userProfiles = Joi.object({
-  query: Joi.object<FetchProfiles>({
+  query: Joi.object({
     limit: Joi.number(),
     offset: Joi.number(),
     sort: Joi.string().valid("asc", "desc"),
@@ -64,7 +64,7 @@ export const userProfiles = Joi.object({
       .valid(...Object.values(ExperienceLevel))
       .optional(),
     minScore: Joi.number().max(99).min(0).optional(),
-    maxSalary: Joi.number().optional(),
+    maxSalary: Joi.number().max(100000000).min(0).optional(),
     incomplete: Joi.boolean().optional(),
   }),
 }).required();
@@ -84,12 +84,12 @@ export const applications = Joi.object({
 }).required();
 
 export const updateUser = Joi.object({
-  body: Joi.object<IUser>({
+  body: Joi.object({
     firstName: Joi.string().optional(),
     lastName: Joi.string().optional(),
     middleName: Joi.string().optional(),
     picture: Joi.string().optional(),
-    phone: Joi.string().optional(),
+    phone: Joi.string().phoneNumber().optional().label('Phone Number'),
   }),
   country: Joi.string().optional(),
 }).required();

@@ -1,4 +1,4 @@
-import Joi from "joi";
+import { Joi } from '../../../helpers/joi-extensions';
 import { ExperienceLevel } from "../../../typings/customs";
 
 export const register = Joi.object({
@@ -7,7 +7,11 @@ export const register = Joi.object({
     firstName: Joi.string().required(),
     lastName: Joi.string().required(),
     middleName: Joi.string().optional(),
-    phone: Joi.string().optional(),
+    phone: Joi.string()
+      // Validates international phone numbers starting with + followed by 7-15 digits.
+      .phoneNumber()
+      .optional()
+      .label('Phone Number'),
     password: Joi.string()
       .min(8)
       .pattern(
@@ -45,7 +49,7 @@ export const login = Joi.object({
 
 export const profile = Joi.object({
   body: Joi.object({
-    bio: Joi.string().required(),
+    bio: Joi.string().max(1000).required(),
     cv: Joi.string().required(),
     experience: Joi.string()
       .valid(...Object.values(ExperienceLevel))
@@ -117,8 +121,8 @@ export const accountUpdate = Joi.object({
     email: Joi.string().email(),
     firstName: Joi.string(),
     lastName: Joi.string(),
-    phone: Joi.string(),
-    bio: Joi.string(),
+    phone: Joi.string().phoneNumber(),
+    bio: Joi.string().max(1000),
     image: Joi.string(),
     street: Joi.string(),
     city: Joi.string(),
