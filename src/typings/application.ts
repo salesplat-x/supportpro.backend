@@ -4,43 +4,6 @@ import { IUser } from "./user";
 import { IJob } from "./job";
 import { Paging } from "./customs";
 
-/**
- * @openapi
- * components:
- *   schemas:
- *     IApplication:
- *       type: object
- *       properties:
- *         _id:
- *           type: string
- *         job:
- *           $ref: '#/components/schemas/IJob'
- *         role:
- *           $ref: '#/components/schemas/IRole'
- *         talent:
- *           $ref: '#/components/schemas/IUser'
- *         recruiter:
- *           $ref: '#/components/schemas/IUser'
- *         applicationType:
- *           type: string
- *           enum: ["by invitation", "by application"]
- *         personalizedScore:
- *           type: number
- *         cvSimilarityScore:
- *           type: number
- *         rank:
- *           type: number
- *         averageScore:
- *           type: number
- *         mbtiType:
- *           type: string
- *         status:
- *           type: string
- *           enum: [pending, retake_assessment, not_proceeding, shortlisted, rejected]
- *         currentStage:
- *           type: string
- *           enum: [prescreening, cv_similarity, personalized, personality, completed]
- */
 export interface IApplication extends Document {
   _id: unknown;
   job: string | Types.ObjectId | IJob;
