@@ -8,6 +8,7 @@ import cors from "cors";
 import helmet from "helmet";
 import path from "path";
 import { setupPostgresDB } from "./repository/v1/pg";
+import swaggerDocs from "./swagger";
 
 const PORT = env.port;
 
@@ -24,6 +25,8 @@ export default async function startApplication(app: Application): Promise<void> 
       },
     })
   );
+
+  swaggerDocs(app, PORT)
 
   // Serve uploaded files statically
   app.use("/uploads", express.static(path.join(__dirname, "../uploads")));

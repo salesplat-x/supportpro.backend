@@ -6,13 +6,20 @@
   "scripts": {
     "start": "node ./dist/app.js",
     "start:build": "npm run build && npm start",
-    "dev": "npx nodemon",
+    "dev": "npx ts-node generate-swagger.ts && npx nodemon",
     "build": "rimraf ./build && tsc"
   },
   "keywords": [],
   "author": "ojokukufolahanmi@gmail.com",
   "license": "ISC",
   "dependencies": {
+    "@babel/parser": "^7.28.5",
+    "@babel/traverse": "^7.28.5",
+    "@babel/types": "^7.28.5",
+    "@types/glob": "^8.1.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/swagger-jsdoc": "^6.0.4",
+    "@types/swagger-ui-express": "^4.1.8",
     "@types/uuid": "^9.0.8",
     "axios": "^1.9.0",
     "bcrypt": "^5.1.1",
@@ -20,10 +27,13 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.4",
     "express": "^4.18.2",
+    "fs-extra": "^11.3.2",
+    "glob": "^11.0.3",
     "google-libphonenumber": "^3.2.42",
     "handlebars": "^4.7.8",
     "helmet": "^7.1.0",
     "joi": "^17.12.1",
+    "js-yaml": "^4.1.0",
     "jsonwebtoken": "^9.0.2",
     "mammoth": "^1.7.2",
     "mongoose": "^8.1.2",
@@ -33,10 +43,13 @@
     "openai": "^4.45.0",
     "pdf-parse": "^1.1.1",
     "pg": "^8.11.5",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
     "uuid": "^9.0.1",
     "winston": "^3.11.0"
   },
   "devDependencies": {
+    "@types/babel__traverse": "^7.28.0",
     "@types/bcrypt": "^5.0.2",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
@@ -51,6 +64,6 @@
     "nodemon": "^3.0.3",
     "rimraf": "^5.0.5",
     "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.9.3"
   }
 }

@@ -112,9 +112,7 @@ export const allJobs = Joi.object({
     city: Joi.string().optional(),
     state: Joi.string().optional(),
     country: Joi.string().optional(),
-    workMode: Joi.string()
-      .valid(...Object.values(WorkMode))
-      .optional(),
+    workMode: Joi.string().optional(),
     postedBy: Joi.string().optional(),
 
     limit: Joi.number(),

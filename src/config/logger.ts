@@ -12,7 +12,7 @@ const colors: { [key: string]: string } = {
   error: "red",
   warn: "yellow",
   info: "green",
-  http: "magenta",
+  http: "white",
   debug: "orange",
 };
 

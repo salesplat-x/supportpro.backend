@@ -14,6 +14,7 @@ import {
   JobStatus,
   MatchJob,
   TopTalents,
+  WorkMode,
 } from "../../typings/job";
 import mongoose, { Types, PipelineStage, FilterQuery } from "mongoose";
 import { IRole } from "../../typings/role";
@@ -190,7 +191,15 @@ export const fetchAllJobs = async (payload: FetchJobs) => {
     query["location.country"] = payload.country.toLowerCase();
   }
   if (payload.workMode) {
-    query.workMode = payload.workMode;
+    const workModes = payload.workMode.split(',').map(mode => mode.trim());
+    const allowedWorkModes = Object.values(WorkMode);
+    
+    for (const mode of workModes) {
+      if (!allowedWorkModes.includes(mode as any)) {
+        return makeResponse(false, `Invalid workMode: '${mode}'`, {}, 400);
+      }
+    }
+    query.workMode = workModes;
   }
   jobs = await jobRepository.findAllJobs(query, payload);
   return makeResponse(true, "Jobs fetched successfully", jobs, 200);
