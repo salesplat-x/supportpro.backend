@@ -27,11 +27,11 @@ import {glob} from "glob";
 import * as parser from "@babel/parser";
 import traverse from "@babel/traverse";
 import yaml from "js-yaml";
-import Joi from "joi";
 
 const ROUTES_DIR = process.env.ROUTES_DIR || path.join(process.cwd(), "src/routes/v1");
 const OUT_FILE = path.join(process.cwd(), "swagger.yaml");
-const SERVER_URL = process.env.BASE_URL || "http://localhost:8003/v1";
+const SERVER_URL = process.env.BASE_URL || "https://backend.auxhr.com/v1";
+console.log(SERVER_URL)
 
 // Type definitions
 interface JoiDescribe {
