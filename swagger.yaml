@@ -1,0 +1,2596 @@
+openapi: 3.0.3
+info:
+  title: Auto-generated API
+  description: Generated from Express route files and Joi validators
+  version: 1.0.0
+servers:
+  - url: http://localhost:8003/v1
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas: {}
+paths:
+  /user/profile:
+    post:
+      summary: ''
+      tags:
+        - user
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bio:
+                  type: string
+                cv:
+                  type: string
+                location:
+                  type: object
+                  properties:
+                    city:
+                      type: string
+                    state:
+                      type: string
+                    country:
+                      type: string
+                  required:
+                    - state
+                    - country
+                remote:
+                  type: boolean
+                onSite:
+                  type: boolean
+                hybrid:
+                  type: boolean
+                experience:
+                  type: string
+                  enum:
+                    - 1-3 years
+                    - 4-6 years
+                    - 7-10 years
+                    - 11-15 years
+                    - 16 years and above
+                maxSalary:
+                  type: number
+                minSalary:
+                  type: number
+                role:
+                  type: array
+                  items:
+                    type: string
+              required:
+                - bio
+                - cv
+                - location
+                - remote
+                - onSite
+                - hybrid
+                - experience
+                - maxSalary
+                - minSalary
+      security:
+        - bearerAuth: []
+    patch:
+      summary: ''
+      tags:
+        - user
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bio:
+                  type: string
+                cv:
+                  type: string
+                remote:
+                  type: boolean
+                onSite:
+                  type: boolean
+                hybrid:
+                  type: boolean
+                location:
+                  type: object
+                  properties:
+                    city:
+                      type: string
+                    state:
+                      type: string
+                    country:
+                      type: string
+                  required:
+                    - state
+                    - country
+                experience:
+                  type: string
+                  enum:
+                    - 1-3 years
+                    - 4-6 years
+                    - 7-10 years
+                    - 11-15 years
+                    - 16 years and above
+                maxSalary:
+                  type: number
+                minSalary:
+                  type: number
+                role:
+                  type: array
+                  items:
+                    type: string
+              required:
+                - remote
+                - onSite
+                - hybrid
+      security:
+        - bearerAuth: []
+  /user/me:
+    patch:
+      summary: ''
+      tags:
+        - user
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstName:
+                  type: string
+                lastName:
+                  type: string
+                middleName:
+                  type: string
+                picture:
+                  type: string
+                phone:
+                  type: string
+    get:
+      summary: ''
+      tags:
+        - user
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /user/profile/:
+    get:
+      summary: ''
+      tags:
+        - user
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+        - name: roleId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: experience
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - 1-3 years
+              - 4-6 years
+              - 7-10 years
+              - 11-15 years
+              - 16 years and above
+        - name: minScore
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: maxSalary
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: incomplete
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+  /user/profile/{_id}:
+    get:
+      summary: ''
+      tags:
+        - user
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+  /user/applications:
+    get:
+      summary: ''
+      tags:
+        - user
+      parameters:
+        - name: applicationType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - by invitation
+              - by application
+        - name: applicationStatus
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - pending
+              - retake_assessment
+              - not_proceeding
+              - shortlisted
+              - rejected
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+  /uploads/:
+    post:
+      summary: ''
+      tags:
+        - uploads
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /uploads/local:
+    post:
+      summary: ''
+      tags:
+        - uploads
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /subscriptions/enable/{id}:
+    get:
+      summary: ''
+      tags:
+        - subscriptions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /subscriptions/disable/{id}:
+    get:
+      summary: ''
+      tags:
+        - subscriptions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /subscriptions/{id}:
+    get:
+      summary: ''
+      tags:
+        - subscriptions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /subscriptions/:
+    get:
+      summary: ''
+      tags:
+        - subscriptions
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /scout/jobs/:
+    post:
+      summary: ''
+      tags:
+        - scout
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  type: string
+                jobBrief:
+                  type: string
+                name:
+                  type: string
+                recruiterGuide:
+                  type: string
+              required:
+                - role
+                - jobBrief
+                - name
+                - recruiterGuide
+      security:
+        - bearerAuth: []
+  /scout/jobs/{_id}:
+    put:
+      summary: ''
+      tags:
+        - scout
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+    get:
+      summary: ''
+      tags:
+        - scout
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+  /scout/{scoutJobId}/talents:
+    get:
+      summary: ''
+      tags:
+        - scout
+      parameters:
+        - name: scoutJobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+  /scout/batch/{id}:
+    get:
+      summary: ''
+      tags:
+        - scout
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+  /scout/single/{id}:
+    get:
+      summary: ''
+      tags:
+        - scout
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+  /scout/cv-and-cover-letter:
+    post:
+      summary: ''
+      tags:
+        - scout
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+  /scout/cv:
+    post:
+      summary: ''
+      tags:
+        - scout
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+  /roles/:
+    post:
+      summary: ''
+      tags:
+        - roles
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+              required:
+                - name
+                - description
+      security:
+        - bearerAuth: []
+    get:
+      summary: ''
+      tags:
+        - roles
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /roles/{_id}:
+    get:
+      summary: ''
+      tags:
+        - roles
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /roles/{_id}/questions:
+    get:
+      summary: ''
+      tags:
+        - roles
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /recruiter/shortlist:
+    get:
+      summary: ''
+      tags:
+        - recruiter
+      parameters:
+        - name: roleId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: experienceLevel
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - 1-3 years
+              - 4-6 years
+              - 7-10 years
+              - 11-15 years
+              - 16 years and above
+        - name: job
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+  /recruiter/dashboard:
+    get:
+      summary: ''
+      tags:
+        - recruiter
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+  /recruiter/applications:
+    get:
+      summary: ''
+      tags:
+        - recruiter
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+  /recruiter/compilations:
+    get:
+      summary: ''
+      tags:
+        - recruiter
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+  /questions/:
+    post:
+      summary: ''
+      tags:
+        - questions
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  type: string
+                question:
+                  type: string
+                category:
+                  type: string
+                criteria:
+                  type: string
+              required:
+                - role
+                - question
+                - category
+                - criteria
+      security:
+        - bearerAuth: []
+    get:
+      summary: ''
+      tags:
+        - questions
+      parameters:
+        - name: questionType
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - prescreening
+              - personality
+              - personalized
+        - name: jobId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: roleId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: talentId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /questions/personalized:
+    post:
+      summary: ''
+      tags:
+        - questions
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                jobId:
+                  type: string
+                talentId:
+                  type: string
+                recruiterGuide:
+                  type: array
+                  items:
+                    type: string
+              required:
+                - jobId
+                - talentId
+      security:
+        - bearerAuth: []
+  /questions/personality:
+    post:
+      summary: ''
+      tags:
+        - questions
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                jobId:
+                  type: string
+                dichotomyPair:
+                  type: string
+                  enum:
+                    - EI
+                    - SN
+                    - TF
+                    - JP
+              required:
+                - jobId
+                - dichotomyPair
+      security:
+        - bearerAuth: []
+  /questions/answer/prescreening:
+    post:
+      summary: ''
+      tags:
+        - questions
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                roleId:
+                  type: string
+                answers:
+                  type: object
+              required:
+                - roleId
+                - answers
+      security:
+        - bearerAuth: []
+  /questions/answer/personality:
+    post:
+      summary: ''
+      tags:
+        - questions
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                jobId:
+                  type: string
+                answers:
+                  type: object
+              required:
+                - jobId
+                - answers
+      security:
+        - bearerAuth: []
+  /questions/answer/personalized:
+    post:
+      summary: ''
+      tags:
+        - questions
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                jobId:
+                  type: string
+                answers:
+                  type: object
+              required:
+                - jobId
+                - answers
+      security:
+        - bearerAuth: []
+  /questions/{_id}:
+    get:
+      summary: ''
+      tags:
+        - questions
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /plans/:
+    post:
+      summary: ''
+      tags:
+        - plans
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                amount:
+                  type: number
+                interval:
+                  type: string
+                  enum:
+                    - monthly
+                    - annually
+                paystackPlanCode:
+                  type: string
+                currency:
+                  type: string
+                  enum:
+                    - NGN
+                    - USD
+                description:
+                  type: string
+                features:
+                  type: array
+                  items:
+                    type: string
+              required:
+                - name
+                - amount
+                - interval
+                - currency
+                - description
+      security:
+        - bearerAuth: []
+    get:
+      summary: ''
+      tags:
+        - plans
+      parameters:
+        - name: interval
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - monthly
+              - annually
+        - name: currency
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - NGN
+              - USD
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /plans/{_id}:
+    patch:
+      summary: ''
+      tags:
+        - plans
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                interval:
+                  type: string
+                  enum:
+                    - monthly
+                    - annually
+                amount:
+                  type: number
+                currency:
+                  type: string
+                  enum:
+                    - NGN
+                    - USD
+                description:
+                  type: string
+                features:
+                  type: array
+                  items:
+                    type: string
+      security:
+        - bearerAuth: []
+  /plans/{id}:
+    delete:
+      summary: ''
+      tags:
+        - plans
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+    get:
+      summary: ''
+      tags:
+        - plans
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /payments/:
+    post:
+      summary: ''
+      tags:
+        - payments
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+    get:
+      summary: ''
+      tags:
+        - payments
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /payments/verify:
+    post:
+      summary: ''
+      tags:
+        - payments
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /payments/dwhdbwnmdn229dnjkdnn83/webhook:
+    post:
+      summary: ''
+      tags:
+        - payments
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /organizations/:
+    post:
+      summary: ''
+      tags:
+        - organizations
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                name:
+                  type: string
+                phone:
+                  type: string
+                website:
+                  type: string
+                address:
+                  type: string
+                industry:
+                  type: string
+                twitter:
+                  type: string
+                linkedin:
+                  type: string
+                facebook:
+                  type: string
+              required:
+                - email
+                - name
+                - phone
+                - website
+                - address
+      security:
+        - bearerAuth: []
+  /notifications/:
+    post:
+      summary: ''
+      tags:
+        - notifications
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+    get:
+      summary: ''
+      tags:
+        - notifications
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /notifications/{id}:
+    get:
+      summary: ''
+      tags:
+        - notifications
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+    delete:
+      summary: ''
+      tags:
+        - notifications
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /messages/broadcast:
+    post:
+      summary: ''
+      tags:
+        - messages
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                application:
+                  type: string
+                content:
+                  type: string
+              required:
+                - application
+                - content
+      security:
+        - bearerAuth: []
+  /messages/{id}:
+    patch:
+      summary: ''
+      tags:
+        - messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                acknowledge:
+                  type: boolean
+              required:
+                - acknowledge
+      security:
+        - bearerAuth: []
+    get:
+      summary: ''
+      tags:
+        - messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /messages/:
+    post:
+      summary: ''
+      tags:
+        - messages
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                application:
+                  type: string
+                content:
+                  type: string
+                recipient:
+                  type: string
+              required:
+                - content
+                - recipient
+    get:
+      summary: ''
+      tags:
+        - messages
+      parameters:
+        - name: application
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /:
+    all:
+      summary: ''
+      tags:
+        - default
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /jobs/:
+    post:
+      summary: ''
+      tags:
+        - jobs
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  type: string
+                aiConfig:
+                  type: string
+                jobBrief:
+                  type: string
+                experienceLevel:
+                  type: string
+                  enum:
+                    - 1-3 years
+                    - 4-6 years
+                    - 7-10 years
+                    - 11-15 years
+                    - 16 years and above
+                maxSalary:
+                  type: number
+                minSalary:
+                  type: number
+                location:
+                  type: object
+                  properties:
+                    city:
+                      type: string
+                    state:
+                      type: string
+                    country:
+                      type: string
+                  required:
+                    - state
+                    - country
+                workMode:
+                  type: string
+                  enum:
+                    - remote
+                    - onSite
+                    - hybrid
+                requirements:
+                  type: string
+                skills:
+                  type: array
+                  items:
+                    type: string
+                goals:
+                  type: array
+                  items:
+                    type: string
+              required:
+                - role
+                - jobBrief
+                - experienceLevel
+                - maxSalary
+                - minSalary
+      security:
+        - bearerAuth: []
+    get:
+      summary: ''
+      tags:
+        - jobs
+      parameters:
+        - name: roleId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: experienceLevel
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - 1-3 years
+              - 4-6 years
+              - 7-10 years
+              - 11-15 years
+              - 16 years and above
+        - name: city
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: country
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: workMode
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: postedBy
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /jobs/{_id}:
+    patch:
+      summary: ''
+      tags:
+        - jobs
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                aiConfig:
+                  type: string
+                jobBrief:
+                  type: string
+                experienceLevel:
+                  type: string
+                  enum:
+                    - 1-3 years
+                    - 4-6 years
+                    - 7-10 years
+                    - 11-15 years
+                    - 16 years and above
+                status:
+                  type: string
+                  enum:
+                    - active
+                    - suspended
+                    - closed
+                maxSalary:
+                  type: number
+                minSalary:
+                  type: number
+                location:
+                  type: object
+                  properties:
+                    city:
+                      type: string
+                    state:
+                      type: string
+                    country:
+                      type: string
+                  required:
+                    - state
+                    - country
+                workMode:
+                  type: string
+                  enum:
+                    - remote
+                    - onSite
+                    - hybrid
+                requirements:
+                  type: string
+                skills:
+                  type: array
+                  items:
+                    type: string
+                goals:
+                  type: array
+                  items:
+                    type: string
+      security:
+        - bearerAuth: []
+    get:
+      summary: ''
+      tags:
+        - jobs
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /jobs/me:
+    get:
+      summary: ''
+      tags:
+        - jobs
+      parameters:
+        - name: roleId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: experienceLevel
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - 1-3 years
+              - 4-6 years
+              - 7-10 years
+              - 11-15 years
+              - 16 years and above
+        - name: city
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: country
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: workMode
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: postedBy
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+  /jobs/talents/{jobId}:
+    get:
+      summary: ''
+      tags:
+        - jobs
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: percentage
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+  /jobs/cv-similarity/{jobId}:
+    patch:
+      summary: ''
+      tags:
+        - jobs
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+  /jobs/match/{_id}:
+    get:
+      summary: ''
+      tags:
+        - jobs
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: incomplete
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+  /jobs/applications/{jobId}:
+    patch:
+      summary: ''
+      tags:
+        - jobs
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+    get:
+      summary: ''
+      tags:
+        - jobs
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: experience
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: minCvSimilarityScore
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: minPersonalizedScore
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: applicationType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - by invitation
+              - by application
+        - name: applicationStatus
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - pending
+              - retake_assessment
+              - not_proceeding
+              - shortlisted
+              - rejected
+        - name: maxSalary
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: skip
+          in: query
+          required: false
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+  /error-logs/:
+    get:
+      summary: ''
+      tags:
+        - error-logs
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /error-logs/stats:
+    get:
+      summary: ''
+      tags:
+        - error-logs
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /error-logs/{requestId}/resolve:
+    patch:
+      summary: ''
+      tags:
+        - error-logs
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /error-logs/cleanup:
+    delete:
+      summary: ''
+      tags:
+        - error-logs
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /conversations/:
+    get:
+      summary: ''
+      tags:
+        - conversations
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /conversations/{id}/messages:
+    get:
+      summary: ''
+      tags:
+        - conversations
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /conversations/{id}:
+    get:
+      summary: ''
+      tags:
+        - conversations
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /auth/register:
+    post:
+      summary: ''
+      tags:
+        - auth
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                firstName:
+                  type: string
+                lastName:
+                  type: string
+                middleName:
+                  type: string
+                phone:
+                  type: string
+                password:
+                  type: string
+              required:
+                - email
+                - firstName
+                - lastName
+                - password
+  /auth/register/recruiter:
+    post:
+      summary: ''
+      tags:
+        - auth
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                firstName:
+                  type: string
+                lastName:
+                  type: string
+                middleName:
+                  type: string
+                phone:
+                  type: string
+                password:
+                  type: string
+              required:
+                - email
+                - firstName
+                - lastName
+                - password
+  /auth/resend-otp:
+    post:
+      summary: ''
+      tags:
+        - auth
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+              required:
+                - email
+  /auth/verify-email:
+    post:
+      summary: ''
+      tags:
+        - auth
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                otp:
+                  type: string
+              required:
+                - email
+                - otp
+  /auth/login:
+    post:
+      summary: ''
+      tags:
+        - auth
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+              required:
+                - email
+                - password
+  /auth/forgot-password:
+    post:
+      summary: ''
+      tags:
+        - auth
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+              required:
+                - email
+  /auth/reset-password:
+    post:
+      summary: ''
+      tags:
+        - auth
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                otp:
+                  type: string
+              required:
+                - email
+                - password
+                - otp
+  /auth/change-password:
+    post:
+      summary: ''
+      tags:
+        - auth
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                newPassword:
+                  type: string
+                oldPassword:
+                  type: string
+              required:
+                - newPassword
+                - oldPassword
+  /applications/:
+    get:
+      summary: ''
+      tags:
+        - applications
+      parameters:
+        - name: roleId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: experienceLevel
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - 1-3 years
+              - 4-6 years
+              - 7-10 years
+              - 11-15 years
+              - 16 years and above
+        - name: job
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /applications/{_id}:
+    get:
+      summary: ''
+      tags:
+        - applications
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+  /applications/{_id}/status:
+    patch:
+      summary: ''
+      tags:
+        - applications
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum:
+                    - rejected
+                    - shortlisted
+              required:
+                - status
+      security:
+        - bearerAuth: []
+  /ai-config/:
+    post:
+      summary: ''
+      tags:
+        - ai-config
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                jobId:
+                  type: string
+                name:
+                  type: string
+                prescreeningAssessment:
+                  type: boolean
+                minPrescreeningScore:
+                  type: number
+                cvSimilarity:
+                  type: boolean
+                minCvSimilarityScore:
+                  type: number
+                noOfCvSimilarCandidates:
+                  type: number
+                personalizedAssessment:
+                  type: boolean
+                noPersonalizedQuestions:
+                  type: number
+                personalityEvaluation:
+                  type: boolean
+                uploadedQuestions:
+                  type: array
+                  items:
+                    type: string
+                recruiterGuide:
+                  type: string
+              required:
+                - jobId
+                - name
+                - prescreeningAssessment
+                - cvSimilarity
+                - personalizedAssessment
+                - personalityEvaluation
+      security:
+        - bearerAuth: []
+    get:
+      summary: ''
+      tags:
+        - ai-config
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+  /ai-config/{_id}:
+    get:
+      summary: ''
+      tags:
+        - ai-config
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []
+    patch:
+      summary: ''
+      tags:
+        - ai-config
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                prescreeningAssessment:
+                  type: boolean
+                minPrescreeningScore:
+                  type: number
+                cvSimilarity:
+                  type: boolean
+                minCvSimilarityScore:
+                  type: number
+                noOfCvSimilarCandidates:
+                  type: number
+                personalizedAssessment:
+                  type: boolean
+                noPersonalizedQuestions:
+                  type: number
+                personalityEvaluation:
+                  type: boolean
+                uploadedQuestions:
+                  type: string
+                recruiterGuide:
+                  type: string
+      security:
+        - bearerAuth: []
+    delete:
+      summary: ''
+      tags:
+        - ai-config
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - bearerAuth: []

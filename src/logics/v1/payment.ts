@@ -16,7 +16,6 @@ import { hasRunningSubscription } from "./subscription";
 
 export const paymentRecords = async (user: IUser) => {
     const payments = await paymentRepository.findPaymentsByMatch({user: user.id});
-
     return makeResponse(true, "Payment history fetched", {payments});
 };
 

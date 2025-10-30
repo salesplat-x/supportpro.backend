@@ -16,6 +16,11 @@ export const findJobById = async (
 };
 
 export const findAllJobs = async (match: Partial<IJob>, paging: Paging = {}) => {
+  const query: any = { ...match };
+
+  if (Array.isArray(query.workMode)) {
+    query.workMode = { $in: query.workMode };
+  }
   return await Job.find(match)
     .sort({ updatedAt: func.sortDirection(paging.sort!) || Page.Sort })
     .skip(Number(paging.offset) || Page.Offset)

@@ -1,6 +1,3 @@
-// import dotenv from "dotenv";
-
-// dotenv.config();
 const validEnvs = ["dev", "production", "staging", "test"] as const;
 type AppEnv = (typeof validEnvs)[number];
 

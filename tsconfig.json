@@ -29,5 +29,6 @@
     //   "@version/*": ["./src/version/*"]
     // }
   },
-  "include": ["src/**/*.json", "src/**/*.ts", "src/**/*.tsx"]
+  "include": ["src/**/*.json", "src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["generate-swagger.js"]
 }
