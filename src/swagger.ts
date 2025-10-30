@@ -26,9 +26,9 @@ function loadSwaggerSpec():swaggerUi.JsonObject | null {
 const swaggerSpec = loadSwaggerSpec();
 
 function swaggerDocs(app: Application, port: number){
-    app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
+    app.use('v1/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
 
-    app.get('/docs.json', (req: Request, res: Response) =>{
+    app.get('v1/docs.json', (req: Request, res: Response) =>{
         res.setHeader('Content-Type', 'application/json')
         res.send(swaggerSpec)
     });
