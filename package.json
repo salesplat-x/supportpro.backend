@@ -4,10 +4,10 @@
   "description": "Backend server for SupportPro",
   "main": "index.js",
   "scripts": {
-    "start": "node ./dist/app.js",
-    "start:build": "npm run build && npm start",
+    "start": "npx ts-node generate-swagger.ts && node ./dist/app.js",
+    "start:build": "npx ts-node generate-swagger.ts && npm run build && npm start",
     "dev": "npx ts-node generate-swagger.ts && npx nodemon",
-    "build": "rimraf ./build && tsc"
+    "build": "npx ts-node generate-swagger.ts && rimraf ./build && tsc"
   },
   "keywords": [],
   "author": "ojokukufolahanmi@gmail.com",
