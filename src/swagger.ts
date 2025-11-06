@@ -35,14 +35,15 @@ function swaggerDocs(app: Application, port: number){
     if (!swaggerSpec) {
       return res.status(500).send("Swagger spec not available");
     }
-    // swaggerUi.setup(...) returns a handler (req,res,next) => {...}
-    // call it directly so it uses the freshly loaded spec
     return swaggerUi.setup(swaggerSpec)(req, res, next);
   });
 
     app.get('/v1/docs.json', (req: Request, res: Response) =>{
         const swaggerSpec = loadSwaggerSpec();
-        res.setHeader('Content-Type', 'application/json')
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+        res.setHeader("Pragma", "no-cache");
+        res.setHeader("Expires", "0");
         res.send(swaggerSpec)
     });
     logger.log(`Docs available at http://localhost:${port}/v1/docs`)
