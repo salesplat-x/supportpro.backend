@@ -4,7 +4,7 @@ info:
   description: Generated from Express route files and Joi validators
   version: 1.0.0
 servers:
-  - url: https://backend.auxhr.com/v1
+  - url: http://localhost:8003/v1
 components:
   securitySchemes:
     bearerAuth:
@@ -15,7 +15,7 @@ components:
 paths:
   /user/profile:
     post:
-      summary: ''
+      summary: Talent
       tags:
         - user
       parameters: []
@@ -84,7 +84,7 @@ paths:
       security:
         - bearerAuth: []
     patch:
-      summary: ''
+      summary: Talent
       tags:
         - user
       parameters: []
@@ -176,6 +176,8 @@ paths:
                   type: string
                 phone:
                   type: string
+      security:
+        - bearerAuth: []
     get:
       summary: ''
       tags:
@@ -188,9 +190,11 @@ paths:
             application/json:
               schema:
                 type: object
+      security:
+        - bearerAuth: []
   /user/profile/:
     get:
-      summary: ''
+      summary: Admin, Recruiter
       tags:
         - user
       parameters:
@@ -254,7 +258,7 @@ paths:
         - bearerAuth: []
   /user/profile/{_id}:
     get:
-      summary: ''
+      summary: Admin, Recruiter
       tags:
         - user
       parameters:
@@ -274,7 +278,7 @@ paths:
         - bearerAuth: []
   /user/applications:
     get:
-      summary: ''
+      summary: Talent
       tags:
         - user
       parameters:
@@ -337,6 +341,17 @@ paths:
             application/json:
               schema:
                 type: object
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      security:
+        - bearerAuth: []
   /uploads/local:
     post:
       summary: ''
@@ -350,6 +365,17 @@ paths:
             application/json:
               schema:
                 type: object
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      security:
+        - bearerAuth: []
   /subscriptions/enable/{id}:
     get:
       summary: ''
@@ -368,6 +394,8 @@ paths:
             application/json:
               schema:
                 type: object
+      security:
+        - bearerAuth: []
   /subscriptions/disable/{id}:
     get:
       summary: ''
@@ -386,6 +414,8 @@ paths:
             application/json:
               schema:
                 type: object
+      security:
+        - bearerAuth: []
   /subscriptions/{id}:
     get:
       summary: ''
@@ -404,7 +434,34 @@ paths:
             application/json:
               schema:
                 type: object
+      security:
+        - bearerAuth: []
   /subscriptions/:
+    post:
+      summary: ''
+      tags:
+        - subscriptions
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user:
+                  type: object
+                plan:
+                  type: object
+      security:
+        - bearerAuth: []
     get:
       summary: ''
       tags:
@@ -417,9 +474,11 @@ paths:
             application/json:
               schema:
                 type: object
+      security:
+        - bearerAuth: []
   /scout/jobs/:
     post:
-      summary: ''
+      summary: Recruiter
       tags:
         - scout
       parameters: []
@@ -454,7 +513,7 @@ paths:
         - bearerAuth: []
   /scout/jobs/{_id}:
     put:
-      summary: ''
+      summary: Recruiter
       tags:
         - scout
       parameters:
@@ -473,7 +532,7 @@ paths:
       security:
         - bearerAuth: []
     get:
-      summary: ''
+      summary: Recruiter
       tags:
         - scout
       parameters:
@@ -493,7 +552,7 @@ paths:
         - bearerAuth: []
   /scout/{scoutJobId}/talents:
     get:
-      summary: ''
+      summary: Recruiter, Admin
       tags:
         - scout
       parameters:
@@ -502,6 +561,64 @@ paths:
           required: true
           schema:
             type: string
+        - name: roleId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: experience
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - 1-3 years
+              - 4-6 years
+              - 7-10 years
+              - 11-15 years
+              - 16 years and above
+        - name: workMode
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - remote
+              - onSite
+              - hybrid
+        - name: country
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: city
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
       responses:
         '200':
           description: Successful response
@@ -513,7 +630,7 @@ paths:
         - bearerAuth: []
   /scout/batch/{id}:
     get:
-      summary: ''
+      summary: Recruiter, Admin
       tags:
         - scout
       parameters:
@@ -533,7 +650,7 @@ paths:
         - bearerAuth: []
   /scout/single/{id}:
     get:
-      summary: ''
+      summary: Recruiter, Admin
       tags:
         - scout
       parameters:
@@ -553,7 +670,7 @@ paths:
         - bearerAuth: []
   /scout/cv-and-cover-letter:
     post:
-      summary: ''
+      summary: Recruiter, Admin
       tags:
         - scout
       parameters: []
@@ -564,11 +681,23 @@ paths:
             application/json:
               schema:
                 type: object
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                cv:
+                  type: string
+                  format: binary
+                coverLetter:
+                  type: string
+                  format: binary
       security:
         - bearerAuth: []
   /scout/cv:
     post:
-      summary: ''
+      summary: Recruiter, Admin
       tags:
         - scout
       parameters: []
@@ -579,11 +708,23 @@ paths:
             application/json:
               schema:
                 type: object
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                cv:
+                  type: string
+                  format: binary
+                coverLetter:
+                  type: string
+                  format: binary
       security:
         - bearerAuth: []
   /roles/:
     post:
-      summary: ''
+      summary: Recruiter, Admin
       tags:
         - roles
       parameters: []
@@ -696,7 +837,7 @@ paths:
                 type: object
   /recruiter/shortlist:
     get:
-      summary: ''
+      summary: Recruiter
       tags:
         - recruiter
       parameters:
@@ -750,7 +891,7 @@ paths:
         - bearerAuth: []
   /recruiter/dashboard:
     get:
-      summary: ''
+      summary: Recruiter
       tags:
         - recruiter
       parameters: []
@@ -765,7 +906,7 @@ paths:
         - bearerAuth: []
   /recruiter/applications:
     get:
-      summary: ''
+      summary: Recruiter
       tags:
         - recruiter
       parameters: []
@@ -780,7 +921,7 @@ paths:
         - bearerAuth: []
   /recruiter/compilations:
     get:
-      summary: ''
+      summary: Recruiter
       tags:
         - recruiter
       parameters: []
@@ -795,7 +936,7 @@ paths:
         - bearerAuth: []
   /questions/:
     post:
-      summary: ''
+      summary: Admin
       tags:
         - questions
       parameters: []
@@ -882,9 +1023,11 @@ paths:
             application/json:
               schema:
                 type: object
+      security:
+        - bearerAuth: []
   /questions/personalized:
     post:
-      summary: ''
+      summary: Recruiter, Talent
       tags:
         - questions
       parameters: []
@@ -917,7 +1060,7 @@ paths:
         - bearerAuth: []
   /questions/personality:
     post:
-      summary: ''
+      summary: Recruiter
       tags:
         - questions
       parameters: []
@@ -951,7 +1094,7 @@ paths:
         - bearerAuth: []
   /questions/answer/prescreening:
     post:
-      summary: ''
+      summary: Talent
       tags:
         - questions
       parameters: []
@@ -980,7 +1123,7 @@ paths:
         - bearerAuth: []
   /questions/answer/personality:
     post:
-      summary: ''
+      summary: Talent
       tags:
         - questions
       parameters: []
@@ -1009,7 +1152,7 @@ paths:
         - bearerAuth: []
   /questions/answer/personalized:
     post:
-      summary: ''
+      summary: Talent
       tags:
         - questions
       parameters: []
@@ -1056,7 +1199,7 @@ paths:
                 type: object
   /plans/:
     post:
-      summary: ''
+      summary: Admin
       tags:
         - plans
       parameters: []
@@ -1134,7 +1277,7 @@ paths:
                 type: object
   /plans/{_id}:
     patch:
-      summary: ''
+      summary: Admin
       tags:
         - plans
       parameters:
@@ -1181,7 +1324,7 @@ paths:
         - bearerAuth: []
   /plans/{id}:
     delete:
-      summary: ''
+      summary: Admin
       tags:
         - plans
       parameters:
@@ -1229,6 +1372,19 @@ paths:
             application/json:
               schema:
                 type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: number
+                planId:
+                  type: string
+      security:
+        - bearerAuth: []
     get:
       summary: ''
       tags:
@@ -1241,6 +1397,8 @@ paths:
             application/json:
               schema:
                 type: object
+      security:
+        - bearerAuth: []
   /payments/verify:
     post:
       summary: ''
@@ -1254,6 +1412,17 @@ paths:
             application/json:
               schema:
                 type: object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reference:
+                  type: string
+              required:
+                - reference
   /payments/dwhdbwnmdn229dnjkdnn83/webhook:
     post:
       summary: ''
@@ -1269,7 +1438,7 @@ paths:
                 type: object
   /organizations/:
     post:
-      summary: ''
+      summary: Admin
       tags:
         - organizations
       parameters: []
@@ -1326,6 +1495,8 @@ paths:
             application/json:
               schema:
                 type: object
+      security:
+        - bearerAuth: []
     get:
       summary: ''
       tags:
@@ -1338,6 +1509,8 @@ paths:
             application/json:
               schema:
                 type: object
+      security:
+        - bearerAuth: []
   /notifications/{id}:
     get:
       summary: ''
@@ -1356,6 +1529,8 @@ paths:
             application/json:
               schema:
                 type: object
+      security:
+        - bearerAuth: []
     delete:
       summary: ''
       tags:
@@ -1373,9 +1548,11 @@ paths:
             application/json:
               schema:
                 type: object
+      security:
+        - bearerAuth: []
   /messages/broadcast:
     post:
-      summary: ''
+      summary: Recruiter
       tags:
         - messages
       parameters: []
@@ -1404,7 +1581,7 @@ paths:
         - bearerAuth: []
   /messages/{id}:
     patch:
-      summary: ''
+      summary: Talent
       tags:
         - messages
       parameters:
@@ -1450,6 +1627,8 @@ paths:
             application/json:
               schema:
                 type: object
+      security:
+        - bearerAuth: []
   /messages/:
     post:
       summary: ''
@@ -1479,6 +1658,8 @@ paths:
               required:
                 - content
                 - recipient
+      security:
+        - bearerAuth: []
     get:
       summary: ''
       tags:
@@ -1506,6 +1687,8 @@ paths:
             application/json:
               schema:
                 type: object
+      security:
+        - bearerAuth: []
   /:
     all:
       summary: ''
@@ -1521,7 +1704,7 @@ paths:
                 type: object
   /jobs/:
     post:
-      summary: ''
+      summary: Recruiter
       tags:
         - jobs
       parameters: []
@@ -1666,7 +1849,7 @@ paths:
                 type: object
   /jobs/{_id}:
     patch:
-      summary: ''
+      summary: Recruiter
       tags:
         - jobs
       parameters:
@@ -1760,7 +1943,7 @@ paths:
                 type: object
   /jobs/me:
     get:
-      summary: ''
+      summary: Recruiter
       tags:
         - jobs
       parameters:
@@ -1834,7 +2017,7 @@ paths:
         - bearerAuth: []
   /jobs/talents/{jobId}:
     get:
-      summary: ''
+      summary: Recruiter, Admin
       tags:
         - jobs
       parameters:
@@ -1864,7 +2047,7 @@ paths:
         - bearerAuth: []
   /jobs/cv-similarity/{jobId}:
     patch:
-      summary: ''
+      summary: Talent
       tags:
         - jobs
       parameters:
@@ -1884,7 +2067,7 @@ paths:
         - bearerAuth: []
   /jobs/match/{_id}:
     get:
-      summary: ''
+      summary: Recruiter, Admin
       tags:
         - jobs
       parameters:
@@ -1909,7 +2092,7 @@ paths:
         - bearerAuth: []
   /jobs/applications/{jobId}:
     patch:
-      summary: ''
+      summary: Talent
       tags:
         - jobs
       parameters:
@@ -1928,7 +2111,7 @@ paths:
       security:
         - bearerAuth: []
     get:
-      summary: ''
+      summary: Recruiter
       tags:
         - jobs
       parameters:
@@ -1997,7 +2180,7 @@ paths:
         - bearerAuth: []
   /error-logs/:
     get:
-      summary: ''
+      summary: Superadmin
       tags:
         - error-logs
       parameters: []
@@ -2008,9 +2191,11 @@ paths:
             application/json:
               schema:
                 type: object
+      security:
+        - bearerAuth: []
   /error-logs/stats:
     get:
-      summary: ''
+      summary: Superadmin
       tags:
         - error-logs
       parameters: []
@@ -2021,9 +2206,11 @@ paths:
             application/json:
               schema:
                 type: object
+      security:
+        - bearerAuth: []
   /error-logs/{requestId}/resolve:
     patch:
-      summary: ''
+      summary: Superadmin
       tags:
         - error-logs
       parameters:
@@ -2039,9 +2226,11 @@ paths:
             application/json:
               schema:
                 type: object
+      security:
+        - bearerAuth: []
   /error-logs/cleanup:
     delete:
-      summary: ''
+      summary: Superadmin
       tags:
         - error-logs
       parameters: []
@@ -2052,6 +2241,8 @@ paths:
             application/json:
               schema:
                 type: object
+      security:
+        - bearerAuth: []
   /conversations/:
     get:
       summary: ''
@@ -2065,6 +2256,8 @@ paths:
             application/json:
               schema:
                 type: object
+      security:
+        - bearerAuth: []
   /conversations/{id}/messages:
     get:
       summary: ''
@@ -2083,6 +2276,8 @@ paths:
             application/json:
               schema:
                 type: object
+      security:
+        - bearerAuth: []
   /conversations/{id}:
     get:
       summary: ''
@@ -2101,6 +2296,8 @@ paths:
             application/json:
               schema:
                 type: object
+      security:
+        - bearerAuth: []
   /auth/register:
     post:
       summary: ''
@@ -2334,6 +2531,8 @@ paths:
               required:
                 - newPassword
                 - oldPassword
+      security:
+        - bearerAuth: []
   /applications/:
     get:
       summary: ''
@@ -2386,6 +2585,8 @@ paths:
             application/json:
               schema:
                 type: object
+      security:
+        - bearerAuth: []
   /applications/{_id}:
     get:
       summary: ''
@@ -2404,9 +2605,11 @@ paths:
             application/json:
               schema:
                 type: object
+      security:
+        - bearerAuth: []
   /applications/{_id}/status:
     patch:
-      summary: ''
+      summary: Recruiter
       tags:
         - applications
       parameters:
@@ -2440,7 +2643,7 @@ paths:
         - bearerAuth: []
   /ai-config/:
     post:
-      summary: ''
+      summary: Recruiter, Admin
       tags:
         - ai-config
       parameters: []
@@ -2494,7 +2697,7 @@ paths:
       security:
         - bearerAuth: []
     get:
-      summary: ''
+      summary: Recruiter, Admin
       tags:
         - ai-config
       parameters: []
@@ -2509,7 +2712,7 @@ paths:
         - bearerAuth: []
   /ai-config/{_id}:
     get:
-      summary: ''
+      summary: Recruiter, Admin
       tags:
         - ai-config
       parameters:
@@ -2528,7 +2731,7 @@ paths:
       security:
         - bearerAuth: []
     patch:
-      summary: ''
+      summary: Recruiter, Admin
       tags:
         - ai-config
       parameters:
@@ -2576,7 +2779,7 @@ paths:
       security:
         - bearerAuth: []
     delete:
-      summary: ''
+      summary: Recruiter, Admin
       tags:
         - ai-config
       parameters:

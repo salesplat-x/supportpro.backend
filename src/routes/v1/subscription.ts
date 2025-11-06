@@ -30,7 +30,7 @@ router.get(
     asyncHandler(subscription.fetchOne)
 );
 
-router.get(
+router.post(
     "/",
     loginRequired,
     validate(subscriptionValidator.find, {body: true}),

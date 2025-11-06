@@ -30,7 +30,7 @@ import yaml from "js-yaml";
 
 const ROUTES_DIR = process.env.ROUTES_DIR || path.join(process.cwd(), "src/routes/v1");
 const OUT_FILE = path.join(process.cwd(), "swagger.yaml");
-const SERVER_URL = process.env.BASE_URL || "https://backend.auxhr.com/v1";
+const SERVER_URL = process.env.BASE_URL || "http://localhost:8003/v1"//"https://backend.auxhr.com/v1";
 console.log(SERVER_URL)
 
 // Type definitions
@@ -59,6 +59,12 @@ interface ValidateInfo {
   };
 }
 
+interface FileUploadInfo {
+  type: "single" | "fields";
+  fieldName?: string;
+  fields?: { name: string; maxCount: number }[];
+}
+
 interface RouteInfo {
   method: string;
   path: string;
@@ -66,6 +72,8 @@ interface RouteInfo {
   validateInfo: ValidateInfo | null;
   hasValidateAccess: boolean;
   file: string;
+  tags: string[];
+  fileUploadInfo?: FileUploadInfo;
 }
 
 interface ImportMap {
@@ -287,6 +295,8 @@ function generateTextForNode(node: any): string {
  */
 function extractRoutesFromFile(filepath: string): ExtractResult {
   const raw = fs.readFileSync(filepath, "utf8");
+  const currentMiddlewares: any[] = [];
+  const allMiddlewares: any[] = [];
   const ast = parseToAst(raw, filepath);
   const importMap: ImportMap = {}; // localName -> source path (raw import string)
   const routes: RouteInfo[] = []; // { method, path, middlewares: [string node text], validateInfo: {validatorVar, validatorMember, options}, hasValidateAccess, file }
@@ -360,6 +370,20 @@ function extractRoutesFromFile(filepath: string): ExtractResult {
       if (!method) return;
       const args = pathNode.node.arguments || [];
       if (args.length === 0) return;
+
+      if (method == "use") {
+        for (let i = 0; i < args.length; i++) {
+          const a = args[i];
+          currentMiddlewares.push(a)
+        }
+        return;
+      }
+
+      for (let i = 0; i < args.length; i++) {
+          const a = args[i];
+          console.log(a)
+        }
+      
       // first arg is path - if not string literal, skip
       const firstArg = args[0];
       let routePath: string | null = null;
@@ -372,9 +396,23 @@ function extractRoutesFromFile(filepath: string): ExtractResult {
         return;
       }
       // remaining args are middlewares and handler
-      const middlewares: string[] = [];
+      const middlewares: string[] = currentMiddlewares;
       let validateInfo: ValidateInfo | null = null;
       let hasValidateAccess = false;
+      let otherTags: string[] = []
+
+      routes.push({
+        method: method.toLowerCase(),
+        path: routePath!,
+        middlewares,
+        validateInfo,
+        hasValidateAccess,
+        file: filepath,
+        tags: otherTags
+      });
+
+      const currentRoute = routes.length > 0 ? routes[routes.length - 1] : null;
+
       for (let i = 1; i < args.length; i++) {
         const a = args[i];
         // If it's a CallExpression of validate(...)
@@ -410,30 +448,133 @@ function extractRoutesFromFile(filepath: string): ExtractResult {
               }
             });
           }
-          validateInfo = { validatorVar, validatorMember, options };
+          if (currentRoute) {
+            currentRoute.validateInfo = { validatorVar, validatorMember, options };
+          }
+        }
+
+        // Detect multer uploads
+        if (a.type === "CallExpression" && a.callee.type === "MemberExpression") {
+          const callee = a.callee;
+          if (
+            callee.object.type === "MemberExpression" &&
+            callee.object.object.name === "multerUploads" &&
+            (callee.object.property.name === "memoryUpload" || callee.object.property.name === "diskUpload")
+          ) {
+            if (callee.property.name === "single" && a.arguments.length > 0 && a.arguments[0].type === "StringLiteral") {
+              if (currentRoute) {
+                currentRoute.fileUploadInfo = {
+                  type: "single",
+                  fieldName: a.arguments[0].value,
+                };
+              }
+            } else if (callee.property.name === "fields" && a.arguments.length > 0 && a.arguments[0].type === "ArrayExpression") {
+              const fields = a.arguments[0].elements.map((el: any) => {
+                const nameProp = el.properties.find((p: any) => p.key.name === "name");
+                const maxCountProp = el.properties.find((p: any) => p.key.name === "maxCount");
+                return {
+                  name: nameProp ? nameProp.value.value : "unknown",
+                  maxCount: maxCountProp ? maxCountProp.value.value : 1,
+                };
+              });
+              if (currentRoute) {
+                currentRoute.fileUploadInfo = { type: "fields", fields };
+              }
+            }
+          }
         }
 
         // If it's a CallExpression of validateAccess(...)
+        if ((a.type === "CallExpression" && a.callee && a.callee.name === "validateAccess") || (a.type === "Identifier" && a.name === "loginRequired")) {
+          if (currentRoute) {
+            currentRoute.hasValidateAccess = true;
+          }
+        }
+
         if (a.type === "CallExpression" && a.callee && a.callee.name === "validateAccess") {
-          hasValidateAccess = true;
+          for (let i = 0; a.arguments[0].elements[i]; i++){
+            if (currentRoute) {
+              currentRoute.tags.push(a.arguments[0].elements[i].property.name)
+            }
+          }
+        }
+
+        // Handle custom validators for scout route
+        if (filepath.endsWith("scout.ts")) {
+            const hasValidateCv = middlewares.includes("validateCv");
+            const hasValidateCvAndCoverLetter = middlewares.includes("validateCvAndCoverLetter");
+    
+            if (hasValidateCv || hasValidateCvAndCoverLetter) {
+              const properties: { [key: string]: any } = {};
+              if (hasValidateCv) {
+                properties["cv"] = { type: "string", format: "binary" };
+              }
+              
+              if (hasValidateCvAndCoverLetter) {
+                properties["cv"] = { type: "string", format: "binary" };
+                properties["coverLetter"] = { type: "string", format: "binary" };
+              }
+
+              console.log("before ==========================================>");
+              const resolved = resolveImportToFile("src/middlewares/v1/validators/scout", filepath);
+              console.log(resolved)
+              if (resolved) {
+                let mod;
+                try {
+                  mod = safeRequire(resolved);
+                } catch (err: any) {
+                  console.warn(`Warning: cannot require validator module ${resolved}: ${err.message}`);
+                  mod = null;
+                }
+                if (mod) {
+                  const joiDescribe = joiSchemaDescribeFromModule(mod, "schema");
+                  if (joiDescribe) {
+                    const schema = buildSchemaFromJoiDescribe(joiDescribe);
+                    console.log(schema);
+                    if (schema.properties) {
+                      for (const key in schema.properties) {
+                        properties[key] = schema.properties[key];
+                      }
+                    }
+                  }
+                }
+              }
+    
+              if (currentRoute) {
+                currentRoute.fileUploadInfo = {
+                  type: "fields",
+                  fields: Object.keys(properties).map(p => ({name: p, maxCount: 1}))
+                }
+              }
+            }
         }
 
         // record textual middleware for debugging (optional)
         try {
-          middlewares.push(generateTextForNode(a));
+          if (currentRoute) {
+            currentRoute.middlewares.push(generateTextForNode(a));
+          }
         } catch (err) {
-          middlewares.push("<middleware>");
+          if (currentRoute) {
+            currentRoute.middlewares.push("<middleware>");
+          }
         }
       }
 
-      routes.push({
-        method: method.toLowerCase(),
-        path: routePath!,
-        middlewares,
-        validateInfo,
-        hasValidateAccess,
-        file: filepath
-      });
+      for (const a of currentMiddlewares) {
+        if ((a.type === "CallExpression" && a.callee && a.callee.name === "validateAccess") || (a.type === "Identifier" && a.name === "loginRequired")) {
+          if (currentRoute) {
+            currentRoute.hasValidateAccess = true;
+          }
+        }
+        if (a.type === "CallExpression" && a.callee && a.callee.name === "validateAccess") {
+          for (let i = 0; a.arguments[0].elements[i]; i++){
+            if (currentRoute) {
+              currentRoute.tags.push(a.arguments[0].elements[i].property.name)
+            }
+          }
+        }
+      }
     }
   } as any);
 
@@ -548,7 +689,7 @@ function main(): void {
 
         // Default operation stub
         const op: OpenAPIOperation = {
-          summary: "",
+          summary: r.tags.join(", "),
           tags: [groupBase && groupBase !== "/" ? groupBase.replace(/^\/+/, "") : "default"],
           parameters: [],
           responses: {
@@ -652,6 +793,35 @@ function main(): void {
         } else {
           // If no validate middleware but there are query/path params in path - keep path params
           // nothing to add
+        }
+
+        // If route has file upload, add request body for multipart/form-data
+        if (r.fileUploadInfo) {
+          const properties: { [key: string]: any } = {};
+          if (r.fileUploadInfo.type === "single" && r.fileUploadInfo.fieldName) {
+            properties[r.fileUploadInfo.fieldName] = {
+              type: "string",
+              format: "binary",
+            };
+          } else if (r.fileUploadInfo.type === "fields" && r.fileUploadInfo.fields) {
+            for (const field of r.fileUploadInfo.fields) {
+              properties[field.name] = {
+                type: "string",
+                format: "binary",
+              };
+            }
+          }
+
+          op.requestBody = {
+            content: {
+              "multipart/form-data": {
+                schema: {
+                  type: "object",
+                  properties,
+                },
+              },
+            },
+          };
         }
 
         // If route used validateAccess, add security requirement (bearerAuth)
