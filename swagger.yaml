@@ -4,7 +4,7 @@ info:
   description: Generated from Express route files and Joi validators
   version: 1.0.0
 servers:
-  - url: http://localhost:8003/v1
+  - url: https://backend.auxhr.com/v1
 components:
   securitySchemes:
     bearerAuth:

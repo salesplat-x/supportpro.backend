@@ -379,10 +379,10 @@ function extractRoutesFromFile(filepath: string): ExtractResult {
         return;
       }
 
-      for (let i = 0; i < args.length; i++) {
-          const a = args[i];
-          console.log(a)
-        }
+      // for (let i = 0; i < args.length; i++) {
+      //     const a = args[i];
+      //     console.log(a)
+      //   }
       
       // first arg is path - if not string literal, skip
       const firstArg = args[0];
@@ -515,9 +515,9 @@ function extractRoutesFromFile(filepath: string): ExtractResult {
                 properties["coverLetter"] = { type: "string", format: "binary" };
               }
 
-              console.log("before ==========================================>");
+              //console.log("before ==========================================>");
               const resolved = resolveImportToFile("src/middlewares/v1/validators/scout", filepath);
-              console.log(resolved)
+              //console.log(resolved)
               if (resolved) {
                 let mod;
                 try {
@@ -530,7 +530,7 @@ function extractRoutesFromFile(filepath: string): ExtractResult {
                   const joiDescribe = joiSchemaDescribeFromModule(mod, "schema");
                   if (joiDescribe) {
                     const schema = buildSchemaFromJoiDescribe(joiDescribe);
-                    console.log(schema);
+                    //console.log(schema);
                     if (schema.properties) {
                       for (const key in schema.properties) {
                         properties[key] = schema.properties[key];
