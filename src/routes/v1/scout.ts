@@ -2,13 +2,9 @@ import { Router } from "express";
 import * as controller from "../../controllers/v1/scout";
 import { asyncHandler } from "../../middlewares/v1/handler";
 import { validateAccess } from "../../middlewares/v1/auth";
-import { memoryUpload } from "../../middlewares/v1/multer";
-import {
-  getScoutReports,
-  scoutTalents,
-  validateCv,
-  validateCvAndCoverLetter,
-} from "../../middlewares/v1/validators/scout";
+import * as multerUploads from "../../middlewares/v1/multer";
+import * as scoutValidator from "../../middlewares/v1/validators/scout";
+import { validateCv, validateCvAndCoverLetter } from "../../middlewares/v1/validators/scout";
 import * as scoutJob from "../../controllers/v1/scoutJob";
 import * as scoutJobValidator from "../../middlewares/v1/validators/scoutJob";
 import { Roles } from "../../typings/customs";
@@ -38,28 +34,28 @@ router.get(
 router.get(
   "/:scoutJobId/talents",
   validateAccess([Roles.Recruiter, Roles.Admin]),
-  validate(scoutTalents, { params: true, query: true }),
+  validate(scoutValidator.scoutTalents, { params: true, query: true }),
   asyncHandler(controller.scoutTalents)
 );
 
 router.get(
   "/batch/:id",
   validateAccess([Roles.Recruiter, Roles.Admin]),
-  validate(getScoutReports, { params: true }),
+  validate(scoutValidator.getScoutReports, { params: true }),
   asyncHandler(controller.fetchScoutReports)
 );
 
 router.get(
   "/single/:id",
   validateAccess([Roles.Recruiter, Roles.Admin]),
-  validate(getScoutReports, { params: true }),
+  validate(scoutValidator.getScoutReports, { params: true }),
   asyncHandler(controller.fetchScoutReport)
 );
 
 router.post(
   "/cv-and-cover-letter",
   validateAccess([Roles.Recruiter, Roles.Admin]),
-  memoryUpload.fields([
+  multerUploads.memoryUpload.fields([
     { name: "cv", maxCount: 1 },
     { name: "coverLetter", maxCount: 1 },
   ]),
@@ -70,7 +66,7 @@ router.post(
 router.post(
   "/cv",
   validateAccess([Roles.Recruiter, Roles.Admin]),
-  memoryUpload.single("cv"),
+  multerUploads.memoryUpload.single("cv"),
   validateCv,
   asyncHandler(controller.scoutCv)
 );

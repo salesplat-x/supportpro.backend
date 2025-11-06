@@ -5,17 +5,14 @@ const router = Router();
 import validate from "../../middlewares/v1/validators/validate";
 import { asyncHandler } from "../../middlewares/v1/handler";
 import * as controller from "../../controllers/v1/payment";
-import {
-  initializePayment,
-  verify,
-} from "../../middlewares/v1/validators/payment";
+import * as paymentValidator from "../../middlewares/v1/validators/payment";
 import { loginRequired } from "../../middlewares/v1/auth";
 import { verifyWebhookIP } from "../../middlewares/v1/verifyWebhookIP";
 
 router.post(
     "/",
     loginRequired,
-    validate(initializePayment, { body: true }),
+    validate(paymentValidator.initializePayment, { body: true }),
     asyncHandler(controller.getPaymentLink)
 );
 
@@ -27,7 +24,7 @@ router.get(
 
 router.post(
   "/verify",
-  validate(verify, { body: true }),
+  validate(paymentValidator.verify, { body: true }),
   asyncHandler(controller.verify)
 );
 
