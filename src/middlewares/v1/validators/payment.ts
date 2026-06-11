@@ -12,14 +12,14 @@ import env from "../../../config/env";
 }).required();*/
 
 export const initializePayment = Joi.object({
-    body: Joi.object({
-        amount: Joi.number().optional(),
-        planId: Joi.string().optional(),
-    }).xor("amount", "planId"),
+  body: Joi.object({
+    amount: Joi.number().optional(),
+    planId: Joi.string().optional(),
+  }).xor("amount", "planId"),
 }).required();
 
 export const verify = Joi.object({
-    body: Joi.object({
-        reference: Joi.string().required(),
-    }),
+  body: Joi.object({
+    reference: Joi.string().required(),
+  }),
 }).required();

@@ -1,6 +1,7 @@
 # Deployment Guide
 
 ## How code reaches production
+
 1. Devs work on feature branches off `dev`, PR into `dev`.
 2. Admin reviews and merges `dev` → `main`.
 3. Merging into `main` auto-triggers `.github/workflows/dev.yml`:
@@ -12,6 +13,7 @@
 No manual deploy steps needed — merging to `main` **is** the deploy.
 
 ## Watching the deploy
+
 - GitHub repo → **Actions** tab → "Deploy Backend to DigitalOcean" → confirm the run is green.
 - If it fails, check the step logs (most common causes: build/`tsc` errors, SSH key issues).
 
@@ -20,17 +22,21 @@ No manual deploy steps needed — merging to `main` **is** the deploy.
 Production base URL: `https://backend.auxhr.com`
 
 1. **Health check** — base endpoint should return a success JSON:
+
    ```bash
    curl https://backend.auxhr.com/v1/
    ```
+
    Expected: `{"status": true, "message": "Welcome to the base endpoint", ...}`
 
 2. **Swagger docs** — confirm the API + new routes are live:
+
    ```
    https://backend.auxhr.com/v1/docs
    ```
 
 3. **Spot-check a real endpoint** relevant to your change (e.g. login):
+
    ```bash
    curl -X POST https://backend.auxhr.com/v1/login \
      -H "Content-Type: application/json" \
@@ -49,6 +55,7 @@ Production base URL: `https://backend.auxhr.com`
    ```
 
 ## If something goes wrong (rollback)
+
 ```bash
 ssh root@167.172.8.238
 cd /home/supportpro/supportpro.backend

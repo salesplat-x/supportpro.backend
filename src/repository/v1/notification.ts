@@ -3,9 +3,7 @@ import { Page, Paging } from "../../typings/customs";
 import { INotification } from "../../typings/notification";
 import { FilterQuery, Types } from "mongoose";
 
-export const createNotification = async (
-  notification: Pick<INotification, "user" | "message">
-) => {
+export const createNotification = async (notification: Pick<INotification, "user" | "message">) => {
   return await Notification.create(notification);
 };
 
@@ -17,19 +15,14 @@ export const findNotificationById = async (id: Types.ObjectId | string) => {
   return await Notification.findById(id);
 };
 
-export const findNotifications = async (
-  match: FilterQuery<INotification>,
-  paging: Paging = {}
-) => {
+export const findNotifications = async (match: FilterQuery<INotification>, paging: Paging = {}) => {
   return await Notification.find({ ...match, deleted: false })
     .sort({ createdAt: -1 })
     .skip(Number(paging.offset))
     .limit(Number(paging.limit));
 };
 
-export const countUnreadNotifications = async (
-  match: FilterQuery<INotification>
-) => {
+export const countUnreadNotifications = async (match: FilterQuery<INotification>) => {
   return await Notification.countDocuments({
     ...match,
     deleted: false,
@@ -37,9 +30,7 @@ export const countUnreadNotifications = async (
   });
 };
 
-export const readNotification = async (
-  notificationId: string | Types.ObjectId
-) => {
+export const readNotification = async (notificationId: string | Types.ObjectId) => {
   return await Notification.findByIdAndUpdate(
     notificationId,
     { isRead: true },

@@ -88,12 +88,7 @@ export const fetchQuestions = async (user: IUser, payload: FetchQuestions) => {
         _id: { $in: application?.personalizedQuestions },
       });
 
-      return makeResponse(
-        true,
-        "Questions fetched successfully",
-        questions,
-        200
-      );
+      return makeResponse(true, "Questions fetched successfully", questions, 200);
     }
   }
   if (payload.questionType === QuestionType.Prescreening) {
@@ -114,12 +109,7 @@ export const fetchQuestions = async (user: IUser, payload: FetchQuestions) => {
     // ]);
     // Check if input role is a role of user
     if ((profile.role[0] as IRole).id !== payload.roleId!) {
-      return makeResponse(
-        false,
-        "User is not permitted to take assessment for this role",
-        {},
-        403
-      );
+      return makeResponse(false, "User is not permitted to take assessment for this role", {}, 403);
     }
     delete query.type;
     query.role = payload.roleId;
@@ -154,10 +144,7 @@ export const fetchQuestion = async (payload: Pick<IQuestion, "_id">) => {
 };
 
 // Function to answer prescreening assessment questions
-export const answerPrescreening = async (
-  user: IUser,
-  payload: AnswerPrescreeningPayload
-) => {
+export const answerPrescreening = async (user: IUser, payload: AnswerPrescreeningPayload) => {
   const profile = user.profile as IProfile;
 
   if (!profile || !profile.role || !profile.role[0]) {
@@ -175,12 +162,7 @@ export const answerPrescreening = async (
   }
 
   if (payload.roleId !== (profile.role[0] as IRole).id) {
-    return makeResponse(
-      false,
-      "User is not permitted to take assessment for this role",
-      {},
-      403
-    );
+    return makeResponse(false, "User is not permitted to take assessment for this role", {}, 403);
   }
 
   const questionIds = Object.keys(payload.answers);
@@ -201,12 +183,7 @@ export const answerPrescreening = async (
   });
 
   if (questions.length !== questionIds.length) {
-    return makeResponse(
-      false,
-      "One or more questions do not belong to the role",
-      {},
-      400
-    );
+    return makeResponse(false, "One or more questions do not belong to the role", {}, 400);
   }
 
   // Create the Assessment object for the Ai Model
@@ -227,9 +204,7 @@ export const answerPrescreening = async (
     return makeResponse(false, "Error with LLM", {}, 400);
   }
 
-  const responseArray: IResponse[] = JSON.parse(
-    response.message.content
-  ).responses;
+  const responseArray: IResponse[] = JSON.parse(response.message.content).responses;
 
   if (responseArray.length !== questionsConstruct.length) {
     return makeResponse(
@@ -271,9 +246,7 @@ export const answerPrescreening = async (
 };
 
 // Function to generate personalized questions
-export const generatePersonalizedQuestions = async (
-  payload: IGeneratePersonalizedQuestions
-) => {
+export const generatePersonalizedQuestions = async (payload: IGeneratePersonalizedQuestions) => {
   const { jobId, talentId } = payload;
 
   const existingJob = await jobRepository.findJobById(jobId);
@@ -281,10 +254,7 @@ export const generatePersonalizedQuestions = async (
     return makeResponse(false, "Job not found!", {}, 404);
   }
   if (existingJob.status === JobStatus.Closed) {
-    return makeResponse(
-      false,
-      `Applications for this job is currently ${existingJob.status}!`
-    );
+    return makeResponse(false, `Applications for this job is currently ${existingJob.status}!`);
   }
 
   const aiConfig = await findAIconfigById(existingJob.aiConfig as string);
@@ -293,12 +263,7 @@ export const generatePersonalizedQuestions = async (
   }
 
   if (!aiConfig.personalizedAssessment) {
-    return makeResponse(
-      false,
-      "This feature was not configured for this job!",
-      {},
-      400
-    );
+    return makeResponse(false, "This feature was not configured for this job!", {}, 400);
   }
 
   // Check if user already has personalized question
@@ -354,18 +319,14 @@ export const generatePersonalizedQuestions = async (
   });
 
   await questionRepository.insertMany(questionObjects);
-  const applicationRes = await applicationRepository.createOrUpdateApplication(
-    jobId,
-    talentId,
-    {
-      personalizedQuestions: questionIds,
-      $setOnInsert: {
-        recruiter: aiConfig.recruiter,
-        applicationType: ApplicationType.Application,
-        stages: aiConfig.stages,
-      },
-    }
-  );
+  const applicationRes = await applicationRepository.createOrUpdateApplication(jobId, talentId, {
+    personalizedQuestions: questionIds,
+    $setOnInsert: {
+      recruiter: aiConfig.recruiter,
+      applicationType: ApplicationType.Application,
+      stages: aiConfig.stages,
+    },
+  });
 
   // Increase number of applications if new application created
   if (!applicationRes.lastErrorObject?.updatedExisting) {
@@ -400,10 +361,7 @@ export const answerPersonalizedQuestions = async (
     return makeResponse(false, "Job not found!", {}, 404);
   }
   if (job.status === JobStatus.Closed) {
-    return makeResponse(
-      false,
-      `Applications for this job is currently ${job.status}!`
-    );
+    return makeResponse(false, `Applications for this job is currently ${job.status}!`);
   }
 
   // Fetch application details
@@ -433,12 +391,7 @@ export const answerPersonalizedQuestions = async (
 
   // Check if personalized assessment is configured
   if (!aiConfig.personalizedAssessment) {
-    return makeResponse(
-      false,
-      "This feature was not configured for this job!",
-      {},
-      400
-    );
+    return makeResponse(false, "This feature was not configured for this job!", {}, 400);
   }
 
   // Find the questions in the DB using their ids
@@ -459,17 +412,12 @@ export const answerPersonalizedQuestions = async (
   const answersJSON = JSON.stringify(questionConstruct);
 
   // Use LLM to grade answers
-  const response = await AI.gradePersonalizedAnswers(
-    answersJSON,
-    aiConfig.recruiterGuide
-  );
+  const response = await AI.gradePersonalizedAnswers(answersJSON, aiConfig.recruiterGuide);
   if (!response || !response.message.content) {
     return makeResponse(false, "Error with LLM", {}, 400);
   }
 
-  const responseArray: IResponse[] = JSON.parse(
-    response.message.content
-  ).responses;
+  const responseArray: IResponse[] = JSON.parse(response.message.content).responses;
 
   if (responseArray.length !== questionIds.length) {
     return makeResponse(
@@ -484,12 +432,7 @@ export const answerPersonalizedQuestions = async (
   let totalScore = 0;
   for (const response of responseArray) {
     if (response.score! > MAX_SCORE) {
-      return makeResponse(
-        false,
-        "Score exceeds the maximum assignable score",
-        {},
-        400
-      );
+      return makeResponse(false, "Score exceeds the maximum assignable score", {}, 400);
     }
     totalScore += response.score!;
   }
@@ -519,18 +462,11 @@ export const answerPersonalizedQuestions = async (
     responseArray
   );
 
-  return makeResponse(
-    true,
-    "Answers graded successfully",
-    { scorePercent, application },
-    200
-  );
+  return makeResponse(true, "Answers graded successfully", { scorePercent, application }, 200);
 };
 
 // Function to generate personality evaluation question
-export const generatePersonalityQuestion = async (
-  payload: IGeneratePersonalityQuestions
-) => {
+export const generatePersonalityQuestion = async (payload: IGeneratePersonalityQuestions) => {
   const job = await pgRepository.getJob(payload.jobId);
   if (!job) {
     return makeResponse(false, "Job not found", {}, 404);
@@ -558,20 +494,14 @@ export const generatePersonalityQuestion = async (
 };
 
 // Function to answer personality questions
-export const evaluatePersonalityType = async (
-  user: IUser,
-  payload: EvaluatePersonalityPayload
-) => {
+export const evaluatePersonalityType = async (user: IUser, payload: EvaluatePersonalityPayload) => {
   const { answers, jobId } = payload;
   const job = await jobRepository.findJobById(jobId);
   if (!job) {
     return makeResponse(false, "Job not found!", {}, 404);
   }
   if (job.status === JobStatus.Closed) {
-    return makeResponse(
-      false,
-      `Applications for this job is currently ${job.status}!`
-    );
+    return makeResponse(false, `Applications for this job is currently ${job.status}!`);
   }
 
   let application = await applicationRepository.findApplicationByMatch({
@@ -598,12 +528,7 @@ export const evaluatePersonalityType = async (
   }
 
   if (!aiConfig.personalityEvaluation) {
-    return makeResponse(
-      false,
-      "This feature was not configured for this job!",
-      {},
-      400
-    );
+    return makeResponse(false, "This feature was not configured for this job!", {}, 400);
   }
 
   const questionIds = Object.keys(answers);

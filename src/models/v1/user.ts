@@ -141,9 +141,7 @@ profileSchema.methods.canTakeAssessment = function (): boolean {
 // Instance method to set the assessmentRetryDate to one week from now
 profileSchema.methods.setAssessmentRetryDate = function (days = 7): void {
   const currentDate = new Date();
-  this.assessmentRetryDate = new Date(
-    currentDate.setDate(currentDate.getDate() + days)
-  );
+  this.assessmentRetryDate = new Date(currentDate.setDate(currentDate.getDate() + days));
 };
 
 export const User = model<IUser>("user", userSchema);

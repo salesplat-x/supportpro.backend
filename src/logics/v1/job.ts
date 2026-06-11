@@ -20,10 +20,7 @@ import mongoose, { Types, PipelineStage, FilterQuery } from "mongoose";
 import { IRole } from "../../typings/role";
 import { Roles } from "../../typings/customs";
 import { createEmbedding } from "../../services/v1/openai";
-import {
-  convertSimilarityToPercentage,
-  preprocessText,
-} from "../../helpers/func";
+import { convertSimilarityToPercentage, preprocessText } from "../../helpers/func";
 import { IProfile, IUser } from "../../typings/user";
 import {
   ApplicationStatus,
@@ -38,9 +35,7 @@ export const createJob = async (user: IUser, payload: IJob) => {
 
   // check if the role id is used
   if (mongoose.Types.ObjectId.isValid(role)) {
-    const existingRole = await roleRepository.findRoleById(
-      payload.role as string
-    );
+    const existingRole = await roleRepository.findRoleById(payload.role as string);
     if (!existingRole) {
       return makeResponse(false, "Role does not exist", {}, 404);
     }
@@ -59,9 +54,7 @@ export const createJob = async (user: IUser, payload: IJob) => {
     if (!Types.ObjectId.isValid(payload.aiConfig as string)) {
       return makeResponse(false, "Invalid aiConfig id", {}, 400);
     }
-    const existingConfig = await aiConfigRepository.findAIconfigById(
-      payload.aiConfig as string
-    );
+    const existingConfig = await aiConfigRepository.findAIconfigById(payload.aiConfig as string);
     if (!existingConfig) {
       return makeResponse(false, "Config does not exist", {}, 404);
     }
@@ -72,12 +65,7 @@ export const createJob = async (user: IUser, payload: IJob) => {
   const jd = preprocessText(payload.jobBrief);
   const jobEmbedding = await createEmbedding(jd);
   if (!jobEmbedding || !jobEmbedding[0]?.embedding) {
-    return makeResponse(
-      false,
-      "Unable to create vector embedding for JD",
-      {},
-      400
-    );
+    return makeResponse(false, "Unable to create vector embedding for JD", {}, 400);
   }
 
   payload.postedBy = user._id;
@@ -105,20 +93,14 @@ export const updateJob = async (user: IUser, payload: IJob) => {
   }
 
   if ((existingJob.postedBy as IUser)._id.toString() !== user._id.toString()) {
-    return makeResponse(
-      false,
-      "You are not authorized to perform this action",
-      403
-    );
+    return makeResponse(false, "You are not authorized to perform this action", 403);
   }
 
   if (update.role) {
     if (!Types.ObjectId.isValid(update.role as string)) {
       return makeResponse(false, "Invalid role id", {}, 400);
     }
-    const existingRole = await roleRepository.findRoleById(
-      update.role as string
-    );
+    const existingRole = await roleRepository.findRoleById(update.role as string);
     if (!existingRole) {
       return makeResponse(false, "Role does not exist", {}, 404);
     }
@@ -133,16 +115,14 @@ export const updateJob = async (user: IUser, payload: IJob) => {
       ],
     });
 
-    const notifications = applications.map(
-      (application: IApplication): Partial<INotification> => {
-        const _id = new Types.ObjectId();
-        return {
-          _id,
-          user: application.talent,
-          message: `Applications for this job has been ${update.status}`,
-        };
-      }
-    );
+    const notifications = applications.map((application: IApplication): Partial<INotification> => {
+      const _id = new Types.ObjectId();
+      return {
+        _id,
+        user: application.talent,
+        message: `Applications for this job has been ${update.status}`,
+      };
+    });
 
     await notificationRepository.insertMany(notifications);
   }
@@ -191,9 +171,9 @@ export const fetchAllJobs = async (payload: FetchJobs) => {
     query["location.country"] = payload.country.toLowerCase();
   }
   if (payload.workMode) {
-    const workModes = payload.workMode.split(',').map(mode => mode.trim());
+    const workModes = payload.workMode.split(",").map((mode) => mode.trim());
     const allowedWorkModes = Object.values(WorkMode);
-    
+
     for (const mode of workModes) {
       if (!allowedWorkModes.includes(mode as any)) {
         return makeResponse(false, `Invalid workMode: '${mode}'`, {}, 400);
@@ -231,11 +211,7 @@ export const matchJob = async (user: IUser, payload: MatchJob) => {
     (job.postedBy as IUser)._id.toString() !== user._id.toString() &&
     user.userRole !== Roles.Admin
   ) {
-    return makeResponse(
-      false,
-      "You are not authorized to perform this action",
-      403
-    );
+    return makeResponse(false, "You are not authorized to perform this action", 403);
   }
 
   const pipeline: PipelineStage[] = [
@@ -287,12 +263,7 @@ export const matchJob = async (user: IUser, payload: MatchJob) => {
   }
   const talents = await userRepository.userAggregate(pipeline);
 
-  return makeResponse(
-    true,
-    "Job matches fetched successfully",
-    { talents },
-    200
-  );
+  return makeResponse(true, "Job matches fetched successfully", { talents }, 200);
 };
 
 // Function to get talents based on CV and JD embedding similarity
@@ -312,28 +283,17 @@ export const topTalents = async (user: IUser, payload: TopTalents) => {
     (job.postedBy as IUser)._id.toString() !== user._id.toString() &&
     user.userRole !== Roles.Admin
   ) {
-    return makeResponse(
-      false,
-      "You are not authorized to perform this action",
-      403
-    );
+    return makeResponse(false, "You are not authorized to perform this action", 403);
   }
 
   // CV Similarity Logic
-  const aiConfig = await aiConfigRepository.findAIconfigById(
-    job.aiConfig as string
-  );
+  const aiConfig = await aiConfigRepository.findAIconfigById(job.aiConfig as string);
   if (!aiConfig) {
     return makeResponse(false, "AI configuration for job not found!", {}, 404);
   }
 
   if (!aiConfig.cvSimilarity) {
-    return makeResponse(
-      false,
-      "This feature was not configured for this job!",
-      {},
-      400
-    );
+    return makeResponse(false, "This feature was not configured for this job!", {}, 400);
   }
   payload.limit = aiConfig.noOfCvSimilarCandidates;
   payload.percentage = aiConfig.minCvSimilarityScore;
@@ -396,10 +356,7 @@ export const gradeCv = async (user: IUser, jobId: string) => {
   }
 
   if (job.status === JobStatus.Closed) {
-    return makeResponse(
-      false,
-      `Applications for this job is currently ${job.status}!`
-    );
+    return makeResponse(false, `Applications for this job is currently ${job.status}!`);
   }
 
   let application = await applicationRepository.findApplicationByMatch({
@@ -407,42 +364,27 @@ export const gradeCv = async (user: IUser, jobId: string) => {
     job: jobId,
   });
   if (!application) {
-    return makeResponse(
-      true,
-      "You have to apply for this job before proceeding",
-      {
-        application,
-      }
-    );
+    return makeResponse(true, "You have to apply for this job before proceeding", {
+      application,
+    });
   }
 
   // CV Similarity Logic
-  const aiConfig = await aiConfigRepository.findAIconfigById(
-    job.aiConfig as string
-  );
+  const aiConfig = await aiConfigRepository.findAIconfigById(job.aiConfig as string);
   if (!aiConfig) {
     return makeResponse(false, "AI configuration for job not found!", {}, 404);
   }
 
   if (!aiConfig.cvSimilarity) {
-    return makeResponse(
-      false,
-      "This feature was not configured for this job!",
-      {},
-      400
-    );
+    return makeResponse(false, "This feature was not configured for this job!", {}, 400);
   }
 
-  let cvSimilarityScore = await pgRepository.getCVSimilarityScore(
-    user._id as string,
-    jobId
-  );
+  let cvSimilarityScore = await pgRepository.getCVSimilarityScore(user._id as string, jobId);
 
-  let { currentStage, applicationStatus } =
-    applicationRepository.updateCurrentStage(
-      ScreeningStage.CvSimilarity,
-      aiConfig.stages
-    );
+  let { currentStage, applicationStatus } = applicationRepository.updateCurrentStage(
+    ScreeningStage.CvSimilarity,
+    aiConfig.stages
+  );
 
   cvSimilarityScore = convertSimilarityToPercentage(cvSimilarityScore);
   if (cvSimilarityScore < aiConfig.minCvSimilarityScore) {
@@ -490,12 +432,7 @@ export const gradeCv = async (user: IUser, jobId: string) => {
 
   await job.save();
 
-  return makeResponse(
-    true,
-    "CV similarity graded",
-    { cvSimilarityScore, application },
-    200
-  );
+  return makeResponse(true, "CV similarity graded", { cvSimilarityScore, application }, 200);
 };
 
 // Function to get job Applications
@@ -518,12 +455,7 @@ export const applications = async (user: IUser, payload: IFetchApplications) => 
     return makeResponse(false, "Job not found", {}, 404);
   }
   if ((job.postedBy as IUser)._id.toString() !== user._id.toString()) {
-    return makeResponse(
-      false,
-      "You are not authorized to perform this action",
-      {},
-      403
-    );
+    return makeResponse(false, "You are not authorized to perform this action", {}, 403);
   }
 
   // Build the match conditions for the application
@@ -627,9 +559,7 @@ export const applications = async (user: IUser, payload: IFetchApplications) => 
     },
   });
 
-  const applications = await applicationRepository.applicationAggregate(
-    pipeline
-  );
+  const applications = await applicationRepository.applicationAggregate(pipeline);
   return makeResponse(true, "Job applications fetched", { applications });
 };
 
@@ -642,15 +572,10 @@ export const apply = async (user: IUser, payload: IApply) => {
     return makeResponse(false, "Job not found!", {}, 404);
   }
   if (job.status !== JobStatus.Active) {
-    return makeResponse(
-      false,
-      `Applications for this job is currently ${job.status}!`
-    );
+    return makeResponse(false, `Applications for this job is currently ${job.status}!`);
   }
 
-  const aiConfig = await aiConfigRepository.findAIconfigById(
-    job.aiConfig as string
-  );
+  const aiConfig = await aiConfigRepository.findAIconfigById(job.aiConfig as string);
   if (!aiConfig) {
     return makeResponse(false, "AI configuration for job not found!", {}, 404);
   }
@@ -672,15 +597,8 @@ export const apply = async (user: IUser, payload: IApply) => {
     );
   }
 
-  if (
-    (user.profile as IProfile).prescreeningScore < aiConfig.minPrescreeningScore
-  ) {
-    return makeResponse(
-      false,
-      "Sorry your prescreening score is too low to proceed!",
-      {},
-      403
-    );
+  if ((user.profile as IProfile).prescreeningScore < aiConfig.minPrescreeningScore) {
+    return makeResponse(false, "Sorry your prescreening score is too low to proceed!", {}, 403);
   }
 
   application = applicationRepository.createApplication({
@@ -693,16 +611,12 @@ export const apply = async (user: IUser, payload: IApply) => {
 
   job.noOfApplicants += 1;
   await job.save();
-  if (
-    (user.profile as IProfile).prescreeningScore < aiConfig.minPrescreeningScore
-  ) {
+  if ((user.profile as IProfile).prescreeningScore < aiConfig.minPrescreeningScore) {
     application.status = ApplicationStatus.RetakeAssessment;
     await application.save();
-    return makeResponse(
-      true,
-      "Your prescreening score is too low to proceed with application",
-      { application }
-    );
+    return makeResponse(true, "Your prescreening score is too low to proceed with application", {
+      application,
+    });
   }
 
   application.currentStage = applicationRepository.updateCurrentStage(

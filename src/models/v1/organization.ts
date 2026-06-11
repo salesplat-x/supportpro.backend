@@ -46,7 +46,4 @@ const organizationSchema = new Schema<IOrganization>(
   }
 );
 
-export const Organization = model<IOrganization>(
-  "organization",
-  organizationSchema
-);
+export const Organization = model<IOrganization>("organization", organizationSchema);

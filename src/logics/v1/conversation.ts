@@ -8,18 +8,11 @@ export const getConversations = async (user: IUser) => {
     participants: user.id,
   });
 
-  return makeResponse(
-    true,
-    "Conversations fetched successfully",
-    { conversations },
-    200
-  );
+  return makeResponse(true, "Conversations fetched successfully", { conversations }, 200);
 };
 
 export const getConversation = async (user: IUser, conversationId: string) => {
-  const conversation = await conversationRepository.findConversationById(
-    conversationId
-  );
+  const conversation = await conversationRepository.findConversationById(conversationId);
 
   if (!conversation) {
     return makeResponse(false, "Conversation not found!", {}, 404);
@@ -29,21 +22,11 @@ export const getConversation = async (user: IUser, conversationId: string) => {
     return makeResponse(false, "Unauthorized!", {}, 403);
   }
 
-  return makeResponse(
-    true,
-    "Conversation fetched successfully",
-    { conversation },
-    200
-  );
+  return makeResponse(true, "Conversation fetched successfully", { conversation }, 200);
 };
 
-export const conversationMessages = async (
-  user: IUser,
-  conversationId: string
-) => {
-  const conversation = await conversationRepository.findConversationById(
-    conversationId
-  );
+export const conversationMessages = async (user: IUser, conversationId: string) => {
+  const conversation = await conversationRepository.findConversationById(conversationId);
 
   if (!conversation) {
     return makeResponse(false, "Conversation not found!", {}, 404);

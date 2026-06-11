@@ -42,12 +42,7 @@ export const createUser = async (userPayload: IUser) => {
   await new Email().sendOtp(user, otp);
 
   const token = signToken(user);
-  return makeResponse(
-    true,
-    "User Registered Successfully",
-    { user, token },
-    201
-  );
+  return makeResponse(true, "User Registered Successfully", { user, token }, 201);
 };
 
 export const resendOtp = async (payload: { email: string }) => {
@@ -98,10 +93,7 @@ export const verifyEmail = async (payload: { email: string; otp: string }) => {
   });
 };
 
-export const loginUser = async ({
-  email,
-  password,
-}: Pick<IUser, "email" | "password">) => {
+export const loginUser = async ({ email, password }: Pick<IUser, "email" | "password">) => {
   const user = await userRepository.findUserByEmail(email.toLocaleLowerCase());
   if (!user) {
     return makeResponse(false, "Invalid email or password", {}, 403);
@@ -134,11 +126,7 @@ export const forgotPassword = async ({ email }: Pick<IUser, "email">) => {
   return makeResponse(true, "Reset code sent");
 };
 
-export const resetPassword = async (payload: {
-  email: string;
-  otp: string;
-  password: string;
-}) => {
+export const resetPassword = async (payload: { email: string; otp: string; password: string }) => {
   const { email, otp, password } = payload;
 
   const user = await userRepository.findUserByMatch({
@@ -148,10 +136,7 @@ export const resetPassword = async (payload: {
   });
 
   if (!user) {
-    return makeResponse(
-      false,
-      "Password reset token is invalid or has expired."
-    );
+    return makeResponse(false, "Password reset token is invalid or has expired.");
   }
 
   user.password = generateHashedPassword(password);
@@ -163,10 +148,7 @@ export const resetPassword = async (payload: {
   return makeResponse(true, "Password has been reset");
 };
 
-export const changePassword = async (
-  _user: IUser,
-  payload: IUserPasswordUpdate
-) => {
+export const changePassword = async (_user: IUser, payload: IUserPasswordUpdate) => {
   const { newPassword, oldPassword } = payload;
 
   const user = await userRepository.findUserById(_user.id);

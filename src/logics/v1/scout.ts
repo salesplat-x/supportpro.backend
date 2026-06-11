@@ -12,12 +12,7 @@ import * as AI from "../../services/v1/openai";
 import { getScoutCVEmbedding, saveCvBatch } from "../../repository/v1/pg";
 import { findJobById } from "../../repository/v1/job";
 import { IAIConfig } from "../../typings/AIconfig";
-import {
-  IScout,
-  IScoutResponse,
-  ICvAndCoverLetter,
-  IScoutTalents,
-} from "../../typings/scout";
+import { IScout, IScoutResponse, ICvAndCoverLetter, IScoutTalents } from "../../typings/scout";
 import { IUser } from "../../typings/user";
 import * as scoutRepository from "../../repository/v1/scout";
 import mongoose from "mongoose";
@@ -43,10 +38,7 @@ export const scoutTalents = async (payload: Partial<IScoutTalents>) => {
   let users: IUser[] = [];
   //@TODO add location and remote filter
 
-  if (
-    !payload.scoutJobId ||
-    !mongoose.Types.ObjectId.isValid(payload.scoutJobId!)
-  ) {
+  if (!payload.scoutJobId || !mongoose.Types.ObjectId.isValid(payload.scoutJobId!)) {
     return makeResponse(false, "Invalid scout job id", {}, 400);
   }
 
@@ -135,10 +127,7 @@ export const scoutTalents = async (payload: Partial<IScoutTalents>) => {
   const res = await getScoutCVEmbedding(payload.scoutJobId!, talentIds);
 
   const resMap = new Map(
-    res.map((item) => [
-      item.profile_id,
-      convertSimilarityToPercentage(item.similarity),
-    ])
+    res.map((item) => [item.profile_id, convertSimilarityToPercentage(item.similarity)])
   );
 
   const talents = users.map((talent) => ({
@@ -157,12 +146,7 @@ export const scoutCvAndCl = async (user: IUser, payload: ICvAndCoverLetter) => {
   }
 
   if (job.postedBy.toString() !== user.id) {
-    return makeResponse(
-      false,
-      "You are not authorized to perform this action",
-      {},
-      403
-    );
+    return makeResponse(false, "You are not authorized to perform this action", {}, 403);
   }
 
   const recruiterGuide = job.recruiterGuide;
@@ -175,8 +159,7 @@ export const scoutCvAndCl = async (user: IUser, payload: ICvAndCoverLetter) => {
   const coverLetter: Express.Multer.File = files["coverLetter"][0];
 
   const cvName = cv.originalname.split(".")[0] || cv.originalname;
-  const coverLetterName =
-    coverLetter.originalname.split(".")[0] || cv.originalname;
+  const coverLetterName = coverLetter.originalname.split(".")[0] || cv.originalname;
 
   // extract text from CV and Cover letter
   let cvText = await extractText(cv.buffer, cv.mimetype);
@@ -185,10 +168,7 @@ export const scoutCvAndCl = async (user: IUser, payload: ICvAndCoverLetter) => {
   }
 
   // Extract the text from the files
-  let coverLetterText = await extractText(
-    coverLetter.buffer,
-    coverLetter.mimetype
-  );
+  let coverLetterText = await extractText(coverLetter.buffer, coverLetter.mimetype);
   if (!coverLetterText) {
     return makeResponse(false, "Unable to extract cover letter text!");
   }
@@ -213,9 +193,7 @@ export const scoutCvAndCl = async (user: IUser, payload: ICvAndCoverLetter) => {
     return makeResponse(false, "Error with LLM", {}, 400);
   }
 
-  const { cvScore, coverLetterScore }: IScoutResponse = JSON.parse(
-    response.message.content
-  );
+  const { cvScore, coverLetterScore }: IScoutResponse = JSON.parse(response.message.content);
   if (!cvScore || !coverLetterScore) {
     return makeResponse(false, "Error assessing CV and Cover Letter!");
   }
@@ -254,12 +232,7 @@ export const scoutCv = async (user: IUser, payload: ICvAndCoverLetter) => {
     return makeResponse(false, "Job not found!", {}, 404);
   }
   if (job.postedBy.toString() !== user.id) {
-    return makeResponse(
-      false,
-      "You are not authorized to perform this action",
-      {},
-      403
-    );
+    return makeResponse(false, "You are not authorized to perform this action", {}, 403);
   }
 
   const recruiterGuide = job.recruiterGuide;

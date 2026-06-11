@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
  * generate-swagger.ts
- * 
+ *
  * Usage:
  *   npx ts-node generate-swagger.ts
  *   BASE_URL="https://api.example.com" npx ts-node generate-swagger.ts
- * 
+ *
  * Behavior:
  * - Walks ./routes (configurable by ROUTES_DIR env var)
  * - Parses route files looking for router.<method>(path, ...middlewares, handler)
@@ -13,7 +13,7 @@
  * - Extracts Joi types via schema.describe()
  * - Detects validateAccess(...) middleware to add bearerAuth security to that operation
  * - Writes ./swagger.yaml (overwrites)
- * 
+ *
  * Notes:
  * - Assumes route files export default a function that calls app.use("/basepath", router)
  *   (common pattern: export default (app) => app.use("/messages", router);)
@@ -23,7 +23,7 @@
 
 import fs from "fs";
 import path from "path";
-import {glob} from "glob";
+import { glob } from "glob";
 import * as parser from "@babel/parser";
 import traverse from "@babel/traverse";
 import yaml from "js-yaml";
@@ -31,7 +31,7 @@ import yaml from "js-yaml";
 const ROUTES_DIR = process.env.ROUTES_DIR || path.join(process.cwd(), "src/routes/v1");
 const OUT_FILE = path.join(process.cwd(), "swagger.yaml");
 const SERVER_URL = process.env.BASE_URL || "https://backend.auxhr.com/v1";
-console.log(SERVER_URL)
+console.log(SERVER_URL);
 
 // Type definitions
 interface JoiDescribe {
@@ -155,7 +155,11 @@ function safeRequire(filePath: string): any {
 /**
  * Map Joi.describe() type to OpenAPI type/format
  */
-function joiTypeToOpenApi(desc: JoiDescribe | null): { type: string; format?: string; items?: any } {
+function joiTypeToOpenApi(desc: JoiDescribe | null): {
+  type: string;
+  format?: string;
+  items?: any;
+} {
   const t = (desc && desc.type) || "object";
   switch (t) {
     case "string":
@@ -168,7 +172,8 @@ function joiTypeToOpenApi(desc: JoiDescribe | null): { type: string; format?: st
       return { type: "boolean" };
     case "array":
       // try item type
-      const items = (desc && desc.items && desc.items[0]) ? joiTypeToOpenApi(desc.items[0]) : { type: "string" };
+      const items =
+        desc && desc.items && desc.items[0] ? joiTypeToOpenApi(desc.items[0]) : { type: "string" };
       return { type: "array", items };
     case "date":
       return { type: "string", format: "date-time" };
@@ -205,10 +210,13 @@ function buildSchemaFromJoiDescribe(desc: JoiDescribe | null): any {
     // Add enum if present
     if (desc.allow && Array.isArray(desc.allow) && desc.allow.length > 0) {
       // Joi uses allow([...]) to permit values; describe() shows them in `valids` for some versions
-      const enumer = desc.allow.filter(v => v !== undefined && !(v === null && !desc.flags?.nullable));
+      const enumer = desc.allow.filter(
+        (v) => v !== undefined && !(v === null && !desc.flags?.nullable)
+      );
       if (enumer.length) (primitive as any).enum = enumer;
     }
-    if (desc.flags && desc.flags.default !== undefined) (primitive as any).default = desc.flags.default;
+    if (desc.flags && desc.flags.default !== undefined)
+      (primitive as any).default = desc.flags.default;
     return primitive;
   }
 }
@@ -220,11 +228,17 @@ function buildSchemaFromJoiDescribe(desc: JoiDescribe | null): any {
  */
 function joiSchemaDescribeFromModule(mod: any, exportName: string): JoiDescribe | null {
   if (!mod) return null;
-  const schema = mod[exportName] || mod[exportName + "Schema"] || mod.default && mod.default[exportName];
+  const schema =
+    mod[exportName] || mod[exportName + "Schema"] || (mod.default && mod.default[exportName]);
   if (!schema) return null;
   if (typeof schema.describe !== "function") {
     // If it's wrapped, attempt to access .schema property
-    if (schema && typeof schema === "object" && typeof schema._inner === "object" && typeof schema.describe === "function") {
+    if (
+      schema &&
+      typeof schema === "object" &&
+      typeof schema._inner === "object" &&
+      typeof schema.describe === "function"
+    ) {
       // still try
     } else {
       return null;
@@ -282,8 +296,13 @@ function generateTextForNode(node: any): string {
     if (node.callee.type === "Identifier") {
       return node.callee.name + "(...)";
     } else if (node.callee.type === "MemberExpression") {
-      const obj = node.callee.object && (node.callee.object.name || (node.callee.object.object && node.callee.object.object.name)) || "obj";
-      const prop = node.callee.property && (node.callee.property.name || node.callee.property.value) || "fn";
+      const obj =
+        (node.callee.object &&
+          (node.callee.object.name ||
+            (node.callee.object.object && node.callee.object.object.name))) ||
+        "obj";
+      const prop =
+        (node.callee.property && (node.callee.property.name || node.callee.property.value)) || "fn";
       return `${obj}.${prop}(...)`;
     }
   }
@@ -318,47 +337,51 @@ function extractRoutesFromFile(filepath: string): ExtractResult {
 
     // Find export default (app) => app.use("/messages", router)
     ExportDefaultDeclaration(pathNode: any) {
-  const decl = pathNode.node.declaration;
-  
-  // Handle different types of exports
-  if (decl.type === "CallExpression") {
-    // export default router
-    return;
-  }
-  
-  if (decl.type === "ArrowFunctionExpression" || decl.type === "FunctionExpression") {
-    // Look for app.use("/basepath", router) pattern
-    const body = decl.body;
-    if (body.type === "BlockStatement") {
-      // Look in block statements
-      body.body.forEach((stmt: any) => {
-        if (stmt.type === "ExpressionStatement" && stmt.expression.type === "CallExpression") {
-          const callExpr = stmt.expression;
-          const callee = callExpr.callee;
-          if (callee.type === "MemberExpression" && 
-              callee.property.name === "use" && 
-              callExpr.arguments.length >= 1) {
-            const firstArg = callExpr.arguments[0];
+      const decl = pathNode.node.declaration;
+
+      // Handle different types of exports
+      if (decl.type === "CallExpression") {
+        // export default router
+        return;
+      }
+
+      if (decl.type === "ArrowFunctionExpression" || decl.type === "FunctionExpression") {
+        // Look for app.use("/basepath", router) pattern
+        const body = decl.body;
+        if (body.type === "BlockStatement") {
+          // Look in block statements
+          body.body.forEach((stmt: any) => {
+            if (stmt.type === "ExpressionStatement" && stmt.expression.type === "CallExpression") {
+              const callExpr = stmt.expression;
+              const callee = callExpr.callee;
+              if (
+                callee.type === "MemberExpression" &&
+                callee.property.name === "use" &&
+                callExpr.arguments.length >= 1
+              ) {
+                const firstArg = callExpr.arguments[0];
+                if (firstArg.type === "StringLiteral") {
+                  baseGroup = firstArg.value;
+                }
+              }
+            }
+          });
+        } else if (body.type === "CallExpression") {
+          // Handle arrow functions with direct call: (app) => app.use("/base", router)
+          const callee = body.callee;
+          if (
+            callee.type === "MemberExpression" &&
+            callee.property.name === "use" &&
+            body.arguments.length >= 1
+          ) {
+            const firstArg = body.arguments[0];
             if (firstArg.type === "StringLiteral") {
               baseGroup = firstArg.value;
             }
           }
         }
-      });
-    } else if (body.type === "CallExpression") {
-      // Handle arrow functions with direct call: (app) => app.use("/base", router)
-      const callee = body.callee;
-      if (callee.type === "MemberExpression" && 
-          callee.property.name === "use" && 
-          body.arguments.length >= 1) {
-        const firstArg = body.arguments[0];
-        if (firstArg.type === "StringLiteral") {
-          baseGroup = firstArg.value;
-        }
       }
-    }
-  }
-},
+    },
 
     // Find router.<method> calls
     CallExpression(pathNode: any) {
@@ -366,7 +389,7 @@ function extractRoutesFromFile(filepath: string): ExtractResult {
       if (!callee || callee.type !== "MemberExpression") return;
       if (!callee.object || !callee.object.name) return;
       if (callee.object.name !== "router") return;
-      const method = callee.property && (callee.property.name || (callee.property.value)); // get "get","post" ...
+      const method = callee.property && (callee.property.name || callee.property.value); // get "get","post" ...
       if (!method) return;
       const args = pathNode.node.arguments || [];
       if (args.length === 0) return;
@@ -374,7 +397,7 @@ function extractRoutesFromFile(filepath: string): ExtractResult {
       if (method == "use") {
         for (let i = 0; i < args.length; i++) {
           const a = args[i];
-          currentMiddlewares.push(a)
+          currentMiddlewares.push(a);
         }
         return;
       }
@@ -383,13 +406,17 @@ function extractRoutesFromFile(filepath: string): ExtractResult {
       //     const a = args[i];
       //     console.log(a)
       //   }
-      
+
       // first arg is path - if not string literal, skip
       const firstArg = args[0];
       let routePath: string | null = null;
       if (firstArg.type === "StringLiteral" || firstArg.type === "Literal") {
         routePath = firstArg.value;
-      } else if (firstArg.type === "TemplateLiteral" && firstArg.quasis && firstArg.quasis.length === 1) {
+      } else if (
+        firstArg.type === "TemplateLiteral" &&
+        firstArg.quasis &&
+        firstArg.quasis.length === 1
+      ) {
         routePath = firstArg.quasis[0].value.cooked;
       } else {
         // skip dynamic route path
@@ -399,7 +426,7 @@ function extractRoutesFromFile(filepath: string): ExtractResult {
       const middlewares: string[] = currentMiddlewares;
       const validateInfo: ValidateInfo | null = null;
       const hasValidateAccess = false;
-      const otherTags: string[] = []
+      const otherTags: string[] = [];
 
       routes.push({
         method: method.toLowerCase(),
@@ -408,7 +435,7 @@ function extractRoutesFromFile(filepath: string): ExtractResult {
         validateInfo,
         hasValidateAccess,
         file: filepath,
-        tags: otherTags
+        tags: otherTags,
       });
 
       const currentRoute = routes.length > 0 ? routes[routes.length - 1] : null;
@@ -459,16 +486,25 @@ function extractRoutesFromFile(filepath: string): ExtractResult {
           if (
             callee.object.type === "MemberExpression" &&
             callee.object.object.name === "multerUploads" &&
-            (callee.object.property.name === "memoryUpload" || callee.object.property.name === "diskUpload")
+            (callee.object.property.name === "memoryUpload" ||
+              callee.object.property.name === "diskUpload")
           ) {
-            if (callee.property.name === "single" && a.arguments.length > 0 && a.arguments[0].type === "StringLiteral") {
+            if (
+              callee.property.name === "single" &&
+              a.arguments.length > 0 &&
+              a.arguments[0].type === "StringLiteral"
+            ) {
               if (currentRoute) {
                 currentRoute.fileUploadInfo = {
                   type: "single",
                   fieldName: a.arguments[0].value,
                 };
               }
-            } else if (callee.property.name === "fields" && a.arguments.length > 0 && a.arguments[0].type === "ArrayExpression") {
+            } else if (
+              callee.property.name === "fields" &&
+              a.arguments.length > 0 &&
+              a.arguments[0].type === "ArrayExpression"
+            ) {
               const fields = a.arguments[0].elements.map((el: any) => {
                 const nameProp = el.properties.find((p: any) => p.key.name === "name");
                 const maxCountProp = el.properties.find((p: any) => p.key.name === "maxCount");
@@ -485,68 +521,73 @@ function extractRoutesFromFile(filepath: string): ExtractResult {
         }
 
         // If it's a CallExpression of validateAccess(...)
-        if ((a.type === "CallExpression" && a.callee && a.callee.name === "validateAccess") || (a.type === "Identifier" && a.name === "loginRequired")) {
+        if (
+          (a.type === "CallExpression" && a.callee && a.callee.name === "validateAccess") ||
+          (a.type === "Identifier" && a.name === "loginRequired")
+        ) {
           if (currentRoute) {
             currentRoute.hasValidateAccess = true;
           }
         }
 
         if (a.type === "CallExpression" && a.callee && a.callee.name === "validateAccess") {
-          for (let i = 0; a.arguments[0].elements[i]; i++){
+          for (let i = 0; a.arguments[0].elements[i]; i++) {
             if (currentRoute) {
-              currentRoute.tags.push(a.arguments[0].elements[i].property.name)
+              currentRoute.tags.push(a.arguments[0].elements[i].property.name);
             }
           }
         }
 
         // Handle custom validators for scout route
         if (filepath.endsWith("scout.ts")) {
-            const hasValidateCv = middlewares.includes("validateCv");
-            const hasValidateCvAndCoverLetter = middlewares.includes("validateCvAndCoverLetter");
-    
-            if (hasValidateCv || hasValidateCvAndCoverLetter) {
-              const properties: { [key: string]: any } = {};
-              if (hasValidateCv) {
-                properties["cv"] = { type: "string", format: "binary" };
-              }
-              
-              if (hasValidateCvAndCoverLetter) {
-                properties["cv"] = { type: "string", format: "binary" };
-                properties["coverLetter"] = { type: "string", format: "binary" };
-              }
+          const hasValidateCv = middlewares.includes("validateCv");
+          const hasValidateCvAndCoverLetter = middlewares.includes("validateCvAndCoverLetter");
 
-              //console.log("before ==========================================>");
-              const resolved = resolveImportToFile("src/middlewares/v1/validators/scout", filepath);
-              //console.log(resolved)
-              if (resolved) {
-                let mod;
-                try {
-                  mod = safeRequire(resolved);
-                } catch (err: any) {
-                  console.warn(`Warning: cannot require validator module ${resolved}: ${err.message}`);
-                  mod = null;
-                }
-                if (mod) {
-                  const joiDescribe = joiSchemaDescribeFromModule(mod, "schema");
-                  if (joiDescribe) {
-                    const schema = buildSchemaFromJoiDescribe(joiDescribe);
-                    //console.log(schema);
-                    if (schema.properties) {
-                      for (const key in schema.properties) {
-                        properties[key] = schema.properties[key];
-                      }
+          if (hasValidateCv || hasValidateCvAndCoverLetter) {
+            const properties: { [key: string]: any } = {};
+            if (hasValidateCv) {
+              properties["cv"] = { type: "string", format: "binary" };
+            }
+
+            if (hasValidateCvAndCoverLetter) {
+              properties["cv"] = { type: "string", format: "binary" };
+              properties["coverLetter"] = { type: "string", format: "binary" };
+            }
+
+            //console.log("before ==========================================>");
+            const resolved = resolveImportToFile("src/middlewares/v1/validators/scout", filepath);
+            //console.log(resolved)
+            if (resolved) {
+              let mod;
+              try {
+                mod = safeRequire(resolved);
+              } catch (err: any) {
+                console.warn(
+                  `Warning: cannot require validator module ${resolved}: ${err.message}`
+                );
+                mod = null;
+              }
+              if (mod) {
+                const joiDescribe = joiSchemaDescribeFromModule(mod, "schema");
+                if (joiDescribe) {
+                  const schema = buildSchemaFromJoiDescribe(joiDescribe);
+                  //console.log(schema);
+                  if (schema.properties) {
+                    for (const key in schema.properties) {
+                      properties[key] = schema.properties[key];
                     }
                   }
                 }
               }
-    
-              if (currentRoute) {
-                currentRoute.fileUploadInfo = {
-                  type: "fields",
-                  fields: Object.keys(properties).map(p => ({name: p, maxCount: 1}))
-                }
-              }
             }
+
+            if (currentRoute) {
+              currentRoute.fileUploadInfo = {
+                type: "fields",
+                fields: Object.keys(properties).map((p) => ({ name: p, maxCount: 1 })),
+              };
+            }
+          }
         }
 
         // record textual middleware for debugging (optional)
@@ -562,20 +603,23 @@ function extractRoutesFromFile(filepath: string): ExtractResult {
       }
 
       for (const a of currentMiddlewares) {
-        if ((a.type === "CallExpression" && a.callee && a.callee.name === "validateAccess") || (a.type === "Identifier" && a.name === "loginRequired")) {
+        if (
+          (a.type === "CallExpression" && a.callee && a.callee.name === "validateAccess") ||
+          (a.type === "Identifier" && a.name === "loginRequired")
+        ) {
           if (currentRoute) {
             currentRoute.hasValidateAccess = true;
           }
         }
         if (a.type === "CallExpression" && a.callee && a.callee.name === "validateAccess") {
-          for (let i = 0; a.arguments[0].elements[i]; i++){
+          for (let i = 0; a.arguments[0].elements[i]; i++) {
             if (currentRoute) {
-              currentRoute.tags.push(a.arguments[0].elements[i].property.name)
+              currentRoute.tags.push(a.arguments[0].elements[i].property.name);
             }
           }
         }
       }
-    }
+    },
   } as any);
 
   return { importMap, routes, baseGroup };
@@ -598,7 +642,7 @@ function resolveImportToFile(importSource: string, baseFile: string): string | n
       resolved + ".cjs",
       resolved + "/index.js",
       resolved + "/index.ts",
-      resolved
+      resolved,
     ];
     for (const c of candidates) {
       if (fs.existsSync(c)) return c;
@@ -629,9 +673,9 @@ function buildParametersFromJoi(desc: JoiDescribe | null, location: "query" | "p
     const param = {
       name,
       in: location,
-      required: (child.flags && child.flags.presence === "required") || (location === "path"),
+      required: (child.flags && child.flags.presence === "required") || location === "path",
       schema: buildSchemaFromJoiDescribe(child),
-      description: child.flags && child.flags.description ? child.flags.description : undefined
+      description: child.flags && child.flags.description ? child.flags.description : undefined,
     };
     // If it's integer type we may add format
     params.push(param);
@@ -650,9 +694,9 @@ function buildRequestBodyFromJoi(desc: JoiDescribe | null): any {
     required: true,
     content: {
       "application/json": {
-        schema
-      }
-    }
+        schema,
+      },
+    },
   };
 }
 
@@ -676,8 +720,11 @@ function main(): void {
       for (const r of routes) {
         let fullPath = r.path;
         if (groupBase && groupBase !== "/") {
-        // Ensure proper path joining without double slashes
-        fullPath = `/${groupBase.replace(/^\/+/, "")}/${r.path.replace(/^\/+/, "")}`.replace(/\/+/g, "/");
+          // Ensure proper path joining without double slashes
+          fullPath = `/${groupBase.replace(/^\/+/, "")}/${r.path.replace(/^\/+/, "")}`.replace(
+            /\/+/g,
+            "/"
+          );
         }
         // Convert express path param :id to openapi style {id}
         const openapiPath = fullPath.replace(/:([A-Za-z0-9_]+)/g, "{$1}");
@@ -697,11 +744,11 @@ function main(): void {
               description: "Successful response",
               content: {
                 "application/json": {
-                  schema: { type: "object" }
-                }
-              }
-            }
-          }
+                  schema: { type: "object" },
+                },
+              },
+            },
+          },
         };
 
         // if path has :params, add path params (we will fill types potentially from validator)
@@ -710,7 +757,7 @@ function main(): void {
             name: pName,
             in: "path",
             required: true,
-            schema: { type: "string" }
+            schema: { type: "string" },
           });
         }
 
@@ -726,7 +773,9 @@ function main(): void {
               try {
                 mod = safeRequire(resolved);
               } catch (err: any) {
-                console.warn(`Warning: cannot require validator module ${resolved}: ${err.message}`);
+                console.warn(
+                  `Warning: cannot require validator module ${resolved}: ${err.message}`
+                );
                 mod = null;
               }
               if (mod) {
@@ -767,7 +816,9 @@ function main(): void {
                     const pathParams = buildParametersFromJoi(keys.params, "path");
                     // merge/overwrite existing path params from URL by name and type
                     for (const pp of pathParams) {
-                      const existingIndex = op.parameters.findIndex(p => p.name === pp.name && p.in === "path");
+                      const existingIndex = op.parameters.findIndex(
+                        (p) => p.name === pp.name && p.in === "path"
+                      );
                       if (existingIndex >= 0) op.parameters[existingIndex] = pp;
                       else op.parameters.push(pp);
                     }
@@ -776,7 +827,9 @@ function main(): void {
                     if (pathParamsFromPath.length && keys.params) {
                       const pathParams = buildParametersFromJoi(keys.params, "path");
                       for (const pp of pathParams) {
-                        const existingIndex = op.parameters.findIndex(p => p.name === pp.name && p.in === "path");
+                        const existingIndex = op.parameters.findIndex(
+                          (p) => p.name === pp.name && p.in === "path"
+                        );
                         if (existingIndex >= 0) op.parameters[existingIndex] = pp;
                         else op.parameters.push(pp);
                       }
@@ -835,7 +888,8 @@ function main(): void {
         // Add to group
         const groupKey = groupBase || "/";
         if (!operationsByGroup[groupKey]) operationsByGroup[groupKey] = {};
-        if (!operationsByGroup[groupKey][openapiPath]) operationsByGroup[groupKey][openapiPath] = {};
+        if (!operationsByGroup[groupKey][openapiPath])
+          operationsByGroup[groupKey][openapiPath] = {};
         operationsByGroup[groupKey][openapiPath][method] = op;
       }
     } catch (err: any) {
@@ -849,22 +903,20 @@ function main(): void {
     info: {
       title: "Auto-generated API",
       description: "Generated from Express route files and Joi validators",
-      version: "1.0.0"
+      version: "1.0.0",
     },
-    servers: [
-      { url: SERVER_URL }
-    ],
+    servers: [{ url: SERVER_URL }],
     components: {
       securitySchemes: {
         bearerAuth: {
           type: "http",
           scheme: "bearer",
-          bearerFormat: "JWT"
-        }
+          bearerFormat: "JWT",
+        },
       },
-      schemas: {}
+      schemas: {},
     },
-    paths: {}
+    paths: {},
   };
 
   // Flatten operationsByGroup into paths (groupBase + routePath are already combined)

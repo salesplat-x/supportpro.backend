@@ -30,8 +30,7 @@ export const ApplicationType = {
   Application: "by application",
 } as const;
 
-export type TApplicationType =
-  (typeof ApplicationType)[keyof typeof ApplicationType];
+export type TApplicationType = (typeof ApplicationType)[keyof typeof ApplicationType];
 
 export const ScreeningStage = {
   Prescreening: "prescreening",
@@ -41,8 +40,7 @@ export const ScreeningStage = {
   Completed: "completed",
 } as const;
 
-export type TScreeningStage =
-  (typeof ScreeningStage)[keyof typeof ScreeningStage];
+export type TScreeningStage = (typeof ScreeningStage)[keyof typeof ScreeningStage];
 
 export const ApplicationStatus = {
   Pending: "pending",
@@ -52,8 +50,7 @@ export const ApplicationStatus = {
   Rejected: "rejected",
 } as const;
 
-export type TApplicationStatus =
-  (typeof ApplicationStatus)[keyof typeof ApplicationStatus];
+export type TApplicationStatus = (typeof ApplicationStatus)[keyof typeof ApplicationStatus];
 
 export interface FetchApplications extends Paging {
   applicationType?: string;

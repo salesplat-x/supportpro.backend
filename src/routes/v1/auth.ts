@@ -32,11 +32,7 @@ router.post(
   asyncHandler(auth.verifyEmail)
 );
 
-router.post(
-  "/login",
-  validate(authValidator.login, { body: true }),
-  asyncHandler(auth.login)
-);
+router.post("/login", validate(authValidator.login, { body: true }), asyncHandler(auth.login));
 
 router.post(
   "/forgot-password",

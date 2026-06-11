@@ -4,9 +4,7 @@ import { IRole } from "../../typings/role";
 import { FilterQuery, HydratedDocument, Types } from "mongoose";
 import * as func from "../../helpers/func";
 
-export const createRole = async (
-  role: Partial<IRole>
-): Promise<HydratedDocument<IRole>> => {
+export const createRole = async (role: Partial<IRole>): Promise<HydratedDocument<IRole>> => {
   return await new Role(role).save();
 };
 

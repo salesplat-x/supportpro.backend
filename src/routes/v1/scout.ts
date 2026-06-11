@@ -25,11 +25,7 @@ router.put(
   asyncHandler(scoutJob.update)
 );
 
-router.get(
-  "/jobs/:_id",
-  validateAccess([Roles.Recruiter]),
-  asyncHandler(scoutJob.fetch)
-);
+router.get("/jobs/:_id", validateAccess([Roles.Recruiter]), asyncHandler(scoutJob.fetch));
 
 router.get(
   "/:scoutJobId/talents",

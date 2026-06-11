@@ -18,17 +18,10 @@ export const createJob = async (user: IUser, payload: IScoutJob) => {
   }
 
   // create embedding for job description
-  const jd = preprocessText(
-    `${payload.jobBrief} \n ${payload.recruiterGuide}`
-  );
+  const jd = preprocessText(`${payload.jobBrief} \n ${payload.recruiterGuide}`);
   const jobEmbedding = await createEmbedding(jd);
   if (!jobEmbedding || !jobEmbedding[0]?.embedding) {
-    return makeResponse(
-      false,
-      "Unable to create vector embedding for JD",
-      {},
-      400
-    );
+    return makeResponse(false, "Unable to create vector embedding for JD", {}, 400);
   }
 
   payload.postedBy = user._id;
@@ -56,29 +49,20 @@ export const updateJob = async (user: IUser, payload: IScoutJob) => {
   }
 
   if ((existingJob.postedBy as IUser)._id.toString() !== user._id.toString()) {
-    return makeResponse(
-      false,
-      "You are not authorized to perform this action",
-      403
-    );
+    return makeResponse(false, "You are not authorized to perform this action", 403);
   }
 
   if (update.role) {
     if (!Types.ObjectId.isValid(update.role as string)) {
       return makeResponse(false, "Invalid role id", {}, 400);
     }
-    const existingRole = await roleRepository.findRoleById(
-      update.role as string
-    );
+    const existingRole = await roleRepository.findRoleById(update.role as string);
     if (!existingRole) {
       return makeResponse(false, "Role does not exist", {}, 404);
     }
   }
 
-  const scoutJob = await scoutJobRepository.findScoutJobByIdAndUpdate(
-    _id,
-    update
-  );
+  const scoutJob = await scoutJobRepository.findScoutJobByIdAndUpdate(_id, update);
   if (!scoutJob) {
     return makeResponse(false, "Unable to update scoutJob", {}, 400);
   }

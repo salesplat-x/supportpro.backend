@@ -33,16 +33,8 @@ export const updateAIConfig = async (user: IUser, payload: IAIConfig) => {
     return makeResponse(false, "Configuration not found", {}, 404);
   }
 
-  if (
-    config.recruiter?.toString() != user._id.toString() &&
-    user.userRole !== Roles.Admin
-  ) {
-    return makeResponse(
-      false,
-      "You are not authorized to perform this action",
-      {},
-      403
-    );
+  if (config.recruiter?.toString() != user._id.toString() && user.userRole !== Roles.Admin) {
+    return makeResponse(false, "You are not authorized to perform this action", {}, 403);
   }
 
   if (payload.name) {
@@ -51,10 +43,7 @@ export const updateAIConfig = async (user: IUser, payload: IAIConfig) => {
       name: payload.name.toLowerCase(),
     });
     if (existing && existing.id !== config.id) {
-      return makeResponse(
-        false,
-        "Your already have a configuration with this name"
-      );
+      return makeResponse(false, "Your already have a configuration with this name");
     }
   }
 
@@ -62,10 +51,7 @@ export const updateAIConfig = async (user: IUser, payload: IAIConfig) => {
 
   payload.stages = aiConfigRepository.createStages(payload);
 
-  config = await aiConfigRepository.findAndUpdateAIConfigById(
-    config._id,
-    payload
-  );
+  config = await aiConfigRepository.findAndUpdateAIConfigById(config._id, payload);
   return makeResponse(true, "AI configuration updated", { config });
 };
 
@@ -76,10 +62,7 @@ export const allAIConfig = async (user: IUser) => {
   return makeResponse(true, "AI configuration set", { config });
 };
 
-export const fetchAIConfig = async (
-  user: IUser,
-  payload: Pick<IAIConfig, "_id">
-) => {
+export const fetchAIConfig = async (user: IUser, payload: Pick<IAIConfig, "_id">) => {
   const config = await aiConfigRepository.findAIconfigById(payload._id!);
 
   if (!config) {
@@ -87,20 +70,12 @@ export const fetchAIConfig = async (
   }
 
   if (config.recruiter?.toString() != user._id.toString()) {
-    return makeResponse(
-      false,
-      "You are not authorized to perform this action",
-      {},
-      403
-    );
+    return makeResponse(false, "You are not authorized to perform this action", {}, 403);
   }
   return makeResponse(true, "AI configuration set", { config });
 };
 
-export const deleteAIConfig = async (
-  user: IUser,
-  payload: Pick<IAIConfig, "_id">
-) => {
+export const deleteAIConfig = async (user: IUser, payload: Pick<IAIConfig, "_id">) => {
   const config = await aiConfigRepository.findAIconfigById(payload._id!);
 
   if (!config) {
@@ -108,12 +83,7 @@ export const deleteAIConfig = async (
   }
 
   if (config.recruiter?.toString() != user._id.toString()) {
-    return makeResponse(
-      false,
-      "You are not authorized to perform this action",
-      {},
-      403
-    );
+    return makeResponse(false, "You are not authorized to perform this action", {}, 403);
   }
 
   await config.deleteOne();

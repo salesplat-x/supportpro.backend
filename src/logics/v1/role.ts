@@ -49,10 +49,5 @@ export const questions = async (payload: Pick<IRole, "_id">, paging: Paging) => 
     },
     paging
   );
-  return makeResponse(
-    true,
-    "Questions fetched successfully",
-    questions || [],
-    200
-  );
+  return makeResponse(true, "Questions fetched successfully", questions || [], 200);
 };

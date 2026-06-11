@@ -5,10 +5,7 @@ import { makeResponse } from "../../helpers/response";
 import { Paging } from "../../typings/customs";
 import { FilterQuery } from "mongoose";
 
-export const createNotification = async (
-  user: IUser,
-  payload: INotification
-) => {
+export const createNotification = async (user: IUser, payload: INotification) => {
   payload.user = user.id;
   const notification = await notificationRepository.createNotification(payload);
 
@@ -17,13 +14,8 @@ export const createNotification = async (
 
 export const getNotifications = async (user: IUser, paging: Paging) => {
   const query: FilterQuery<INotification> = { user: user.id };
-  const notifications = await notificationRepository.findNotifications(
-    query,
-    paging
-  );
-  const unReadCount = await notificationRepository.countUnreadNotifications(
-    query
-  );
+  const notifications = await notificationRepository.findNotifications(query, paging);
+  const unReadCount = await notificationRepository.countUnreadNotifications(query);
 
   return makeResponse(
     true,
@@ -34,9 +26,7 @@ export const getNotifications = async (user: IUser, paging: Paging) => {
 };
 
 export const readNotification = async (user: IUser, notificationId: string) => {
-  const notification = await notificationRepository.findNotificationById(
-    notificationId
-  );
+  const notification = await notificationRepository.findNotificationById(notificationId);
 
   if (!notification) {
     return makeResponse(false, "Notification not found!", {}, 404);
@@ -48,21 +38,11 @@ export const readNotification = async (user: IUser, notificationId: string) => {
   notification.isRead = true;
   await notification.save();
 
-  return makeResponse(
-    true,
-    "Notification fetched successfully",
-    { notification },
-    200
-  );
+  return makeResponse(true, "Notification fetched successfully", { notification }, 200);
 };
 
-export const deleteNotification = async (
-  user: IUser,
-  notificationId: string
-) => {
-  const notification = await notificationRepository.findNotificationById(
-    notificationId
-  );
+export const deleteNotification = async (user: IUser, notificationId: string) => {
+  const notification = await notificationRepository.findNotificationById(notificationId);
 
   if (!notification) {
     return makeResponse(false, "Notification not found!", {}, 404);
@@ -74,10 +54,5 @@ export const deleteNotification = async (
   notification.deleted = true;
   await notification.save();
 
-  return makeResponse(
-    true,
-    "Notification deleted successfully",
-    { notification },
-    200
-  );
+  return makeResponse(true, "Notification deleted successfully", { notification }, 200);
 };

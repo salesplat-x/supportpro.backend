@@ -10,7 +10,7 @@ import { Roles } from "../../typings/customs";
 
 const router = Router();
 
-router.use(validateAccess([Roles.Superadmin]))
+router.use(validateAccess([Roles.Superadmin]));
 
 router.get("/", getErrorLogs);
 

@@ -4,9 +4,7 @@ import { IQuestion } from "../../typings/question";
 import { HydratedDocument, Types } from "mongoose";
 import * as func from "../../helpers/func";
 
-export const createQuestion = async (
-  question: IQuestion
-): Promise<HydratedDocument<IQuestion>> => {
+export const createQuestion = async (question: IQuestion): Promise<HydratedDocument<IQuestion>> => {
   return await new Question(question).save();
 };
 

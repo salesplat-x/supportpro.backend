@@ -9,7 +9,9 @@ export const scoutTalents = Joi.object({
     experience: Joi.string()
       .valid(...Object.values(ExperienceLevel))
       .required(),
-    workMode: Joi.string().valid(...Object.values(WorkMode)).optional(),
+    workMode: Joi.string()
+      .valid(...Object.values(WorkMode))
+      .optional(),
     country: Joi.string(),
     state: Joi.string(),
     city: Joi.string(),
@@ -34,11 +36,7 @@ const schema = Joi.object({
   scoutJobId: Joi.string().required(),
 });
 
-export const validateCvAndCoverLetter = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
+export const validateCvAndCoverLetter = (req: Request, res: Response, next: NextFunction) => {
   const { error } = schema.validate(req.body);
   if (error) {
     return res.status(400).json({ error: error.details[0]?.message });
@@ -84,8 +82,7 @@ export const validateCv = (req: Request, res: Response, next: NextFunction) => {
   }
 
   if (
-    cvFile.mimetype ===
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    cvFile.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
     cvFile.mimetype === "application/msword" ||
     cvFile.mimetype === "application/pdf"
   ) {

@@ -13,32 +13,18 @@ export const createOrganization = async (payload: IOrganization) => {
 
   let exists = await orgRepository.findOrganizationByEmail(email);
   if (exists) {
-    return makeResponse(
-      false,
-      "Organization already registered with this email"
-    );
+    return makeResponse(false, "Organization already registered with this email");
   }
 
   exists = await orgRepository.findOrganizationByMatch({ phone });
   if (exists) {
-    return makeResponse(
-      false,
-      "Organization already registered with this phone number"
-    );
+    return makeResponse(false, "Organization already registered with this phone number");
   }
 
   const organization = await orgRepository.createOrganization(payload);
   if (!organization) {
-    return makeResponse(
-      false,
-      "Organization registration Failed, Please Try Again"
-    );
+    return makeResponse(false, "Organization registration Failed, Please Try Again");
   }
 
-  return makeResponse(
-    true,
-    "Organization registered Successfully",
-    { organization },
-    201
-  );
+  return makeResponse(true, "Organization registered Successfully", { organization }, 201);
 };

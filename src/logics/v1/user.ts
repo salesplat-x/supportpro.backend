@@ -1,9 +1,5 @@
 import { FetchProfiles, IProfile, IUser } from "../../typings/user";
-import {
-  ApplicationType,
-  FetchApplications,
-  IApplication,
-} from "../../typings/application";
+import { ApplicationType, FetchApplications, IApplication } from "../../typings/application";
 import * as userRepository from "../../repository/v1/user";
 import * as roleRepository from "../../repository/v1/role";
 import * as applicationRepository from "../../repository/v1/application";
@@ -245,9 +241,7 @@ export const applications = async (user: IUser, payload: FetchApplications) => {
     }
   );
 
-  const applications = await applicationRepository.applicationAggregate(
-    pipeline
-  );
+  const applications = await applicationRepository.applicationAggregate(pipeline);
 
   return makeResponse(true, "User's job applications fetched", { applications });
 };

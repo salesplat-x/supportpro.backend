@@ -1,10 +1,7 @@
-import { Joi } from '../../../helpers/joi-extensions';
+import { Joi } from "../../../helpers/joi-extensions";
 import { ExperienceLevel } from "../../../typings/customs";
 import { FetchProfiles, IUser } from "../../../typings/user";
-import {
-  ApplicationStatus,
-  ApplicationType,
-} from "../../../typings/application";
+import { ApplicationStatus, ApplicationType } from "../../../typings/application";
 
 export const profile = Joi.object({
   body: Joi.object({
@@ -89,7 +86,7 @@ export const updateUser = Joi.object({
     lastName: Joi.string().optional(),
     middleName: Joi.string().optional(),
     picture: Joi.string().optional(),
-    phone: Joi.string().phoneNumber().optional().label('Phone Number'),
+    phone: Joi.string().phoneNumber().optional().label("Phone Number"),
   }),
   country: Joi.string().optional(),
 }).required();

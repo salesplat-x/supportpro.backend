@@ -39,9 +39,7 @@ export const findAIconfigsByMatch = async (match: Partial<IAIConfig>) => {
 };
 
 // Create stages object based on recruiter selections
-export const createStages = (
-  config: IAIConfig
-): Map<TScreeningStage, TScreeningStage> => {
+export const createStages = (config: IAIConfig): Map<TScreeningStage, TScreeningStage> => {
   const stages = new Map<TScreeningStage, TScreeningStage>();
   let currentStage: TScreeningStage = ScreeningStage.Prescreening;
 

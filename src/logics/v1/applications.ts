@@ -16,9 +16,7 @@ import { Paging, Roles } from "../../typings/customs";
 
 // Function to get single job Application
 export const getApplication = async (user: IUser, applicationId: string) => {
-  const application = await applicationRepository.findApplicationById(
-    applicationId
-  );
+  const application = await applicationRepository.findApplicationById(applicationId);
   if (!application) {
     return makeResponse(false, "Application not found!", {}, 404);
   }
@@ -27,12 +25,7 @@ export const getApplication = async (user: IUser, applicationId: string) => {
     (application.job as IJob).postedBy.toString() !== user._id.toString() &&
     (application.talent as IUser)._id.toString() !== user._id.toString()
   ) {
-    return makeResponse(
-      false,
-      "You are not authorized to perform this action",
-      {},
-      403
-    );
+    return makeResponse(false, "You are not authorized to perform this action", {}, 403);
   }
 
   const count = await applicationRepository.countApplications({
@@ -46,10 +39,7 @@ export const getApplication = async (user: IUser, applicationId: string) => {
   });
 };
 
-export const getApplications = async (
-  user: IUser,
-  payload: FetchApplications
-) => {
+export const getApplications = async (user: IUser, payload: FetchApplications) => {
   const query: FilterQuery<IApplication> = {};
   if (user.userRole === Roles.Recruiter) {
     query.recruiter = user.id;
@@ -57,9 +47,7 @@ export const getApplications = async (
     query.talent = user.id;
   }
 
-  const applications = await applicationRepository.findApplicationsByMatch(
-    query
-  );
+  const applications = await applicationRepository.findApplicationsByMatch(query);
 
   return makeResponse(true, "Job application details fetched", {
     application: applications,
@@ -79,10 +67,7 @@ export const shortlist = async (user: IUser, payload: FetchApplications) => {
     paging.sort = payload.sort;
   }
 
-  const campaigns = await applicationRepository.leanApplicationsByMatch(
-    query,
-    paging
-  );
+  const campaigns = await applicationRepository.leanApplicationsByMatch(query, paging);
 
   const scouts = await scoutRepository.findScoutsByMatch(
     query,
@@ -100,9 +85,7 @@ export const updateStatus = async (
   user: IUser,
   payload: { _id: string; status: TApplicationStatus }
 ) => {
-  const application = await applicationRepository.findApplicationById(
-    payload._id
-  );
+  const application = await applicationRepository.findApplicationById(payload._id);
   if (!application) {
     return makeResponse(false, "Application not found!", {}, 404);
   }
@@ -111,12 +94,7 @@ export const updateStatus = async (
     (application.job as IJob).postedBy.toString() !== user._id.toString() &&
     (application.talent as IUser)._id.toString() !== user._id.toString()
   ) {
-    return makeResponse(
-      false,
-      "You are not authorized to perform this action",
-      {},
-      403
-    );
+    return makeResponse(false, "You are not authorized to perform this action", {}, 403);
   }
   application.status = payload.status;
   await application.save();

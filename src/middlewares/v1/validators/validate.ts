@@ -25,17 +25,17 @@ export default (
       const formattedErrors = validated.error.details.map((detail) => {
         // Get the message and clean it up
         const message = detail.message
-          .replace(/^"|"$/g, '') // Remove double quotes
-          .replace(/^body\.|query\.|params\./, '') // Remove prefixes
-          .replace(/^[^:]+: /, '') // Remove field name prefix from message
-          .replace(/"\s/g, ' ')
+          .replace(/^"|"$/g, "") // Remove double quotes
+          .replace(/^body\.|query\.|params\./, "") // Remove prefixes
+          .replace(/^[^:]+: /, "") // Remove field name prefix from message
+          .replace(/"\s/g, " ");
 
         return message;
       });
 
       return res.status(400).json({
         status: false,
-        message: formattedErrors.join(', '),
+        message: formattedErrors.join(", "),
       });
     }
     // continue to the next middleware

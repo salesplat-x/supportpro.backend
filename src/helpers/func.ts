@@ -1,7 +1,7 @@
 import mammoth from "mammoth";
 import path from "path";
 import pdfParse from "pdf-parse";
-import crypto from 'crypto'
+import crypto from "crypto";
 import { findPaymentByMatch } from "../repository/v1/payment";
 
 export const stringToBool = (str: string) => {
@@ -144,10 +144,7 @@ export function convertToSnakeCase(str: string): string {
     .join("_");
 }
 
-export function renderTemplateString(
-  template: string,
-  data: Record<string, any>
-): string {
+export function renderTemplateString(template: string, data: Record<string, any>): string {
   return template.replace(/{{([^}]+)}}/g, (_, key: string) => data[key]);
 }
 
@@ -177,11 +174,7 @@ export function generateRandomString(length: number): string {
 }
 
 export function sortDirection(direction: string): -1 | 1 | 0 {
-  return direction?.toLowerCase() === "asc"
-    ? 1
-    : direction?.toLowerCase() === "desc"
-    ? -1
-    : 0;
+  return direction?.toLowerCase() === "asc" ? 1 : direction?.toLowerCase() === "desc" ? -1 : 0;
 }
 
 export function handleFilename(filename: string) {
@@ -197,9 +190,12 @@ export function handleFilename(filename: string) {
 }
 
 export async function generateReference(length: number = 12) {
-  const randomBytes = crypto.randomBytes(Math.ceil(length / 2)).toString('hex').slice(0, length)
-  const timestamp = Date.now().toString(36)
-  const reference =  `Aux-${timestamp}${randomBytes}`.toUpperCase()
+  const randomBytes = crypto
+    .randomBytes(Math.ceil(length / 2))
+    .toString("hex")
+    .slice(0, length);
+  const timestamp = Date.now().toString(36);
+  const reference = `Aux-${timestamp}${randomBytes}`.toUpperCase();
   const codeDuplicate = await findPaymentByMatch({
     reference,
   });

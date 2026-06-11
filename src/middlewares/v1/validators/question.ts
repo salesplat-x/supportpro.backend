@@ -1,9 +1,5 @@
 import Joi from "joi";
-import {
-  IQuestion,
-  DichotomyPair,
-  QuestionType,
-} from "../../../typings/question";
+import { IQuestion, DichotomyPair, QuestionType } from "../../../typings/question";
 
 export const question = Joi.object({
   body: Joi.object<IQuestion>({
