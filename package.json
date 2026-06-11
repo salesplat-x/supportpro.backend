@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Backend server for SupportPro",
   "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "npx ts-node generate-swagger.ts && node ./dist/app.js",
     "start:build": "npx ts-node generate-swagger.ts && npm run build && npm start",
@@ -56,8 +59,8 @@
     "winston": "^3.11.0"
   },
   "devDependencies": {
-    "@commitlint/cli": "^21.0.2",
-    "@commitlint/config-conventional": "^21.0.2",
+    "@commitlint/cli": "^19.8.1",
+    "@commitlint/config-conventional": "^19.8.1",
     "@eslint/js": "^10.0.1",
     "@types/babel__traverse": "^7.28.0",
     "@types/bcrypt": "^5.0.2",
