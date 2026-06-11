@@ -102,7 +102,7 @@ export const loginUser = async ({
   email,
   password,
 }: Pick<IUser, "email" | "password">) => {
-  let user = await userRepository.findUserByEmail(email.toLocaleLowerCase());
+  const user = await userRepository.findUserByEmail(email.toLocaleLowerCase());
   if (!user) {
     return makeResponse(false, "Invalid email or password", {}, 403);
   }
