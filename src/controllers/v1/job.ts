@@ -46,10 +46,7 @@ export const topTalents = async (req: Request, res: Response) => {
 };
 
 export const gradeCv = async (req: Request, res: Response) => {
-  const response = await jobController.gradeCv(
-    req.user,
-    req.params.jobId as any
-  );
+  const response = await jobController.gradeCv(req.user, req.params.jobId as any);
   return responseHandler(res, response);
 };
 

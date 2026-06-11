@@ -29,12 +29,7 @@ class Email {
     });
   }
 
-  private async sendHtml(
-    to: string,
-    template: string,
-    subject: string,
-    data: Record<string, any>
-  ) {
+  private async sendHtml(to: string, template: string, subject: string, data: Record<string, any>) {
     const htmlTemplate = fs.readFileSync(
       path.join(__dirname, `../../../templates/${template}.html`),
       "utf-8"
@@ -60,8 +55,7 @@ class Email {
   }
 
   async sendWelcome(user: IUser) {
-    const template =
-      user.userRole === Roles.Recruiter ? "welcomeRecruiter" : "welcome";
+    const template = user.userRole === Roles.Recruiter ? "welcomeRecruiter" : "welcome";
     await this.sendHtml(user.email, template, `Welcome to AuxHR`, {
       firstName: user.firstName,
     });

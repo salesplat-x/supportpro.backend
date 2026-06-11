@@ -18,7 +18,7 @@ export const getErrorLogs = asyncHandler(async (req: Request, res: Response) => 
   const filters = {
     level: level as string,
     environment: environment as string,
-    resolved: resolved === 'true' ? true : resolved === 'false' ? false : undefined,
+    resolved: resolved === "true" ? true : resolved === "false" ? false : undefined,
     errorType: errorType as string,
     startDate: startDate ? new Date(startDate as string) : undefined,
     endDate: endDate ? new Date(endDate as string) : undefined,
@@ -28,23 +28,13 @@ export const getErrorLogs = asyncHandler(async (req: Request, res: Response) => 
 
   const result = await errorLogger.getErrorLogs(filters);
 
-  return sendSuccessResponse(
-    res,
-    "Error logs retrieved successfully",
-    result,
-    200
-  );
+  return sendSuccessResponse(res, "Error logs retrieved successfully", result, 200);
 });
 
 export const getErrorStats = asyncHandler(async (req: Request, res: Response) => {
   const stats = await errorLogger.getErrorStats();
 
-  return sendSuccessResponse(
-    res,
-    "Error statistics retrieved successfully",
-    stats,
-    200
-  );
+  return sendSuccessResponse(res, "Error statistics retrieved successfully", stats, 200);
 });
 
 export const markErrorAsResolved = asyncHandler(async (req: Request, res: Response) => {
@@ -74,12 +64,7 @@ export const markErrorAsResolved = asyncHandler(async (req: Request, res: Respon
     });
   }
 
-  return sendSuccessResponse(
-    res,
-    "Error marked as resolved successfully",
-    { requestId },
-    200
-  );
+  return sendSuccessResponse(res, "Error marked as resolved successfully", { requestId }, 200);
 });
 
 export const cleanupOldLogs = asyncHandler(async (req: Request, res: Response) => {
@@ -93,4 +78,4 @@ export const cleanupOldLogs = asyncHandler(async (req: Request, res: Response) =
     { deletedCount, daysToKeep },
     200
   );
-}); 
+});

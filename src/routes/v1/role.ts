@@ -16,17 +16,9 @@ router.post(
   asyncHandler(role.create)
 );
 
-router.get(
-  "/",
-  validate(roleValidator.allRoles, { query: true }),
-  asyncHandler(role.fetchAll)
-);
+router.get("/", validate(roleValidator.allRoles, { query: true }), asyncHandler(role.fetchAll));
 
-router.get(
-  "/:_id",
-  validate(roleValidator.roleId, { params: true }),
-  asyncHandler(role.fetch)
-);
+router.get("/:_id", validate(roleValidator.roleId, { params: true }), asyncHandler(role.fetch));
 
 router.get(
   "/:_id/questions",

@@ -8,10 +8,7 @@ export const createJob = async (job: IJob): Promise<HydratedDocument<IJob>> => {
   return await new Job(job).save();
 };
 
-export const findJobById = async (
-  id: Types.ObjectId | string,
-  projection = "role postedBy"
-) => {
+export const findJobById = async (id: Types.ObjectId | string, projection = "role postedBy") => {
   return await Job.findById(id).populate(projection);
 };
 

@@ -1,9 +1,5 @@
 import { FetchProfiles, IProfile, IUser } from "../../typings/user";
-import {
-  ApplicationType,
-  FetchApplications,
-  IApplication,
-} from "../../typings/application";
+import { ApplicationType, FetchApplications, IApplication } from "../../typings/application";
 import * as userRepository from "../../repository/v1/user";
 import * as roleRepository from "../../repository/v1/role";
 import * as applicationRepository from "../../repository/v1/application";
@@ -41,7 +37,7 @@ export const uploadProfile = async (payload: IProfile, user: IUser) => {
 };
 
 export const updateUser = async (_user: IUser, payload: IUser) => {
-  let existingUser = await userRepository.findUserById(_user._id);
+  const existingUser = await userRepository.findUserById(_user._id);
   if (!existingUser) {
     return makeResponse(false, "Authenticated user no longer exist!", {});
   }
@@ -53,7 +49,7 @@ export const updateUser = async (_user: IUser, payload: IUser) => {
 };
 
 export const editProfile = async (payload: IProfile, _user: IUser) => {
-  let existingUser = await userRepository.findUserById(_user._id);
+  const existingUser = await userRepository.findUserById(_user._id);
   if (!existingUser) {
     return makeResponse(false, "Authenticated user no longer exist!", {});
   }
@@ -68,7 +64,7 @@ export const editProfile = async (payload: IProfile, _user: IUser) => {
 };
 
 export const me = async (user: IUser) => {
-  let existingUser = await userRepository.findUserById(user._id);
+  const existingUser = await userRepository.findUserById(user._id);
   if (!existingUser) {
     return makeResponse(false, "Authenticated user no longer exist!", {});
   }
@@ -81,7 +77,7 @@ export const viewProfile = async (user: Pick<IUser, "_id">) => {
   if (!mongoose.Types.ObjectId.isValid(user._id)) {
     return makeResponse(false, "Invalid user id", {}, 400);
   }
-  let existingUser = await userRepository.findUserAndScoreById(user._id);
+  const existingUser = await userRepository.findUserAndScoreById(user._id);
   if (!existingUser) {
     return makeResponse(false, "User not found", {}, 404);
   }
@@ -97,7 +93,7 @@ export const viewProfilesForRole = async (payload: FetchProfiles) => {
   let talents: IUser[] = [];
 
   // Create aggregation pipeline
-  let pipeline: mongoose.PipelineStage[] = [
+  const pipeline: mongoose.PipelineStage[] = [
     {
       $match: {
         userRole: Roles.Talent,
@@ -179,7 +175,7 @@ export const applications = async (user: IUser, payload: FetchApplications) => {
 
   const query: Record<string, any> = { talent: user._id };
 
-  let pipeline: mongoose.PipelineStage[] = [
+  const pipeline: mongoose.PipelineStage[] = [
     { $match: { talent: new mongoose.Types.ObjectId(user._id) } },
   ];
 
@@ -245,9 +241,7 @@ export const applications = async (user: IUser, payload: FetchApplications) => {
     }
   );
 
-  const applications = await applicationRepository.applicationAggregate(
-    pipeline
-  );
+  const applications = await applicationRepository.applicationAggregate(pipeline);
 
   return makeResponse(true, "User's job applications fetched", { applications });
 };

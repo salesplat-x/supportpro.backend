@@ -1,4 +1,4 @@
-import { Joi } from '../../../helpers/joi-extensions';
+import { Joi } from "../../../helpers/joi-extensions";
 import { ExperienceLevel } from "../../../typings/customs";
 
 export const register = Joi.object({
@@ -11,12 +11,10 @@ export const register = Joi.object({
       // Validates international phone numbers starting with + followed by 7-15 digits.
       .phoneNumber()
       .optional()
-      .label('Phone Number'),
+      .label("Phone Number"),
     password: Joi.string()
       .min(8)
-      .pattern(
-        /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#.?&])[A-Za-z\d@$!%*#?.&]{8,}$/
-      )
+      .pattern(/^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#.?&])[A-Za-z\d@$!%*#?.&]{8,}$/)
       .required()
       .messages({
         "string.pattern.base":
@@ -64,9 +62,7 @@ export const passwordUpdate = Joi.object({
   body: Joi.object({
     newPassword: Joi.string()
       .min(8)
-      .pattern(
-        /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#.?&])[A-Za-z\d@$!%*#?.&]{8,}$/
-      )
+      .pattern(/^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#.?&])[A-Za-z\d@$!%*#?.&]{8,}$/)
       .required()
       .messages({
         "string.pattern.base":
@@ -86,9 +82,7 @@ export const resetPassword = Joi.object({
     email: Joi.string().email().required(),
     password: Joi.string()
       .min(8)
-      .pattern(
-        /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#.?&])[A-Za-z\d@$!%*#?.&]{8,}$/
-      )
+      .pattern(/^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#.?&])[A-Za-z\d@$!%*#?.&]{8,}$/)
       .required()
       .messages({
         "string.pattern.base":
@@ -103,9 +97,7 @@ export const changePassword = Joi.object({
   body: Joi.object({
     newPassword: Joi.string()
       .min(8)
-      .pattern(
-        /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#.?&])[A-Za-z\d@$!%*#?.&]{8,}$/
-      )
+      .pattern(/^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#.?&])[A-Za-z\d@$!%*#?.&]{8,}$/)
       .required()
       .messages({
         "string.pattern.base":

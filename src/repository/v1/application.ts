@@ -65,9 +65,7 @@ export const findAllApplications = async (paging: Paging = {}) => {
     });
 };
 
-export const findApplicationByMatch = async (
-  data: FilterQuery<IApplication>
-) => {
+export const findApplicationByMatch = async (data: FilterQuery<IApplication>) => {
   return await Application.findOne(data);
 };
 
@@ -155,10 +153,7 @@ export const countApplications = async (filter: FilterQuery<IApplication>) => {
   return await Application.countDocuments(filter);
 };
 
-export const applicationAggregate = async (
-  data: PipelineStage[],
-  paging: Paging = {}
-) => {
+export const applicationAggregate = async (data: PipelineStage[], paging: Paging = {}) => {
   return await Application.aggregate(data);
 };
 
@@ -178,10 +173,7 @@ export const updateCurrentStage = (
   return { currentStage, applicationStatus: ApplicationStatus.Pending };
 };
 
-export const calculateAverageScore = (
-  application: IApplication,
-  prescreeningScore: number
-) => {
+export const calculateAverageScore = (application: IApplication, prescreeningScore: number) => {
   const scores = [
     application.cvSimilarityScore,
     application.personalizedScore,
@@ -196,10 +188,7 @@ export const calculateAverageScore = (
   }
 };
 
-export const rankApplications = async (
-  talent: IUser,
-  application: IApplication
-) => {
+export const rankApplications = async (talent: IUser, application: IApplication) => {
   application.averageScore = calculateAverageScore(
     application,
     (talent.profile as IProfile).prescreeningScore

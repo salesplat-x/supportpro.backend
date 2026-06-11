@@ -8,20 +8,14 @@ export const createScout = async (data: Partial<IScout>) => {
   return await new scout(data).save();
 };
 
-export const createOrUpdateScout = async (
-  recruiter: Types.ObjectId | string,
-  data: IScout
-) => {
+export const createOrUpdateScout = async (recruiter: Types.ObjectId | string, data: IScout) => {
   return await scout.findOneAndUpdate({ recruiter }, data, {
     upsert: true,
     new: true,
   });
 };
 
-export const findAndUpdateScoutById = async (
-  id: Types.ObjectId | string,
-  data: IScout
-) => {
+export const findAndUpdateScoutById = async (id: Types.ObjectId | string, data: IScout) => {
   return await scout.findByIdAndUpdate(id, data, {
     new: true,
   });

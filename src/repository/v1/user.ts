@@ -4,9 +4,7 @@ import { IUser, IProfile } from "../../typings/user";
 import mongoose, { FilterQuery, HydratedDocument, Types } from "mongoose";
 import * as func from "../../helpers/func";
 
-export const createUser = async (
-  user: IUser
-): Promise<HydratedDocument<IUser>> => {
+export const createUser = async (user: IUser): Promise<HydratedDocument<IUser>> => {
   return await new User(user).save();
 };
 
@@ -46,10 +44,7 @@ export const findUserByMatch = async (data: FilterQuery<IUser>) => {
   });
 };
 
-export const findUsersByMatch = async (
-  data: FilterQuery<IUser>,
-  paging: Paging = {}
-) => {
+export const findUsersByMatch = async (data: FilterQuery<IUser>, paging: Paging = {}) => {
   return await User.find(data)
     .sort({ updatedAt: func.sortDirection(paging.sort!) || Page.Sort })
     .skip(Number(paging.offset) || Page.Offset)
@@ -63,10 +58,7 @@ export const findUsersByMatch = async (
     });
 };
 
-export const userAggregate = async (
-  data: mongoose.PipelineStage[],
-  paging: Paging = {}
-) => {
+export const userAggregate = async (data: mongoose.PipelineStage[], paging: Paging = {}) => {
   return await User.aggregate(data)
     // .sort({ updatedAt: func.sortDirection(paging.sort!) || Page.Sort })
     .skip(Number(paging.offset) || Page.Offset)
@@ -85,9 +77,7 @@ export const findUserByIdAndUpdate = async (
   });
 };
 
-export const createProfile = async (
-  profile: IProfile
-): Promise<HydratedDocument<IProfile>> => {
+export const createProfile = async (profile: IProfile): Promise<HydratedDocument<IProfile>> => {
   return await new Profile(profile).save();
 };
 
@@ -108,21 +98,14 @@ export const updateUserScore = async (
   profileId: string | Types.ObjectId,
   prescreeningScore: number
 ) => {
-  return await Profile.findByIdAndUpdate(
-    profileId,
-    { prescreeningScore },
-    { new: true }
-  ).populate({
+  return await Profile.findByIdAndUpdate(profileId, { prescreeningScore }, { new: true }).populate({
     path: "role",
     select: "-__v",
     strictPopulate: false,
   });
 };
 
-export const profileAggregate = async (
-  data: mongoose.PipelineStage[],
-  paging: Paging = {}
-) => {
+export const profileAggregate = async (data: mongoose.PipelineStage[], paging: Paging = {}) => {
   return await Profile.aggregate(data)
     .skip(Number(paging.offset) || Page.Offset)
     .limit(Number(paging.limit) || Page.Limit);

@@ -13,12 +13,12 @@ export const createRole = async (payload: IRole) => {
   if (existingRole) {
     return makeResponse(false, "Role already exists", {}, 409);
   }
-  let role = await roleRepository.createRole(payload);
+  const role = await roleRepository.createRole(payload);
   return makeResponse(true, "Role posted successfully", role, 200);
 };
 
 export const fetchAllRoles = async (payload: Paging) => {
-  let roles = await roleRepository.findAllRoles(payload);
+  const roles = await roleRepository.findAllRoles(payload);
   return makeResponse(true, "Roles fetched successfully", roles, 200);
 };
 
@@ -27,7 +27,7 @@ export const fetchRole = async (payload: Pick<IRole, "_id">) => {
   if (!mongoose.Types.ObjectId.isValid(_id)) {
     return makeResponse(false, "Invalid role id", {}, 400);
   }
-  let role = await roleRepository.findRoleById(_id);
+  const role = await roleRepository.findRoleById(_id);
   if (!role) {
     return makeResponse(false, "Role not found", {}, 404);
   }
@@ -39,20 +39,15 @@ export const questions = async (payload: Pick<IRole, "_id">, paging: Paging) => 
   if (!mongoose.Types.ObjectId.isValid(_id)) {
     return makeResponse(false, "Invalid role id", {}, 400);
   }
-  let role = await roleRepository.findRoleById(_id);
+  const role = await roleRepository.findRoleById(_id);
   if (!role) {
     return makeResponse(false, "Role not found", {}, 404);
   }
-  let questions = await questionRepository.findQuestionsByMatch(
+  const questions = await questionRepository.findQuestionsByMatch(
     {
       role: _id,
     },
     paging
   );
-  return makeResponse(
-    true,
-    "Questions fetched successfully",
-    questions || [],
-    200
-  );
+  return makeResponse(true, "Questions fetched successfully", questions || [], 200);
 };

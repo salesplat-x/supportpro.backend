@@ -77,9 +77,7 @@ schema.methods.canTakeAssessment = function (): boolean {
 // Instance method to set the assessmentRetryDate to one week from now
 schema.methods.setAssessmentRetryDate = function (days = 7): void {
   const currentDate = new Date();
-  this.assessmentRetryDate = new Date(
-    currentDate.setDate(currentDate.getDate() + days)
-  );
+  this.assessmentRetryDate = new Date(currentDate.setDate(currentDate.getDate() + days));
 };
 
 const Application = model<IApplication>("application", schema);

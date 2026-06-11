@@ -18,48 +18,26 @@ export const fetch = async (req: Request, res: Response) => {
 };
 
 export const answerPrescreening = async (req: Request, res: Response) => {
-  const response = await questionController.answerPrescreening(
-    req.user,
-    req.body
-  );
+  const response = await questionController.answerPrescreening(req.user, req.body);
   return responseHandler(res, response);
 };
 
-export const generatePersonalizedQuestions = async (
-  req: Request,
-  res: Response
-) => {
-  const response = await questionController.generatePersonalizedQuestions(
-    req.body
-  );
+export const generatePersonalizedQuestions = async (req: Request, res: Response) => {
+  const response = await questionController.generatePersonalizedQuestions(req.body);
   return responseHandler(res, response);
 };
 
-export const answerPersonalizedQuestions = async (
-  req: Request,
-  res: Response
-) => {
-  const response = await questionController.answerPersonalizedQuestions(
-    req.user,
-    req.body
-  );
+export const answerPersonalizedQuestions = async (req: Request, res: Response) => {
+  const response = await questionController.answerPersonalizedQuestions(req.user, req.body);
   return responseHandler(res, response);
 };
 
-export const generatePersonalityQuestion = async (
-  req: Request,
-  res: Response
-) => {
-  const response = await questionController.generatePersonalityQuestion(
-    req.body
-  );
+export const generatePersonalityQuestion = async (req: Request, res: Response) => {
+  const response = await questionController.generatePersonalityQuestion(req.body);
   return responseHandler(res, response);
 };
 
 export const evaluatePersonalityType = async (req: Request, res: Response) => {
-  const response = await questionController.evaluatePersonalityType(
-    req.user,
-    req.body
-  );
+  const response = await questionController.evaluatePersonalityType(req.user, req.body);
   return responseHandler(res, response);
 };

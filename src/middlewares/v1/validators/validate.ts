@@ -24,18 +24,18 @@ export default (
     if (validated.error) {
       const formattedErrors = validated.error.details.map((detail) => {
         // Get the message and clean it up
-        let message = detail.message
-          .replace(/^"|"$/g, '') // Remove double quotes
-          .replace(/^body\.|query\.|params\./, '') // Remove prefixes
-          .replace(/^[^:]+: /, '') // Remove field name prefix from message
-          .replace(/"\s/g, ' ')
+        const message = detail.message
+          .replace(/^"|"$/g, "") // Remove double quotes
+          .replace(/^body\.|query\.|params\./, "") // Remove prefixes
+          .replace(/^[^:]+: /, "") // Remove field name prefix from message
+          .replace(/"\s/g, " ");
 
         return message;
       });
 
       return res.status(400).json({
         status: false,
-        message: formattedErrors.join(', '),
+        message: formattedErrors.join(", "),
       });
     }
     // continue to the next middleware

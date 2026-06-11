@@ -23,11 +23,7 @@ router.patch(
   asyncHandler(job.update)
 );
 
-router.get(
-  "/",
-  validate(jobValidator.allJobs, { query: true }),
-  asyncHandler(job.fetchAll)
-);
+router.get("/", validate(jobValidator.allJobs, { query: true }), asyncHandler(job.fetchAll));
 
 router.get(
   "/me",
@@ -45,11 +41,7 @@ router.get(
 );
 
 // Endpoint to grade user CV
-router.patch(
-  "/cv-similarity/:jobId",
-  validateAccess([Roles.Talent]),
-  asyncHandler(job.gradeCv)
-);
+router.patch("/cv-similarity/:jobId", validateAccess([Roles.Talent]), asyncHandler(job.gradeCv));
 
 // Endpoint to get talents based on profile and Job similarity
 router.get(
@@ -75,10 +67,6 @@ router.get(
   asyncHandler(job.applications)
 );
 
-router.get(
-  "/:_id",
-  validate(jobValidator.matchJob, { params: true }),
-  asyncHandler(job.fetch)
-);
+router.get("/:_id", validate(jobValidator.matchJob, { params: true }), asyncHandler(job.fetch));
 
 export default (app: Router) => app.use("/jobs", router);

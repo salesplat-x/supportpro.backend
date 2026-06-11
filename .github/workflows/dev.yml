@@ -3,7 +3,7 @@ name: Deploy Backend to DigitalOcean
 on:
   push:
     branches:
-      - main  # Trigger deployment when pushing to the main 
+      - main # Trigger deployment when pushing to the main
 
 jobs:
   deploy:
@@ -18,7 +18,7 @@ jobs:
       - name: Set up SSH
         uses: webfactory/ssh-agent@v0.5.3
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}  # Use your SSH private key stored in GitHub secrets
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }} # Use your SSH private key stored in GitHub secrets
 
       # SSH into the server and deploy
       - name: SSH into server and deploy

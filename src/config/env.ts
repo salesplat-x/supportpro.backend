@@ -46,9 +46,7 @@ const missingEnvVars = Object.entries(requiredEnvVars)
   .map(([key, _]) => key);
 
 if (missingEnvVars.length > 0) {
-  throw new Error(
-    `Missing required environment variables: ${missingEnvVars.join(", ")}`
-  );
+  throw new Error(`Missing required environment variables: ${missingEnvVars.join(", ")}`);
 }
 
 export default env;

@@ -13,10 +13,7 @@ export const generateHashedPassword = (password: string) => {
   return bcrypt.hashSync(password, salt);
 };
 
-export const compareHashedPassword = (
-  password: string,
-  hashedPassword: string
-) => {
+export const compareHashedPassword = (password: string, hashedPassword: string) => {
   return bcrypt.compareSync(password, hashedPassword);
 };
 
@@ -42,10 +39,10 @@ export const verifyToken = async (
     return makeResponse(false, "Login required");
   }
   try {
-    let decoded = jwt.verify(token, secret) as unknown as {
+    const decoded = jwt.verify(token, secret) as unknown as {
       _id: mongoose.Types.ObjectId;
     };
-    let user = (await repository(decoded._id)) as IUser;
+    const user = (await repository(decoded._id)) as IUser;
     if (!user) {
       return makeResponse(false, "Login required", undefined, 401);
     }
@@ -64,8 +61,8 @@ export const verifyToken = async (
 };
 
 export const generateRecoveryToken = async (user: IUser): Promise<string> => {
-  let code = uuid().split("-").join("").slice(6, 11).toUpperCase();
-  let codeDuplicate = await userRepository.findUserByMatch({
+  const code = uuid().split("-").join("").slice(6, 11).toUpperCase();
+  const codeDuplicate = await userRepository.findUserByMatch({
     recoveryCode: code,
   });
   if (codeDuplicate) {
@@ -79,12 +76,8 @@ export const generateRecoveryToken = async (user: IUser): Promise<string> => {
 };
 
 // generateOTP generates a random 6 digit OTP
-export const generateOTP = async (
-  expiry: number = 15
-): Promise<{ otp: string; expires: Date }> => {
-  const expires = new Date(
-    new Date().setMinutes(new Date().getMinutes() + expiry)
-  );
+export const generateOTP = async (expiry: number = 15): Promise<{ otp: string; expires: Date }> => {
+  const expires = new Date(new Date().setMinutes(new Date().getMinutes() + expiry));
   const otp = Math.floor(10000 + Math.random() * 900000).toString();
   return { otp, expires };
 };
@@ -103,17 +96,12 @@ export const generateSecurePassword = (length: number = 8): string => {
         password += String.fromCharCode(65 + Math.floor(Math.random() * 26));
         break;
       case 2:
-        password += specialChars.charAt(
-          Math.floor(Math.random() * specialChars.length)
-        );
+        password += specialChars.charAt(Math.floor(Math.random() * specialChars.length));
         break;
     }
   }
   return password;
 };
 
-export type AtLeastOne<T, Keys extends keyof T = keyof T> =
-    Partial<T> &
-    (
-        { [K in Keys]: Required<Pick<T, K>> }[Keys]
-        );
+export type AtLeastOne<T, Keys extends keyof T = keyof T> = Partial<T> &
+  { [K in Keys]: Required<Pick<T, K>> }[Keys];

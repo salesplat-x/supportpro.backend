@@ -4,9 +4,7 @@ import { IScoutJob } from "../../typings/scoutJob";
 import { HydratedDocument, Types, UpdateQuery } from "mongoose";
 import * as func from "../../helpers/func";
 
-export const createScoutJob = async (
-  scoutJob: IScoutJob
-): Promise<HydratedDocument<IScoutJob>> => {
+export const createScoutJob = async (scoutJob: IScoutJob): Promise<HydratedDocument<IScoutJob>> => {
   return await new ScoutJob(scoutJob).save();
 };
 
@@ -17,10 +15,7 @@ export const findScoutJobById = async (
   return await ScoutJob.findById(id).populate(projection);
 };
 
-export const findAllScoutJobs = async (
-  match: Partial<IScoutJob>,
-  paging: Paging = {}
-) => {
+export const findAllScoutJobs = async (match: Partial<IScoutJob>, paging: Paging = {}) => {
   return await ScoutJob.find(match)
     .sort({ updatedAt: func.sortDirection(paging.sort!) || Page.Sort })
     .skip(Number(paging.offset) || Page.Offset)
@@ -32,9 +27,7 @@ export const findAllScoutJobs = async (
     });
 };
 
-export const findScoutJobByMatch = async (
-  data: IScoutJob | Record<string, any>
-) => {
+export const findScoutJobByMatch = async (data: IScoutJob | Record<string, any>) => {
   return await ScoutJob.findOne(data).populate({
     path: "role postedBy",
     select: "-__v -createdAt -updatedAt",

@@ -24,11 +24,7 @@ router.patch(
 );
 router.use(loginRequired);
 
-router.post(
-  "/",
-  validate(validator.sendMessage, { body: true }),
-  asyncHandler(message.create)
-);
+router.post("/", validate(validator.sendMessage, { body: true }), asyncHandler(message.create));
 
 router.get(
   "/",

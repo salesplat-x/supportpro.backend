@@ -17,9 +17,7 @@ export const uploadLocal = async (req: Request) => {
   if (!req.file) {
     return makeResponse(false, "No file uploaded");
   }
-  const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${
-    req.file.filename
-  }`;
+  const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
   return makeResponse(true, "File uploaded", { fileUrl });
 };
 
@@ -33,8 +31,7 @@ export const uploadCloudinary = async (req: Request) => {
     // extract text from CV
     const mimetype = req.file.mimetype;
     if (
-      mimetype ===
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
       mimetype === "application/msword" ||
       mimetype === "application/pdf"
     ) {
@@ -64,7 +61,7 @@ export const uploadCloudinary = async (req: Request) => {
   const fileBuffer = req.file.buffer as Buffer;
   const b64 = fileBuffer.toString("base64");
 
-  let dataURI = "data:" + req.file.mimetype + ";base64," + b64;
+  const dataURI = "data:" + req.file.mimetype + ";base64," + b64;
 
   const cldRes = await handleUpload(dataURI, name, ext);
   return makeResponse(true, "File uploaded", { fileUrl: cldRes.secure_url });

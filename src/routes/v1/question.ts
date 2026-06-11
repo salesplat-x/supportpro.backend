@@ -58,10 +58,6 @@ router.post(
   asyncHandler(question.answerPersonalizedQuestions)
 );
 
-router.get(
-  "/:_id",
-  validate(questionValidator.id, { params: true }),
-  asyncHandler(question.fetch)
-);
+router.get("/:_id", validate(questionValidator.id, { params: true }), asyncHandler(question.fetch));
 
 export default (app: Router) => app.use("/questions", router);

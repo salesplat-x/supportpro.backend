@@ -109,10 +109,12 @@ const errorLogSchema = new Schema<IErrorLog>(
     resolvedBy: {
       type: String,
     },
-    tags: [{
-      type: String,
-      index: true,
-    }],
+    tags: [
+      {
+        type: String,
+        index: true,
+      },
+    ],
   },
   {
     timestamps: true,
@@ -129,4 +131,4 @@ errorLogSchema.index({ timestamp: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 }
 
 const ErrorLog = mongoose.model<IErrorLog>("ErrorLog", errorLogSchema);
 
-export default ErrorLog; 
+export default ErrorLog;

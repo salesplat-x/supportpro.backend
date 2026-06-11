@@ -16,10 +16,7 @@ export const createAnswer = async (
   return await new Answer(answer).save();
 };
 
-export const saveOrUpdateAnswer = async (
-  filter: FilterQuery<IAnswer>,
-  responses: IResponse[]
-) => {
+export const saveOrUpdateAnswer = async (filter: FilterQuery<IAnswer>, responses: IResponse[]) => {
   return await Answer.findOneAndUpdate(
     filter,
     { responses },

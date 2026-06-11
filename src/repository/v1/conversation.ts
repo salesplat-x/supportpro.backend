@@ -3,15 +3,11 @@ import { Page, Paging } from "../../typings/customs";
 import { IConversation } from "../../typings/conversation";
 import { FilterQuery, Types } from "mongoose";
 
-export const createConversation = async (
-  conversation: Pick<IConversation, "participants">
-) => {
+export const createConversation = async (conversation: Pick<IConversation, "participants">) => {
   return await Conversation.create(conversation);
 };
 
-export const newConversation = (
-  conversation: Pick<IConversation, "participants">
-) => {
+export const newConversation = (conversation: Pick<IConversation, "participants">) => {
   return new Conversation(conversation);
 };
 
@@ -40,19 +36,14 @@ export const findConversation = async (match: FilterQuery<IConversation>) => {
 //   );
 // };
 
-export const findConversations = async (
-  match: FilterQuery<IConversation>,
-  paging: Paging = {}
-) => {
+export const findConversations = async (match: FilterQuery<IConversation>, paging: Paging = {}) => {
   return await Conversation.find(match)
     .sort({ createdAt: -1 })
     .skip(Number(paging.offset))
     .limit(Number(paging.limit));
 };
 
-export const countUnreadConversations = async (
-  match: FilterQuery<IConversation>
-) => {
+export const countUnreadConversations = async (match: FilterQuery<IConversation>) => {
   return await Conversation.countDocuments({
     ...match,
     deleted: false,
@@ -60,9 +51,7 @@ export const countUnreadConversations = async (
   });
 };
 
-export const readConversation = async (
-  conversationId: string | Types.ObjectId
-) => {
+export const readConversation = async (conversationId: string | Types.ObjectId) => {
   return await Conversation.findByIdAndUpdate(
     conversationId,
     { isRead: true },

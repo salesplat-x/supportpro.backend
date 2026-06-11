@@ -5,7 +5,6 @@ import { IUser } from "./user";
 import { TExperienceLevel } from "./customs";
 import { IAIConfig } from "./AIconfig";
 
-
 export interface IJob {
   _id: Types.ObjectId;
   role: string | Types.ObjectId | IRole;

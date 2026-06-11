@@ -9,7 +9,9 @@ export const scoutTalents = Joi.object({
     experience: Joi.string()
       .valid(...Object.values(ExperienceLevel))
       .required(),
-    workMode: Joi.string().valid(...Object.values(WorkMode)).optional(),
+    workMode: Joi.string()
+      .valid(...Object.values(WorkMode))
+      .optional(),
     country: Joi.string(),
     state: Joi.string(),
     city: Joi.string(),
@@ -34,20 +36,16 @@ const schema = Joi.object({
   scoutJobId: Joi.string().required(),
 });
 
-export const validateCvAndCoverLetter = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
+export const validateCvAndCoverLetter = (req: Request, res: Response, next: NextFunction) => {
   const { error } = schema.validate(req.body);
   if (error) {
     return res.status(400).json({ error: error.details[0]?.message });
   }
 
   // Custom validation for files
-  //@ts-ignore
+  //@ts-expect-error - req.files shape from multer fields() is not typed by default
   const cvFile = req.files?.["cv"]?.[0];
-  //@ts-ignore
+  //@ts-expect-error - req.files shape from multer fields() is not typed by default
   const coverLetterFile = req.files?.["coverLetter"]?.[0];
 
   if (!cvFile || !coverLetterFile) {
@@ -84,8 +82,7 @@ export const validateCv = (req: Request, res: Response, next: NextFunction) => {
   }
 
   if (
-    cvFile.mimetype ===
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    cvFile.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
     cvFile.mimetype === "application/msword" ||
     cvFile.mimetype === "application/pdf"
   ) {

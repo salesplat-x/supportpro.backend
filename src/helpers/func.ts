@@ -1,7 +1,7 @@
 import mammoth from "mammoth";
 import path from "path";
 import pdfParse from "pdf-parse";
-import crypto from 'crypto'
+import crypto from "crypto";
 import { findPaymentByMatch } from "../repository/v1/payment";
 
 export const stringToBool = (str: string) => {
@@ -73,7 +73,7 @@ export function chunkText(text: string, maxChunkSize: number = 28600): string[] 
 
     // If the end is not at the end of the text and the next character is not a full stop, find the next full stop
     if (end < text.length && text[end] !== ".") {
-      let fullStopIndex = text.lastIndexOf(".", end);
+      const fullStopIndex = text.lastIndexOf(".", end);
       if (fullStopIndex > start) {
         end = fullStopIndex + 1; // Include the full stop in the chunk
       }
@@ -103,7 +103,7 @@ export function overlapChunkText(
       end = text.length;
     } else {
       // Adjust end to the nearest full stop within maxChunkSize
-      let fullStopIndex = text.lastIndexOf(".", end);
+      const fullStopIndex = text.lastIndexOf(".", end);
       if (fullStopIndex > start) {
         end = fullStopIndex + 1;
       }
@@ -144,10 +144,7 @@ export function convertToSnakeCase(str: string): string {
     .join("_");
 }
 
-export function renderTemplateString(
-  template: string,
-  data: Record<string, any>
-): string {
+export function renderTemplateString(template: string, data: Record<string, any>): string {
   return template.replace(/{{([^}]+)}}/g, (_, key: string) => data[key]);
 }
 
@@ -177,15 +174,11 @@ export function generateRandomString(length: number): string {
 }
 
 export function sortDirection(direction: string): -1 | 1 | 0 {
-  return direction?.toLowerCase() === "asc"
-    ? 1
-    : direction?.toLowerCase() === "desc"
-    ? -1
-    : 0;
+  return direction?.toLowerCase() === "asc" ? 1 : direction?.toLowerCase() === "desc" ? -1 : 0;
 }
 
 export function handleFilename(filename: string) {
-  let oldName =
+  const oldName =
     filename.split(".") && filename.split(".").length
       ? filename
           .split(".")
@@ -197,10 +190,13 @@ export function handleFilename(filename: string) {
 }
 
 export async function generateReference(length: number = 12) {
-  const randomBytes = crypto.randomBytes(Math.ceil(length / 2)).toString('hex').slice(0, length)
-  const timestamp = Date.now().toString(36)
-  const reference =  `Aux-${timestamp}${randomBytes}`.toUpperCase()
-  let codeDuplicate = await findPaymentByMatch({
+  const randomBytes = crypto
+    .randomBytes(Math.ceil(length / 2))
+    .toString("hex")
+    .slice(0, length);
+  const timestamp = Date.now().toString(36);
+  const reference = `Aux-${timestamp}${randomBytes}`.toUpperCase();
+  const codeDuplicate = await findPaymentByMatch({
     reference,
   });
   if (codeDuplicate) {

@@ -19,11 +19,7 @@ export const loginRequired = async (
 };
 
 export const validateAccess = (roles: string[]): RequestHandler => {
-  return async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<Response | void> => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
     const validated = await checkUser(req, res);
     if (!validated.status) {
       return sendErrorResponse(res, validated.message, {}, 401);
@@ -33,12 +29,7 @@ export const validateAccess = (roles: string[]): RequestHandler => {
     //   return sendErrorResponse(res, "Email verification required", {}, 403);
     // }
     if (!roles.includes(req.user.userRole)) {
-      return sendErrorResponse(
-        res,
-        "You are not authorized to perform this action",
-        {},
-        403
-      );
+      return sendErrorResponse(res, "You are not authorized to perform this action", {}, 403);
     }
     return next();
   };
@@ -52,11 +43,7 @@ const checkUser = async (req: Request, res: Response): Promise<MakeResponse> => 
   if (!token.split(" ")[1]) {
     return makeResponse(false, "LOGIN_REQUIRED");
   }
-  const verified = await verifyToken(
-    token.split(" ")[1]!,
-    env.jwt_secret!,
-    findUserById
-  );
+  const verified = await verifyToken(token.split(" ")[1]!, env.jwt_secret!, findUserById);
   if (!verified.status || !verified.data) {
     return makeResponse(false, verified.message, {}, verified.statusCode || 401);
   }

@@ -1,18 +1,11 @@
 import * as messageRepository from "../../repository/v1/message";
 import * as conversationRepository from "../../repository/v1/conversation";
 import { IUser } from "../../typings/user";
-import {
-  IBroadcastMessage,
-  IFetchMessages,
-  IMessageInput,
-} from "../../typings/message";
+import { IBroadcastMessage, IFetchMessages, IMessageInput } from "../../typings/message";
 import { makeResponse } from "../../helpers/response";
 import { FilterQuery } from "mongoose";
 import { findUserById } from "../../repository/v1/user";
-import {
-  findApplicationByMatch,
-  findApplicationsByMatch,
-} from "../../repository/v1/application";
+import { findApplicationByMatch, findApplicationsByMatch } from "../../repository/v1/application";
 
 export const sendMessage = async (user: IUser, payload: IMessageInput) => {
   const { application, content, recipient } = payload;
@@ -50,10 +43,7 @@ export const sendMessage = async (user: IUser, payload: IMessageInput) => {
   return makeResponse(true, "Message created", { message }, 200);
 };
 
-export const acknowledge = async (
-  user: IUser,
-  payload: { id: string; acknowledge: boolean }
-) => {
+export const acknowledge = async (user: IUser, payload: { id: string; acknowledge: boolean }) => {
   const { id, acknowledge } = payload;
 
   const message = await messageRepository.findMessageById(id);
@@ -71,10 +61,7 @@ export const acknowledge = async (
   return makeResponse(true, "Message created", { message }, 200);
 };
 
-export const broadcastMessage = async (
-  user: IUser,
-  payload: IBroadcastMessage
-) => {
+export const broadcastMessage = async (user: IUser, payload: IBroadcastMessage) => {
   const { application, content } = payload;
 
   const _application = await findApplicationByMatch({ _id: application });
@@ -147,10 +134,7 @@ export const broadcastMessage = async (
   return makeResponse(true, "Message created", { content }, 200);
 };
 
-export const getMessages = async (
-  user: IUser,
-  query: FilterQuery<IFetchMessages>
-) => {
+export const getMessages = async (user: IUser, query: FilterQuery<IFetchMessages>) => {
   const payload: FilterQuery<IFetchMessages> = {
     $or: [{ sender: user.id }, { recipient: user.id }],
   };
@@ -162,12 +146,7 @@ export const getMessages = async (
   const messages = await messageRepository.findMessages(payload, query);
   const unReadCount = await messageRepository.countUnreadMessages(payload);
 
-  return makeResponse(
-    true,
-    "Messages fetched successfully",
-    { messages, unReadCount },
-    200
-  );
+  return makeResponse(true, "Messages fetched successfully", { messages, unReadCount }, 200);
 };
 
 export const getMessage = async (user: IUser, messageId: string) => {
@@ -177,10 +156,7 @@ export const getMessage = async (user: IUser, messageId: string) => {
     return makeResponse(false, "Message not found!", {}, 404);
   }
 
-  if (
-    message.sender.toString() !== user.id &&
-    message.recipient.toString() !== user.id
-  ) {
+  if (message.sender.toString() !== user.id && message.recipient.toString() !== user.id) {
     return makeResponse(false, "Unauthorized!", {}, 403);
   }
   message.isRead = true;

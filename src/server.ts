@@ -26,7 +26,7 @@ export default async function startApplication(app: Application): Promise<void> 
     })
   );
 
-  swaggerDocs(app, PORT)
+  swaggerDocs(app, PORT);
 
   // Serve uploaded files statically
   app.use("/uploads", express.static(path.join(__dirname, "../uploads")));

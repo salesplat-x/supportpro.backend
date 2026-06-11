@@ -10,36 +10,28 @@ import { validateAccess } from "../../middlewares/v1/auth";
 import { Roles } from "../../typings/customs";
 
 router.post(
-    "/",
-    validateAccess([Roles.Admin]),
-    validate(planValidator.create, { body: true }),
-    asyncHandler(plan.create)
+  "/",
+  validateAccess([Roles.Admin]),
+  validate(planValidator.create, { body: true }),
+  asyncHandler(plan.create)
 );
 
 router.patch(
-    "/:_id",
-    validateAccess([Roles.Admin]),
-    validate(planValidator.update, { body: true, params: true }),
-    asyncHandler(plan.update)
+  "/:_id",
+  validateAccess([Roles.Admin]),
+  validate(planValidator.update, { body: true, params: true }),
+  asyncHandler(plan.update)
 );
 
 router.delete(
-    "/:id",
-    validateAccess([Roles.Admin]),
-    validate(planValidator.id, { params: true }),
-    asyncHandler(plan.deleteItem)
+  "/:id",
+  validateAccess([Roles.Admin]),
+  validate(planValidator.id, { params: true }),
+  asyncHandler(plan.deleteItem)
 );
 
-router.get(
-    "/:id",
-    validate(planValidator.id, { params: true }),
-    asyncHandler(plan.fetchOne)
-);
+router.get("/:id", validate(planValidator.id, { params: true }), asyncHandler(plan.fetchOne));
 
-router.get(
-    "/",
-    validate(planValidator.fetchPlans, { query: true }),
-    asyncHandler(plan.fetch)
-);
+router.get("/", validate(planValidator.fetchPlans, { query: true }), asyncHandler(plan.fetch));
 
 export default (app: Router) => app.use("/plans", router);

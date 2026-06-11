@@ -14,9 +14,7 @@ export const findOrganizationById = async (id: Types.ObjectId | string) => {
   return await Organization.findById(id);
 };
 
-export const findOrganizationAndScoreById = async (
-  id: Types.ObjectId | string
-) => {
+export const findOrganizationAndScoreById = async (id: Types.ObjectId | string) => {
   return await Organization.findById(id);
 };
 
@@ -24,9 +22,7 @@ export const findOrganizationByEmail = async (email: string) => {
   return await Organization.findOne({ email });
 };
 
-export const findOrganizationByMatch = async (
-  data: IOrganization | Record<string, any>
-) => {
+export const findOrganizationByMatch = async (data: IOrganization | Record<string, any>) => {
   return await Organization.findOne(data);
 };
 

@@ -10,17 +10,13 @@ import { loginRequired } from "../../middlewares/v1/auth";
 import { verifyWebhookIP } from "../../middlewares/v1/verifyWebhookIP";
 
 router.post(
-    "/",
-    loginRequired,
-    validate(paymentValidator.initializePayment, { body: true }),
-    asyncHandler(controller.getPaymentLink)
+  "/",
+  loginRequired,
+  validate(paymentValidator.initializePayment, { body: true }),
+  asyncHandler(controller.getPaymentLink)
 );
 
-router.get(
-    "/",
-    loginRequired,
-    asyncHandler(controller.getPaymentRecords)
-);
+router.get("/", loginRequired, asyncHandler(controller.getPaymentRecords));
 
 router.post(
   "/verify",

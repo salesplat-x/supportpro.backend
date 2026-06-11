@@ -12,8 +12,7 @@ export const ExperienceLevel = {
   elevenToFifteenYears: "11-15 years",
   sixteenYearsAndAbove: "16 years and above",
 } as const;
-export type TExperienceLevel =
-  (typeof ExperienceLevel)[keyof typeof ExperienceLevel];
+export type TExperienceLevel = (typeof ExperienceLevel)[keyof typeof ExperienceLevel];
 
 export const Plan = {
   Basic: "basic",

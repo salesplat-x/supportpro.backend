@@ -19,10 +19,7 @@ export const findMessageById = async (id: Types.ObjectId | string) => {
   return await Message.findById(id);
 };
 
-export const findMessages = async (
-  match: FilterQuery<IMessage>,
-  paging: Paging = {}
-) => {
+export const findMessages = async (match: FilterQuery<IMessage>, paging: Paging = {}) => {
   return await Message.find({ ...match, deleted: false })
     .sort({ createdAt: -1 })
     .skip(Number(paging.offset))

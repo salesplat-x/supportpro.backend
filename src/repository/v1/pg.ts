@@ -63,8 +63,7 @@ export const saveTalentEmbedding = async (
   cvText: string[],
   cvEmbedding: OpenAI.Embeddings.Embedding[]
 ) => {
-  let insertionString =
-    "INSERT INTO talents (profile_id, cv_text, cv_embedding) VALUES ";
+  let insertionString = "INSERT INTO talents (profile_id, cv_text, cv_embedding) VALUES ";
   const values = [];
 
   for (let j = 0; j < cvEmbedding.length; j++) {
@@ -128,10 +127,7 @@ FROM (
 };
 
 //  Function to get top scout cv_embeddings for a job
-export const getScoutCVEmbedding = async (
-  scoutJobId: string,
-  talentIds: string[]
-) => {
+export const getScoutCVEmbedding = async (scoutJobId: string, talentIds: string[]) => {
   const queryText = `
   WITH jd_cte AS (
     SELECT *

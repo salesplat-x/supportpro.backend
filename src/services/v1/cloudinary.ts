@@ -7,11 +7,7 @@ cloudinary.config({
   api_secret: env.cloudinary_secret,
 });
 
-export const handleUpload = async (
-  file: string,
-  name: string,
-  format?: string
-) => {
+export const handleUpload = async (file: string, name: string, format?: string) => {
   if (format === "doc" || format === "docx") {
     name = name.concat(".", format);
   }

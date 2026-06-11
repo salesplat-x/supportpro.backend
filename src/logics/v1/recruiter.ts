@@ -75,10 +75,7 @@ export const recruiterDashboard = async (req: Request) => {
 
         applicationsCount: [{ $match: applicationMatch }, { $count: "count" }],
 
-        shortlistCount: [
-          { $match: { recruiter, status: "shortlisted" } },
-          { $count: "count" },
-        ],
+        shortlistCount: [{ $match: { recruiter, status: "shortlisted" } }, { $count: "count" }],
 
         recentApplications: [
           { $match: applicationMatch },
@@ -109,11 +106,7 @@ export const recruiterDashboard = async (req: Request) => {
           {
             $project: {
               applicantName: {
-                $concat: [
-                  "$talentDetails.firstName",
-                  " ",
-                  "$talentDetails.lastName",
-                ],
+                $concat: ["$talentDetails.firstName", " ", "$talentDetails.lastName"],
               },
               prescreeningScore: "$profileDetails.prescreeningScore",
               cvSimilarityScore: "$cvSimilarityScore",
@@ -161,11 +154,7 @@ export const recruiterDashboard = async (req: Request) => {
           {
             $project: {
               applicantName: {
-                $concat: [
-                  "$talentDetails.firstName",
-                  " ",
-                  "$talentDetails.lastName",
-                ],
+                $concat: ["$talentDetails.firstName", " ", "$talentDetails.lastName"],
               },
               mbtiType: "$mbtiType",
               prescreeningScore: "$profileDetails.prescreeningScore",
@@ -186,10 +175,7 @@ export const recruiterDashboard = async (req: Request) => {
           $ifNull: [{ $arrayElemAt: ["$campaignCount.totalCampaigns", 0] }, 0],
         },
         completedCampaigns: {
-          $ifNull: [
-            { $arrayElemAt: ["$campaignCount.completedCampaigns", 0] },
-            0,
-          ],
+          $ifNull: [{ $arrayElemAt: ["$campaignCount.completedCampaigns", 0] }, 0],
         },
         completionRatio: {
           $ifNull: [{ $arrayElemAt: ["$campaignCount.completionRatio", 0] }, 0],
@@ -241,10 +227,7 @@ export const recruiterDashboard = async (req: Request) => {
 //   });
 // };
 
-export const applications = async (
-  user: IUser,
-  payload: IApplicationCompilation
-) => {
+export const applications = async (user: IUser, payload: IApplicationCompilation) => {
   const { job, applicationType, offset, limit } = payload;
 
   const applicationMatch: any = { recruiter: user._id };
@@ -254,12 +237,7 @@ export const applications = async (
       return makeResponse(false, "Job not found", {}, 404);
     }
     if ((_job.postedBy as IUser)._id.toString() !== user._id.toString()) {
-      return makeResponse(
-        false,
-        "You are not authorized to perform this action",
-        {},
-        403
-      );
+      return makeResponse(false, "You are not authorized to perform this action", {}, 403);
     }
     applicationMatch.job = new Types.ObjectId(job);
   }
@@ -340,9 +318,7 @@ export const applications = async (
     },
   });
 
-  const applications = await applicationRepository.applicationAggregate(
-    pipeline
-  );
+  const applications = await applicationRepository.applicationAggregate(pipeline);
 
   return makeResponse(true, "User's job applications fetched", {
     applications,
