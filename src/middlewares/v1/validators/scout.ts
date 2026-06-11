@@ -45,9 +45,9 @@ export const validateCvAndCoverLetter = (
   }
 
   // Custom validation for files
-  //@ts-expect-error - req.files shape from multer fields() is not typed by default
+  //@ts-ignore
   const cvFile = req.files?.["cv"]?.[0];
-  //@ts-expect-error - req.files shape from multer fields() is not typed by default
+  //@ts-ignore
   const coverLetterFile = req.files?.["coverLetter"]?.[0];
 
   if (!cvFile || !coverLetterFile) {

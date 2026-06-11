@@ -7,13 +7,13 @@ import {AtLeastOne} from "../../helpers/utils";
 import { IUser } from "../../typings/user";
 
 export const fetch = async () => {
-    const subs = await repository.findAllSubscription();
+    let subs = await repository.findAllSubscription();
 
     return makeResponse(true, "Subscriptions fetched successfully", { subs });
 }
 
 export const fetchOne = async (id: string) => {
-    const sub = await repository.findSubscriptionById(id);
+    let sub = await repository.findSubscriptionById(id);
     if (!sub) {
         return makeResponse(false, `Subscription not found`, {}, 404);
     }
@@ -24,7 +24,7 @@ export const fetchOne = async (id: string) => {
 }
 
 export const fetchByMatch = async (payload: AtLeastOne<ISubFindConfig>) => {
-    const sub = await repository.findSubscriptionByMatch({
+    let sub = await repository.findSubscriptionByMatch({
         $or: [
             { user: payload.user },
             { plan: payload.plan }
@@ -40,7 +40,7 @@ export const fetchByMatch = async (payload: AtLeastOne<ISubFindConfig>) => {
 }
 
 export const disable = async (id: string) => {
-    const subscription = await repository.findSubscriptionById(id);
+    let subscription = await repository.findSubscriptionById(id);
     if (!subscription) {
         return makeResponse(false, `Subscription not found`, {}, 404);
     }
@@ -68,7 +68,7 @@ export const disable = async (id: string) => {
 }
 
 export const enable = async (id: string) => {
-    const subscription = await repository.findSubscriptionById(id);
+    let subscription = await repository.findSubscriptionById(id);
     if (!subscription) {
         return makeResponse(false, `Subscription not found`, {}, 404);
     }

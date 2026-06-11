@@ -24,7 +24,7 @@ export default (
     if (validated.error) {
       const formattedErrors = validated.error.details.map((detail) => {
         // Get the message and clean it up
-        const message = detail.message
+        let message = detail.message
           .replace(/^"|"$/g, '') // Remove double quotes
           .replace(/^body\.|query\.|params\./, '') // Remove prefixes
           .replace(/^[^:]+: /, '') // Remove field name prefix from message

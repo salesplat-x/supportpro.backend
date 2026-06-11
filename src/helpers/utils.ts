@@ -42,10 +42,10 @@ export const verifyToken = async (
     return makeResponse(false, "Login required");
   }
   try {
-    const decoded = jwt.verify(token, secret) as unknown as {
+    let decoded = jwt.verify(token, secret) as unknown as {
       _id: mongoose.Types.ObjectId;
     };
-    const user = (await repository(decoded._id)) as IUser;
+    let user = (await repository(decoded._id)) as IUser;
     if (!user) {
       return makeResponse(false, "Login required", undefined, 401);
     }
@@ -64,8 +64,8 @@ export const verifyToken = async (
 };
 
 export const generateRecoveryToken = async (user: IUser): Promise<string> => {
-  const code = uuid().split("-").join("").slice(6, 11).toUpperCase();
-  const codeDuplicate = await userRepository.findUserByMatch({
+  let code = uuid().split("-").join("").slice(6, 11).toUpperCase();
+  let codeDuplicate = await userRepository.findUserByMatch({
     recoveryCode: code,
   });
   if (codeDuplicate) {

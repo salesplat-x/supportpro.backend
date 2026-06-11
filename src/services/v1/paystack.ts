@@ -16,7 +16,7 @@ import {AtLeastOne} from "../../helpers/utils";
 export const initializePayment = async (
     payload: IPaystackConfig
 ): Promise<IPaystackInitRes> => {
-    const config = {
+    let config = {
         method: "post",
         url: `${env.paystackUrl}/transaction/initialize`,
         headers: {
@@ -123,7 +123,7 @@ export const generatePlanObject = (
 export const createPlan = async (
     payload: IPlanConfig
 ): Promise<IPaystackCreatePlanRes> => {
-    const config = {
+    let config = {
         method: "post",
         url: `${env.paystackUrl}/plan`,
         headers: {
@@ -149,7 +149,7 @@ export const updatePlan = async (
     planCode: string,
     payload: AtLeastOne<IPlanUpdateConfig>
 ): Promise<IPlanUpdateRes> => {
-    const config = {
+    let config = {
         method: "put",
         url: `${env.paystackUrl}/plan/${planCode}`,
         headers: {
@@ -174,7 +174,7 @@ export const updatePlan = async (
 export const createSubscription = async (
     payload: ISubConfig
 ): Promise<ISubCreateRes> => {
-    const config = {
+    let config = {
         method: "post",
         url: `${env.paystackUrl}/subscription`,
         headers: {
@@ -199,7 +199,7 @@ export const createSubscription = async (
 export const createCustomer = async (
     payload: ICreatePaystackCustomer
 ): Promise<ISubCreateRes> => {
-    const config = {
+    let config = {
         method: "post",
         url: `${env.paystackUrl}/customer`,
         headers: {
@@ -224,7 +224,7 @@ export const createCustomer = async (
 export const enableSubscription = async (
     payload: ISubDisOrEnableConfig
 ): Promise<IPlanUpdateRes> => {
-    const config = {
+    let config = {
         method: "post",
         url: `${env.paystackUrl}/subscription/enable`,
         headers: {
@@ -249,7 +249,7 @@ export const enableSubscription = async (
 export const disableSubscription = async (
     payload: ISubDisOrEnableConfig
 ): Promise<IPlanUpdateRes> => {
-    const config = {
+    let config = {
         method: "post",
         url: `${env.paystackUrl}/subscription/disable`,
         headers: {
@@ -274,7 +274,7 @@ export const disableSubscription = async (
 export const generateUpdateSubscriptionLink = async (
     payload: string
 ): Promise<ISubGenerateLinkRes> => {
-    const config = {
+    let config = {
         method: "get",
         url: `${env.paystackUrl}/subscription/${payload}/manage/link`,
         headers: {

@@ -51,7 +51,7 @@ export const scoutTalents = async (payload: Partial<IScoutTalents>) => {
   }
 
   // Create aggregation pipeline
-  const pipeline: mongoose.PipelineStage[] = [
+  let pipeline: mongoose.PipelineStage[] = [
     {
       $match: {
         userRole: Roles.Talent,

@@ -397,9 +397,9 @@ function extractRoutesFromFile(filepath: string): ExtractResult {
       }
       // remaining args are middlewares and handler
       const middlewares: string[] = currentMiddlewares;
-      const validateInfo: ValidateInfo | null = null;
-      const hasValidateAccess = false;
-      const otherTags: string[] = []
+      let validateInfo: ValidateInfo | null = null;
+      let hasValidateAccess = false;
+      let otherTags: string[] = []
 
       routes.push({
         method: method.toLowerCase(),

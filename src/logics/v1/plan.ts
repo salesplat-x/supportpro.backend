@@ -6,7 +6,7 @@ import {AtLeastOne} from "../../helpers/utils";
 import {IPlanUpdateConfig} from "../../typings/paystack";
 
 export const create = async (payload: IPlan) => {
-    const existingPlan = await repository.findPlanByMatch({
+    let existingPlan = await repository.findPlanByMatch({
         name: payload.name,
         interval: payload.interval,
         currency: payload.currency
@@ -36,7 +36,7 @@ export const create = async (payload: IPlan) => {
 }
 
 export const fetch = async (payload: {currency?: string, interval?: string}) => {
-    const plans = await repository.findPlansByMatch({
+    let plans = await repository.findPlansByMatch({
         ...payload,
         isDeleted: false
     });
@@ -45,7 +45,7 @@ export const fetch = async (payload: {currency?: string, interval?: string}) => 
 }
 
 export const fetchOne = async (planId: string) => {
-    const plan = await repository.findPlanById(planId);
+    let plan = await repository.findPlanById(planId);
     if (!plan || plan.isDeleted === true) {
         return makeResponse(false, `Plan not found or deleted`, {}, 404);
     }

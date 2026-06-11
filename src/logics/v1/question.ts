@@ -42,7 +42,7 @@ export const createQuestion = async (payload: IQuestion) => {
   if (!existingRole) {
     return makeResponse(false, "Role does not exist", {}, 404);
   }
-  const question = await questionRepository.createQuestion(payload);
+  let question = await questionRepository.createQuestion(payload);
   return makeResponse(true, "Question posted successfully", question, 200);
 };
 
@@ -146,7 +146,7 @@ export const fetchQuestion = async (payload: Pick<IQuestion, "_id">) => {
   if (!mongoose.Types.ObjectId.isValid(payload._id!)) {
     return makeResponse(false, "Invalid question id", {}, 400);
   }
-  const question = await questionRepository.findQuestionById(payload._id!);
+  let question = await questionRepository.findQuestionById(payload._id!);
   if (!question) {
     return makeResponse(false, "Question not found", {}, 404);
   }
@@ -302,7 +302,7 @@ export const generatePersonalizedQuestions = async (
   }
 
   // Check if user already has personalized question
-  const application = await applicationRepository.findApplicationByMatch({
+  let application = await applicationRepository.findApplicationByMatch({
     job: jobId,
     talent: talentId,
   });
@@ -346,7 +346,7 @@ export const generatePersonalizedQuestions = async (
   const questions = JSON.parse(response.message.content).questions;
 
   // save questions in DB
-  const questionIds: mongoose.Types.ObjectId[] = [];
+  let questionIds: mongoose.Types.ObjectId[] = [];
   const questionObjects = questions.map((question: string): IQuestion => {
     const _id = new mongoose.Types.ObjectId();
     questionIds.push(_id);

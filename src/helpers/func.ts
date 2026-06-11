@@ -73,7 +73,7 @@ export function chunkText(text: string, maxChunkSize: number = 28600): string[] 
 
     // If the end is not at the end of the text and the next character is not a full stop, find the next full stop
     if (end < text.length && text[end] !== ".") {
-      const fullStopIndex = text.lastIndexOf(".", end);
+      let fullStopIndex = text.lastIndexOf(".", end);
       if (fullStopIndex > start) {
         end = fullStopIndex + 1; // Include the full stop in the chunk
       }
@@ -103,7 +103,7 @@ export function overlapChunkText(
       end = text.length;
     } else {
       // Adjust end to the nearest full stop within maxChunkSize
-      const fullStopIndex = text.lastIndexOf(".", end);
+      let fullStopIndex = text.lastIndexOf(".", end);
       if (fullStopIndex > start) {
         end = fullStopIndex + 1;
       }
@@ -185,7 +185,7 @@ export function sortDirection(direction: string): -1 | 1 | 0 {
 }
 
 export function handleFilename(filename: string) {
-  const oldName =
+  let oldName =
     filename.split(".") && filename.split(".").length
       ? filename
           .split(".")
@@ -200,7 +200,7 @@ export async function generateReference(length: number = 12) {
   const randomBytes = crypto.randomBytes(Math.ceil(length / 2)).toString('hex').slice(0, length)
   const timestamp = Date.now().toString(36)
   const reference =  `Aux-${timestamp}${randomBytes}`.toUpperCase()
-  const codeDuplicate = await findPaymentByMatch({
+  let codeDuplicate = await findPaymentByMatch({
     reference,
   });
   if (codeDuplicate) {

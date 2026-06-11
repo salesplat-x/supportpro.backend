@@ -81,7 +81,7 @@ export const createJob = async (user: IUser, payload: IJob) => {
   }
 
   payload.postedBy = user._id;
-  const job = await jobRepository.createJob(payload);
+  let job = await jobRepository.createJob(payload);
 
   // Save job embedding in vectorDB
   const res = await pgRepository.saveJobEmbedding(
@@ -160,7 +160,7 @@ export const updateJob = async (user: IUser, payload: IJob) => {
 
 export const fetchAllJobs = async (payload: FetchJobs) => {
   let jobs: IJob[] = [];
-  const query: FilterQuery<IJob> = {};
+  let query: FilterQuery<IJob> = {};
 
   if (payload.roleId) {
     if (!Types.ObjectId.isValid(payload.roleId)) {
@@ -209,7 +209,7 @@ export const fetchJob = async (payload: Pick<IJob, "_id">) => {
   if (!Types.ObjectId.isValid(payload._id)) {
     return makeResponse(false, "Invalid job id", {}, 400);
   }
-  const job = await jobRepository.findJobById(payload._id);
+  let job = await jobRepository.findJobById(payload._id);
   if (!job) {
     return makeResponse(false, "Job not found", {}, 404);
   }
@@ -221,7 +221,7 @@ export const matchJob = async (user: IUser, payload: MatchJob) => {
   if (!Types.ObjectId.isValid(payload._id)) {
     return makeResponse(false, "Invalid job id", {}, 400);
   }
-  const job = await jobRepository.findJobById(payload._id);
+  let job = await jobRepository.findJobById(payload._id);
   if (!job) {
     return makeResponse(false, "Job not found", {}, 404);
   }
@@ -238,7 +238,7 @@ export const matchJob = async (user: IUser, payload: MatchJob) => {
     );
   }
 
-  const pipeline: PipelineStage[] = [
+  let pipeline: PipelineStage[] = [
     {
       $match: {
         userRole: Roles.Talent,

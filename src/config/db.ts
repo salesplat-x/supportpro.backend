@@ -2,7 +2,7 @@ import { connect } from "mongoose";
 import logger from "./logger";
 import env from "./env";
 
-const dbUrl: string = env.db_database!;
+let dbUrl: string = env.db_database!;
 
 function newMongoDBConnection(): Promise<void> {
   return new Promise((resolve, reject) => {

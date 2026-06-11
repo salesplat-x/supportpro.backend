@@ -64,7 +64,7 @@ export const uploadCloudinary = async (req: Request) => {
   const fileBuffer = req.file.buffer as Buffer;
   const b64 = fileBuffer.toString("base64");
 
-  const dataURI = "data:" + req.file.mimetype + ";base64," + b64;
+  let dataURI = "data:" + req.file.mimetype + ";base64," + b64;
 
   const cldRes = await handleUpload(dataURI, name, ext);
   return makeResponse(true, "File uploaded", { fileUrl: cldRes.secure_url });

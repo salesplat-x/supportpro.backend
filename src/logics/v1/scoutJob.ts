@@ -32,7 +32,7 @@ export const createJob = async (user: IUser, payload: IScoutJob) => {
   }
 
   payload.postedBy = user._id;
-  const scoutJob = await scoutJobRepository.createScoutJob(payload);
+  let scoutJob = await scoutJobRepository.createScoutJob(payload);
 
   // Save job embedding in vectorDB
   const res = await saveScoutJobEmbedding(
@@ -90,7 +90,7 @@ export const fetchJob = async (payload: Pick<IScoutJob, "_id">) => {
   if (!Types.ObjectId.isValid(payload._id)) {
     return makeResponse(false, "Invalid scoutJob id", {}, 400);
   }
-  const scoutJob = await scoutJobRepository.findScoutJobById(payload._id);
+  let scoutJob = await scoutJobRepository.findScoutJobById(payload._id);
   if (!scoutJob) {
     return makeResponse(false, "Job not found", {}, 404);
   }
