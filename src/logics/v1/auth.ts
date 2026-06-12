@@ -29,68 +29,17 @@ export const createUser = async (userPayload: IUser) => {
     }
   }
   userPayload.password = generateHashedPassword(userPayload.password);
-  const { otp, expires } = await generateOTP();
-
-  userPayload.verificationCode = otp;
-  userPayload.verificationCodeExpiry = expires;
+  userPayload.emailVerified = true;
 
   const user = await userRepository.createUser(userPayload);
   if (!user) {
     return makeResponse(false, "User Registration Failed, Please Try Again");
   }
 
-  await new Email().sendOtp(user, otp);
+  await new Email().sendWelcome(user);
 
   const token = signToken(user);
   return makeResponse(true, "User Registered Successfully", { user, token }, 201);
-};
-
-export const resendOtp = async (payload: { email: string }) => {
-  const user = await userRepository.findUserByMatch({
-    email: payload.email.toLowerCase(),
-  });
-
-  if (!user) {
-    return makeResponse(false, "User not found!", undefined, 404);
-  }
-
-  if (user.emailVerified) {
-    return makeResponse(false, "User already verified!");
-  }
-
-  const { otp, expires } = await generateOTP();
-  await new Email().sendOtp(user, otp);
-
-  user.verificationCode = otp;
-  user.verificationCodeExpiry = expires;
-  await user.save();
-
-  return makeResponse(true, "OTP sent.", {
-    user,
-  });
-};
-
-export const verifyEmail = async (payload: { email: string; otp: string }) => {
-  const user = await userRepository.findUserByMatch({
-    email: payload.email.toLowerCase(),
-    verificationCode: payload.otp,
-    verificationCodeExpiry: { $gte: Date.now() },
-  });
-
-  if (!user) {
-    return makeResponse(false, "Invalid or expired OTP!");
-  }
-
-  user.emailVerified = true;
-  user.verificationCode = undefined;
-  user.verificationCodeExpiry = undefined;
-  await user.save();
-
-  await new Email().sendWelcome(user);
-
-  return makeResponse(true, "User verified.", {
-    user,
-  });
 };
 
 export const loginUser = async ({ email, password }: Pick<IUser, "email" | "password">) => {

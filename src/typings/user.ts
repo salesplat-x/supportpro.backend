@@ -20,8 +20,6 @@ export interface IUser extends Document {
   profile: Types.ObjectId | string | IProfile;
   recoveryCode?: string;
   recoveryCodeExpiry?: Date;
-  verificationCode?: string;
-  verificationCodeExpiry?: Date;
   active: boolean;
   onboarded: boolean;
   createdAt: Date;

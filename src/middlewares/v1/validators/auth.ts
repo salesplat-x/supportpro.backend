@@ -31,13 +31,6 @@ export const emailOnly = Joi.object({
   }),
 }).required();
 
-export const verifyEmail = Joi.object({
-  body: Joi.object({
-    email: Joi.string().email().required(),
-    otp: Joi.string().required(),
-  }),
-}).required();
-
 export const login = Joi.object({
   body: Joi.object({
     email: Joi.string().email().required(),

@@ -47,13 +47,6 @@ class Email {
     // await this.newTransport().sendMail(mailOptions);
   }
 
-  async sendOtp(user: IUser, otp: string) {
-    await this.sendHtml(user.email, "send-otp", `Verify your AuxHR account`, {
-      firstName: user.firstName,
-      otp,
-    });
-  }
-
   async sendWelcome(user: IUser) {
     const template = user.userRole === Roles.Recruiter ? "welcomeRecruiter" : "welcome";
     await this.sendHtml(user.email, template, `Welcome to AuxHR`, {

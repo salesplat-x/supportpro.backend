@@ -20,18 +20,6 @@ router.post(
   asyncHandler(auth.registerRecruiter)
 );
 
-router.post(
-  "/resend-otp",
-  validate(authValidator.emailOnly, { body: true }),
-  asyncHandler(auth.resendOtp)
-);
-
-router.post(
-  "/verify-email",
-  validate(authValidator.verifyEmail, { body: true }),
-  asyncHandler(auth.verifyEmail)
-);
-
 router.post("/login", validate(authValidator.login, { body: true }), asyncHandler(auth.login));
 
 router.post(

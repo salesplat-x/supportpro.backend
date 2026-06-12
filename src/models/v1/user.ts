@@ -54,7 +54,7 @@ const userSchema = new Schema<IUser>(
     },
     emailVerified: {
       type: Boolean,
-      default: false,
+      default: true,
     },
     active: {
       type: Boolean,
@@ -66,8 +66,6 @@ const userSchema = new Schema<IUser>(
     },
     recoveryCode: String,
     recoveryCodeExpiry: Date,
-    verificationCode: String,
-    verificationCodeExpiry: Date,
   },
   {
     timestamps: true,
@@ -77,8 +75,6 @@ const userSchema = new Schema<IUser>(
         delete ret.password;
         delete ret.recoveryCode;
         delete ret.recoveryCodeExpiry;
-        delete ret.verificationCode;
-        delete ret.verificationCodeExpiry;
       },
     },
   }

@@ -14,16 +14,6 @@ export const registerRecruiter = async (req: Request, res: Response) => {
   return responseHandler(res, response);
 };
 
-export const resendOtp = async (req: Request, res: Response) => {
-  const response = await authController.resendOtp(req.body);
-  return responseHandler(res, response);
-};
-
-export const verifyEmail = async (req: Request, res: Response) => {
-  const response = await authController.verifyEmail(req.body);
-  return responseHandler(res, response);
-};
-
 export const login = async (req: Request, res: Response) => {
   const response = await authController.loginUser(req.body);
   return responseHandler(res, response);
