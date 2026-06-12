@@ -128,11 +128,7 @@ export const resetPassword = async (
   return makeResponse(true, "Password has been reset");
 };
 
-export const changePassword = async (
-  _user: IUser,
-  payload: IUserPasswordUpdate,
-  ip?: string
-) => {
+export const changePassword = async (_user: IUser, payload: IUserPasswordUpdate, ip?: string) => {
   const { newPassword, oldPassword } = payload;
 
   const user = await userRepository.findUserById(_user.id);

@@ -61,6 +61,7 @@ Used by `src/services/v1/paystack.ts` for subscriptions/payments, and
    - **Test Public Key** (`pk_test_...`) → `PAYSTACK_PUBLIC_KEY`
 
 ### `PAYSTACK_WHITELISTED_IPS`
+
 This is the list of IPs allowed to call your `/payment/webhook` route (checked in
 `verifyWebhookIP.ts`). Paystack publishes its webhook source IPs in their docs
 (Settings → Webhooks page also lists them). For **local testing**, webhooks from Paystack can't

@@ -2328,6 +2328,8 @@ paths:
                   type: string
                 phone:
                   type: string
+                country:
+                  type: string
                 password:
                   type: string
               required:
@@ -2364,6 +2366,8 @@ paths:
                 middleName:
                   type: string
                 phone:
+                  type: string
+                country:
                   type: string
                 password:
                   type: string
@@ -2480,6 +2484,21 @@ paths:
               required:
                 - newPassword
                 - oldPassword
+      security:
+        - bearerAuth: []
+  /auth/logout:
+    post:
+      summary: ""
+      tags:
+        - auth
+      parameters: []
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
       security:
         - bearerAuth: []
   /applications/:
