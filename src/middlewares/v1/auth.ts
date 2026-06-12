@@ -24,10 +24,7 @@ export const validateAccess = (roles: string[]): RequestHandler => {
     if (!validated.status) {
       return sendErrorResponse(res, validated.message, 401);
     }
-    // @TODO: Uncomment this block when email verification is implemented
-    // if (!req.user.emailVerified) {
-    //   return sendErrorResponse(res, "Email verification required", 403);
-    // }
+    // emailVerified defaults to true and nothing currently gates on it (see docs/auth-fixes.md)
     if (!roles.includes(req.user.userRole)) {
       return sendErrorResponse(res, "You are not authorized to perform this action", 403);
     }

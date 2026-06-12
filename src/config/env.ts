@@ -28,10 +28,9 @@ const requiredEnvVars = {
   paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY,
   whitelisted_ips: process.env.PAYSTACK_WHITELISTED_IPS,
   website: process.env.FRONTEND_CALLBACK_URL,
-  email_username: process.env.EMAIL_USERNAME,
-  email_password: process.env.EMAIL_PASSWORD,
-  email_host: process.env.EMAIL_HOST,
-  email_port: process.env.EMAIL_PORT || 465,
+  brevo_api_key: process.env.BREVO_API_KEY,
+  brevo_sender_email: process.env.BREVO_SENDER_EMAIL,
+  brevo_sender_name: process.env.BREVO_SENDER_NAME,
 } as const;
 
 const env = {

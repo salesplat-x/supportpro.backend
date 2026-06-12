@@ -49,4 +49,6 @@ router.post(
   asyncHandler(auth.changePassword)
 );
 
+router.post("/logout", loginRequired, asyncHandler(auth.logout));
+
 export default (app: Router) => app.use("/auth", router);
