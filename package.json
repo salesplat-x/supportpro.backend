@@ -7,10 +7,11 @@
     "node": ">=20"
   },
   "scripts": {
-    "start": "npx ts-node generate-swagger.ts && node ./dist/app.js",
-    "start:build": "npx ts-node generate-swagger.ts && npm run build && npm start",
-    "dev": "npx ts-node generate-swagger.ts && npx nodemon",
-    "build": "npx ts-node generate-swagger.ts && rimraf ./build && tsc",
+    "start": "node ./dist/app.js",
+    "start:build": "npm run build && npm start",
+    "dev": "npx nodemon",
+    "build": "rimraf ./dist && tsc",
+    "docs:generate": "npx ts-node generate-swagger.ts",
     "prepare": "husky",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

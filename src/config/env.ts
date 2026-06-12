@@ -7,6 +7,16 @@ const getEnv = (): AppEnv => {
 
 const optionalEnvVars = {
   app_env: getEnv(),
+  openai_secret: process.env.OPENAI_API_KEY,
+  cloudinary_name: process.env.CLOUDINARY_NAME,
+  cloudinary_key: process.env.CLOUDINARY_KEY,
+  cloudinary_secret: process.env.CLOUDINARY_SECRET,
+  paystackSecretKey: process.env.PAYSTACK_SECRET_KEY,
+  paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY,
+  whitelisted_ips: process.env.PAYSTACK_WHITELISTED_IPS,
+  brevo_api_key: process.env.BREVO_API_KEY,
+  brevo_sender_email: process.env.BREVO_SENDER_EMAIL,
+  brevo_sender_name: process.env.BREVO_SENDER_NAME,
 } as const;
 
 const requiredEnvVars = {
@@ -19,18 +29,8 @@ const requiredEnvVars = {
   port: Number(process.env.PORT),
   jwt_secret: process.env.JWT_SECRET,
   salt_rounds: Number(process.env.SALT_ROUNDS) || 10,
-  openai_secret: process.env.OPENAI_API_KEY,
-  cloudinary_name: process.env.CLOUDINARY_NAME,
-  cloudinary_key: process.env.CLOUDINARY_KEY,
-  cloudinary_secret: process.env.CLOUDINARY_SECRET,
   paystackUrl: process.env.PAYSTACK_PAYMENT_URL,
-  paystackSecretKey: process.env.PAYSTACK_SECRET_KEY,
-  paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY,
-  whitelisted_ips: process.env.PAYSTACK_WHITELISTED_IPS,
   website: process.env.FRONTEND_CALLBACK_URL,
-  brevo_api_key: process.env.BREVO_API_KEY,
-  brevo_sender_email: process.env.BREVO_SENDER_EMAIL,
-  brevo_sender_name: process.env.BREVO_SENDER_NAME,
 } as const;
 
 const env = {

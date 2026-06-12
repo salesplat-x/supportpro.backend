@@ -1,5 +1,19 @@
 # Deployment Guide
 
+## Local development databases
+
+`docker-compose.yml` spins up local MongoDB and Postgres (with the `pgvector`
+extension) containers matching the `DB_URI`/`PG_*` vars in `.env`:
+
+```bash
+docker compose up -d
+npm run dev
+```
+
+This is **dev-only** — it has no effect on production. The deployed app is
+not containerized; it runs directly via PM2 against the production databases
+(see below).
+
 ## How code reaches production
 
 1. Devs work on feature branches off `dev`, PR into `dev`.

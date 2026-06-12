@@ -6,11 +6,13 @@ import logger from "../../config/logger";
 import { TopTalents } from "../../typings/job";
 import { Embedding } from "openai/resources/embeddings.mjs";
 
+const isLocalHost = ["localhost", "127.0.0.1"].includes(env.pg_host ?? "");
+
 const pool = new Pool({
   user: env.pg_user,
   host: env.pg_host,
   password: env.pg_password,
-  ssl: { rejectUnauthorized: false },
+  ssl: isLocalHost ? false : { rejectUnauthorized: false },
   database: env.pg_db,
   port: Number(env.pg_port),
   connectionTimeoutMillis: 20000,
