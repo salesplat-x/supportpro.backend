@@ -32,7 +32,6 @@ export const sendSuccessResponse = (
 export const sendErrorResponse = (
   res: Response,
   message: string,
-  data: Record<string, any>,
   statusCode: number = 400
 ): Response => {
   return res.status(statusCode).json({
@@ -46,5 +45,5 @@ export const handleValidationError = (
   res: Response
 ): Response => {
   const message = validateErrorData.details[0]!.message;
-  return sendErrorResponse(res, message, {}, 400);
+  return sendErrorResponse(res, message, 400);
 };

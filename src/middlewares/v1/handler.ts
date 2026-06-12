@@ -30,5 +30,5 @@ export const responseHandler = async (res: Response, response: MakeResponse) => 
   if (response.status) {
     return sendSuccessResponse(res, response.message, response.data, response.statusCode);
   }
-  return sendErrorResponse(res, response.message, {}, response.statusCode || 400);
+  return sendErrorResponse(res, response.message, response.statusCode || 400);
 };

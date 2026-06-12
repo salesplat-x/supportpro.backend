@@ -2,7 +2,7 @@ import { makeResponse, sendErrorResponse } from "../../helpers/response";
 import { Request, Response, NextFunction, RequestHandler } from "express";
 import { verifyToken } from "../../helpers/utils";
 import env from "../../config/env";
-import { findUserById } from "../../repository/v1/user";
+import { findUserAuthById } from "../../repository/v1/user";
 import { MakeResponse, Roles } from "../../typings/customs";
 import { IUser } from "../../typings/user";
 
@@ -13,7 +13,7 @@ export const loginRequired = async (
 ): Promise<Response | void> => {
   const validated = await checkUser(req, res);
   if (!validated.status) {
-    return sendErrorResponse(res, validated.message, {}, 401);
+    return sendErrorResponse(res, validated.message, 401);
   }
   return next();
 };
@@ -22,14 +22,14 @@ export const validateAccess = (roles: string[]): RequestHandler => {
   return async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
     const validated = await checkUser(req, res);
     if (!validated.status) {
-      return sendErrorResponse(res, validated.message, {}, 401);
+      return sendErrorResponse(res, validated.message, 401);
     }
     // @TODO: Uncomment this block when email verification is implemented
     // if (!req.user.emailVerified) {
-    //   return sendErrorResponse(res, "Email verification required", {}, 403);
+    //   return sendErrorResponse(res, "Email verification required", 403);
     // }
     if (!roles.includes(req.user.userRole)) {
-      return sendErrorResponse(res, "You are not authorized to perform this action", {}, 403);
+      return sendErrorResponse(res, "You are not authorized to perform this action", 403);
     }
     return next();
   };
@@ -43,7 +43,7 @@ const checkUser = async (req: Request, res: Response): Promise<MakeResponse> => 
   if (!token.split(" ")[1]) {
     return makeResponse(false, "LOGIN_REQUIRED");
   }
-  const verified = await verifyToken(token.split(" ")[1]!, env.jwt_secret!, findUserById);
+  const verified = await verifyToken(token.split(" ")[1]!, env.jwt_secret!, findUserAuthById);
   if (!verified.status || !verified.data) {
     return makeResponse(false, verified.message, {}, verified.statusCode || 401);
   }

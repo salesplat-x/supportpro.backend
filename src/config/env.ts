@@ -49,4 +49,8 @@ if (missingEnvVars.length > 0) {
   throw new Error(`Missing required environment variables: ${missingEnvVars.join(", ")}`);
 }
 
+if (env.jwt_secret!.length < 32) {
+  throw new Error("JWT_SECRET must be at least 32 characters long");
+}
+
 export default env;

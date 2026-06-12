@@ -42,6 +42,10 @@ const userSchema = new Schema<IUser>(
       type: String,
       required: false,
     },
+    country: {
+      type: String,
+      required: false,
+    },
     profile: {
       type: Schema.Types.ObjectId,
       ref: "profile",
@@ -66,6 +70,10 @@ const userSchema = new Schema<IUser>(
     },
     recoveryCode: String,
     recoveryCodeExpiry: Date,
+    tokenVersion: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,

@@ -17,6 +17,11 @@ export const findUserById = async (id: Types.ObjectId | string) => {
   });
 };
 
+// findUserAuthById fetches only the fields needed by auth middleware, without populating
+export const findUserAuthById = async (id: Types.ObjectId | string) => {
+  return await User.findById(id).select("email userRole active emailVerified tokenVersion");
+};
+
 export const findUserAndScoreById = async (id: Types.ObjectId | string) => {
   return await User.findById(id).populate({
     path: "profile",

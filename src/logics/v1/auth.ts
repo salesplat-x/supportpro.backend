@@ -28,7 +28,7 @@ export const createUser = async (userPayload: IUser) => {
       return makeResponse(false, "Phone Number already in use");
     }
   }
-  userPayload.password = generateHashedPassword(userPayload.password);
+  userPayload.password = await generateHashedPassword(userPayload.password);
   userPayload.emailVerified = true;
 
   const user = await userRepository.createUser(userPayload);
@@ -47,7 +47,7 @@ export const loginUser = async ({ email, password }: Pick<IUser, "email" | "pass
   if (!user) {
     return makeResponse(false, "Invalid email or password", {}, 403);
   }
-  if (!compareHashedPassword(password!, user.password)) {
+  if (!(await compareHashedPassword(password!, user.password))) {
     return makeResponse(false, "Invalid email or password.", {}, 403);
   }
   if (!user.active) {
@@ -59,10 +59,15 @@ export const loginUser = async ({ email, password }: Pick<IUser, "email" | "pass
 };
 
 export const forgotPassword = async ({ email }: Pick<IUser, "email">) => {
-  const user = await userRepository.findUserByMatch({ email });
+  const genericResponse = makeResponse(
+    true,
+    "If an account exists for this email, a reset code has been sent."
+  );
+
+  const user = await userRepository.findUserByMatch({ email: email.toLowerCase() });
 
   if (!user) {
-    return makeResponse(false, "User not found!", {}, 404);
+    return genericResponse;
   }
 
   const { otp, expires } = await generateOTP(5);
@@ -72,14 +77,14 @@ export const forgotPassword = async ({ email }: Pick<IUser, "email">) => {
   await user.save();
 
   await new Email().sendPasswordReset(user, otp);
-  return makeResponse(true, "Reset code sent");
+  return genericResponse;
 };
 
 export const resetPassword = async (payload: { email: string; otp: string; password: string }) => {
   const { email, otp, password } = payload;
 
   const user = await userRepository.findUserByMatch({
-    email,
+    email: email.toLowerCase(),
     recoveryCode: otp,
     recoveryCodeExpiry: { $gte: Date.now() },
   });
@@ -88,9 +93,10 @@ export const resetPassword = async (payload: { email: string; otp: string; passw
     return makeResponse(false, "Password reset token is invalid or has expired.");
   }
 
-  user.password = generateHashedPassword(password);
+  user.password = await generateHashedPassword(password);
   user.recoveryCode = undefined;
   user.recoveryCodeExpiry = undefined;
+  user.tokenVersion = (user.tokenVersion ?? 0) + 1;
 
   await user.save();
 
@@ -106,11 +112,12 @@ export const changePassword = async (_user: IUser, payload: IUserPasswordUpdate)
     return makeResponse(false, "Authenticated user not found!");
   }
 
-  if (!compareHashedPassword(oldPassword!, user.password)) {
+  if (!(await compareHashedPassword(oldPassword!, user.password))) {
     return makeResponse(false, "Invalid password.", {}, 403);
   }
 
-  user.password = generateHashedPassword(newPassword);
+  user.password = await generateHashedPassword(newPassword);
+  user.tokenVersion = (user.tokenVersion ?? 0) + 1;
 
   await user.save();
 
