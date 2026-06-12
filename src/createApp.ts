@@ -7,6 +7,7 @@ import helmet from "helmet";
 import path from "path";
 import swaggerDocs from "./swagger";
 import { generalLimiter } from "./middlewares/v1/rateLimiter";
+import { sendSuccessResponse } from "./helpers/response";
 
 export default function createApp(): Application {
   const app: Application = express();
@@ -22,6 +23,10 @@ export default function createApp(): Application {
       },
     })
   );
+
+  app.get("/", (req, res) => {
+    sendSuccessResponse(res, "Welcome to Support Pro Backend");
+  });
 
   swaggerDocs(app, env.port);
 
