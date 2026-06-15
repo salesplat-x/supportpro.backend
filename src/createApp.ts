@@ -15,7 +15,7 @@ export default function createApp(): Application {
   app.use(express.urlencoded({ extended: true }));
   app.use(express.json());
   app.use(express.raw());
-  app.use(cors({ origin: env.website }));
+  app.use(cors({ origin: "*" }));
   app.use(
     helmet({
       frameguard: {
