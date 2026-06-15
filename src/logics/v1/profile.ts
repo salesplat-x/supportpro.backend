@@ -2,8 +2,7 @@ import { IUser } from "../../typings/user";
 import * as userRepository from "../../repository/v1/user";
 import { makeResponse } from "../../helpers/response";
 import { replaceAsset } from "../../services/v1/cloudinary";
-
-export const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+import { ALLOWED_IMAGE_TYPES, CLOUDINARY_FOLDERS } from "../../helpers/uploads";
 
 export const uploadProfileImage = async (user: IUser, file?: Express.Multer.File) => {
   if (!file) {
@@ -19,7 +18,7 @@ export const uploadProfileImage = async (user: IUser, file?: Express.Multer.File
   }
 
   const asset = await replaceAsset(existingUser.profileImage?.publicId, file.buffer, {
-    folder: "supportpro/profilepicture",
+    folder: CLOUDINARY_FOLDERS.images,
     publicId: `${user._id}-image`,
     mimetype: file.mimetype,
     resourceType: "image",

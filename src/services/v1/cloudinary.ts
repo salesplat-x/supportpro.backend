@@ -7,7 +7,12 @@ cloudinary.config({
   api_secret: env.cloudinary_secret,
 });
 
-export const handleUpload = async (file: string, name: string, format?: string) => {
+export const handleUpload = async (
+  file: string,
+  name: string,
+  format?: string,
+  folder?: string
+) => {
   if (format === "doc" || format === "docx") {
     name = name.concat(".", format);
   }
@@ -16,6 +21,7 @@ export const handleUpload = async (file: string, name: string, format?: string) 
     resource_type: "auto",
     format,
     public_id: name,
+    folder,
   });
 };
 
@@ -46,6 +52,13 @@ export const uploadBuffer = async (
     format: options.format,
   });
   return { url: res.secure_url, publicId: res.public_id };
+};
+
+// Derives the Cloudinary public_id (including folder) from a secure_url, e.g.
+// https://res.cloudinary.com/<cloud>/image/upload/v123/salesplate/images/foo.png -> salesplate/images/foo
+export const extractPublicIdFromUrl = (url: string): string | undefined => {
+  const match = url.match(/\/upload\/(?:v\d+\/)?(.+)\.[a-zA-Z0-9]+$/);
+  return match?.[1];
 };
 
 export const destroyAsset = async (

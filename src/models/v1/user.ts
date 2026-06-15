@@ -1,6 +1,7 @@
 import { Schema, model } from "mongoose";
 import * as func from "../../helpers/func";
-import { Roles } from "../../typings/customs";
+import { Roles, WorkType } from "../../typings/customs";
+import { Currency } from "../../typings/plan";
 import { IProfile, IUser } from "../../typings/user";
 import {
   computeCanProceedToPlatform,
@@ -38,7 +39,7 @@ const userSchema = new Schema<IUser>(
       type: new Schema(
         {
           url: { type: String, required: true },
-          publicId: { type: String, required: true },
+          publicId: { type: String, required: false },
         },
         { _id: false }
       ),
@@ -105,16 +106,18 @@ const profileSchema = new Schema<IProfile>(
       type: new Schema(
         {
           url: { type: String, required: true },
-          publicId: { type: String, required: true },
+          publicId: { type: String, required: false },
           uploadedAt: { type: Date, required: true },
         },
         { _id: false }
       ),
       required: false,
     },
-    remote: { type: Boolean, default: false },
-    onSite: { type: Boolean, default: false },
-    hybrid: { type: Boolean, default: false },
+    workType: {
+      type: [String],
+      enum: Object.values(WorkType),
+      default: null,
+    },
     location: {
       city: { type: String, required: false },
       state: String,
@@ -129,6 +132,11 @@ const profileSchema = new Schema<IProfile>(
     experience: {
       type: String,
       required: false,
+    },
+    currency: {
+      type: String,
+      enum: Object.values(Currency),
+      default: Currency.ngn,
     },
     maxSalary: {
       type: Number,

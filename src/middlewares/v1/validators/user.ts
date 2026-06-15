@@ -1,13 +1,15 @@
 import { Joi } from "../../../helpers/joi-extensions";
-import { ExperienceLevel } from "../../../typings/customs";
+import { ExperienceLevel, WorkType } from "../../../typings/customs";
 import { ApplicationStatus, ApplicationType } from "../../../typings/application";
+import { Currency } from "../../../typings/plan";
 
 export const updateProfile = Joi.object({
   body: Joi.object({
     bio: Joi.string().max(1000).optional(),
-    remote: Joi.boolean().optional(),
-    onSite: Joi.boolean().optional(),
-    hybrid: Joi.boolean().optional(),
+    workType: Joi.array()
+      .items(Joi.string().valid(...Object.values(WorkType)))
+      .min(1)
+      .optional(),
     location: Joi.object({
       city: Joi.string().optional(),
       state: Joi.string().optional(),
@@ -16,6 +18,9 @@ export const updateProfile = Joi.object({
     experience: Joi.string()
       .optional()
       .valid(...Object.values(ExperienceLevel)),
+    currency: Joi.string()
+      .optional()
+      .valid(...Object.values(Currency)),
     maxSalary: Joi.number().max(100000000).min(0).optional(),
     minSalary: Joi.number().max(100000000).min(0).less(Joi.ref("maxSalary")).optional(),
     role: Joi.array().items(Joi.string()).optional(),
@@ -63,6 +68,27 @@ export const updateUser = Joi.object({
     lastName: Joi.string().optional(),
     middleName: Joi.string().optional(),
     phone: Joi.string().phoneNumber().optional().label("Phone Number"),
+    picture: Joi.string().uri().optional(),
+    cv: Joi.string().uri().optional(),
+    bio: Joi.string().max(1000).optional(),
+    workType: Joi.array()
+      .items(Joi.string().valid(...Object.values(WorkType)))
+      .min(1)
+      .optional(),
+    location: Joi.object({
+      city: Joi.string().optional(),
+      state: Joi.string().optional(),
+      country: Joi.string().optional(),
+    }).optional(),
+    experience: Joi.string()
+      .optional()
+      .valid(...Object.values(ExperienceLevel)),
+    currency: Joi.string()
+      .optional()
+      .valid(...Object.values(Currency)),
+    maxSalary: Joi.number().max(100000000).min(0).optional(),
+    minSalary: Joi.number().max(100000000).min(0).less(Joi.ref("maxSalary")).optional(),
+    role: Joi.array().items(Joi.string()).optional(),
   }),
   country: Joi.string().optional(),
 }).required();

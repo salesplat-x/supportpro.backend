@@ -10,7 +10,7 @@ import * as func from "../src/helpers/func";
 import * as openaiService from "../src/services/v1/openai";
 import * as pgRepository from "../src/repository/v1/pg";
 import { signToken } from "../src/helpers/utils";
-import { Roles, ExperienceLevel } from "../src/typings/customs";
+import { Roles, ExperienceLevel, WorkType } from "../src/typings/customs";
 import { Profile } from "../src/models/v1/user";
 
 jest.mock("../src/repository/v1/user");
@@ -138,16 +138,184 @@ describe("/v1/user routes", () => {
       expect(res.body.data.user.password).toBeUndefined();
     });
 
-    it("rejects a payload that still sends the retired picture field", async () => {
+    it("maps the picture field to profileImage.url and stores its publicId", async () => {
       const token = authHeaderFor(buildAuthUser());
+
+      mockedUserRepository.findUserById.mockResolvedValue({
+        _id: USER_ID,
+        profileImage: undefined,
+      } as any);
+      mockedCloudinary.extractPublicIdFromUrl.mockReturnValue("salesplate/images/new-image");
+      mockedUserRepository.findUserByIdAndUpdate.mockResolvedValue({
+        _id: USER_ID,
+        firstName: "New",
+        profileImage: {
+          url: "https://example.com/avatar.png",
+          publicId: "salesplate/images/new-image",
+        },
+      } as any);
 
       const res = await request(app)
         .patch("/v1/user/me")
         .set("Authorization", token)
         .send({ firstName: "New", picture: "https://example.com/avatar.png" });
 
-      expect(res.status).toBe(400);
-      expect(mockedUserRepository.findUserByIdAndUpdate).not.toHaveBeenCalled();
+      expect(res.status).toBe(200);
+      expect(mockedUserRepository.findUserByIdAndUpdate).toHaveBeenCalledWith(
+        USER_ID,
+        expect.objectContaining({
+          firstName: "New",
+          profileImage: {
+            url: "https://example.com/avatar.png",
+            publicId: "salesplate/images/new-image",
+          },
+        })
+      );
+      expect(mockedUserRepository.findUserByIdAndUpdate).toHaveBeenCalledWith(
+        USER_ID,
+        expect.not.objectContaining({ picture: expect.anything() })
+      );
+      expect(mockedCloudinary.destroyAsset).not.toHaveBeenCalled();
+    });
+
+    it("deletes the old profile image from Cloudinary when replaced", async () => {
+      const token = authHeaderFor(buildAuthUser());
+
+      mockedUserRepository.findUserById.mockResolvedValue({
+        _id: USER_ID,
+        profileImage: {
+          url: "https://example.com/old.png",
+          publicId: "salesplate/images/old-image",
+        },
+      } as any);
+      mockedCloudinary.extractPublicIdFromUrl.mockReturnValue("salesplate/images/new-image");
+      mockedUserRepository.findUserByIdAndUpdate.mockResolvedValue({
+        _id: USER_ID,
+        profileImage: {
+          url: "https://example.com/new.png",
+          publicId: "salesplate/images/new-image",
+        },
+      } as any);
+
+      const res = await request(app)
+        .patch("/v1/user/me")
+        .set("Authorization", token)
+        .send({ picture: "https://example.com/new.png" });
+
+      expect(res.status).toBe(200);
+      expect(mockedCloudinary.destroyAsset).toHaveBeenCalledWith(
+        "salesplate/images/old-image",
+        "image"
+      );
+    });
+
+    it("maps the cv field to profile.cv and stores its publicId", async () => {
+      const token = authHeaderFor(buildAuthUser());
+
+      mockedUserRepository.findUserById.mockResolvedValue({
+        _id: USER_ID,
+        userRole: Roles.Talent,
+        profile: { _id: PROFILE_ID, cv: undefined },
+      } as any);
+      mockedCloudinary.extractPublicIdFromUrl.mockReturnValue("salesplate/cv/new-cv");
+      mockedUserRepository.findUserByIdAndUpdate.mockResolvedValue({ _id: USER_ID } as any);
+
+      const res = await request(app)
+        .patch("/v1/user/me")
+        .set("Authorization", token)
+        .send({ cv: "https://example.com/resume.pdf" });
+
+      expect(res.status).toBe(200);
+      expect(mockedUserRepository.findProfileByIdAndUpdate).toHaveBeenCalledWith(
+        PROFILE_ID,
+        expect.objectContaining({
+          cv: expect.objectContaining({
+            url: "https://example.com/resume.pdf",
+            publicId: "salesplate/cv/new-cv",
+          }),
+        })
+      );
+      expect(mockedUserRepository.findUserByIdAndUpdate).toHaveBeenCalledWith(
+        USER_ID,
+        expect.not.objectContaining({ cv: expect.anything() })
+      );
+      expect(mockedCloudinary.destroyAsset).not.toHaveBeenCalled();
+    });
+
+    it("deletes the old cv from Cloudinary when replaced", async () => {
+      const token = authHeaderFor(buildAuthUser());
+
+      mockedUserRepository.findUserById.mockResolvedValue({
+        _id: USER_ID,
+        userRole: Roles.Talent,
+        profile: {
+          _id: PROFILE_ID,
+          cv: { url: "https://example.com/old.pdf", publicId: "salesplate/cv/old-cv" },
+        },
+      } as any);
+      mockedCloudinary.extractPublicIdFromUrl.mockReturnValue("salesplate/cv/new-cv");
+      mockedUserRepository.findUserByIdAndUpdate.mockResolvedValue({ _id: USER_ID } as any);
+
+      const res = await request(app)
+        .patch("/v1/user/me")
+        .set("Authorization", token)
+        .send({ cv: "https://example.com/new.pdf" });
+
+      expect(res.status).toBe(200);
+      expect(mockedCloudinary.destroyAsset).toHaveBeenCalledWith("salesplate/cv/old-cv", "auto");
+    });
+
+    it("routes profile fields (experience, role, workType, etc.) to the profile document", async () => {
+      const token = authHeaderFor(buildAuthUser());
+
+      mockedUserRepository.findUserById.mockResolvedValue({
+        _id: USER_ID,
+        userRole: Roles.Talent,
+        profile: { _id: PROFILE_ID, role: [] },
+      } as any);
+      mockedRoleRepository.findRoleById.mockResolvedValue({ _id: ROLE_ID } as any);
+      mockedUserRepository.findProfileByIdAndUpdate.mockResolvedValue({ _id: PROFILE_ID } as any);
+      mockedUserRepository.findUserByIdAndUpdate.mockResolvedValue({ _id: USER_ID } as any);
+
+      const res = await request(app)
+        .patch("/v1/user/me")
+        .set("Authorization", token)
+        .send({
+          experience: ExperienceLevel.fourToSixYears,
+          role: [ROLE_ID],
+          workType: [WorkType.Remote, WorkType.Hybrid],
+        });
+
+      expect(res.status).toBe(200);
+      expect(mockedUserRepository.findProfileByIdAndUpdate).toHaveBeenCalledWith(
+        PROFILE_ID,
+        expect.objectContaining({
+          experience: ExperienceLevel.fourToSixYears,
+          role: [ROLE_ID],
+          workType: [WorkType.Remote, WorkType.Hybrid],
+        })
+      );
+      expect(mockedUserRepository.findUserByIdAndUpdate).toHaveBeenCalledWith(USER_ID, {});
+    });
+
+    it("rejects a non-existent role id sent to /v1/user/me with 404", async () => {
+      const token = authHeaderFor(buildAuthUser());
+
+      mockedUserRepository.findUserById.mockResolvedValue({
+        _id: USER_ID,
+        userRole: Roles.Talent,
+        profile: { _id: PROFILE_ID, role: [] },
+      } as any);
+      mockedRoleRepository.findRoleById.mockResolvedValue(null);
+
+      const res = await request(app)
+        .patch("/v1/user/me")
+        .set("Authorization", token)
+        .send({ role: [new mongoose.Types.ObjectId().toString()] });
+
+      expect(res.status).toBe(404);
+      expect(res.body.message).toBe("Role does not exist");
+      expect(mockedUserRepository.findProfileByIdAndUpdate).not.toHaveBeenCalled();
     });
   });
 
@@ -265,7 +433,7 @@ describe("/v1/user routes", () => {
         profile: {
           _id: PROFILE_ID,
           role: [],
-          cv: { publicId: "supportpro/cvs/old-cv", url: "https://old-cv" },
+          cv: { publicId: "salesplate/cv/old-cv", url: "https://old-cv" },
         },
       } as any);
       mockedFunc.extractText.mockResolvedValue("raw cv text");
@@ -275,7 +443,7 @@ describe("/v1/user routes", () => {
       mockedPg.saveTalentEmbedding.mockResolvedValue({ rowCount: 1 } as any);
       mockedCloudinary.replaceAsset.mockResolvedValue({
         url: "https://new-cv",
-        publicId: `supportpro/cvs/${USER_ID}-cv`,
+        publicId: `salesplate/cv/${USER_ID}-cv`,
       });
       mockedUserRepository.findProfileByIdAndUpdate.mockResolvedValue({ _id: PROFILE_ID } as any);
 
@@ -296,10 +464,10 @@ describe("/v1/user routes", () => {
         [{ embedding: [0.1, 0.2] }]
       );
       expect(mockedCloudinary.replaceAsset).toHaveBeenCalledWith(
-        "supportpro/cvs/old-cv",
+        "salesplate/cv/old-cv",
         expect.any(Buffer),
         expect.objectContaining({
-          folder: "supportpro/cvs",
+          folder: "salesplate/cv",
           publicId: `${USER_ID}-cv`,
           mimetype: "application/pdf",
           format: "pdf",
@@ -312,7 +480,7 @@ describe("/v1/user routes", () => {
           bio: "Updated bio",
           cv: expect.objectContaining({
             url: "https://new-cv",
-            publicId: `supportpro/cvs/${USER_ID}-cv`,
+            publicId: `salesplate/cv/${USER_ID}-cv`,
             uploadedAt: expect.any(Date),
           }),
         })
@@ -328,7 +496,7 @@ describe("/v1/user routes", () => {
         profile: {
           _id: PROFILE_ID,
           role: [],
-          cv: { publicId: "supportpro/cvs/old-cv", url: "https://old-cv" },
+          cv: { publicId: "salesplate/cv/old-cv", url: "https://old-cv" },
         },
       } as any);
       mockedFunc.extractText.mockResolvedValue("");
@@ -356,7 +524,7 @@ describe("/v1/user routes", () => {
         profile: {
           _id: PROFILE_ID,
           role: [],
-          cv: { publicId: "supportpro/cvs/old-cv", url: "https://old-cv" },
+          cv: { publicId: "salesplate/cv/old-cv", url: "https://old-cv" },
         },
       } as any);
       mockedFunc.extractText.mockResolvedValue("raw cv text");
@@ -454,9 +622,7 @@ describe("/v1/user routes", () => {
         experience: ExperienceLevel.fourToSixYears,
         maxSalary: 100000,
         minSalary: 50000,
-        remote: true,
-        onSite: false,
-        hybrid: false,
+        workType: [WorkType.Remote],
       });
 
       mockedUserRepository.findUserAndScoreById.mockResolvedValue({
