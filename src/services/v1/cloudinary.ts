@@ -18,3 +18,50 @@ export const handleUpload = async (file: string, name: string, format?: string) 
     public_id: name,
   });
 };
+
+export interface CloudAsset {
+  url: string;
+  publicId: string;
+}
+
+export interface UploadAssetOptions {
+  folder: string;
+  publicId: string;
+  mimetype: string;
+  format?: string;
+  resourceType?: "image" | "raw" | "auto";
+}
+
+export const uploadBuffer = async (
+  buffer: Buffer,
+  options: UploadAssetOptions
+): Promise<CloudAsset> => {
+  const base64 = buffer.toString("base64");
+  const dataURI = `data:${options.mimetype};base64,${base64}`;
+  const res = await cloudinary.uploader.upload(dataURI, {
+    resource_type: options.resourceType ?? "auto",
+    overwrite: true,
+    folder: options.folder,
+    public_id: options.publicId,
+    format: options.format,
+  });
+  return { url: res.secure_url, publicId: res.public_id };
+};
+
+export const destroyAsset = async (
+  publicId: string,
+  resourceType: "image" | "raw" | "auto" = "auto"
+) => {
+  await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
+};
+
+export const replaceAsset = async (
+  oldPublicId: string | undefined,
+  buffer: Buffer,
+  options: UploadAssetOptions
+): Promise<CloudAsset> => {
+  if (oldPublicId) {
+    await destroyAsset(oldPublicId, options.resourceType ?? "auto");
+  }
+  return uploadBuffer(buffer, options);
+};

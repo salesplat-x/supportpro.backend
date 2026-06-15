@@ -6,7 +6,7 @@ import * as question from "../../controllers/v1/question";
 import validate from "../../middlewares/v1/validators/validate";
 import * as questionValidator from "../../middlewares/v1/validators/question";
 import { asyncHandler } from "../../middlewares/v1/handler";
-import { loginRequired, validateAccess } from "../../middlewares/v1/auth";
+import { loginRequired, validateAccess, requireCompletedProfile } from "../../middlewares/v1/auth";
 import { Roles } from "../../typings/customs";
 
 router.post(
@@ -19,6 +19,7 @@ router.post(
 router.get(
   "/",
   loginRequired,
+  requireCompletedProfile,
   validate(questionValidator.getQuestions, { query: true }),
   asyncHandler(question.fetchQuestions)
 );
@@ -40,6 +41,7 @@ router.post(
 router.post(
   "/answer/prescreening",
   validateAccess([Roles.Talent]),
+  requireCompletedProfile,
   validate(questionValidator.answers, { body: true }),
   asyncHandler(question.answerPrescreening)
 );
