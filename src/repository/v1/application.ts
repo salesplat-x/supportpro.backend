@@ -173,7 +173,10 @@ export const updateCurrentStage = (
   return { currentStage, applicationStatus: ApplicationStatus.Pending };
 };
 
-export const calculateAverageScore = (application: IApplication, prescreeningScore: number) => {
+export const calculateAverageScore = (
+  application: IApplication,
+  prescreeningScore: number | undefined
+) => {
   const scores = [
     application.cvSimilarityScore,
     application.personalizedScore,

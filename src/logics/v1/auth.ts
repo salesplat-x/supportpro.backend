@@ -32,7 +32,7 @@ export const createUser = async (userPayload: IUser, ip?: string) => {
   userPayload.password = await generateHashedPassword(userPayload.password);
   userPayload.emailVerified = true;
 
-  const user = await userRepository.createUser(userPayload);
+  const user = await userRepository.createTalentUserWithProfile(userPayload);
   if (!user) {
     return makeResponse(false, "User Registration Failed, Please Try Again");
   }

@@ -1,11 +1,22 @@
 import { User, Profile } from "../../models/v1/user";
-import { Page, Paging } from "../../typings/customs";
+import { Page, Paging, Roles } from "../../typings/customs";
 import { IUser, IProfile } from "../../typings/user";
 import mongoose, { FilterQuery, HydratedDocument, Types } from "mongoose";
 import * as func from "../../helpers/func";
 
 export const createUser = async (user: IUser): Promise<HydratedDocument<IUser>> => {
   return await new User(user).save();
+};
+
+export const createTalentUserWithProfile = async (
+  userPayload: IUser
+): Promise<HydratedDocument<IUser>> => {
+  let profileId: Types.ObjectId | string | undefined;
+  if (userPayload.userRole === Roles.Talent || !userPayload.userRole) {
+    const profile = await new Profile({ role: [], remote: false, onSite: false, hybrid: false }).save();
+    profileId = profile._id;
+  }
+  return await new User({ ...userPayload, profile: profileId }).save();
 };
 
 export const findUserById = async (id: Types.ObjectId | string) => {
@@ -19,16 +30,20 @@ export const findUserById = async (id: Types.ObjectId | string) => {
 
 // findUserAuthById fetches only the fields needed by auth middleware, without populating
 export const findUserAuthById = async (id: Types.ObjectId | string) => {
-  return await User.findById(id).select("email userRole active emailVerified tokenVersion");
+  return await User.findById(id).select("email userRole active emailVerified tokenVersion profile");
 };
 
 export const findUserAndScoreById = async (id: Types.ObjectId | string) => {
   return await User.findById(id).populate({
     path: "profile",
-    select: "bio cv role experience maxSalary minSalary prescreeningScore",
+    select: "bio cv role experience maxSalary minSalary prescreeningScore location remote onSite hybrid",
     strictPopulate: false,
     populate: { path: "role", model: "role", select: "-__v " },
   });
+};
+
+export const findProfileById = async (id: Types.ObjectId | string) => {
+  return await Profile.findById(id).select("cv role");
 };
 
 export const findUserByEmail = async (email: string) => {
@@ -82,7 +97,9 @@ export const findUserByIdAndUpdate = async (
   });
 };
 
-export const createProfile = async (profile: IProfile): Promise<HydratedDocument<IProfile>> => {
+export const createProfile = async (
+  profile: mongoose.AnyKeys<IProfile>
+): Promise<HydratedDocument<IProfile>> => {
   return await new Profile(profile).save();
 };
 
