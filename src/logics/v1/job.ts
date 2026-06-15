@@ -597,7 +597,7 @@ export const apply = async (user: IUser, payload: IApply) => {
     );
   }
 
-  if ((user.profile as IProfile).prescreeningScore < aiConfig.minPrescreeningScore) {
+  if ((user.profile as IProfile).prescreeningScore! < aiConfig.minPrescreeningScore) {
     return makeResponse(false, "Sorry your prescreening score is too low to proceed!", {}, 403);
   }
 
@@ -611,7 +611,7 @@ export const apply = async (user: IUser, payload: IApply) => {
 
   job.noOfApplicants += 1;
   await job.save();
-  if ((user.profile as IProfile).prescreeningScore < aiConfig.minPrescreeningScore) {
+  if ((user.profile as IProfile).prescreeningScore! < aiConfig.minPrescreeningScore) {
     application.status = ApplicationStatus.RetakeAssessment;
     await application.save();
     return makeResponse(true, "Your prescreening score is too low to proceed with application", {

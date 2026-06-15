@@ -49,15 +49,8 @@ export const createQuestion = async (payload: IQuestion) => {
 // Function to fetch all questions
 export const fetchQuestions = async (user: IUser, payload: FetchQuestions) => {
   const query: Partial<IQuestion> = { type: payload.questionType };
-  const profile = user.profile as IProfile;
   let questions: IQuestion[];
   let application: IApplication | null;
-
-  // Check if user wants to retake assessment and is allowed to
-
-  if (!profile || !profile.role || !profile.role[0]) {
-    return makeResponse(false, "User profile is incomplete!", {}, 400);
-  }
 
   if (payload.jobId) {
     // Check if user can retake assessment for the job
@@ -92,6 +85,12 @@ export const fetchQuestions = async (user: IUser, payload: FetchQuestions) => {
     }
   }
   if (payload.questionType === QuestionType.Prescreening) {
+    const existingUser = await userRepository.findUserById(user._id);
+    const profile = existingUser?.profile as IProfile | undefined;
+    if (!profile || !profile.role || !profile.role[0]) {
+      return makeResponse(false, "User profile is incomplete!", {}, 400);
+    }
+
     if (!profile.canTakeAssessment()) {
       const days = calculateTimeLeft(profile.assessmentRetryDate!);
       return makeResponse(
@@ -145,11 +144,11 @@ export const fetchQuestion = async (payload: Pick<IQuestion, "_id">) => {
 
 // Function to answer prescreening assessment questions
 export const answerPrescreening = async (user: IUser, payload: AnswerPrescreeningPayload) => {
-  const profile = user.profile as IProfile;
-
-  if (!profile || !profile.role || !profile.role[0]) {
-    return makeResponse(false, "User profile is incomplete!", {}, 400);
+  const existingUser = await userRepository.findUserById(user._id);
+  if (!existingUser) {
+    return makeResponse(false, "Authenticated user no longer exist!", {}, 404);
   }
+  const profile = existingUser.profile as IProfile;
 
   if (!profile.canTakeAssessment()) {
     const days = calculateTimeLeft(profile.assessmentRetryDate!);
@@ -301,7 +300,7 @@ export const generatePersonalizedQuestions = async (payload: IGeneratePersonaliz
   const response = await AI.generatePersonalizedQuestions(
     job.job_description,
     cv,
-    bio,
+    bio ?? "",
     aiConfig.noPersonalizedQuestions,
     aiConfig.recruiterGuide
   );

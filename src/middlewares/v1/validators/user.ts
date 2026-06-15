@@ -1,47 +1,24 @@
 import { Joi } from "../../../helpers/joi-extensions";
 import { ExperienceLevel } from "../../../typings/customs";
-import { FetchProfiles, IUser } from "../../../typings/user";
 import { ApplicationStatus, ApplicationType } from "../../../typings/application";
-
-export const profile = Joi.object({
-  body: Joi.object({
-    bio: Joi.string().max(1000).required(),
-    cv: Joi.string().required(),
-    location: Joi.object({
-      city: Joi.string().optional(),
-      state: Joi.string().required(),
-      country: Joi.string().required(),
-    }).required(),
-    remote: Joi.boolean().required(),
-    onSite: Joi.boolean().required(),
-    hybrid: Joi.boolean().required(),
-    experience: Joi.string()
-      .required()
-      .valid(...Object.values(ExperienceLevel)),
-    maxSalary: Joi.number().max(100000000).min(0).required(),
-    minSalary: Joi.number().max(100000000).min(0).less(Joi.ref("maxSalary")).required(),
-    role: Joi.array().items(Joi.string()),
-  }),
-}).required();
 
 export const updateProfile = Joi.object({
   body: Joi.object({
     bio: Joi.string().max(1000).optional(),
-    cv: Joi.string().optional(),
-    remote: Joi.boolean().required(),
-    onSite: Joi.boolean().required(),
-    hybrid: Joi.boolean().required(),
+    remote: Joi.boolean().optional(),
+    onSite: Joi.boolean().optional(),
+    hybrid: Joi.boolean().optional(),
     location: Joi.object({
       city: Joi.string().optional(),
-      state: Joi.string().required(),
-      country: Joi.string().required(),
+      state: Joi.string().optional(),
+      country: Joi.string().optional(),
     }).optional(),
     experience: Joi.string()
       .optional()
       .valid(...Object.values(ExperienceLevel)),
     maxSalary: Joi.number().max(100000000).min(0).optional(),
     minSalary: Joi.number().max(100000000).min(0).less(Joi.ref("maxSalary")).optional(),
-    role: Joi.array().items(Joi.string()),
+    role: Joi.array().items(Joi.string()).optional(),
   }),
 }).required();
 
@@ -85,7 +62,6 @@ export const updateUser = Joi.object({
     firstName: Joi.string().optional(),
     lastName: Joi.string().optional(),
     middleName: Joi.string().optional(),
-    picture: Joi.string().optional(),
     phone: Joi.string().phoneNumber().optional().label("Phone Number"),
   }),
   country: Joi.string().optional(),

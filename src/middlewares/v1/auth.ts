@@ -2,7 +2,7 @@ import { makeResponse, sendErrorResponse } from "../../helpers/response";
 import { Request, Response, NextFunction, RequestHandler } from "express";
 import { verifyToken } from "../../helpers/utils";
 import env from "../../config/env";
-import { findUserAuthById } from "../../repository/v1/user";
+import { findUserAuthById, findProfileById } from "../../repository/v1/user";
 import { MakeResponse, Roles } from "../../typings/customs";
 import { IUser } from "../../typings/user";
 
@@ -30,6 +30,23 @@ export const validateAccess = (roles: string[]): RequestHandler => {
     }
     return next();
   };
+};
+
+export const requireCompletedProfile: RequestHandler = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<Response | void> => {
+  if (req.user.userRole !== Roles.Talent) {
+    return next();
+  }
+  const profile = req.user.profile
+    ? await findProfileById(req.user.profile as string)
+    : null;
+  if (!profile?.canProceedToPlatform) {
+    return sendErrorResponse(res, "Please complete your profile before proceeding", 403);
+  }
+  return next();
 };
 
 const checkUser = async (req: Request, res: Response): Promise<MakeResponse> => {

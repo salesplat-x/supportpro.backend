@@ -18,6 +18,7 @@ process.env.PAYSTACK_SECRET_KEY ||= "sk_test_placeholder";
 process.env.PAYSTACK_PUBLIC_KEY ||= "pk_test_placeholder";
 process.env.PAYSTACK_WHITELISTED_IPS ||= "127.0.0.1";
 process.env.FRONTEND_CALLBACK_URL ||= "http://localhost:5173";
+process.env.WEBSITE ||= "http://localhost:5173";
 process.env.BREVO_API_KEY ||= "test-brevo-api-key";
 process.env.BREVO_SENDER_EMAIL ||= "test@example.com";
 process.env.BREVO_SENDER_NAME ||= "Test Sender";
