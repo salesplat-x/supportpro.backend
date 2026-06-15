@@ -48,7 +48,7 @@ describe("Auth flows", () => {
     it("registers a new user successfully and sends a welcome email", async () => {
       mockedUserRepository.findUserByEmail.mockResolvedValue(null);
       const createdUser = buildUser({ email: "new@example.com" });
-      mockedUserRepository.createUser.mockResolvedValue(createdUser as any);
+      mockedUserRepository.createTalentUserWithProfile.mockResolvedValue(createdUser as any);
 
       const res = await request(app).post("/v1/auth/register").send({
         email: "new@example.com",
@@ -62,6 +62,28 @@ describe("Auth flows", () => {
       expect(res.body.data.token).toBeDefined();
       expect(res.body.data.user.emailVerified).toBe(true);
       expect(MockedEmailService.prototype.sendWelcome).toHaveBeenCalledWith(createdUser);
+    });
+
+    it("creates a profile reference for a newly registered talent", async () => {
+      mockedUserRepository.findUserByEmail.mockResolvedValue(null);
+      const createdUser = buildUser({
+        email: "new-talent@example.com",
+        profile: "507f1f77bcf86cd799439099",
+      });
+      mockedUserRepository.createTalentUserWithProfile.mockResolvedValue(createdUser as any);
+
+      const res = await request(app).post("/v1/auth/register").send({
+        email: "new-talent@example.com",
+        firstName: "New",
+        lastName: "Talent",
+        password: PLAIN_PASSWORD,
+      });
+
+      expect(res.status).toBe(201);
+      expect(mockedUserRepository.createTalentUserWithProfile).toHaveBeenCalledWith(
+        expect.objectContaining({ email: "new-talent@example.com" })
+      );
+      expect(res.body.data.user.profile).toBe("507f1f77bcf86cd799439099");
     });
 
     it("rejects registration with an email already in use", async () => {
@@ -107,7 +129,7 @@ describe("Auth flows", () => {
     it("accepts a registration payload that includes a country", async () => {
       mockedUserRepository.findUserByEmail.mockResolvedValue(null);
       const createdUser = buildUser({ email: "new@example.com", country: "Nigeria" });
-      mockedUserRepository.createUser.mockResolvedValue(createdUser as any);
+      mockedUserRepository.createTalentUserWithProfile.mockResolvedValue(createdUser as any);
 
       const res = await request(app).post("/v1/auth/register").send({
         email: "new@example.com",
@@ -118,7 +140,7 @@ describe("Auth flows", () => {
       });
 
       expect(res.status).toBe(201);
-      expect(mockedUserRepository.createUser).toHaveBeenCalledWith(
+      expect(mockedUserRepository.createTalentUserWithProfile).toHaveBeenCalledWith(
         expect.objectContaining({ country: "Nigeria" })
       );
     });
