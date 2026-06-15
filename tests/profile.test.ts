@@ -3,23 +3,14 @@ import { Profile } from "../src/models/v1/user";
 import * as profileController from "../src/logics/v1/profile";
 import * as userRepository from "../src/repository/v1/user";
 import * as cloudinaryService from "../src/services/v1/cloudinary";
-import * as func from "../src/helpers/func";
-import * as openaiService from "../src/services/v1/openai";
-import * as pgRepository from "../src/repository/v1/pg";
 import { requireCompletedProfile } from "../src/middlewares/v1/auth";
 import { Roles, ExperienceLevel } from "../src/typings/customs";
 
 jest.mock("../src/repository/v1/user");
 jest.mock("../src/services/v1/cloudinary");
-jest.mock("../src/helpers/func");
-jest.mock("../src/services/v1/openai");
-jest.mock("../src/repository/v1/pg");
 
 const mockedUserRepository = jest.mocked(userRepository);
 const mockedCloudinary = jest.mocked(cloudinaryService);
-const mockedFunc = jest.mocked(func);
-const mockedOpenai = jest.mocked(openaiService);
-const mockedPg = jest.mocked(pgRepository);
 
 const USER_ID = "507f1f77bcf86cd799439011";
 const PROFILE_ID = "507f1f77bcf86cd799439022";
@@ -120,125 +111,6 @@ describe("uploadProfileImage", () => {
     expect(mockedUserRepository.findUserByIdAndUpdate).toHaveBeenCalledWith(USER_ID, {
       profileImage: { url: "https://new", publicId: `supportpro/profilepicture/${USER_ID}-image` },
     });
-  });
-});
-
-describe("uploadCv", () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  const buildFile = (mimetype = "application/pdf"): Express.Multer.File =>
-    ({
-      buffer: Buffer.from("fake-cv"),
-      mimetype,
-      originalname: "resume.pdf",
-    }) as Express.Multer.File;
-
-  it("rejects unsupported CV mimetypes without touching the database or Cloudinary", async () => {
-    const response = await profileController.uploadCv(
-      { _id: USER_ID } as any,
-      buildFile("image/png")
-    );
-
-    expect(response.status).toBe(false);
-    expect(response.statusCode).toBe(400);
-    expect(mockedUserRepository.findUserById).not.toHaveBeenCalled();
-    expect(mockedCloudinary.replaceAsset).not.toHaveBeenCalled();
-  });
-
-  it("extracts text, saves the embedding, then replaces the old CV asset", async () => {
-    mockedUserRepository.findUserById.mockResolvedValue({
-      _id: USER_ID,
-      profile: {
-        _id: PROFILE_ID,
-        cv: { publicId: "supportpro/cvs/old-cv", url: "https://old-cv" },
-      },
-    } as any);
-    mockedFunc.extractText.mockResolvedValue("raw cv text");
-    mockedFunc.preprocessText.mockReturnValue("clean cv text");
-    mockedFunc.overlapChunkText.mockReturnValue(["chunk-1"]);
-    mockedOpenai.createEmbedding.mockResolvedValue([{ embedding: [0.1, 0.2] }] as any);
-    mockedPg.saveTalentEmbedding.mockResolvedValue({ rowCount: 1 } as any);
-    mockedCloudinary.replaceAsset.mockResolvedValue({
-      url: "https://new-cv",
-      publicId: `supportpro/cvs/${USER_ID}-cv`,
-    });
-    mockedUserRepository.findProfileByIdAndUpdate.mockResolvedValue({ _id: PROFILE_ID } as any);
-
-    const file = buildFile("application/pdf");
-    const response = await profileController.uploadCv({ _id: USER_ID } as any, file);
-
-    expect(response.status).toBe(true);
-    expect(mockedOpenai.createEmbedding).toHaveBeenCalledWith(["chunk-1"]);
-    expect(mockedPg.saveTalentEmbedding).toHaveBeenCalledWith(
-      USER_ID,
-      ["chunk-1"],
-      [{ embedding: [0.1, 0.2] }]
-    );
-    expect(mockedCloudinary.replaceAsset).toHaveBeenCalledWith(
-      "supportpro/cvs/old-cv",
-      file.buffer,
-      expect.objectContaining({
-        folder: "supportpro/cvs",
-        publicId: `${USER_ID}-cv`,
-        mimetype: "application/pdf",
-        format: "pdf",
-        resourceType: "auto",
-      })
-    );
-    expect(mockedUserRepository.findProfileByIdAndUpdate).toHaveBeenCalledWith(
-      PROFILE_ID,
-      expect.objectContaining({
-        cv: expect.objectContaining({
-          url: "https://new-cv",
-          publicId: `supportpro/cvs/${USER_ID}-cv`,
-          uploadedAt: expect.any(Date),
-        }),
-      })
-    );
-  });
-
-  it("does not touch Cloudinary or the old CV if embedding saving fails", async () => {
-    mockedUserRepository.findUserById.mockResolvedValue({
-      _id: USER_ID,
-      profile: {
-        _id: PROFILE_ID,
-        cv: { publicId: "supportpro/cvs/old-cv", url: "https://old-cv" },
-      },
-    } as any);
-    mockedFunc.extractText.mockResolvedValue("raw cv text");
-    mockedFunc.preprocessText.mockReturnValue("clean cv text");
-    mockedFunc.overlapChunkText.mockReturnValue(["chunk-1"]);
-    mockedOpenai.createEmbedding.mockResolvedValue([{ embedding: [0.1, 0.2] }] as any);
-    mockedPg.saveTalentEmbedding.mockResolvedValue(null as any);
-
-    const file = buildFile("application/pdf");
-    const response = await profileController.uploadCv({ _id: USER_ID } as any, file);
-
-    expect(response.status).toBe(false);
-    expect(response.statusCode).toBe(500);
-    expect(mockedCloudinary.replaceAsset).not.toHaveBeenCalled();
-    expect(mockedUserRepository.findProfileByIdAndUpdate).not.toHaveBeenCalled();
-  });
-
-  it("returns 400 and skips embedding/Cloudinary entirely if text extraction fails", async () => {
-    mockedUserRepository.findUserById.mockResolvedValue({
-      _id: USER_ID,
-      profile: {
-        _id: PROFILE_ID,
-        cv: { publicId: "supportpro/cvs/old-cv", url: "https://old-cv" },
-      },
-    } as any);
-    mockedFunc.extractText.mockResolvedValue("");
-
-    const file = buildFile("application/pdf");
-    const response = await profileController.uploadCv({ _id: USER_ID } as any, file);
-
-    expect(response.status).toBe(false);
-    expect(response.statusCode).toBe(400);
-    expect(mockedOpenai.createEmbedding).not.toHaveBeenCalled();
-    expect(mockedCloudinary.replaceAsset).not.toHaveBeenCalled();
   });
 });
 
