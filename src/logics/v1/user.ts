@@ -1,14 +1,11 @@
 import { FetchProfiles, IProfile, IUser } from "../../typings/user";
-import { ApplicationType, FetchApplications, IApplication } from "../../typings/application";
+import { FetchApplications } from "../../typings/application";
 import * as userRepository from "../../repository/v1/user";
 import * as roleRepository from "../../repository/v1/role";
 import * as applicationRepository from "../../repository/v1/application";
 import { makeResponse } from "../../helpers/response";
-import mongoose, { FilterQuery, HydratedDocument } from "mongoose";
+import mongoose, { HydratedDocument } from "mongoose";
 import { Roles } from "../../typings/customs";
-import Application from "../../models/v1/application";
-import { IJob } from "../../typings/job";
-import { Request } from "express";
 
 // Lazily backfills a Profile for legacy Talent users that don't have one yet.
 const ensureTalentProfile = async (
@@ -89,8 +86,6 @@ export const viewProfile = async (user: Pick<IUser, "_id">) => {
 };
 
 export const viewProfilesForRole = async (payload: FetchProfiles) => {
-  let talents: IUser[] = [];
-
   // Create aggregation pipeline
   const pipeline: mongoose.PipelineStage[] = [
     {
@@ -165,14 +160,12 @@ export const viewProfilesForRole = async (payload: FetchProfiles) => {
   );
 
   // Use an aggregation to get all users with the specified role
-  talents = await userRepository.userAggregate(pipeline, payload);
+  const talents: IUser[] = await userRepository.userAggregate(pipeline, payload);
   return makeResponse(true, "User details fetched", { talents });
 };
 
 export const applications = async (user: IUser, payload: FetchApplications) => {
   const { applicationType, applicationStatus } = payload;
-
-  const query: Record<string, any> = { talent: user._id };
 
   const pipeline: mongoose.PipelineStage[] = [
     { $match: { talent: new mongoose.Types.ObjectId(user._id) } },

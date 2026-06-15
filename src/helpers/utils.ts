@@ -60,7 +60,7 @@ export const verifyToken = async (
       return makeResponse(false, "Login required", undefined, 401);
     }
     return makeResponse(true, "", user);
-  } catch (error) {
+  } catch {
     return makeResponse(false, "Login required", undefined);
   }
 };

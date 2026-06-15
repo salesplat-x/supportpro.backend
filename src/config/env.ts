@@ -39,10 +39,10 @@ const env = {
 } as const;
 
 const missingEnvVars = Object.entries(requiredEnvVars)
-  .filter(([key, value]) => {
+  .filter(([, value]) => {
     return !value;
   })
-  .map(([key, _]) => key);
+  .map(([key]) => key);
 
 if (missingEnvVars.length > 0) {
   throw new Error(`Missing required environment variables: ${missingEnvVars.join(", ")}`);

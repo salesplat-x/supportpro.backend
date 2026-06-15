@@ -25,7 +25,7 @@ export interface IUser extends Document {
   phone?: string;
   country?: string;
   organization?: Types.ObjectId | string;
-  userRole: string;
+  userRole: (typeof Roles)[keyof typeof Roles];
   profile?: Types.ObjectId | string | IProfile;
   recoveryCode?: string;
   recoveryCodeExpiry?: Date;

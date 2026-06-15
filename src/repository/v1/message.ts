@@ -1,5 +1,5 @@
 import Message from "../../models/v1/message";
-import { Page, Paging } from "../../typings/customs";
+import { Paging } from "../../typings/customs";
 import { IMessage } from "../../typings/message";
 import { FilterQuery, Types } from "mongoose";
 

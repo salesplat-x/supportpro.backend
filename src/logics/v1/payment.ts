@@ -7,7 +7,6 @@ import { IUser } from "../../typings/user";
 import { PaymentStatus } from "../../typings/payment";
 import { IPaystackConfig, PaymentVerificationStatus } from "../../typings/paystack";
 import { findUserById, findUserByMatch } from "../../repository/v1/user";
-import * as repository from "../../repository/v1/plan";
 import { generateReference } from "../../helpers/func";
 import { IPlan } from "../../typings/plan";
 import { SubscriptionStatus } from "../../typings/subscription";

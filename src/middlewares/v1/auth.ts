@@ -4,7 +4,6 @@ import { verifyToken } from "../../helpers/utils";
 import env from "../../config/env";
 import { findUserAuthById, findProfileById } from "../../repository/v1/user";
 import { MakeResponse, Roles } from "../../typings/customs";
-import { IUser } from "../../typings/user";
 
 export const loginRequired = async (
   req: Request,
@@ -49,7 +48,7 @@ export const requireCompletedProfile: RequestHandler = async (
   return next();
 };
 
-const checkUser = async (req: Request, res: Response): Promise<MakeResponse> => {
+const checkUser = async (req: Request, _res: Response): Promise<MakeResponse> => {
   const token = req.headers.authorization;
   if (!token) {
     return makeResponse(false, "LOGIN_REQUIRED");

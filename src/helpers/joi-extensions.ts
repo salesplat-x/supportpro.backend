@@ -13,7 +13,7 @@ const phoneNumberValidator = (value: string, helpers: OriginalJoi.CustomHelpers)
     }
     // Return the original value if it's valid
     return value;
-  } catch (error) {
+  } catch {
     // The parsing library throws an error for fundamentally invalid formats
     return helpers.error("string.phoneNumber.invalid");
   }

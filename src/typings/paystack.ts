@@ -1,4 +1,3 @@
-import { boolean } from "joi";
 import { TBillingInterval } from "./plan";
 import { TSubscriptionStatus } from "./subscription";
 

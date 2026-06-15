@@ -5,7 +5,6 @@ import {
   IApplication,
   ScreeningStage,
   TApplicationStatus,
-  TApplicationType,
   TScreeningStage,
 } from "../../typings/application";
 import { FilterQuery, PipelineStage, Types, UpdateQuery } from "mongoose";
@@ -153,7 +152,7 @@ export const countApplications = async (filter: FilterQuery<IApplication>) => {
   return await Application.countDocuments(filter);
 };
 
-export const applicationAggregate = async (data: PipelineStage[], paging: Paging = {}) => {
+export const applicationAggregate = async (data: PipelineStage[]) => {
   return await Application.aggregate(data);
 };
 

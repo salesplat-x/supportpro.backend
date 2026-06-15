@@ -1,6 +1,6 @@
 import Joi from "joi";
 import { ExperienceLevel } from "../../../typings/customs";
-import { FetchJobs, IJob, JobStatus, TopTalents, WorkMode } from "../../../typings/job";
+import { FetchJobs, IJob, JobStatus, WorkMode } from "../../../typings/job";
 import { ApplicationStatus, ApplicationType } from "../../../typings/application";
 
 export const job = Joi.object({

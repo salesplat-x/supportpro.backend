@@ -1,7 +1,5 @@
-import { Application, Express, Request, Response, NextFunction } from "express";
-import swaggerJsdoc from "swagger-jsdoc";
+import { Application, Request, Response, NextFunction } from "express";
 import swaggerUi from "swagger-ui-express";
-import { version } from "../package.json";
 import logger from "./config/logger";
 import fs from "fs";
 import yaml from "js-yaml";

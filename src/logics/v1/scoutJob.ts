@@ -31,7 +31,7 @@ export const createJob = async (user: IUser, payload: IScoutJob) => {
   const res = await saveScoutJobEmbedding(
     scoutJob.id,
     scoutJob.jobBrief,
-    jobEmbedding[0]?.embedding!
+    jobEmbedding[0]!.embedding
   );
   if (!res) {
     return makeResponse(false, "Unable to save job embedding", {}, 500);

@@ -1,4 +1,3 @@
-import { Types } from "mongoose";
 import env from "../../config/env";
 import { Pool } from "pg";
 import OpenAI from "openai";
@@ -272,7 +271,7 @@ export const setupPostgresDB = async () => {
     `);
     client.release();
     logger.log("Connected to Postgres successfully");
-  } catch (error: any) {
+  } catch {
     logger.logErrorMessage("Unable to connect to Postgres");
   }
 };

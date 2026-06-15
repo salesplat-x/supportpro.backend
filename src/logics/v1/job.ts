@@ -75,7 +75,7 @@ export const createJob = async (user: IUser, payload: IJob) => {
   const res = await pgRepository.saveJobEmbedding(
     job._id.toString(),
     job.jobBrief,
-    jobEmbedding[0]?.embedding!
+    jobEmbedding[0]!.embedding
   );
   if (!res) {
     return makeResponse(false, "Unable to save job embedding", {}, 500);
@@ -139,7 +139,6 @@ export const updateJob = async (user: IUser, payload: IJob) => {
 };
 
 export const fetchAllJobs = async (payload: FetchJobs) => {
-  let jobs: IJob[] = [];
   const query: FilterQuery<IJob> = {};
 
   if (payload.roleId) {
@@ -181,7 +180,7 @@ export const fetchAllJobs = async (payload: FetchJobs) => {
     }
     query.workMode = workModes;
   }
-  jobs = await jobRepository.findAllJobs(query, payload);
+  const jobs = await jobRepository.findAllJobs(query, payload);
   return makeResponse(true, "Jobs fetched successfully", jobs, 200);
 };
 
@@ -381,20 +380,13 @@ export const gradeCv = async (user: IUser, jobId: string) => {
 
   let cvSimilarityScore = await pgRepository.getCVSimilarityScore(user._id as string, jobId);
 
-  let { currentStage, applicationStatus } = applicationRepository.updateCurrentStage(
-    ScreeningStage.CvSimilarity,
-    aiConfig.stages
-  );
+  applicationRepository.updateCurrentStage(ScreeningStage.CvSimilarity, aiConfig.stages);
 
   cvSimilarityScore = convertSimilarityToPercentage(cvSimilarityScore);
-  if (cvSimilarityScore < aiConfig.minCvSimilarityScore) {
-    applicationStatus = ApplicationStatus.RetakeAssessment;
-  }
 
   application.cvSimilarityScore = cvSimilarityScore;
   // Update application status based on score
   if (cvSimilarityScore < aiConfig.minCvSimilarityScore) {
-    applicationStatus = ApplicationStatus.RetakeAssessment;
     application.currentStage = ScreeningStage.CvSimilarity;
     application.status = ApplicationStatus.RetakeAssessment;
     application.setAssessmentRetryDate();
@@ -444,7 +436,6 @@ export const applications = async (user: IUser, payload: IFetchApplications) => 
     minCvSimilarityScore,
     minPersonalizedScore,
     experience,
-    minSalary,
     maxSalary,
     offset,
     limit,
