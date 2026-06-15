@@ -1,9 +1,5 @@
 import { IUser } from "../../typings/user";
-import {
-  ApplicationType,
-  IApplication,
-  IApplicationCompilation,
-} from "../../typings/application";
+import { ApplicationType, IApplication, IApplicationCompilation } from "../../typings/application";
 import * as applicationRepository from "../../repository/v1/application";
 import { makeResponse } from "../../helpers/response";
 import mongoose, { FilterQuery, PipelineStage, Types } from "mongoose";

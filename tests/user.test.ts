@@ -280,9 +280,7 @@ describe("/v1/user routes", () => {
         set: jest.fn(),
       } as any);
 
-      const res = await request(app)
-        .get(`/v1/user/profile/${USER_ID}`)
-        .set("Authorization", token);
+      const res = await request(app).get(`/v1/user/profile/${USER_ID}`).set("Authorization", token);
 
       expect(res.status).toBe(404);
     });
@@ -315,9 +313,7 @@ describe("/v1/user routes", () => {
         }),
       } as any);
 
-      const res = await request(app)
-        .get(`/v1/user/profile/${USER_ID}`)
-        .set("Authorization", token);
+      const res = await request(app).get(`/v1/user/profile/${USER_ID}`).set("Authorization", token);
 
       expect(res.status).toBe(200);
       expect(res.body.data.user.profile.profileCompletionPercentage).toBe(100);
@@ -347,9 +343,7 @@ describe("/v1/user routes", () => {
 
     it("returns the talent's aggregated applications", async () => {
       const token = authHeaderFor(buildAuthUser());
-      mockedApplicationRepository.applicationAggregate.mockResolvedValue([
-        { _id: "app-1" },
-      ] as any);
+      mockedApplicationRepository.applicationAggregate.mockResolvedValue([{ _id: "app-1" }] as any);
 
       const res = await request(app).get("/v1/user/applications").set("Authorization", token);
 

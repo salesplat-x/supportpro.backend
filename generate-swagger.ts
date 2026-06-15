@@ -149,7 +149,9 @@ function safeRequire(filePath: string): any {
     // If require fails for ESM because Node cannot load it, attempt to read transpiled
     // or use Babel or fallback to reading as text (but we try to require as best effort).
     // For now, surface the error for clarity.
-    throw new Error(`Failed to require validator module at ${filePath}: ${err.message}`, { cause: err });
+    throw new Error(`Failed to require validator module at ${filePath}: ${err.message}`, {
+      cause: err,
+    });
   }
 }
 

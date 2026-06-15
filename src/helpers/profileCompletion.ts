@@ -23,7 +23,7 @@ export const computeProfileCompletionPercentage = (profile: IProfile): number =>
 };
 
 export const computeCanProceedToPlatform = (profile: IProfile): boolean => {
-  return PROFILE_COMPLETION_FIELDS.filter(({ key }) => ONBOARDING_REQUIRED_KEYS.includes(key)).every(
-    ({ check }) => check(profile)
-  );
+  return PROFILE_COMPLETION_FIELDS.filter(({ key }) =>
+    ONBOARDING_REQUIRED_KEYS.includes(key)
+  ).every(({ check }) => check(profile));
 };

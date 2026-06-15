@@ -39,9 +39,7 @@ export const requireCompletedProfile: RequestHandler = async (
   if (req.user.userRole !== Roles.Talent) {
     return next();
   }
-  const profile = req.user.profile
-    ? await findProfileById(req.user.profile as string)
-    : null;
+  const profile = req.user.profile ? await findProfileById(req.user.profile as string) : null;
   if (!profile?.canProceedToPlatform) {
     return sendErrorResponse(res, "Please complete your profile before proceeding", 403);
   }

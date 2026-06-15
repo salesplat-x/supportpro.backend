@@ -13,7 +13,12 @@ export const createTalentUserWithProfile = async (
 ): Promise<HydratedDocument<IUser>> => {
   let profileId: Types.ObjectId | string | undefined;
   if (userPayload.userRole === Roles.Talent || !userPayload.userRole) {
-    const profile = await new Profile({ role: [], remote: false, onSite: false, hybrid: false }).save();
+    const profile = await new Profile({
+      role: [],
+      remote: false,
+      onSite: false,
+      hybrid: false,
+    }).save();
     profileId = profile._id;
   }
   return await new User({ ...userPayload, profile: profileId }).save();
@@ -36,7 +41,8 @@ export const findUserAuthById = async (id: Types.ObjectId | string) => {
 export const findUserAndScoreById = async (id: Types.ObjectId | string) => {
   return await User.findById(id).populate({
     path: "profile",
-    select: "bio cv role experience maxSalary minSalary prescreeningScore location remote onSite hybrid",
+    select:
+      "bio cv role experience maxSalary minSalary prescreeningScore location remote onSite hybrid",
     strictPopulate: false,
     populate: { path: "role", model: "role", select: "-__v " },
   });

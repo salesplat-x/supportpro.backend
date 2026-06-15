@@ -150,7 +150,10 @@ describe("uploadCv", () => {
   it("extracts text, saves the embedding, then replaces the old CV asset", async () => {
     mockedUserRepository.findUserById.mockResolvedValue({
       _id: USER_ID,
-      profile: { _id: PROFILE_ID, cv: { publicId: "supportpro/cvs/old-cv", url: "https://old-cv" } },
+      profile: {
+        _id: PROFILE_ID,
+        cv: { publicId: "supportpro/cvs/old-cv", url: "https://old-cv" },
+      },
     } as any);
     mockedFunc.extractText.mockResolvedValue("raw cv text");
     mockedFunc.preprocessText.mockReturnValue("clean cv text");
@@ -199,7 +202,10 @@ describe("uploadCv", () => {
   it("does not touch Cloudinary or the old CV if embedding saving fails", async () => {
     mockedUserRepository.findUserById.mockResolvedValue({
       _id: USER_ID,
-      profile: { _id: PROFILE_ID, cv: { publicId: "supportpro/cvs/old-cv", url: "https://old-cv" } },
+      profile: {
+        _id: PROFILE_ID,
+        cv: { publicId: "supportpro/cvs/old-cv", url: "https://old-cv" },
+      },
     } as any);
     mockedFunc.extractText.mockResolvedValue("raw cv text");
     mockedFunc.preprocessText.mockReturnValue("clean cv text");
@@ -219,7 +225,10 @@ describe("uploadCv", () => {
   it("returns 400 and skips embedding/Cloudinary entirely if text extraction fails", async () => {
     mockedUserRepository.findUserById.mockResolvedValue({
       _id: USER_ID,
-      profile: { _id: PROFILE_ID, cv: { publicId: "supportpro/cvs/old-cv", url: "https://old-cv" } },
+      profile: {
+        _id: PROFILE_ID,
+        cv: { publicId: "supportpro/cvs/old-cv", url: "https://old-cv" },
+      },
     } as any);
     mockedFunc.extractText.mockResolvedValue("");
 
