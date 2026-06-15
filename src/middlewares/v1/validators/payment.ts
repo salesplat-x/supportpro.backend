@@ -1,5 +1,4 @@
 import Joi from "joi";
-import env from "../../../config/env";
 
 /*export const webhook = Joi.object({
     headers: Joi.object({

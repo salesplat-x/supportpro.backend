@@ -1,6 +1,5 @@
 import bcrypt from "bcrypt";
-import * as userRepository from "../repository/v1/user";
-import { v4 as uuid } from "uuid";
+import crypto from "crypto";
 import { IUser } from "../typings/user";
 import { MakeResponse } from "../typings/customs";
 import jwt from "jsonwebtoken";
@@ -8,24 +7,26 @@ import { makeResponse } from "./response";
 import mongoose from "mongoose";
 import env from "../config/env";
 
-export const generateHashedPassword = (password: string) => {
-  const salt = bcrypt.genSaltSync(10);
-  return bcrypt.hashSync(password, salt);
+export const generateHashedPassword = async (password: string) => {
+  const salt = await bcrypt.genSalt(env.salt_rounds);
+  return bcrypt.hash(password, salt);
 };
 
-export const compareHashedPassword = (password: string, hashedPassword: string) => {
-  return bcrypt.compareSync(password, hashedPassword);
+export const compareHashedPassword = async (password: string, hashedPassword: string) => {
+  return bcrypt.compare(password, hashedPassword);
 };
 
-export const signToken = (user: Pick<IUser, "_id" | "email">): string => {
+export const signToken = (user: Pick<IUser, "_id" | "email" | "tokenVersion">): string => {
   return jwt.sign(
     {
       _id: user._id,
       email: user.email,
+      tokenVersion: user.tokenVersion ?? 0,
     },
     env.jwt_secret!,
     {
       expiresIn: "1d",
+      algorithm: "HS256",
     }
   );
 };
@@ -33,16 +34,17 @@ export const signToken = (user: Pick<IUser, "_id" | "email">): string => {
 export const verifyToken = async (
   token: string,
   secret: string,
-  repository: Function
+  repository: (id: string | mongoose.Types.ObjectId) => Promise<IUser | null>
 ): Promise<MakeResponse<IUser | undefined>> => {
   if (!token) {
     return makeResponse(false, "Login required");
   }
   try {
-    const decoded = jwt.verify(token, secret) as unknown as {
+    const decoded = jwt.verify(token, secret, { algorithms: ["HS256"] }) as unknown as {
       _id: mongoose.Types.ObjectId;
+      tokenVersion?: number;
     };
-    const user = (await repository(decoded._id)) as IUser;
+    const user = await repository(decoded._id);
     if (!user) {
       return makeResponse(false, "Login required", undefined, 401);
     }
@@ -54,31 +56,19 @@ export const verifyToken = async (
         403
       );
     }
+    if ((user.tokenVersion ?? 0) !== (decoded.tokenVersion ?? 0)) {
+      return makeResponse(false, "Login required", undefined, 401);
+    }
     return makeResponse(true, "", user);
-  } catch (error) {
+  } catch {
     return makeResponse(false, "Login required", undefined);
   }
 };
 
-export const generateRecoveryToken = async (user: IUser): Promise<string> => {
-  const code = uuid().split("-").join("").slice(6, 11).toUpperCase();
-  const codeDuplicate = await userRepository.findUserByMatch({
-    recoveryCode: code,
-  });
-  if (codeDuplicate) {
-    return generateRecoveryToken(user);
-  } else {
-    await userRepository.findUserByIdAndUpdate(user._id, {
-      recoveryCode: code,
-    });
-    return code;
-  }
-};
-
-// generateOTP generates a random 6 digit OTP
+// generateOTP generates a cryptographically secure random 6 digit OTP
 export const generateOTP = async (expiry: number = 15): Promise<{ otp: string; expires: Date }> => {
   const expires = new Date(new Date().setMinutes(new Date().getMinutes() + expiry));
-  const otp = Math.floor(10000 + Math.random() * 900000).toString();
+  const otp = crypto.randomInt(100000, 1000000).toString();
   return { otp, expires };
 };
 

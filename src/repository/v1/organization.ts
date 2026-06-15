@@ -1,7 +1,7 @@
 import { Organization } from "../../models/v1/organization";
 import { Page, Paging } from "../../typings/customs";
 import { IOrganization } from "../../typings/organization";
-import mongoose, { HydratedDocument, Types } from "mongoose";
+import { HydratedDocument, Types } from "mongoose";
 import * as func from "../../helpers/func";
 
 export const createOrganization = async (

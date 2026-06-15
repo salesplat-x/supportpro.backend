@@ -1,91 +1,9 @@
-<!--
-<!DOCTYPE html>
-<html>
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to AuxHR</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            margin: 0;
-            padding: 0;
-        }
-
-        .container {
-            max-width: 600px;
-            margin: 20px auto;
-            background: #ffffff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
-
-        .header {
-            text-align: center;
-            padding: 20px;
-        }
-
-        .header img {
-            max-width: 150px;
-        }
-
-        .content {
-            text-align: center;
-            padding: 20px;
-        }
-
-        .cta-button {
-            display: inline-block;
-            padding: 10px 20px;
-            margin-top: 20px;
-            background-color: #007bff;
-            color: #ffffff;
-            text-decoration: none;
-            font-size: 16px;
-            border-radius: 5px;
-        }
-
-        .footer {
-            text-align: center;
-            font-size: 12px;
-            color: #666;
-            padding: 20px;
-        }
-    </style>
-</head>
-
-<body>
-    <div class="container">
-        <div class="header">
-            <img src="https://yourlogo.com/logo.png" alt="AuxHR Logo">
-            <h2>Welcome to AuxHR!</h2>
-        </div>
-        <div class="content">
-            <p>Hi {{firstName}},</p>
-            <p>We're excited to have you join <strong>AuxHR</strong>, where opportunities meet top talent. Our platform
-                is designed to connect you with the best career opportunities.</p>
-            <p>Start exploring job openings, connecting with recruiters, and building your career today!</p>
-             <a href="https://auxhr.com/dashboard" class="cta-button">Get Started</a> 
-        </div>
-         <div class="footer">
-            <p>Need help? Contact our support team at <a href="mailto:support@auxhr.com">support@auxhr.com</a></p>
-            <p>&copy; 2025 AuxHR. All rights reserved.</p>
-        </div> 
-    </div>
-</body>
-
-</html>
--->
-
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Welcome to AUX HR</title>
+    <title>Welcome to AuxHR</title>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -98,28 +16,56 @@
         max-width: 600px;
         margin: 20px auto;
         background-color: #ffffff;
-        padding: 20px;
         border-radius: 8px;
+        overflow: hidden;
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
       }
       .header {
         text-align: center;
-        padding: 20px 0;
+        padding: 30px 20px;
         background-color: #28a745;
         color: #ffffff;
-        border-radius: 8px 8px 0 0;
+      }
+      .header h1 {
+        margin: 0;
+        font-size: 24px;
       }
       .content {
-        padding: 20px;
+        padding: 30px;
+      }
+      .content h2 {
+        color: #28a745;
+        font-size: 18px;
+      }
+      .features {
+        margin: 20px 0;
+        padding: 0;
+        list-style: none;
+      }
+      .features li {
+        padding: 10px 0 10px 28px;
+        position: relative;
+        border-bottom: 1px solid #eee;
+      }
+      .features li:last-child {
+        border-bottom: none;
+      }
+      .features li::before {
+        content: "\2713";
+        position: absolute;
+        left: 0;
+        color: #28a745;
+        font-weight: bold;
       }
       .button {
         display: inline-block;
-        padding: 12px 25px;
+        padding: 12px 28px;
         background-color: #28a745;
         color: #ffffff;
         text-decoration: none;
         border-radius: 5px;
-        margin: 10px 0;
+        margin: 20px 0;
+        font-weight: bold;
       }
       .button:hover {
         background-color: #218838;
@@ -135,27 +81,40 @@
   <body>
     <div class="container">
       <div class="header">
-        <h1>Welcome to AUX HR</h1>
+        <h1>Welcome to AuxHR, {{firstName}}!</h1>
       </div>
       <div class="content">
-        <p>Hello [Candidate’s Name],</p>
+        <p>Hi {{firstName}},</p>
         <p>
-          Thank you for signing up with AUX HR! You're one step closer to discovering the best-fit
-          job opportunities with top organizations.
+          We're thrilled to have you on board. AuxHR connects ambitious talent like you with
+          companies that are hiring right now, and we're committed to giving you the best possible
+          experience as you grow your career.
         </p>
-        <p>Please verify your email by clicking the link below:</p>
-        <a href="[DEMO_LINK]" class="button">Verify Email</a>
+        <h2>Here's what's waiting for you</h2>
+        <ul class="features">
+          <li>
+            <strong>Curated job matches</strong> — discover roles that fit your skills and goals.
+          </li>
+          <li>
+            <strong>A standout profile</strong> — showcase your experience to recruiters who are
+            actively hiring.
+          </li>
+          <li>
+            <strong>Real-time updates</strong> — track applications and interview invites in one
+            place.
+          </li>
+        </ul>
+        <p>Your next step is to complete your profile so recruiters can find you faster.</p>
+        <a href="https://auxhr.com/dashboard" class="button">Complete Your Profile</a>
         <p>
-          Once verified, you’ll get to your dashboard, please take a few minutes to update your
-          profile, after which you’ll start receiving job matches, interview invites, and hiring
-          updates tailored to your skills, experience and financial expectations.
+          Have questions? Our team is always happy to help, just reach out to us at
+          <a href="mailto:support@auxhr.com">support@auxhr.com</a>.
         </p>
-        <p>For questions, feel free to reach out to our team <a href="[DEMO_LINK]">here</a>.</p>
-        <p>Your next top grade opportunity starts now!</p>
-        <p>Best regards,<br />The AUX HR Team</p>
+        <p>Welcome aboard, and here's to your next great opportunity!</p>
+        <p>Best regards,<br />The AuxHR Team</p>
       </div>
       <div class="footer">
-        <p>&copy; 2025 AUX HR. All rights reserved.</p>
+        <p>&copy; 2026 AuxHR. All rights reserved.</p>
       </div>
     </div>
   </body>

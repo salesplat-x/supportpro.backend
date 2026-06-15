@@ -1,18 +1,8 @@
-import { FetchProfiles, IProfile, IUser } from "../../typings/user";
-import {
-  ApplicationType,
-  FetchApplications,
-  IApplication,
-  IApplicationCompilation,
-} from "../../typings/application";
-import * as userRepository from "../../repository/v1/user";
-import * as roleRepository from "../../repository/v1/role";
+import { IUser } from "../../typings/user";
+import { ApplicationType, IApplication, IApplicationCompilation } from "../../typings/application";
 import * as applicationRepository from "../../repository/v1/application";
 import { makeResponse } from "../../helpers/response";
 import mongoose, { FilterQuery, PipelineStage, Types } from "mongoose";
-import { Roles } from "../../typings/customs";
-import Application from "../../models/v1/application";
-import { IJob } from "../../typings/job";
 import { Request } from "express";
 import { findJobById } from "../../repository/v1/job";
 

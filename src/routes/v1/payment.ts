@@ -7,7 +7,6 @@ import { asyncHandler } from "../../middlewares/v1/handler";
 import * as controller from "../../controllers/v1/payment";
 import * as paymentValidator from "../../middlewares/v1/validators/payment";
 import { loginRequired } from "../../middlewares/v1/auth";
-import { verifyWebhookIP } from "../../middlewares/v1/verifyWebhookIP";
 
 router.post(
   "/",

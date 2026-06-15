@@ -1,6 +1,7 @@
-import express, { Application } from "express";
+import logger from "./config/logger";
 import startApplication from "./server";
 
-const app: Application = express();
-
-startApplication(app);
+startApplication().catch((error: Error) => {
+  logger.logErrorMessage(`Failed to start application: ${error.message}`);
+  process.exit(1);
+});

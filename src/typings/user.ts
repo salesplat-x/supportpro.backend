@@ -2,6 +2,17 @@ import { Document, Types } from "mongoose";
 import { ILocation, Paging, Roles, TExperienceLevel } from "./customs";
 import { IRole } from "./role";
 
+export interface ICvAsset {
+  url: string;
+  publicId: string;
+  uploadedAt: Date;
+}
+
+export interface IProfileImage {
+  url: string;
+  publicId: string;
+}
+
 export interface IUser extends Document {
   _id: Types.ObjectId | string;
   email: string;
@@ -10,20 +21,16 @@ export interface IUser extends Document {
   middleName: string;
   password: string;
   emailVerified: boolean;
-  picture?: string;
+  profileImage?: IProfileImage;
   phone?: string;
-  gender?: string;
-  image?: string;
   country?: string;
   organization?: Types.ObjectId | string;
-  userRole: string;
-  profile: Types.ObjectId | string | IProfile;
+  userRole: (typeof Roles)[keyof typeof Roles];
+  profile?: Types.ObjectId | string | IProfile;
   recoveryCode?: string;
   recoveryCodeExpiry?: Date;
-  verificationCode?: string;
-  verificationCodeExpiry?: Date;
+  tokenVersion?: number;
   active: boolean;
-  onboarded: boolean;
   createdAt: Date;
   updatedAt: Date;
   __v: number;
@@ -31,20 +38,23 @@ export interface IUser extends Document {
 
 export interface IProfile extends Document {
   _id: Types.ObjectId | string;
-  bio: string;
-  cv: string;
+  bio?: string;
+  cv?: ICvAsset;
   remote: boolean;
   onSite: boolean;
   hybrid: boolean;
   location?: ILocation;
   role: Types.Array<Types.ObjectId> | Types.Array<string> | Types.Array<IRole>;
-  experience: TExperienceLevel;
-  maxSalary: number;
-  minSalary: number;
-  prescreeningScore: number;
+  experience?: TExperienceLevel;
+  maxSalary?: number;
+  minSalary?: number;
+  prescreeningScore?: number;
   assessmentRetryDate?: Date;
   canTakeAssessment: () => boolean;
   setAssessmentRetryDate: (days?: number) => void;
+  readonly profileCompletionPercentage: number;
+  readonly isProfileComplete: boolean;
+  readonly canProceedToPlatform: boolean;
 }
 
 export interface IUserPasswordUpdate {
@@ -61,5 +71,5 @@ export interface FetchProfiles extends Paging {
   experience?: TExperienceLevel;
   minScore?: number;
   maxSalary?: number;
-  incomplete?: string;
+  incomplete?: boolean;
 }

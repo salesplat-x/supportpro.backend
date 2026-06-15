@@ -1,4 +1,3 @@
-import { handleValidationError } from "../../../helpers/response";
 import { Request, Response, NextFunction } from "express";
 import Joi from "joi";
 
@@ -38,6 +37,17 @@ export default (
         message: formattedErrors.join(", "),
       });
     }
+    // apply the validated (and defaulted/coerced) values back onto the request
+    if (intercept.query) {
+      req.query = validated.value.query;
+    }
+    if (intercept.body) {
+      req.body = validated.value.body;
+    }
+    if (intercept.params) {
+      req.params = validated.value.params;
+    }
+
     // continue to the next middleware
     return next();
   };

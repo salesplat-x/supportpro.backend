@@ -24,7 +24,6 @@ export const paystackWebhook = async (req: Request, res: Response) => {
   if (!status) {
     return responseHandler(res, makeResponse(status, "", {}, 401));
   }
-  const response = await logic.paystackWebhook(req.body);
-  //return responseHandler(res, response);
+  await logic.paystackWebhook(req.body);
   res.sendStatus(200);
 };

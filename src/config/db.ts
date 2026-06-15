@@ -8,10 +8,12 @@ function newMongoDBConnection(): Promise<void> {
   return new Promise((resolve, reject) => {
     connect(dbUrl)
       .then(() => {
-        resolve(logger.log("MongoDB Connected"));
+        logger.log("MongoDB Connected");
+        resolve();
       })
       .catch((error: Error) => {
-        reject(logger.log("MongoDB Connection Error: " + error.message));
+        logger.logErrorMessage("MongoDB Connection Error: " + error.message);
+        reject(error);
       });
   });
 }

@@ -7,6 +7,16 @@ const getEnv = (): AppEnv => {
 
 const optionalEnvVars = {
   app_env: getEnv(),
+  openai_secret: process.env.OPENAI_API_KEY,
+  cloudinary_name: process.env.CLOUDINARY_NAME,
+  cloudinary_key: process.env.CLOUDINARY_KEY,
+  cloudinary_secret: process.env.CLOUDINARY_SECRET,
+  paystackSecretKey: process.env.PAYSTACK_SECRET_KEY,
+  paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY,
+  whitelisted_ips: process.env.PAYSTACK_WHITELISTED_IPS,
+  brevo_api_key: process.env.BREVO_API_KEY,
+  brevo_sender_email: process.env.BREVO_SENDER_EMAIL,
+  brevo_sender_name: process.env.BREVO_SENDER_NAME,
 } as const;
 
 const requiredEnvVars = {
@@ -19,19 +29,8 @@ const requiredEnvVars = {
   port: Number(process.env.PORT),
   jwt_secret: process.env.JWT_SECRET,
   salt_rounds: Number(process.env.SALT_ROUNDS) || 10,
-  openai_secret: process.env.OPENAI_API_KEY,
-  cloudinary_name: process.env.CLOUDINARY_NAME,
-  cloudinary_key: process.env.CLOUDINARY_KEY,
-  cloudinary_secret: process.env.CLOUDINARY_SECRET,
   paystackUrl: process.env.PAYSTACK_PAYMENT_URL,
-  paystackSecretKey: process.env.PAYSTACK_SECRET_KEY,
-  paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY,
-  whitelisted_ips: process.env.PAYSTACK_WHITELISTED_IPS,
   website: process.env.FRONTEND_CALLBACK_URL,
-  email_username: process.env.EMAIL_USERNAME,
-  email_password: process.env.EMAIL_PASSWORD,
-  email_host: process.env.EMAIL_HOST,
-  email_port: process.env.EMAIL_PORT || 465,
 } as const;
 
 const env = {
@@ -40,13 +39,17 @@ const env = {
 } as const;
 
 const missingEnvVars = Object.entries(requiredEnvVars)
-  .filter(([key, value]) => {
+  .filter(([, value]) => {
     return !value;
   })
-  .map(([key, _]) => key);
+  .map(([key]) => key);
 
 if (missingEnvVars.length > 0) {
   throw new Error(`Missing required environment variables: ${missingEnvVars.join(", ")}`);
+}
+
+if (env.jwt_secret!.length < 32) {
+  throw new Error("JWT_SECRET must be at least 32 characters long");
 }
 
 export default env;

@@ -2328,6 +2328,8 @@ paths:
                   type: string
                 phone:
                   type: string
+                country:
+                  type: string
                 password:
                   type: string
               required:
@@ -2365,6 +2367,8 @@ paths:
                   type: string
                 phone:
                   type: string
+                country:
+                  type: string
                 password:
                   type: string
               required:
@@ -2372,57 +2376,6 @@ paths:
                 - firstName
                 - lastName
                 - password
-  /auth/resend-otp:
-    post:
-      summary: ""
-      tags:
-        - auth
-      parameters: []
-      responses:
-        "200":
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: object
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                email:
-                  type: string
-              required:
-                - email
-  /auth/verify-email:
-    post:
-      summary: ""
-      tags:
-        - auth
-      parameters: []
-      responses:
-        "200":
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: object
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                email:
-                  type: string
-                otp:
-                  type: string
-              required:
-                - email
-                - otp
   /auth/login:
     post:
       summary: ""
@@ -2531,6 +2484,21 @@ paths:
               required:
                 - newPassword
                 - oldPassword
+      security:
+        - bearerAuth: []
+  /auth/logout:
+    post:
+      summary: ""
+      tags:
+        - auth
+      parameters: []
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
       security:
         - bearerAuth: []
   /applications/:

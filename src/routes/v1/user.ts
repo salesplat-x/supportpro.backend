@@ -7,13 +7,21 @@ import validate from "../../middlewares/v1/validators/validate";
 import * as userValidator from "../../middlewares/v1/validators/user";
 import { asyncHandler } from "../../middlewares/v1/handler";
 import { loginRequired, validateAccess } from "../../middlewares/v1/auth";
+import { memoryUpload } from "../../middlewares/v1/multer";
 import { Roles } from "../../typings/customs";
 
 router.post(
-  "/profile",
+  "/me/image",
+  loginRequired,
+  memoryUpload.single("image"),
+  asyncHandler(user.uploadProfileImage)
+);
+
+router.post(
+  "/profile/cv",
   validateAccess([Roles.Talent]),
-  validate(userValidator.profile, { body: true }),
-  asyncHandler(user.uploadProfile)
+  memoryUpload.single("cv"),
+  asyncHandler(user.uploadCv)
 );
 
 router.patch(

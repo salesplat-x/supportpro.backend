@@ -142,13 +142,16 @@ interface OpenAPIDocument {
  */
 function safeRequire(filePath: string): any {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- module path is dynamic, computed at runtime
     const required = require(filePath);
     return required && required.__esModule && required.default ? required.default : required;
   } catch (err: any) {
     // If require fails for ESM because Node cannot load it, attempt to read transpiled
     // or use Babel or fallback to reading as text (but we try to require as best effort).
     // For now, surface the error for clarity.
-    throw new Error(`Failed to require validator module at ${filePath}: ${err.message}`);
+    throw new Error(`Failed to require validator module at ${filePath}: ${err.message}`, {
+      cause: err,
+    });
   }
 }
 
@@ -170,11 +173,12 @@ function joiTypeToOpenApi(desc: JoiDescribe | null): {
       return { type: "number" };
     case "boolean":
       return { type: "boolean" };
-    case "array":
+    case "array": {
       // try item type
       const items =
         desc && desc.items && desc.items[0] ? joiTypeToOpenApi(desc.items[0]) : { type: "string" };
       return { type: "array", items };
+    }
     case "date":
       return { type: "string", format: "date-time" };
     case "object":
@@ -246,12 +250,12 @@ function joiSchemaDescribeFromModule(mod: any, exportName: string): JoiDescribe 
   }
   try {
     return schema.describe();
-  } catch (err) {
+  } catch {
     // maybe the schema is a function that returns Joi object
     try {
       const maybe = typeof schema === "function" ? schema() : schema;
       if (maybe && typeof maybe.describe === "function") return maybe.describe();
-    } catch (err2) {
+    } catch {
       return null;
     }
   }
@@ -315,7 +319,6 @@ function generateTextForNode(node: any): string {
 function extractRoutesFromFile(filepath: string): ExtractResult {
   const raw = fs.readFileSync(filepath, "utf8");
   const currentMiddlewares: any[] = [];
-  const allMiddlewares: any[] = [];
   const ast = parseToAst(raw, filepath);
   const importMap: ImportMap = {}; // localName -> source path (raw import string)
   const routes: RouteInfo[] = []; // { method, path, middlewares: [string node text], validateInfo: {validatorVar, validatorMember, options}, hasValidateAccess, file }
@@ -409,7 +412,7 @@ function extractRoutesFromFile(filepath: string): ExtractResult {
 
       // first arg is path - if not string literal, skip
       const firstArg = args[0];
-      let routePath: string | null = null;
+      let routePath: string;
       if (firstArg.type === "StringLiteral" || firstArg.type === "Literal") {
         routePath = firstArg.value;
       } else if (
@@ -430,7 +433,7 @@ function extractRoutesFromFile(filepath: string): ExtractResult {
 
       routes.push({
         method: method.toLowerCase(),
-        path: routePath!,
+        path: routePath,
         middlewares,
         validateInfo,
         hasValidateAccess,
@@ -595,7 +598,7 @@ function extractRoutesFromFile(filepath: string): ExtractResult {
           if (currentRoute) {
             currentRoute.middlewares.push(generateTextForNode(a));
           }
-        } catch (err) {
+        } catch {
           if (currentRoute) {
             currentRoute.middlewares.push("<middleware>");
           }
@@ -654,7 +657,7 @@ function resolveImportToFile(importSource: string, baseFile: string): string | n
     // absolute module - try to resolve from node_modules
     try {
       return require.resolve(importSource, { paths: [process.cwd()] });
-    } catch (err) {
+    } catch {
       return null;
     }
   }
@@ -711,7 +714,6 @@ function main(): void {
   }
 
   const operationsByGroup: { [key: string]: OpenAPIPaths } = {}; // group -> [ops]
-  const componentsSchemas: { [key: string]: any } = {}; // add named schemas if we want
 
   for (const file of files) {
     try {
@@ -791,7 +793,7 @@ function main(): void {
                   } else if (mod && typeof mod.describe === "function") {
                     try {
                       joiDescribe = mod.describe();
-                    } catch (err) {
+                    } catch {
                       joiDescribe = null;
                     }
                   }
@@ -920,7 +922,7 @@ function main(): void {
   };
 
   // Flatten operationsByGroup into paths (groupBase + routePath are already combined)
-  for (const [groupBase, pathsObj] of Object.entries(operationsByGroup)) {
+  for (const [, pathsObj] of Object.entries(operationsByGroup)) {
     for (const [pth, methods] of Object.entries(pathsObj)) {
       // ensure path is absolute
       const outPath = pth.startsWith("/") ? pth : `/${pth}`;

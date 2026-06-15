@@ -1,6 +1,6 @@
 import Payment from "../../models/v1/payment";
 import { IPayment } from "../../typings/payment";
-import { FilterQuery, HydratedDocument, Types, UpdateQuery } from "mongoose";
+import { FilterQuery, Types, UpdateQuery } from "mongoose";
 
 export const createPayment = async (payment: IPayment) => {
   return new Payment(payment).save();

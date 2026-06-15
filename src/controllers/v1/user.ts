@@ -1,11 +1,7 @@
 import { Response, Request } from "express";
 import * as userController from "../../logics/v1/user";
+import * as profileController from "../../logics/v1/profile";
 import { responseHandler } from "../../middlewares/v1/handler";
-
-export const uploadProfile = async (req: Request, res: Response) => {
-  const response = await userController.uploadProfile(req.body, req.user);
-  return responseHandler(res, response);
-};
 
 export const updateUser = async (req: Request, res: Response) => {
   const response = await userController.updateUser(req.user, req.body);
@@ -34,5 +30,15 @@ export const viewProfile = async (req: Request, res: Response) => {
 
 export const applications = async (req: Request, res: Response) => {
   const response = await userController.applications(req.user, req.query);
+  return responseHandler(res, response);
+};
+
+export const uploadProfileImage = async (req: Request, res: Response) => {
+  const response = await profileController.uploadProfileImage(req.user, req.file);
+  return responseHandler(res, response);
+};
+
+export const uploadCv = async (req: Request, res: Response) => {
+  const response = await profileController.uploadCv(req.user, req.file);
   return responseHandler(res, response);
 };

@@ -1,5 +1,5 @@
 import Notification from "../../models/v1/notification";
-import { Page, Paging } from "../../typings/customs";
+import { Paging } from "../../typings/customs";
 import { INotification } from "../../typings/notification";
 import { FilterQuery, Types } from "mongoose";
 

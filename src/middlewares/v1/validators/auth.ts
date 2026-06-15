@@ -1,5 +1,4 @@
 import { Joi } from "../../../helpers/joi-extensions";
-import { ExperienceLevel } from "../../../typings/customs";
 
 export const register = Joi.object({
   body: Joi.object({
@@ -12,29 +11,24 @@ export const register = Joi.object({
       .phoneNumber()
       .optional()
       .label("Phone Number"),
+    country: Joi.string().optional(),
     password: Joi.string()
       .min(8)
+      .max(72)
       .pattern(/^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#.?&])[A-Za-z\d@$!%*#?.&]{8,}$/)
       .required()
       .messages({
         "string.pattern.base":
           "Password must contain at least one number, one letter and one special character",
         "string.min": "Password must be at least 8 characters long",
+        "string.max": "Password must be at most 72 characters long",
       }),
   }),
-  country: Joi.string().optional(),
 }).required();
 
 export const emailOnly = Joi.object({
   body: Joi.object({
     email: Joi.string().email().required(),
-  }),
-}).required();
-
-export const verifyEmail = Joi.object({
-  body: Joi.object({
-    email: Joi.string().email().required(),
-    otp: Joi.string().required(),
   }),
 }).required();
 
@@ -45,49 +39,19 @@ export const login = Joi.object({
   }),
 }).required();
 
-export const profile = Joi.object({
-  body: Joi.object({
-    bio: Joi.string().max(1000).required(),
-    cv: Joi.string().required(),
-    experience: Joi.string()
-      .valid(...Object.values(ExperienceLevel))
-      .required(),
-    maxSalary: Joi.number().required(),
-    minSalary: Joi.number().required(),
-    role: Joi.array().items(Joi.string()),
-  }),
-}).required();
-
-export const passwordUpdate = Joi.object({
-  body: Joi.object({
-    newPassword: Joi.string()
-      .min(8)
-      .pattern(/^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#.?&])[A-Za-z\d@$!%*#?.&]{8,}$/)
-      .required()
-      .messages({
-        "string.pattern.base":
-          "Password must contain at least one number, one letter and one special character",
-        "string.min": "Password must be at least 8 characters long",
-      }),
-    oldPassword: Joi.string().required(),
-  }),
-}).required();
-
-export const recoverPassword = Joi.object({
-  body: Joi.object({ email: Joi.string().email().required() }),
-}).required();
-
 export const resetPassword = Joi.object({
   body: Joi.object({
     email: Joi.string().email().required(),
     password: Joi.string()
       .min(8)
+      .max(72)
       .pattern(/^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#.?&])[A-Za-z\d@$!%*#?.&]{8,}$/)
       .required()
       .messages({
         "string.pattern.base":
           "Password must contain at least one number, one letter and one special character",
         "string.min": "Password must be at least 8 characters long",
+        "string.max": "Password must be at most 72 characters long",
       }),
     otp: Joi.string().required(),
   }),
@@ -97,39 +61,15 @@ export const changePassword = Joi.object({
   body: Joi.object({
     newPassword: Joi.string()
       .min(8)
+      .max(72)
       .pattern(/^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#.?&])[A-Za-z\d@$!%*#?.&]{8,}$/)
       .required()
       .messages({
         "string.pattern.base":
           "Password must contain at least one number, one letter and one special character",
         "string.min": "Password must be at least 8 characters long",
+        "string.max": "Password must be at most 72 characters long",
       }),
     oldPassword: Joi.string().required(),
-  }),
-}).required();
-
-export const accountUpdate = Joi.object({
-  body: Joi.object({
-    email: Joi.string().email(),
-    firstName: Joi.string(),
-    lastName: Joi.string(),
-    phone: Joi.string().phoneNumber(),
-    bio: Joi.string().max(1000),
-    image: Joi.string(),
-    street: Joi.string(),
-    city: Joi.string(),
-    state: Joi.string(),
-    country: Joi.string(),
-    zip: Joi.string(),
-    court: Joi.string(),
-    division: Joi.string(),
-    chief: Joi.boolean(),
-    userId: Joi.string(),
-    active: Joi.boolean(),
-    onboarded: Joi.boolean(),
-    position: Joi.number().when("chief", {
-      is: true,
-      then: Joi.forbidden(),
-    }),
   }),
 }).required();

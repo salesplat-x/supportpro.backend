@@ -1,6 +1,6 @@
 import Subscription from "../../models/v1/subscription";
 import { ISubscription } from "../../typings/subscription";
-import { FilterQuery, HydratedDocument, Types, UpdateQuery } from "mongoose";
+import { FilterQuery, Types, UpdateQuery } from "mongoose";
 
 export const createSubscription = async (subscription: ISubscription) => {
   return new Subscription(subscription).save();

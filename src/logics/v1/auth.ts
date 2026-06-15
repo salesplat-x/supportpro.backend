@@ -8,9 +8,10 @@ import {
   generateOTP,
   signToken,
 } from "../../helpers/utils";
-import Email from "../../services/v1/email";
+import EmailService from "../../services/v1/email";
+import logger from "../../config/logger";
 
-export const createUser = async (userPayload: IUser) => {
+export const createUser = async (userPayload: IUser, ip?: string) => {
   if (!validateEmail(userPayload.email)) {
     return makeResponse(false, "Invalid Email Address");
   }
@@ -28,92 +29,62 @@ export const createUser = async (userPayload: IUser) => {
       return makeResponse(false, "Phone Number already in use");
     }
   }
-  userPayload.password = generateHashedPassword(userPayload.password);
-  const { otp, expires } = await generateOTP();
+  userPayload.password = await generateHashedPassword(userPayload.password);
+  userPayload.emailVerified = true;
 
-  userPayload.verificationCode = otp;
-  userPayload.verificationCodeExpiry = expires;
-
-  const user = await userRepository.createUser(userPayload);
+  const user = await userRepository.createTalentUserWithProfile(userPayload);
   if (!user) {
     return makeResponse(false, "User Registration Failed, Please Try Again");
   }
 
-  await new Email().sendOtp(user, otp);
+  await new EmailService().sendWelcome(user);
+
+  logger.log(`User registered: id=${user._id} email=${user.email} ip=${ip ?? "unknown"}`);
 
   const token = signToken(user);
   return makeResponse(true, "User Registered Successfully", { user, token }, 201);
 };
 
-export const resendOtp = async (payload: { email: string }) => {
-  const user = await userRepository.findUserByMatch({
-    email: payload.email.toLowerCase(),
-  });
-
-  if (!user) {
-    return makeResponse(false, "User not found!", undefined, 404);
-  }
-
-  if (user.emailVerified) {
-    return makeResponse(false, "User already verified!");
-  }
-
-  const { otp, expires } = await generateOTP();
-  await new Email().sendOtp(user, otp);
-
-  user.verificationCode = otp;
-  user.verificationCodeExpiry = expires;
-  await user.save();
-
-  return makeResponse(true, "OTP sent.", {
-    user,
-  });
-};
-
-export const verifyEmail = async (payload: { email: string; otp: string }) => {
-  const user = await userRepository.findUserByMatch({
-    email: payload.email.toLowerCase(),
-    verificationCode: payload.otp,
-    verificationCodeExpiry: { $gte: Date.now() },
-  });
-
-  if (!user) {
-    return makeResponse(false, "Invalid or expired OTP!");
-  }
-
-  user.emailVerified = true;
-  user.verificationCode = undefined;
-  user.verificationCodeExpiry = undefined;
-  await user.save();
-
-  await new Email().sendWelcome(user);
-
-  return makeResponse(true, "User verified.", {
-    user,
-  });
-};
-
-export const loginUser = async ({ email, password }: Pick<IUser, "email" | "password">) => {
+export const loginUser = async (
+  { email, password }: Pick<IUser, "email" | "password">,
+  ip?: string
+) => {
   const user = await userRepository.findUserByEmail(email.toLocaleLowerCase());
   if (!user) {
+    logger.logErrorMessage(`Failed login attempt: email=${email} ip=${ip ?? "unknown"}`);
     return makeResponse(false, "Invalid email or password", {}, 403);
   }
-  if (!compareHashedPassword(password!, user.password)) {
+  if (!(await compareHashedPassword(password!, user.password))) {
+    logger.logErrorMessage(
+      `Failed login attempt: id=${user._id} email=${user.email} ip=${ip ?? "unknown"}`
+    );
     return makeResponse(false, "Invalid email or password.", {}, 403);
   }
   if (!user.active) {
+    logger.logErrorMessage(
+      `Failed login attempt (deactivated account): id=${user._id} email=${user.email} ip=${ip ?? "unknown"}`
+    );
     return makeResponse(false, "This account has been deactivated!", {}, 403);
   }
+
+  logger.log(`User logged in: id=${user._id} email=${user.email} ip=${ip ?? "unknown"}`);
 
   const token = signToken(user);
   return makeResponse(true, "Login successful", { user, token }, 200);
 };
 
-export const forgotPassword = async ({ email }: Pick<IUser, "email">) => {
-  const user = await userRepository.findUserByMatch({ email });
+export const forgotPassword = async ({ email }: Pick<IUser, "email">, ip?: string) => {
+  const genericResponse = makeResponse(
+    true,
+    "If an account exists for this email, a reset code has been sent."
+  );
+
+  const user = await userRepository.findUserByMatch({ email: email.toLowerCase() });
+
+  logger.log(`Password reset requested: email=${email.toLowerCase()} ip=${ip ?? "unknown"}`);
 
   if (!user) {
-    return makeResponse(false, "User not found!", {}, 404);
+    return genericResponse;
   }
 
   const { otp, expires } = await generateOTP(5);
@@ -122,33 +93,42 @@ export const forgotPassword = async ({ email }: Pick<IUser, "email">) => {
   user.recoveryCodeExpiry = expires;
   await user.save();
 
-  await new Email().sendPasswordReset(user, otp);
-  return makeResponse(true, "Reset code sent");
+  await new EmailService().sendPasswordReset(user, otp);
+  return genericResponse;
 };
 
-export const resetPassword = async (payload: { email: string; otp: string; password: string }) => {
+export const resetPassword = async (
+  payload: { email: string; otp: string; password: string },
+  ip?: string
+) => {
   const { email, otp, password } = payload;
 
   const user = await userRepository.findUserByMatch({
-    email,
+    email: email.toLowerCase(),
     recoveryCode: otp,
     recoveryCodeExpiry: { $gte: Date.now() },
   });
 
   if (!user) {
+    logger.logErrorMessage(
+      `Password reset failed (invalid or expired code): email=${email.toLowerCase()} ip=${ip ?? "unknown"}`
+    );
     return makeResponse(false, "Password reset token is invalid or has expired.");
   }
 
-  user.password = generateHashedPassword(password);
+  user.password = await generateHashedPassword(password);
   user.recoveryCode = undefined;
   user.recoveryCodeExpiry = undefined;
+  user.tokenVersion = (user.tokenVersion ?? 0) + 1;
 
   await user.save();
+
+  logger.log(`Password reset: id=${user._id} email=${user.email} ip=${ip ?? "unknown"}`);
 
   return makeResponse(true, "Password has been reset");
 };
 
-export const changePassword = async (_user: IUser, payload: IUserPasswordUpdate) => {
+export const changePassword = async (_user: IUser, payload: IUserPasswordUpdate, ip?: string) => {
   const { newPassword, oldPassword } = payload;
 
   const user = await userRepository.findUserById(_user.id);
@@ -157,14 +137,35 @@ export const changePassword = async (_user: IUser, payload: IUserPasswordUpdate)
     return makeResponse(false, "Authenticated user not found!");
   }
 
-  if (!compareHashedPassword(oldPassword!, user.password)) {
+  if (!(await compareHashedPassword(oldPassword!, user.password))) {
+    logger.logErrorMessage(
+      `Password change failed (invalid current password): id=${user._id} email=${user.email} ip=${ip ?? "unknown"}`
+    );
     return makeResponse(false, "Invalid password.", {}, 403);
   }
 
-  user.password = generateHashedPassword(newPassword);
+  user.password = await generateHashedPassword(newPassword);
+  user.tokenVersion = (user.tokenVersion ?? 0) + 1;
 
   await user.save();
 
+  logger.log(`Password changed: id=${user._id} email=${user.email} ip=${ip ?? "unknown"}`);
+
   const token = signToken(user);
   return makeResponse(true, "Password changed", { user, token }, 200);
+};
+
+export const logout = async (_user: IUser, ip?: string) => {
+  const user = await userRepository.findUserAuthById(_user.id);
+
+  if (!user) {
+    return makeResponse(false, "Authenticated user not found!");
+  }
+
+  user.tokenVersion = (user.tokenVersion ?? 0) + 1;
+  await user.save();
+
+  logger.log(`User logged out: id=${user._id} email=${user.email} ip=${ip ?? "unknown"}`);
+
+  return makeResponse(true, "Logged out successfully");
 };

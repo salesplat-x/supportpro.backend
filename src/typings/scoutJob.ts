@@ -1,4 +1,4 @@
-import { Document, Types } from "mongoose";
+import { Types } from "mongoose";
 import { IRole } from "./role";
 import { Paging } from "./customs";
 import { IUser } from "./user";

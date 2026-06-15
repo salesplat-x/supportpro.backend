@@ -3,9 +3,8 @@ import * as scoutRepository from "../../repository/v1/scout";
 import { makeResponse } from "../../helpers/response";
 import { IJob } from "../../typings/job";
 
-import { IProfile, IUser } from "../../typings/user";
+import { IUser } from "../../typings/user";
 import {
-  ApplicationStatus,
   FetchApplications,
   IApplication,
   ScreeningStage,
@@ -39,7 +38,7 @@ export const getApplication = async (user: IUser, applicationId: string) => {
   });
 };
 
-export const getApplications = async (user: IUser, payload: FetchApplications) => {
+export const getApplications = async (user: IUser, _payload: FetchApplications) => {
   const query: FilterQuery<IApplication> = {};
   if (user.userRole === Roles.Recruiter) {
     query.recruiter = user.id;

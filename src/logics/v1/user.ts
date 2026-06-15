@@ -1,73 +1,69 @@
 import { FetchProfiles, IProfile, IUser } from "../../typings/user";
-import { ApplicationType, FetchApplications, IApplication } from "../../typings/application";
+import { FetchApplications } from "../../typings/application";
 import * as userRepository from "../../repository/v1/user";
 import * as roleRepository from "../../repository/v1/role";
 import * as applicationRepository from "../../repository/v1/application";
 import { makeResponse } from "../../helpers/response";
-import mongoose, { FilterQuery } from "mongoose";
+import mongoose, { HydratedDocument } from "mongoose";
 import { Roles } from "../../typings/customs";
-import Application from "../../models/v1/application";
-import { IJob } from "../../typings/job";
-import { Request } from "express";
 
-export const uploadProfile = async (payload: IProfile, user: IUser) => {
+// Lazily backfills a Profile for legacy Talent users that don't have one yet.
+const ensureTalentProfile = async (
+  user: HydratedDocument<IUser>
+): Promise<HydratedDocument<IUser>> => {
+  if (user.userRole !== Roles.Talent || user.profile) {
+    return user;
+  }
+  const profile = await userRepository.createProfile({
+    role: [],
+    remote: false,
+    onSite: false,
+    hybrid: false,
+  });
+  const updated = await userRepository.findUserByIdAndUpdate(user._id, {
+    profile: profile._id,
+  });
+  return updated ?? user;
+};
+
+export const updateUser = async (_user: IUser, payload: Partial<IUser>) => {
+  const user = await userRepository.findUserByIdAndUpdate(_user._id, payload);
+  return makeResponse(true, "User updated successfully", { user });
+};
+
+export const editProfile = async (payload: Partial<IProfile>, _user: IUser) => {
+  let existingUser = await userRepository.findUserById(_user._id);
+  if (!existingUser) {
+    return makeResponse(false, "Authenticated user no longer exist!", {});
+  }
+  existingUser = await ensureTalentProfile(existingUser);
+
+  if (payload.role) {
+    for (const role of payload.role) {
+      if (!mongoose.Types.ObjectId.isValid(role as string)) {
+        return makeResponse(false, "Invalid role id", {}, 400);
+      }
+      const existingRole = await roleRepository.findRoleById(role as string);
+      if (!existingRole) {
+        return makeResponse(false, "Role does not exist", {}, 404);
+      }
+    }
+  }
+
+  const profile = await userRepository.findProfileByIdAndUpdate(
+    (existingUser.profile as IProfile)._id,
+    payload
+  );
+
+  return makeResponse(true, "User profile updated successfully", { profile });
+};
+
+export const me = async (user: IUser) => {
   let existingUser = await userRepository.findUserById(user._id);
   if (!existingUser) {
     return makeResponse(false, "Authenticated user no longer exist!", {});
   }
-  if (existingUser.profile) {
-    return makeResponse(false, "This user already has a profile!", {});
-  }
-
-  for (const role of payload.role) {
-    if (!mongoose.Types.ObjectId.isValid(role as string)) {
-      return makeResponse(false, "Invalid role id", {}, 400);
-    }
-    const existingRole = await roleRepository.findRoleById(role as string);
-    if (!existingRole) {
-      return makeResponse(false, "Role does not exist", {}, 404);
-    }
-  }
-  const profile = await userRepository.createProfile(payload);
-  existingUser = await userRepository.findUserByIdAndUpdate(user._id, {
-    profile: profile._id,
-  });
-  existingUser?.set("password", undefined);
-  return makeResponse(true, "User profile added", { user: existingUser });
-};
-
-export const updateUser = async (_user: IUser, payload: IUser) => {
-  const existingUser = await userRepository.findUserById(_user._id);
-  if (!existingUser) {
-    return makeResponse(false, "Authenticated user no longer exist!", {});
-  }
-
-  const user = await userRepository.findUserByIdAndUpdate(_user.id, payload);
-
-  existingUser?.set("password", undefined);
-  return makeResponse(true, "User updated successfully", { user });
-};
-
-export const editProfile = async (payload: IProfile, _user: IUser) => {
-  const existingUser = await userRepository.findUserById(_user._id);
-  if (!existingUser) {
-    return makeResponse(false, "Authenticated user no longer exist!", {});
-  }
-
-  const user = await userRepository.findProfileByIdAndUpdate(
-    (_user.profile as IProfile)._id,
-    payload
-  );
-
-  existingUser?.set("password", undefined);
-  return makeResponse(true, "User profile added", { user });
-};
-
-export const me = async (user: IUser) => {
-  const existingUser = await userRepository.findUserById(user._id);
-  if (!existingUser) {
-    return makeResponse(false, "Authenticated user no longer exist!", {});
-  }
+  existingUser = await ensureTalentProfile(existingUser);
 
   existingUser.set("password", undefined);
   return makeResponse(true, "User details fetched", { user: existingUser });
@@ -90,8 +86,6 @@ export const viewProfile = async (user: Pick<IUser, "_id">) => {
 };
 
 export const viewProfilesForRole = async (payload: FetchProfiles) => {
-  let talents: IUser[] = [];
-
   // Create aggregation pipeline
   const pipeline: mongoose.PipelineStage[] = [
     {
@@ -144,7 +138,7 @@ export const viewProfilesForRole = async (payload: FetchProfiles) => {
       $match: { "profile.maxSalary": { $lte: Number(payload.maxSalary) } },
     });
   }
-  if (payload.incomplete != "true") {
+  if (!payload.incomplete) {
     pipeline.push({
       $match: {
         "profile.prescreeningScore": { $exists: true },
@@ -166,14 +160,12 @@ export const viewProfilesForRole = async (payload: FetchProfiles) => {
   );
 
   // Use an aggregation to get all users with the specified role
-  talents = await userRepository.userAggregate(pipeline, payload);
+  const talents: IUser[] = await userRepository.userAggregate(pipeline, payload);
   return makeResponse(true, "User details fetched", { talents });
 };
 
 export const applications = async (user: IUser, payload: FetchApplications) => {
   const { applicationType, applicationStatus } = payload;
-
-  const query: Record<string, any> = { talent: user._id };
 
   const pipeline: mongoose.PipelineStage[] = [
     { $match: { talent: new mongoose.Types.ObjectId(user._id) } },

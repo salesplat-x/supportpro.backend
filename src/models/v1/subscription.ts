@@ -1,6 +1,5 @@
 import { Schema, model } from "mongoose";
 import { ISubscription, SubscriptionStatus } from "../../typings/subscription";
-import { string } from "joi";
 
 const subscriptionSchema = new Schema<ISubscription>(
   {

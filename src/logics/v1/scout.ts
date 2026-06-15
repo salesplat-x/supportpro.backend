@@ -1,18 +1,9 @@
 import { makeResponse } from "../../helpers/response";
-import { Request } from "express";
 import { v4 as uuidv4 } from "uuid";
-import {
-  convertSimilarityToPercentage,
-  extractText,
-  overlapChunkText,
-  preprocessText,
-  stringToBool,
-} from "../../helpers/func";
+import { convertSimilarityToPercentage, extractText, preprocessText } from "../../helpers/func";
 import * as AI from "../../services/v1/openai";
-import { getScoutCVEmbedding, saveCvBatch } from "../../repository/v1/pg";
-import { findJobById } from "../../repository/v1/job";
-import { IAIConfig } from "../../typings/AIconfig";
-import { IScout, IScoutResponse, ICvAndCoverLetter, IScoutTalents } from "../../typings/scout";
+import { getScoutCVEmbedding } from "../../repository/v1/pg";
+import { IScoutResponse, ICvAndCoverLetter, IScoutTalents } from "../../typings/scout";
 import { IUser } from "../../typings/user";
 import * as scoutRepository from "../../repository/v1/scout";
 import mongoose from "mongoose";
@@ -35,7 +26,6 @@ export const fetchScoutReport = async (user: IUser, id?: string) => {
 
 // Function find talents
 export const scoutTalents = async (payload: Partial<IScoutTalents>) => {
-  let users: IUser[] = [];
   //@TODO add location and remote filter
 
   if (!payload.scoutJobId || !mongoose.Types.ObjectId.isValid(payload.scoutJobId!)) {
@@ -120,7 +110,7 @@ export const scoutTalents = async (payload: Partial<IScoutTalents>) => {
   );
 
   // Use an aggregation to get all users with the specified role
-  users = await userAggregate(pipeline, payload);
+  const users: IUser[] = await userAggregate(pipeline, payload);
 
   //Use vector similarity to compare the talents cv to the JD
   const talentIds = users.map((talent) => talent._id.toString());

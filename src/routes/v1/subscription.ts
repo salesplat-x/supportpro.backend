@@ -6,8 +6,7 @@ import * as subscription from "../../controllers/v1/subscription";
 import validate from "../../middlewares/v1/validators/validate";
 import * as subscriptionValidator from "../../middlewares/v1/validators/subscription";
 import { asyncHandler } from "../../middlewares/v1/handler";
-import { loginRequired, validateAccess } from "../../middlewares/v1/auth";
-import { Roles } from "../../typings/customs";
+import { loginRequired } from "../../middlewares/v1/auth";
 
 router.get(
   "/enable/:id",

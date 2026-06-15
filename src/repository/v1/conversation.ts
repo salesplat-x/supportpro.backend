@@ -1,5 +1,5 @@
 import Conversation from "../../models/v1/conversation";
-import { Page, Paging } from "../../typings/customs";
+import { Paging } from "../../typings/customs";
 import { IConversation } from "../../typings/conversation";
 import { FilterQuery, Types } from "mongoose";
 

@@ -2,6 +2,10 @@ import { Schema, model } from "mongoose";
 import * as func from "../../helpers/func";
 import { Roles } from "../../typings/customs";
 import { IProfile, IUser } from "../../typings/user";
+import {
+  computeCanProceedToPlatform,
+  computeProfileCompletionPercentage,
+} from "../../helpers/profileCompletion";
 
 const userSchema = new Schema<IUser>(
   {
@@ -30,8 +34,15 @@ const userSchema = new Schema<IUser>(
       required: false,
       set: func.firstCharToUpperCase,
     },
-    picture: {
-      type: String,
+    profileImage: {
+      type: new Schema(
+        {
+          url: { type: String, required: true },
+          publicId: { type: String, required: true },
+        },
+        { _id: false }
+      ),
+      required: false,
     },
     userRole: {
       type: String,
@@ -39,6 +50,10 @@ const userSchema = new Schema<IUser>(
       default: Roles.Talent,
     },
     phone: {
+      type: String,
+      required: false,
+    },
+    country: {
       type: String,
       required: false,
     },
@@ -54,20 +69,18 @@ const userSchema = new Schema<IUser>(
     },
     emailVerified: {
       type: Boolean,
-      default: false,
+      default: true,
     },
     active: {
       type: Boolean,
       default: true,
     },
-    onboarded: {
-      type: Boolean,
-      default: false,
-    },
     recoveryCode: String,
     recoveryCodeExpiry: Date,
-    verificationCode: String,
-    verificationCodeExpiry: Date,
+    tokenVersion: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,
@@ -77,53 +90,76 @@ const userSchema = new Schema<IUser>(
         delete ret.password;
         delete ret.recoveryCode;
         delete ret.recoveryCodeExpiry;
-        delete ret.verificationCode;
-        delete ret.verificationCodeExpiry;
       },
     },
   }
 );
 
-const profileSchema = new Schema<IProfile>({
-  bio: {
-    type: String,
-    required: true,
-  },
-  cv: {
-    type: String,
-    required: true,
-  },
-  remote: { type: Boolean, default: false },
-  onSite: { type: Boolean, default: false },
-  hybrid: { type: Boolean, default: false },
-  location: {
-    city: { type: String, required: false },
-    state: String,
-    country: String,
-  },
-  role: [
-    {
-      type: Schema.Types.ObjectId,
-      ref: "role",
+const profileSchema = new Schema<IProfile>(
+  {
+    bio: {
+      type: String,
+      required: false,
     },
-  ],
-  experience: {
-    type: String,
-    required: true,
+    cv: {
+      type: new Schema(
+        {
+          url: { type: String, required: true },
+          publicId: { type: String, required: true },
+          uploadedAt: { type: Date, required: true },
+        },
+        { _id: false }
+      ),
+      required: false,
+    },
+    remote: { type: Boolean, default: false },
+    onSite: { type: Boolean, default: false },
+    hybrid: { type: Boolean, default: false },
+    location: {
+      city: { type: String, required: false },
+      state: String,
+      country: String,
+    },
+    role: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "role",
+      },
+    ],
+    experience: {
+      type: String,
+      required: false,
+    },
+    maxSalary: {
+      type: Number,
+      required: false,
+    },
+    minSalary: {
+      type: Number,
+      required: false,
+    },
+    prescreeningScore: {
+      type: Number,
+      // select: false,
+    },
+    assessmentRetryDate: Date,
   },
-  maxSalary: {
-    type: Number,
-    required: true,
-  },
-  minSalary: {
-    type: Number,
-    required: true,
-  },
-  prescreeningScore: {
-    type: Number,
-    // select: false,
-  },
-  assessmentRetryDate: Date,
+  {
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
+);
+
+profileSchema.virtual("profileCompletionPercentage").get(function (this: IProfile) {
+  return computeProfileCompletionPercentage(this);
+});
+
+profileSchema.virtual("isProfileComplete").get(function (this: IProfile) {
+  return computeProfileCompletionPercentage(this) === 100;
+});
+
+profileSchema.virtual("canProceedToPlatform").get(function (this: IProfile) {
+  return computeCanProceedToPlatform(this);
 });
 
 // Instance method to check if the candidate can retake the assessment
