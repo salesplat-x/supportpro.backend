@@ -17,13 +17,6 @@ router.post(
   asyncHandler(user.uploadProfileImage)
 );
 
-router.post(
-  "/profile/cv",
-  validateAccess([Roles.Talent]),
-  memoryUpload.single("cv"),
-  asyncHandler(user.uploadCv)
-);
-
 router.patch(
   "/me",
   loginRequired,
@@ -34,6 +27,7 @@ router.patch(
 router.patch(
   "/profile",
   validateAccess([Roles.Talent]),
+  memoryUpload.single("cv"),
   validate(userValidator.updateProfile, { body: true }),
   asyncHandler(user.editProfile)
 );

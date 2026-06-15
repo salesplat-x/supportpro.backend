@@ -6,6 +6,22 @@ import * as applicationRepository from "../../repository/v1/application";
 import { makeResponse } from "../../helpers/response";
 import mongoose, { HydratedDocument } from "mongoose";
 import { Roles } from "../../typings/customs";
+import { replaceAsset } from "../../services/v1/cloudinary";
+import { extractText, overlapChunkText, preprocessText } from "../../helpers/func";
+import { createEmbedding } from "../../services/v1/openai";
+import { saveTalentEmbedding } from "../../repository/v1/pg";
+
+export const ALLOWED_CV_TYPES = [
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+
+export const CV_EXT_BY_MIME: Record<string, string> = {
+  "application/pdf": "pdf",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+};
 
 // Lazily backfills a Profile for legacy Talent users that don't have one yet.
 const ensureTalentProfile = async (
@@ -31,7 +47,11 @@ export const updateUser = async (_user: IUser, payload: Partial<IUser>) => {
   return makeResponse(true, "User updated successfully", { user });
 };
 
-export const editProfile = async (payload: Partial<IProfile>, _user: IUser) => {
+export const editProfile = async (
+  payload: Partial<IProfile>,
+  _user: IUser,
+  file?: Express.Multer.File
+) => {
   let existingUser = await userRepository.findUserById(_user._id);
   if (!existingUser) {
     return makeResponse(false, "Authenticated user no longer exist!", {});
@@ -50,10 +70,38 @@ export const editProfile = async (payload: Partial<IProfile>, _user: IUser) => {
     }
   }
 
-  const profile = await userRepository.findProfileByIdAndUpdate(
-    (existingUser.profile as IProfile)._id,
-    payload
-  );
+  const existingProfile = existingUser.profile as IProfile;
+  const update: Partial<IProfile> = { ...payload };
+
+  if (file) {
+    if (!ALLOWED_CV_TYPES.includes(file.mimetype)) {
+      return makeResponse(false, "Unsupported CV file type", {}, 400);
+    }
+
+    let text: string | string[] = await extractText(file.buffer, file.mimetype);
+    if (!text) {
+      return makeResponse(false, "Unable to extract text from CV", {}, 400);
+    }
+    text = overlapChunkText(preprocessText(text));
+
+    const cvEmbedding = await createEmbedding(text);
+    const embeddingRes = await saveTalentEmbedding(_user._id.toString(), text, cvEmbedding);
+    if (!embeddingRes) {
+      return makeResponse(false, "Unable to save CV embedding", {}, 500);
+    }
+
+    const asset = await replaceAsset(existingProfile.cv?.publicId, file.buffer, {
+      folder: "supportpro/cvs",
+      publicId: `${_user._id}-cv`,
+      mimetype: file.mimetype,
+      format: CV_EXT_BY_MIME[file.mimetype],
+      resourceType: "auto",
+    });
+
+    update.cv = { url: asset.url, publicId: asset.publicId, uploadedAt: new Date() };
+  }
+
+  const profile = await userRepository.findProfileByIdAndUpdate(existingProfile._id, update);
 
   return makeResponse(true, "User profile updated successfully", { profile });
 };

@@ -9,7 +9,7 @@ export const updateUser = async (req: Request, res: Response) => {
 };
 
 export const editProfile = async (req: Request, res: Response) => {
-  const response = await userController.editProfile(req.body, req.user);
+  const response = await userController.editProfile(req.body, req.user, req.file);
   return responseHandler(res, response);
 };
 
@@ -35,10 +35,5 @@ export const applications = async (req: Request, res: Response) => {
 
 export const uploadProfileImage = async (req: Request, res: Response) => {
   const response = await profileController.uploadProfileImage(req.user, req.file);
-  return responseHandler(res, response);
-};
-
-export const uploadCv = async (req: Request, res: Response) => {
-  const response = await profileController.uploadCv(req.user, req.file);
   return responseHandler(res, response);
 };
