@@ -5,23 +5,12 @@ import * as roleRepository from "../../repository/v1/role";
 import * as applicationRepository from "../../repository/v1/application";
 import { makeResponse } from "../../helpers/response";
 import mongoose, { HydratedDocument } from "mongoose";
-import { Roles } from "../../typings/customs";
-import { replaceAsset } from "../../services/v1/cloudinary";
+import { MakeResponse, Roles } from "../../typings/customs";
+import { destroyAsset, extractPublicIdFromUrl, replaceAsset } from "../../services/v1/cloudinary";
 import { extractText, overlapChunkText, preprocessText } from "../../helpers/func";
 import { createEmbedding } from "../../services/v1/openai";
 import { saveTalentEmbedding } from "../../repository/v1/pg";
-
-export const ALLOWED_CV_TYPES = [
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-];
-
-export const CV_EXT_BY_MIME: Record<string, string> = {
-  "application/pdf": "pdf",
-  "application/msword": "doc",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
-};
+import { ALLOWED_CV_TYPES, CLOUDINARY_FOLDERS, CV_EXT_BY_MIME } from "../../helpers/uploads";
 
 // Lazily backfills a Profile for legacy Talent users that don't have one yet.
 const ensureTalentProfile = async (
@@ -30,20 +19,119 @@ const ensureTalentProfile = async (
   if (user.userRole !== Roles.Talent || user.profile) {
     return user;
   }
-  const profile = await userRepository.createProfile({
-    role: [],
-    remote: false,
-    onSite: false,
-    hybrid: false,
-  });
+  const profile = await userRepository.createProfile({ role: [] });
   const updated = await userRepository.findUserByIdAndUpdate(user._id, {
     profile: profile._id,
   });
   return updated ?? user;
 };
 
-export const updateUser = async (_user: IUser, payload: Partial<IUser>) => {
-  const user = await userRepository.findUserByIdAndUpdate(_user._id, payload);
+// Validates that every id in a profile's role list refers to an existing role.
+const validateProfileRoles = async (roles: IProfile["role"]): Promise<MakeResponse | null> => {
+  for (const role of roles) {
+    if (!mongoose.Types.ObjectId.isValid(role as string)) {
+      return makeResponse(false, "Invalid role id", {}, 400);
+    }
+    const existingRole = await roleRepository.findRoleById(role as string);
+    if (!existingRole) {
+      return makeResponse(false, "Role does not exist", {}, 404);
+    }
+  }
+  return null;
+};
+
+export const updateUser = async (
+  _user: IUser,
+  payload: Partial<IUser> & {
+    picture?: string;
+    cv?: string;
+    bio?: string;
+    role?: IProfile["role"];
+    location?: IProfile["location"];
+    experience?: IProfile["experience"];
+    minSalary?: number;
+    maxSalary?: number;
+    currency?: IProfile["currency"];
+    workType?: IProfile["workType"];
+  }
+) => {
+  const {
+    picture,
+    cv,
+    bio,
+    role,
+    location,
+    experience,
+    minSalary,
+    maxSalary,
+    currency,
+    workType,
+    ...rest
+  } = payload;
+  const update: Partial<IUser> = { ...rest };
+
+  const profileUpdate: Partial<IProfile> = {};
+  if (bio !== undefined) profileUpdate.bio = bio;
+  if (role !== undefined) profileUpdate.role = role;
+  if (location !== undefined) profileUpdate.location = location;
+  if (experience !== undefined) profileUpdate.experience = experience;
+  if (minSalary !== undefined) profileUpdate.minSalary = minSalary;
+  if (maxSalary !== undefined) profileUpdate.maxSalary = maxSalary;
+  if (currency !== undefined) profileUpdate.currency = currency;
+  if (workType !== undefined) profileUpdate.workType = workType;
+
+  const hasProfileFields = Object.keys(profileUpdate).length > 0;
+
+  let existingUser: HydratedDocument<IUser> | null = null;
+  if (picture || cv || hasProfileFields) {
+    existingUser = await userRepository.findUserById(_user._id);
+    if (!existingUser) {
+      return makeResponse(false, "Authenticated user no longer exist!", {});
+    }
+  }
+
+  let oldImagePublicId: string | undefined;
+  if (picture) {
+    oldImagePublicId = existingUser?.profileImage?.publicId;
+    update.profileImage = { url: picture, publicId: extractPublicIdFromUrl(picture) };
+  }
+
+  let oldCvPublicId: string | undefined;
+  let newCvPublicId: string | undefined;
+
+  if (existingUser && (cv || hasProfileFields)) {
+    existingUser = await ensureTalentProfile(existingUser);
+    const existingProfile = existingUser.profile as IProfile | undefined;
+    if (!existingProfile) {
+      return makeResponse(false, "User has no profile to update", {}, 400);
+    }
+
+    if (cv) {
+      oldCvPublicId = existingProfile.cv?.publicId;
+      newCvPublicId = extractPublicIdFromUrl(cv);
+      profileUpdate.cv = { url: cv, publicId: newCvPublicId, uploadedAt: new Date() };
+    }
+
+    if (profileUpdate.role) {
+      const roleError = await validateProfileRoles(profileUpdate.role);
+      if (roleError) {
+        return roleError;
+      }
+    }
+
+    await userRepository.findProfileByIdAndUpdate(existingProfile._id, profileUpdate);
+  }
+
+  const user = await userRepository.findUserByIdAndUpdate(_user._id, update);
+
+  if (oldImagePublicId && oldImagePublicId !== update.profileImage?.publicId) {
+    await destroyAsset(oldImagePublicId, "image");
+  }
+
+  if (oldCvPublicId && oldCvPublicId !== newCvPublicId) {
+    await destroyAsset(oldCvPublicId, "auto");
+  }
+
   return makeResponse(true, "User updated successfully", { user });
 };
 
@@ -59,14 +147,9 @@ export const editProfile = async (
   existingUser = await ensureTalentProfile(existingUser);
 
   if (payload.role) {
-    for (const role of payload.role) {
-      if (!mongoose.Types.ObjectId.isValid(role as string)) {
-        return makeResponse(false, "Invalid role id", {}, 400);
-      }
-      const existingRole = await roleRepository.findRoleById(role as string);
-      if (!existingRole) {
-        return makeResponse(false, "Role does not exist", {}, 404);
-      }
+    const roleError = await validateProfileRoles(payload.role);
+    if (roleError) {
+      return roleError;
     }
   }
 
@@ -91,7 +174,7 @@ export const editProfile = async (
     }
 
     const asset = await replaceAsset(existingProfile.cv?.publicId, file.buffer, {
-      folder: "supportpro/cvs",
+      folder: CLOUDINARY_FOLDERS.cv,
       publicId: `${_user._id}-cv`,
       mimetype: file.mimetype,
       format: CV_EXT_BY_MIME[file.mimetype],

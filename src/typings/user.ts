@@ -1,16 +1,17 @@
 import { Document, Types } from "mongoose";
-import { ILocation, Paging, Roles, TExperienceLevel } from "./customs";
+import { ILocation, Paging, Roles, TExperienceLevel, TWorkType } from "./customs";
+import { TCurrency } from "./plan";
 import { IRole } from "./role";
 
 export interface ICvAsset {
   url: string;
-  publicId: string;
+  publicId?: string;
   uploadedAt: Date;
 }
 
 export interface IProfileImage {
   url: string;
-  publicId: string;
+  publicId?: string;
 }
 
 export interface IUser extends Document {
@@ -40,12 +41,11 @@ export interface IProfile extends Document {
   _id: Types.ObjectId | string;
   bio?: string;
   cv?: ICvAsset;
-  remote: boolean;
-  onSite: boolean;
-  hybrid: boolean;
+  workType?: TWorkType[] | null;
   location?: ILocation;
   role: Types.Array<Types.ObjectId> | Types.Array<string> | Types.Array<IRole>;
   experience?: TExperienceLevel;
+  currency?: TCurrency;
   maxSalary?: number;
   minSalary?: number;
   prescreeningScore?: number;

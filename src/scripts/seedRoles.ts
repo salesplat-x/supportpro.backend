@@ -1,3 +1,4 @@
+import "dotenv/config";
 import mongoose from "mongoose";
 import { newMongoDBConnection } from "../config/db";
 import * as roleRepository from "../repository/v1/role";

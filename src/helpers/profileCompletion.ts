@@ -12,7 +12,7 @@ export const PROFILE_COMPLETION_FIELDS: ProfileCompletionCheck[] = [
   { key: "location", check: (p) => !!p.location?.country && !!p.location?.state },
   { key: "experience", check: (p) => !!p.experience },
   { key: "salaryRange", check: (p) => p.minSalary != null && p.maxSalary != null },
-  { key: "workMode", check: (p) => !!(p.remote || p.onSite || p.hybrid) },
+  { key: "workMode", check: (p) => Array.isArray(p.workType) && p.workType.length > 0 },
 ];
 
 export const ONBOARDING_REQUIRED_KEYS = ["cv", "role"];

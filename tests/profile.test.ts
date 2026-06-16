@@ -4,7 +4,7 @@ import * as profileController from "../src/logics/v1/profile";
 import * as userRepository from "../src/repository/v1/user";
 import * as cloudinaryService from "../src/services/v1/cloudinary";
 import { requireCompletedProfile } from "../src/middlewares/v1/auth";
-import { Roles, ExperienceLevel } from "../src/typings/customs";
+import { Roles, ExperienceLevel, WorkType } from "../src/typings/customs";
 
 jest.mock("../src/repository/v1/user");
 jest.mock("../src/services/v1/cloudinary");
@@ -17,7 +17,7 @@ const PROFILE_ID = "507f1f77bcf86cd799439022";
 
 describe("Profile completion virtuals", () => {
   it("reports 0% completion for an empty profile and blocks platform access", () => {
-    const profile = new Profile({ role: [], remote: false, onSite: false, hybrid: false });
+    const profile = new Profile({ role: [] });
 
     expect(profile.profileCompletionPercentage).toBe(0);
     expect(profile.isProfileComplete).toBe(false);
@@ -28,9 +28,6 @@ describe("Profile completion virtuals", () => {
     const profile = new Profile({
       role: [new mongoose.Types.ObjectId()],
       cv: { url: "https://cdn.example.com/cv.pdf", publicId: "cvs/x", uploadedAt: new Date() },
-      remote: false,
-      onSite: false,
-      hybrid: false,
     });
 
     expect(profile.canProceedToPlatform).toBe(true);
@@ -48,9 +45,7 @@ describe("Profile completion virtuals", () => {
       experience: ExperienceLevel.fourToSixYears,
       maxSalary: 100000,
       minSalary: 50000,
-      remote: true,
-      onSite: false,
-      hybrid: false,
+      workType: [WorkType.Remote],
     });
 
     expect(profile.profileCompletionPercentage).toBe(100);
@@ -86,11 +81,11 @@ describe("uploadProfileImage", () => {
   it("replaces the old profile image asset and stores the new publicId", async () => {
     mockedUserRepository.findUserById.mockResolvedValue({
       _id: USER_ID,
-      profileImage: { url: "https://old", publicId: "supportpro/profilepicture/old-image" },
+      profileImage: { url: "https://old", publicId: "salesplate/images/old-image" },
     } as any);
     mockedCloudinary.replaceAsset.mockResolvedValue({
       url: "https://new",
-      publicId: `supportpro/profilepicture/${USER_ID}-image`,
+      publicId: `salesplate/images/${USER_ID}-image`,
     });
     mockedUserRepository.findUserByIdAndUpdate.mockResolvedValue({ _id: USER_ID } as any);
 
@@ -99,17 +94,17 @@ describe("uploadProfileImage", () => {
 
     expect(response.status).toBe(true);
     expect(mockedCloudinary.replaceAsset).toHaveBeenCalledWith(
-      "supportpro/profilepicture/old-image",
+      "salesplate/images/old-image",
       file.buffer,
       expect.objectContaining({
-        folder: "supportpro/profilepicture",
+        folder: "salesplate/images",
         publicId: `${USER_ID}-image`,
         mimetype: "image/png",
         resourceType: "image",
       })
     );
     expect(mockedUserRepository.findUserByIdAndUpdate).toHaveBeenCalledWith(USER_ID, {
-      profileImage: { url: "https://new", publicId: `supportpro/profilepicture/${USER_ID}-image` },
+      profileImage: { url: "https://new", publicId: `salesplate/images/${USER_ID}-image` },
     });
   });
 });
@@ -149,9 +144,7 @@ describe("requireCompletedProfile middleware", () => {
   });
 
   it("blocks a Talent whose profile is incomplete (missing cv/role)", async () => {
-    mockedUserRepository.findProfileById.mockResolvedValue(
-      new Profile({ role: [], remote: false, onSite: false, hybrid: false })
-    );
+    mockedUserRepository.findProfileById.mockResolvedValue(new Profile({ role: [] }));
     const req: any = { user: { userRole: Roles.Talent, profile: PROFILE_ID } };
     const res = buildMockResponse();
     const next = jest.fn();
@@ -167,9 +160,6 @@ describe("requireCompletedProfile middleware", () => {
       new Profile({
         role: [new mongoose.Types.ObjectId()],
         cv: { url: "https://cdn.example.com/cv.pdf", publicId: "cvs/x", uploadedAt: new Date() },
-        remote: false,
-        onSite: false,
-        hybrid: false,
       })
     );
     const req: any = { user: { userRole: Roles.Talent, profile: PROFILE_ID } };

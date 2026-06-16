@@ -92,7 +92,7 @@ export const scoutTalents = async (payload: Partial<IScoutTalents>) => {
 
   if (payload.workMode !== undefined) {
     pipeline.push({
-      $match: { "profile.remote": payload.workMode == "remote" },
+      $match: { "profile.workType": payload.workMode },
     });
   }
 

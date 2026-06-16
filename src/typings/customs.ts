@@ -14,6 +14,13 @@ export const ExperienceLevel = {
 } as const;
 export type TExperienceLevel = (typeof ExperienceLevel)[keyof typeof ExperienceLevel];
 
+export const WorkType = {
+  Remote: "remote",
+  OnSite: "onSite",
+  Hybrid: "hybrid",
+} as const;
+export type TWorkType = (typeof WorkType)[keyof typeof WorkType];
+
 export const Plan = {
   Basic: "basic",
   Business: "business",
