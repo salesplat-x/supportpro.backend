@@ -90,7 +90,7 @@ export const findUserByIdAndUpdate = async (
   userId: string | Types.ObjectId,
   data: Partial<IUser>
 ) => {
-  return await User.findByIdAndUpdate(userId, data, { new: true }).populate({
+  return await User.findByIdAndUpdate(userId, { $set: data }, { new: true }).populate({
     path: "profile",
     select: "-__v -createdAt -updatedAt ",
     strictPopulate: false,
@@ -108,9 +108,13 @@ export const findProfileByIdAndUpdate = async (
   profileId: string | Types.ObjectId,
   data: Partial<IProfile>
 ) => {
-  return await Profile.findByIdAndUpdate(profileId, data, {
-    new: true,
-  }).populate({
+  return await Profile.findByIdAndUpdate(
+    profileId,
+    { $set: data },
+    {
+      new: true,
+    }
+  ).populate({
     path: "role",
     select: "-__v",
     strictPopulate: false,
