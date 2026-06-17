@@ -8,16 +8,8 @@ const router = Router();
 
 router.get("/", validateAccess([Roles.Talent]), asyncHandler(prescreening.getPreScreening));
 
-router.post(
-  "/submit",
-  validateAccess([Roles.Talent]),
-  asyncHandler(prescreening.submitAnswers)
-);
+router.post("/submit", validateAccess([Roles.Talent]), asyncHandler(prescreening.submitAnswers));
 
-router.post(
-  "/retake",
-  validateAccess([Roles.Talent]),
-  asyncHandler(prescreening.requestRetake)
-);
+router.post("/retake", validateAccess([Roles.Talent]), asyncHandler(prescreening.requestRetake));
 
 export default (app: Router) => app.use("/prescreening", router);

@@ -11,6 +11,8 @@ import { extractText, overlapChunkText, preprocessText } from "../../helpers/fun
 import { createEmbedding } from "../../services/v1/openai";
 import { saveTalentEmbedding } from "../../repository/v1/pg";
 import { ALLOWED_CV_TYPES, CLOUDINARY_FOLDERS, CV_EXT_BY_MIME } from "../../helpers/uploads";
+import { upsertCvEmbeddingRecord } from "../../repository/v1/prescreening";
+import { triggerPreScreeningGeneration } from "./prescreening";
 
 // Lazily backfills a Profile for legacy Talent users that don't have one yet.
 const ensureTalentProfile = async (
@@ -174,6 +176,7 @@ export const editProfile = async (
   const existingProfile = existingUser.profile as IProfile;
   const update: Partial<IProfile> = { ...payload };
 
+  let roleDidChange = false;
   if (payload.role) {
     const roleError = await validateProfileRoles(payload.role);
     if (roleError) {
@@ -190,9 +193,11 @@ export const editProfile = async (
         );
       }
       update.roleChangeCount = currentCount + 1;
+      roleDidChange = true;
     }
   }
 
+  let newCvPublicId: string | undefined;
   if (file) {
     if (!ALLOWED_CV_TYPES.includes(file.mimetype)) {
       return makeResponse(false, "Unsupported CV file type", {}, 400);
@@ -218,10 +223,24 @@ export const editProfile = async (
       resourceType: "auto",
     });
 
+    newCvPublicId = asset.publicId;
     update.cv = { url: asset.url, publicId: asset.publicId, uploadedAt: new Date() };
   }
 
   const profile = await userRepository.findProfileByIdAndUpdate(existingProfile._id, update);
+
+  // Track CV embedding record after successful CV upload
+  if (newCvPublicId && profile) {
+    upsertCvEmbeddingRecord(profile._id, newCvPublicId).catch(() => null);
+  }
+
+  // Trigger assessment generation when profile becomes complete or roles change
+  if (profile) {
+    const updatedProfile = profile as unknown as IProfile;
+    if (roleDidChange || updatedProfile.isProfileComplete) {
+      triggerPreScreeningGeneration(_user, updatedProfile);
+    }
+  }
 
   return makeResponse(true, "User profile updated successfully", { profile });
 };

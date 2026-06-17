@@ -156,6 +156,11 @@ const profileSchema = new Schema<IProfile>(
       default: 0,
       min: 0,
     },
+    activePreScreening: {
+      type: Schema.Types.ObjectId,
+      ref: "prescreening",
+      required: false,
+    },
   },
   {
     toJSON: { virtuals: true },

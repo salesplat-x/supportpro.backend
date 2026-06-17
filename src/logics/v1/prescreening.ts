@@ -57,7 +57,12 @@ export const generatePreScreeningForUser = async (
 ) => {
   const roleValidation = await validateRoles(profile.role);
   if (!roleValidation.valid) {
-    return makeResponse(false, "One or more selected roles do not exist in the role catalog", {}, 400);
+    return makeResponse(
+      false,
+      "One or more selected roles do not exist in the role catalog",
+      {},
+      400
+    );
   }
 
   const roleIds = [...profile.role].map((r) => {
@@ -76,7 +81,9 @@ export const generatePreScreeningForUser = async (
   for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt++) {
     const result = await generatePreScreeningAssessment(context);
     if (!result?.message?.content) {
-      logger.logErrorMessage(`Pre-screening generation attempt ${attempt} returned no content for user ${user._id}`);
+      logger.logErrorMessage(
+        `Pre-screening generation attempt ${attempt} returned no content for user ${user._id}`
+      );
       continue;
     }
     try {
@@ -86,14 +93,23 @@ export const generatePreScreeningForUser = async (
         parsed = candidate;
         break;
       }
-      logger.logErrorMessage(`Pre-screening attempt ${attempt} returned ${count} questions (expected 5–10) for user ${user._id}`);
+      logger.logErrorMessage(
+        `Pre-screening attempt ${attempt} returned ${count} questions (expected 5–10) for user ${user._id}`
+      );
     } catch {
-      logger.logErrorMessage(`Pre-screening attempt ${attempt} returned unparseable content for user ${user._id}`);
+      logger.logErrorMessage(
+        `Pre-screening attempt ${attempt} returned unparseable content for user ${user._id}`
+      );
     }
   }
 
   if (!parsed) {
-    return makeResponse(false, "Failed to generate a valid assessment (5–10 questions). Please try again.", {}, 500);
+    return makeResponse(
+      false,
+      "Failed to generate a valid assessment (5–10 questions). Please try again.",
+      {},
+      500
+    );
   }
 
   const attemptCount = isRetake ? existingAttemptCount + 1 : 1;
@@ -126,7 +142,12 @@ export const getActivePreScreening = async (user: IUser) => {
   let preScreening = await prescreeningRepository.findPreScreeningByUserId(user._id);
   if (!preScreening) {
     if (!profile.isProfileComplete) {
-      return makeResponse(false, "No assessment found. Complete your profile to generate one.", {}, 404);
+      return makeResponse(
+        false,
+        "No assessment found. Complete your profile to generate one.",
+        {},
+        404
+      );
     }
     const generated = await generatePreScreeningForUser(user, profile);
     if (!generated.status) return generated;
@@ -162,7 +183,12 @@ export const submitPreScreeningAnswers = async (
     return makeResponse(false, "No active assessment found", {}, 404);
   }
   if (preScreening.status === "completed") {
-    return makeResponse(false, "Assessment already completed. Use retake to attempt again.", {}, 422);
+    return makeResponse(
+      false,
+      "Assessment already completed. Use retake to attempt again.",
+      {},
+      422
+    );
   }
 
   // Normalise object format { [questionId]: optionText } → IPreScreeningAnswer[]
@@ -179,14 +205,17 @@ export const submitPreScreeningAnswers = async (
       return { questionId, selectedOption };
     });
     if (invalid.length > 0) {
-      return makeResponse(false, `Invalid option text for question(s): ${invalid.join(", ")}`, {}, 400);
+      return makeResponse(
+        false,
+        `Invalid option text for question(s): ${invalid.join(", ")}`,
+        {},
+        400
+      );
     }
   }
 
   const answerMap = new Map(normalised.map((a) => [a.questionId, a.selectedOption]));
-  const missingQuestions = preScreening.questions.filter(
-    (q) => !answerMap.has(q.questionId)
-  );
+  const missingQuestions = preScreening.questions.filter((q) => !answerMap.has(q.questionId));
   if (missingQuestions.length > 0) {
     return makeResponse(
       false,
@@ -199,9 +228,7 @@ export const submitPreScreeningAnswers = async (
   const existingUser = await userRepository.findUserById(user._id);
   const profile = existingUser?.profile as IProfile | undefined;
 
-  const cvChunks = profile
-    ? await getCvTextByProfileId(profile._id.toString())
-    : [];
+  const cvChunks = profile ? await getCvTextByProfileId(profile._id.toString()) : [];
   const cvContent = cvChunks.join("\n\n");
 
   const roleNames = profile?.role
@@ -252,8 +279,7 @@ export const submitPreScreeningAnswers = async (
   );
 
   const profileIdForScore =
-    profile?._id ??
-    ((preScreening.userId as any)?._id ?? preScreening.userId);
+    profile?._id ?? (preScreening.userId as any)?._id ?? preScreening.userId;
 
   await userRepository.findProfileByIdAndUpdate(profileIdForScore, {
     prescreeningScore: totalScore,
