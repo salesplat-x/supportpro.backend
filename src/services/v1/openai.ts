@@ -276,6 +276,167 @@ export const assessCVandCoverLetter = async (
   return completion.choices[0];
 };
 
+export interface PreScreeningProfileContext {
+  bio?: string;
+  roles: string[];
+  cvContent: string;
+  experience?: string;
+  workType?: string[];
+  location?: { city?: string; state?: string; country?: string };
+  isRetake?: boolean;
+}
+
+export interface PreScreeningScoringContext {
+  questions: Array<{
+    questionId: string;
+    question: string;
+    category: string;
+    options: string[];
+    correctOption: number;
+    intent: string;
+    scoringHint?: string;
+    selectedOption: number;
+  }>;
+  profileContext: PreScreeningProfileContext;
+}
+
+export const generatePreScreeningAssessment = async (
+  context: PreScreeningProfileContext
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const retakeInstruction = context.isRetake
+    ? `\n\nIMPORTANT: This is a RETAKE assessment. You MUST generate entirely different scenarios, different situations, different wording, and different answer structures from any prior assessment for this candidate. The purpose is to reassess the same competencies from completely fresh angles.`
+    : "";
+
+  const system = `You are a senior hiring panel and organizational psychologist with deep expertise in talent evaluation.
+
+Your task is to generate a multiple-choice pre-screening assessment for a candidate based on their professional profile.
+
+The assessment must:
+- Contain between 5 and 10 questions — you decide the exact number based on the profile depth
+- Cover a mix of these categories: professional_competency, practical_problem_solving, communication, behavioral, cultural, leadership, emotional_intelligence
+- Be tailored specifically to this candidate's background — not generic
+- Reveal meaningful insight about the candidate's actual capability, maturity, and readiness
+- Each question must have exactly 4 options
+- Questions must feel like they were crafted by an experienced recruiter, not a quiz generator
+
+STRICT RULES:
+- Infer aggressively from the candidate's profile
+- Fabricate NEVER — do not invent credentials, employers, technologies, or experiences not supported by the profile
+- Do not repeat facts from the profile verbatim — reason about implications
+- Avoid trivially easy questions
+- Questions must range across: role-specific knowledge, real-world tradeoffs, stakeholder communication, professional judgment, workplace behavior, leadership indicators, and emotional maturity
+
+After generating all questions, perform a quality self-review. For every question, silently verify:
+1. Does this reveal meaningful information about the candidate?
+2. Is it genuinely personalized to this profile?
+3. Is it distinct from the other questions?
+4. Would a recruiter gain useful insight from the answer?
+5. Is it professionally worded and concise?
+
+Only include questions that pass all 5 checks. Regenerate any that fail.${retakeInstruction}
+
+Output a JSON object in this exact format:
+{
+  "questions": [
+    {
+      "questionId": "<uuid-v4>",
+      "question": "<the question text>",
+      "category": "<one of the 7 categories>",
+      "options": ["<option A>", "<option B>", "<option C>", "<option D>"],
+      "correctOption": <0|1|2|3>,
+      "intent": "<what this question reveals about the candidate>",
+      "scoringHint": "<what strong vs weak answers look like for someone at this experience level>"
+    }
+  ]
+}`;
+
+  const userPrompt = `Candidate Profile:
+
+Roles: ${context.roles.join(", ")}
+Experience Level: ${context.experience ?? "Not specified"}
+Bio: ${context.bio ?? "Not provided"}
+Work Type Preference: ${context.workType?.join(", ") ?? "Not specified"}
+Location: ${context.location ? `${context.location.city ?? ""} ${context.location.state ?? ""} ${context.location.country ?? ""}`.trim() : "Not specified"}
+
+CV Content:
+${context.cvContent}
+
+Generate the pre-screening assessment now.`;
+
+  const completion = await openai.chat.completions.create({
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: userPrompt },
+    ],
+    model: "gpt-4o",
+    response_format: { type: "json_object" },
+  });
+
+  return completion.choices[0];
+};
+
+export const scorePreScreeningAssessment = async (
+  context: PreScreeningScoringContext
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const system = `You are a strict, objective talent evaluator. You do not encourage, motivate, or give benefit-of-the-doubt.
+
+Your role is to score a candidate's pre-screening assessment answers against their stated professional profile.
+
+Evaluation criteria:
+- Accuracy: Did the candidate select the professionally correct answer?
+- Decision quality: Does the answer reflect sound professional judgment?
+- Consistency: Are the answers consistent with the candidate's claimed background and experience level?
+- Reasoning quality: Do the answers suggest genuine understanding or guessing?
+- Professional maturity: Do behavioral and leadership answers reflect appropriate maturity for the claimed experience?
+
+Scoring rules:
+- Use the FULL range from 0 to 100
+- Do NOT inflate scores
+- Penalise contradictions between selected answers and claimed experience
+- Penalise patterns that suggest random guessing (e.g. always selecting option A or C)
+- A candidate who selects wrong answers on professional competency questions MUST receive a noticeably lower score
+- Correct answers alone do not guarantee a high score — context and consistency matter
+
+Per-question score: 0–10
+Final score: weighted average scaled to 0–100
+
+Output a JSON object in this exact format:
+{
+  "totalScore": <number 0-100>,
+  "breakdown": [
+    {
+      "questionId": "<id>",
+      "score": <0-10>,
+      "reasoning": "<brief objective reasoning for this score>"
+    }
+  ]
+}`;
+
+  const userPrompt = `Candidate Profile:
+Roles: ${context.profileContext.roles.join(", ")}
+Experience Level: ${context.profileContext.experience ?? "Not specified"}
+Bio: ${context.profileContext.bio ?? "Not provided"}
+
+CV Content:
+${context.profileContext.cvContent}
+
+Assessment Questions and Answers:
+${JSON.stringify(context.questions, null, 2)}
+
+Score this assessment now.`;
+
+  const completion = await openai.chat.completions.create({
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: userPrompt },
+    ],
+    model: "gpt-4o-mini",
+    response_format: { type: "json_object" },
+  });
+
+  return completion.choices[0];
+};
+
 export const assessCV = async (
   input: string
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
