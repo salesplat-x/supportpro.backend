@@ -19,6 +19,7 @@ import payment from "./payment";
 import plan from "./plan";
 import subscription from "./subscription";
 import errorLogs from "./errorLogs";
+import prescreening from "./prescreening";
 
 export default (router: Router) => {
   main(router);
@@ -40,4 +41,5 @@ export default (router: Router) => {
   plan(router);
   subscription(router);
   errorLogs(router);
+  prescreening(router);
 };

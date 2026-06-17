@@ -2,6 +2,7 @@ import { Document, Types } from "mongoose";
 import { ILocation, Paging, Roles, TExperienceLevel, TWorkType } from "./customs";
 import { TCurrency } from "./plan";
 import { IRole } from "./role";
+import { IPreScreening } from "./prescreening";
 
 export interface ICvAsset {
   url: string;
@@ -51,6 +52,7 @@ export interface IProfile extends Document {
   prescreeningScore?: number;
   assessmentRetryDate?: Date;
   roleChangeCount?: number;
+  activePreScreening?: Types.ObjectId | string | IPreScreening;
   canTakeAssessment: () => boolean;
   setAssessmentRetryDate: (days?: number) => void;
   readonly profileCompletionPercentage: number;

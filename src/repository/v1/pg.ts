@@ -58,23 +58,34 @@ export const saveScoutJobEmbedding = async (
   return res.rows[0];
 };
 
-// Function to save a talent cv embedding
+// Delete all CV embedding rows for a profile before re-inserting
+export const deleteTalentEmbeddings = async (profileId: string) => {
+  await query("DELETE FROM talents WHERE profile_id = $1", [profileId]);
+};
+
+// Fetch all CV text chunks stored for a profile
+export const getCvTextByProfileId = async (profileId: string): Promise<string[]> => {
+  const res = await query("SELECT cv_text FROM talents WHERE profile_id = $1", [profileId]);
+  return res.rows.map((r: { cv_text: string }) => r.cv_text);
+};
+
+// Function to save a talent cv embedding (deletes existing rows first to prevent duplicates)
 export const saveTalentEmbedding = async (
   profileId: string,
   cvText: string[],
   cvEmbedding: OpenAI.Embeddings.Embedding[]
 ) => {
+  await deleteTalentEmbeddings(profileId);
+
   let insertionString = "INSERT INTO talents (profile_id, cv_text, cv_embedding) VALUES ";
   const values = [];
 
   for (let j = 0; j < cvEmbedding.length; j++) {
     const embedding = `[${cvEmbedding[j]?.embedding.toString()}]`;
 
-    // Calculate the positional placeholders
     const baseIndex = j * 3 + 1;
     insertionString += `($${baseIndex}, $${baseIndex + 1}, $${baseIndex + 2})`;
 
-    // Add a comma between sets of values, except for the last set
     if (j < cvEmbedding.length - 1) {
       insertionString += ", ";
     }
