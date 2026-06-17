@@ -317,6 +317,90 @@ describe("/v1/user routes", () => {
       expect(res.body.message).toBe("Role does not exist");
       expect(mockedUserRepository.findProfileByIdAndUpdate).not.toHaveBeenCalled();
     });
+
+    it("increments roleChangeCount when the role actually changes via /v1/user/me", async () => {
+      const token = authHeaderFor(buildAuthUser());
+      const ROLE_ID_2 = new mongoose.Types.ObjectId().toString();
+
+      mockedUserRepository.findUserById.mockResolvedValue({
+        _id: USER_ID,
+        userRole: Roles.Talent,
+        profile: {
+          _id: PROFILE_ID,
+          role: [{ _id: ROLE_ID, name: "Frontend Developer" }],
+          roleChangeCount: 1,
+        },
+      } as any);
+      mockedRoleRepository.findRoleById.mockResolvedValue({ _id: ROLE_ID_2 } as any);
+      mockedUserRepository.findProfileByIdAndUpdate.mockResolvedValue({ _id: PROFILE_ID } as any);
+      mockedUserRepository.findUserByIdAndUpdate.mockResolvedValue({ _id: USER_ID } as any);
+
+      const res = await request(app)
+        .patch("/v1/user/me")
+        .set("Authorization", token)
+        .send({ role: [ROLE_ID_2] });
+
+      expect(res.status).toBe(200);
+      expect(mockedUserRepository.findProfileByIdAndUpdate).toHaveBeenCalledWith(
+        PROFILE_ID,
+        expect.objectContaining({ role: [ROLE_ID_2], roleChangeCount: 2 })
+      );
+    });
+
+    it("does not increment roleChangeCount when the same roles are re-submitted via /v1/user/me", async () => {
+      const token = authHeaderFor(buildAuthUser());
+
+      mockedUserRepository.findUserById.mockResolvedValue({
+        _id: USER_ID,
+        userRole: Roles.Talent,
+        profile: {
+          _id: PROFILE_ID,
+          role: [{ _id: ROLE_ID, name: "Frontend Developer" }],
+          roleChangeCount: 1,
+        },
+      } as any);
+      mockedRoleRepository.findRoleById.mockResolvedValue({ _id: ROLE_ID } as any);
+      mockedUserRepository.findProfileByIdAndUpdate.mockResolvedValue({ _id: PROFILE_ID } as any);
+      mockedUserRepository.findUserByIdAndUpdate.mockResolvedValue({ _id: USER_ID } as any);
+
+      const res = await request(app)
+        .patch("/v1/user/me")
+        .set("Authorization", token)
+        .send({ role: [ROLE_ID] });
+
+      expect(res.status).toBe(200);
+      expect(mockedUserRepository.findProfileByIdAndUpdate).toHaveBeenCalledWith(
+        PROFILE_ID,
+        expect.not.objectContaining({ roleChangeCount: expect.anything() })
+      );
+    });
+
+    it("rejects a role change via /v1/user/me when the limit of 3 has been reached with 422", async () => {
+      const token = authHeaderFor(buildAuthUser());
+      const ROLE_ID_2 = new mongoose.Types.ObjectId().toString();
+
+      mockedUserRepository.findUserById.mockResolvedValue({
+        _id: USER_ID,
+        userRole: Roles.Talent,
+        profile: {
+          _id: PROFILE_ID,
+          role: [{ _id: ROLE_ID, name: "Frontend Developer" }],
+          roleChangeCount: 3,
+        },
+      } as any);
+      mockedRoleRepository.findRoleById.mockResolvedValue({ _id: ROLE_ID_2 } as any);
+
+      const res = await request(app)
+        .patch("/v1/user/me")
+        .set("Authorization", token)
+        .send({ role: [ROLE_ID_2] });
+
+      expect(res.status).toBe(422);
+      expect(res.body.message).toBe(
+        "Role change limit reached. You may only change your role 3 times."
+      );
+      expect(mockedUserRepository.findProfileByIdAndUpdate).not.toHaveBeenCalled();
+    });
   });
 
   describe("PATCH /v1/user/profile", () => {
@@ -386,6 +470,117 @@ describe("/v1/user routes", () => {
 
       expect(res.status).toBe(404);
       expect(res.body.message).toBe("Role does not exist");
+      expect(mockedUserRepository.findProfileByIdAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it("counts the initial role selection as the first usage (roleChangeCount: 0 → 1)", async () => {
+      const token = authHeaderFor(buildAuthUser());
+
+      mockedUserRepository.findUserById.mockResolvedValue({
+        _id: USER_ID,
+        userRole: Roles.Talent,
+        profile: { _id: PROFILE_ID, role: [], roleChangeCount: 0 },
+      } as any);
+      mockedRoleRepository.findRoleById.mockResolvedValue({ _id: ROLE_ID } as any);
+      mockedUserRepository.findProfileByIdAndUpdate.mockResolvedValue({
+        _id: PROFILE_ID,
+        roleChangeCount: 1,
+      } as any);
+
+      const res = await request(app)
+        .patch("/v1/user/profile")
+        .set("Authorization", token)
+        .send({ role: [ROLE_ID] });
+
+      expect(res.status).toBe(200);
+      expect(mockedUserRepository.findProfileByIdAndUpdate).toHaveBeenCalledWith(
+        PROFILE_ID,
+        expect.objectContaining({ role: [ROLE_ID], roleChangeCount: 1 })
+      );
+    });
+
+    it("increments roleChangeCount when the role actually changes via /v1/user/profile", async () => {
+      const token = authHeaderFor(buildAuthUser());
+      const ROLE_ID_2 = new mongoose.Types.ObjectId().toString();
+
+      mockedUserRepository.findUserById.mockResolvedValue({
+        _id: USER_ID,
+        userRole: Roles.Talent,
+        profile: {
+          _id: PROFILE_ID,
+          role: [{ _id: ROLE_ID, name: "Frontend Developer" }],
+          roleChangeCount: 2,
+        },
+      } as any);
+      mockedRoleRepository.findRoleById.mockResolvedValue({ _id: ROLE_ID_2 } as any);
+      mockedUserRepository.findProfileByIdAndUpdate.mockResolvedValue({
+        _id: PROFILE_ID,
+        roleChangeCount: 3,
+      } as any);
+
+      const res = await request(app)
+        .patch("/v1/user/profile")
+        .set("Authorization", token)
+        .send({ role: [ROLE_ID_2] });
+
+      expect(res.status).toBe(200);
+      expect(mockedUserRepository.findProfileByIdAndUpdate).toHaveBeenCalledWith(
+        PROFILE_ID,
+        expect.objectContaining({ role: [ROLE_ID_2], roleChangeCount: 3 })
+      );
+    });
+
+    it("does not increment roleChangeCount when the same roles are re-submitted via /v1/user/profile", async () => {
+      const token = authHeaderFor(buildAuthUser());
+
+      mockedUserRepository.findUserById.mockResolvedValue({
+        _id: USER_ID,
+        userRole: Roles.Talent,
+        profile: {
+          _id: PROFILE_ID,
+          role: [{ _id: ROLE_ID, name: "Frontend Developer" }],
+          roleChangeCount: 2,
+        },
+      } as any);
+      mockedRoleRepository.findRoleById.mockResolvedValue({ _id: ROLE_ID } as any);
+      mockedUserRepository.findProfileByIdAndUpdate.mockResolvedValue({ _id: PROFILE_ID } as any);
+
+      const res = await request(app)
+        .patch("/v1/user/profile")
+        .set("Authorization", token)
+        .send({ role: [ROLE_ID] });
+
+      expect(res.status).toBe(200);
+      expect(mockedUserRepository.findProfileByIdAndUpdate).toHaveBeenCalledWith(
+        PROFILE_ID,
+        expect.not.objectContaining({ roleChangeCount: expect.anything() })
+      );
+    });
+
+    it("rejects a role change via /v1/user/profile when the limit of 3 has been reached with 422", async () => {
+      const token = authHeaderFor(buildAuthUser());
+      const ROLE_ID_2 = new mongoose.Types.ObjectId().toString();
+
+      mockedUserRepository.findUserById.mockResolvedValue({
+        _id: USER_ID,
+        userRole: Roles.Talent,
+        profile: {
+          _id: PROFILE_ID,
+          role: [{ _id: ROLE_ID, name: "Frontend Developer" }],
+          roleChangeCount: 3,
+        },
+      } as any);
+      mockedRoleRepository.findRoleById.mockResolvedValue({ _id: ROLE_ID_2 } as any);
+
+      const res = await request(app)
+        .patch("/v1/user/profile")
+        .set("Authorization", token)
+        .send({ role: [ROLE_ID_2] });
+
+      expect(res.status).toBe(422);
+      expect(res.body.message).toBe(
+        "Role change limit reached. You may only change your role 3 times."
+      );
       expect(mockedUserRepository.findProfileByIdAndUpdate).not.toHaveBeenCalled();
     });
 

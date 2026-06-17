@@ -50,6 +50,7 @@ export interface IProfile extends Document {
   minSalary?: number;
   prescreeningScore?: number;
   assessmentRetryDate?: Date;
+  roleChangeCount?: number;
   canTakeAssessment: () => boolean;
   setAssessmentRetryDate: (days?: number) => void;
   readonly profileCompletionPercentage: number;

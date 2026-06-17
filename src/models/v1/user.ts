@@ -151,6 +151,11 @@ const profileSchema = new Schema<IProfile>(
       // select: false,
     },
     assessmentRetryDate: Date,
+    roleChangeCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
   {
     toJSON: { virtuals: true },

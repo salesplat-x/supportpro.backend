@@ -26,6 +26,19 @@ const ensureTalentProfile = async (
   return updated ?? user;
 };
 
+const ROLE_CHANGE_LIMIT = 3;
+
+// Returns true when the incoming role selection differs from the currently persisted one.
+const rolesChanged = (
+  existingRoles: IProfile["role"],
+  incomingRoles: IProfile["role"]
+): boolean => {
+  const toId = (r: any): string => (r?._id ?? r).toString();
+  const existing = [...existingRoles].map(toId).sort();
+  const incoming = [...incomingRoles].map(toId).sort();
+  return JSON.stringify(existing) !== JSON.stringify(incoming);
+};
+
 // Validates that every id in a profile's role list refers to an existing role.
 const validateProfileRoles = async (roles: IProfile["role"]): Promise<MakeResponse | null> => {
   for (const role of roles) {
@@ -117,6 +130,18 @@ export const updateUser = async (
       if (roleError) {
         return roleError;
       }
+      if (rolesChanged(existingProfile.role, profileUpdate.role)) {
+        const currentCount = existingProfile.roleChangeCount ?? 0;
+        if (currentCount >= ROLE_CHANGE_LIMIT) {
+          return makeResponse(
+            false,
+            "Role change limit reached. You may only change your role 3 times.",
+            {},
+            422
+          );
+        }
+        profileUpdate.roleChangeCount = currentCount + 1;
+      }
     }
 
     await userRepository.findProfileByIdAndUpdate(existingProfile._id, profileUpdate);
@@ -146,15 +171,27 @@ export const editProfile = async (
   }
   existingUser = await ensureTalentProfile(existingUser);
 
+  const existingProfile = existingUser.profile as IProfile;
+  const update: Partial<IProfile> = { ...payload };
+
   if (payload.role) {
     const roleError = await validateProfileRoles(payload.role);
     if (roleError) {
       return roleError;
     }
+    if (rolesChanged(existingProfile.role, payload.role)) {
+      const currentCount = existingProfile.roleChangeCount ?? 0;
+      if (currentCount >= ROLE_CHANGE_LIMIT) {
+        return makeResponse(
+          false,
+          "Role change limit reached. You may only change your role 3 times.",
+          {},
+          422
+        );
+      }
+      update.roleChangeCount = currentCount + 1;
+    }
   }
-
-  const existingProfile = existingUser.profile as IProfile;
-  const update: Partial<IProfile> = { ...payload };
 
   if (file) {
     if (!ALLOWED_CV_TYPES.includes(file.mimetype)) {
