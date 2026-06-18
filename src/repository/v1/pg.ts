@@ -239,18 +239,6 @@ export const setupPostgresDB = async () => {
   try {
     await client.query("CREATE SCHEMA IF NOT EXISTS public;");
     await client.query("SET search_path TO public;");
-
-    try {
-      await client.query("CREATE EXTENSION IF NOT EXISTS vector;");
-    } catch (extError) {
-      logger.logErrorMessage(
-        "pgvector extension could not be created — enable it manually in your Postgres dashboard"
-      );
-      logger.logErrorToConsole(extError as Error);
-    }
-
-    await client.query("SET search_path TO public;");
-
     await client.query("CREATE EXTENSION IF NOT EXISTS vector;");
 
     await client.query(`
