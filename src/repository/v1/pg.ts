@@ -253,11 +253,10 @@ export const setupPostgresDB = async () => {
 
     try {
       await client.query("CREATE EXTENSION IF NOT EXISTS vector;");
-    } catch (extError) {
-      logger.logErrorMessage(
-        "pgvector extension could not be created — enable it manually in your Postgres dashboard"
+    } catch {
+      throw new Error(
+        "pgvector extension is not available. Enable it from your Postgres provider dashboard before deploying."
       );
-      logger.logErrorToConsole(extError as Error);
     }
 
     await client.query(`
