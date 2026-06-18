@@ -237,6 +237,18 @@ export const saveCvBatch = async (
 export const setupPostgresDB = async () => {
   const client = await pool.connect();
   try {
+    await client.query("CREATE SCHEMA IF NOT EXISTS public;");
+    await client.query("SET search_path TO public;");
+
+    try {
+      await client.query("CREATE EXTENSION IF NOT EXISTS vector;");
+    } catch (extError) {
+      logger.logErrorMessage(
+        "pgvector extension could not be created — enable it manually in your Postgres dashboard"
+      );
+      logger.logErrorToConsole(extError as Error);
+    }
+
     await client.query("SET search_path TO public;");
 
     try {
