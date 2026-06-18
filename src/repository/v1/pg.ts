@@ -238,9 +238,8 @@ export const setupPostgresDB = async () => {
   try {
     const client = await pool.connect();
 
-    await client.query("SET search_path TO public;");
     // Enable pgvector extension
-    await client.query("CREATE EXTENSION IF NOT EXISTS vector;");
+    await client.query("CREATE EXTENSION IF NOT EXISTS vector SCHEMA public;");
     // Create jobs table
     await client.query(`
       CREATE TABLE IF NOT EXISTS jobs (
