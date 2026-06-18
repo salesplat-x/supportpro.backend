@@ -1,4 +1,19 @@
 services:
+  app:
+    image: salesplat/supportpro-backend:latest
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file:
+      - .env
+    environment:
+      - PG_HOST=postgres
+      - DB_URI=mongodb://mongo:27017/${MONGO_DB:-supportpro}
+    depends_on:
+      - mongo
+      - postgres
+
   mongo:
     image: mongo:7
     restart: unless-stopped
