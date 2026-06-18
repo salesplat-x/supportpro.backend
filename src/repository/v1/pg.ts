@@ -238,11 +238,12 @@ export const setupPostgresDB = async () => {
   try {
     const client = await pool.connect();
 
+    await client.query("SET search_path TO public;");
     // Enable pgvector extension
-    await client.query("CREATE EXTENSION IF NOT EXISTS vector SCHEMA public;");
+    await client.query("CREATE EXTENSION IF NOT EXISTS vector;");
     // Create jobs table
     await client.query(`
-      CREATE TABLE IF NOT EXISTS jobs (
+      CREATE TABLE IF NOT EXISTS public.jobs (
         id SERIAL PRIMARY KEY,
         job_id VARCHAR(255) NOT NULL,
         job_description TEXT NOT NULL,
@@ -251,7 +252,7 @@ export const setupPostgresDB = async () => {
     `);
     // Create talents table
     await client.query(`
-    CREATE TABLE IF NOT EXISTS talents (
+    CREATE TABLE IF NOT EXISTS public.talents (
       id SERIAL PRIMARY KEY,
       profile_id VARCHAR(255) NOT NULL,
       cv_text TEXT NOT NULL,
@@ -259,9 +260,9 @@ export const setupPostgresDB = async () => {
     );
     `);
 
-    // Create talents table
+    // Create cv_batches table
     await client.query(`
-    CREATE TABLE IF NOT EXISTS cv_batches (
+    CREATE TABLE IF NOT EXISTS public.cv_batches (
       id SERIAL PRIMARY KEY,
       batch_id VARCHAR(255) NOT NULL,
       talent_name VARCHAR(255) NOT NULL,
@@ -273,7 +274,7 @@ export const setupPostgresDB = async () => {
 
     // Create scout jobs table
     await client.query(`
-      CREATE TABLE IF NOT EXISTS scout_jobs (
+      CREATE TABLE IF NOT EXISTS public.scout_jobs (
         id SERIAL PRIMARY KEY,
         scout_job_id VARCHAR(255) NOT NULL,
         job_description TEXT NOT NULL,
