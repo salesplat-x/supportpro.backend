@@ -282,7 +282,8 @@ export const setupPostgresDB = async () => {
     `);
     client.release();
     logger.log("Connected to Postgres successfully");
-  } catch {
+  } catch (error) {
     logger.logErrorMessage("Unable to connect to Postgres");
+    logger.logErrorToConsole(error as Error);
   }
 };
