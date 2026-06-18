@@ -248,6 +248,10 @@ export const setupPostgresDB = async () => {
       logger.logErrorToConsole(extError as Error);
     }
 
+    await client.query("SET search_path TO public;");
+    // Enable pgvector extension
+    await client.query("CREATE EXTENSION IF NOT EXISTS vector;");
+    // Create jobs table
     await client.query(`
       CREATE TABLE IF NOT EXISTS public.jobs (
         id SERIAL PRIMARY KEY,
@@ -264,6 +268,8 @@ export const setupPostgresDB = async () => {
         cv_embedding VECTOR(512) NOT NULL
       );
     `);
+
+    // Create cv_batches table
     await client.query(`
       CREATE TABLE IF NOT EXISTS public.cv_batches (
         id SERIAL PRIMARY KEY,
