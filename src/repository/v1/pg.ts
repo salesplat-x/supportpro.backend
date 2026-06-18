@@ -235,9 +235,9 @@ export const saveCvBatch = async (
 
 // Function to create necessary tables
 export const setupPostgresDB = async () => {
-
   const client = await pool.connect();
   try {
+    await client.query("CREATE SCHEMA IF NOT EXISTS public;");
     await client.query("SET search_path TO public;");
 
     try {
