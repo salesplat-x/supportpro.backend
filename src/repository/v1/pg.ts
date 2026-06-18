@@ -235,55 +235,59 @@ export const saveCvBatch = async (
 
 // Function to create necessary tables
 export const setupPostgresDB = async () => {
+  const client = await pool.connect();
   try {
-    const client = await pool.connect();
+    await client.query("SET search_path TO public;");
 
-    // Enable pgvector extension
-    await client.query("CREATE EXTENSION IF NOT EXISTS vector SCHEMA public;");
-    // Create jobs table
+    try {
+      await client.query("CREATE EXTENSION IF NOT EXISTS vector;");
+    } catch (extError) {
+      logger.logErrorMessage(
+        "pgvector extension could not be created — enable it manually in your Postgres dashboard"
+      );
+      logger.logErrorToConsole(extError as Error);
+    }
+
     await client.query(`
-      CREATE TABLE IF NOT EXISTS jobs (
+      CREATE TABLE IF NOT EXISTS public.jobs (
         id SERIAL PRIMARY KEY,
         job_id VARCHAR(255) NOT NULL,
         job_description TEXT NOT NULL,
         job_embedding VECTOR(512) NOT NULL
       );
     `);
-    // Create talents table
     await client.query(`
-    CREATE TABLE IF NOT EXISTS talents (
-      id SERIAL PRIMARY KEY,
-      profile_id VARCHAR(255) NOT NULL,
-      cv_text TEXT NOT NULL,
-      cv_embedding VECTOR(512) NOT NULL
-    );
+      CREATE TABLE IF NOT EXISTS public.talents (
+        id SERIAL PRIMARY KEY,
+        profile_id VARCHAR(255) NOT NULL,
+        cv_text TEXT NOT NULL,
+        cv_embedding VECTOR(512) NOT NULL
+      );
     `);
-
-    // Create talents table
     await client.query(`
-    CREATE TABLE IF NOT EXISTS cv_batches (
-      id SERIAL PRIMARY KEY,
-      batch_id VARCHAR(255) NOT NULL,
-      talent_name VARCHAR(255) NOT NULL,
-      cv_text TEXT NOT NULL,
-      cover_letter_text TEXT NOT NULL,
-      combined_embedding VECTOR(512) NOT NULL
-    );
+      CREATE TABLE IF NOT EXISTS public.cv_batches (
+        id SERIAL PRIMARY KEY,
+        batch_id VARCHAR(255) NOT NULL,
+        talent_name VARCHAR(255) NOT NULL,
+        cv_text TEXT NOT NULL,
+        cover_letter_text TEXT NOT NULL,
+        combined_embedding VECTOR(512) NOT NULL
+      );
     `);
-
-    // Create scout jobs table
     await client.query(`
-      CREATE TABLE IF NOT EXISTS scout_jobs (
+      CREATE TABLE IF NOT EXISTS public.scout_jobs (
         id SERIAL PRIMARY KEY,
         scout_job_id VARCHAR(255) NOT NULL,
         job_description TEXT NOT NULL,
         job_embedding VECTOR(512) NOT NULL
       );
     `);
-    client.release();
+
     logger.log("Connected to Postgres successfully");
   } catch (error) {
     logger.logErrorMessage("Unable to connect to Postgres");
     logger.logErrorToConsole(error as Error);
+  } finally {
+    client.release();
   }
 };
