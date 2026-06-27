@@ -62,9 +62,12 @@ const jobSchema = new Schema<IJob>(
     //   required: true,
     // },
     workMode: {
-      enum: WorkMode,
-      type: String,
+      type: [{ type: String, enum: Object.values(WorkMode) }],
       required: true,
+    },
+    currency: {
+      type: String,
+      required: false,
     },
     requirements: {
       type: String,

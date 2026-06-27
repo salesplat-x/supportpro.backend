@@ -16,7 +16,8 @@ export interface IJob {
   experienceLevel: TExperienceLevel;
   location: ILocation;
   //address?: string;
-  workMode: TWorkMode;
+  workMode: TWorkMode[];
+  currency?: string;
   status: TJobStatus;
   requirements?: string;
   skills?: Types.Array<string>;
@@ -29,7 +30,7 @@ export interface FetchJobs extends Paging {
   city?: string;
   state?: string;
   country?: string;
-  workMode?: TWorkMode;
+  workMode?: string;
   experienceLevel?: TExperienceLevel;
   roleId?: string;
   status?: TJobStatus;

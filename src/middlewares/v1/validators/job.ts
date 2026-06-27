@@ -19,9 +19,11 @@ export const job = Joi.object({
       state: Joi.string().required(),
       country: Joi.string().required(),
     }).optional(),
-    workMode: Joi.string()
-      .valid(...Object.values(WorkMode))
-      .optional(),
+    workMode: Joi.array()
+      .items(Joi.string().valid(...Object.values(WorkMode)))
+      .min(1)
+      .required(),
+    currency: Joi.string().optional(),
     requirements: Joi.string().optional(),
     skills: Joi.array().items(Joi.string()).optional(),
     goals: Joi.array().items(Joi.string()).optional(),
@@ -50,9 +52,11 @@ export const updateJob = Joi.object({
       state: Joi.string().required(),
       country: Joi.string().required(),
     }).optional(),
-    workMode: Joi.string()
-      .valid(...Object.values(WorkMode))
+    workMode: Joi.array()
+      .items(Joi.string().valid(...Object.values(WorkMode)))
+      .min(1)
       .optional(),
+    currency: Joi.string().optional(),
     requirements: Joi.string().optional(),
     skills: Joi.array().items(Joi.string()).optional(),
     goals: Joi.array().items(Joi.string()).optional(),
@@ -120,9 +124,7 @@ export const jobQuery = Joi.object({
       .optional(),
     maxSalary: Joi.number().max(100000000).min(0).optional(),
     minSalary: Joi.number().max(100000000).min(0).optional(),
-    workMode: Joi.string()
-      .valid(...Object.values(WorkMode))
-      .optional(),
+    workMode: Joi.string().optional(),
   }),
 }).required();
 

@@ -178,7 +178,7 @@ export const fetchAllJobs = async (payload: FetchJobs) => {
         return makeResponse(false, `Invalid workMode: '${mode}'`, {}, 400);
       }
     }
-    query.workMode = workModes;
+    query.workMode = { $in: workModes };
   }
   const jobs = await jobRepository.findAllJobs(query, payload);
   return makeResponse(true, "Jobs fetched successfully", jobs, 200);
