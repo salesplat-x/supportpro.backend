@@ -9,6 +9,7 @@ module.exports = {
   transform: {
     "^.+\\.tsx?$": ["ts-jest", { tsconfig: "tsconfig.jest.json" }],
   },
+  workerThreads: false,
   extensionsToTreatAsEsm: [],
   // Map .js imports to .ts sources — required for NodeNext module resolution
   moduleNameMapper: {
