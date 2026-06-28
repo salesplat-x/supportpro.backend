@@ -1,4 +1,4 @@
-import { NotFoundError, ValidationError } from "../utils/errors/index.js";
+import { ValidationError } from "../utils/errors/index.js";
 import { handleUpload } from "../utils/integrations/cloudinary.js";
 import { handleFilename } from "../utils/text.js";
 

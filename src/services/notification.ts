@@ -3,9 +3,7 @@ import { Notification } from "../entities/Notification.js";
 import { NotFoundError, AuthorizationError } from "../utils/errors/index.js";
 import { sortDirection } from "../utils/text.js";
 
-function notificationRepo() {
-  return AppDataSource.getRepository(Notification);
-}
+const notificationRepo = () => AppDataSource.getRepository(Notification);
 
 export interface PagingParams {
   limit?: number | string;

@@ -3,13 +3,9 @@ import { Conversation } from "../entities/Conversation.js";
 import { Message } from "../entities/Message.js";
 import { NotFoundError, AuthorizationError } from "../utils/errors/index.js";
 
-function conversationRepo() {
-  return AppDataSource.getRepository(Conversation);
-}
+const conversationRepo = () => AppDataSource.getRepository(Conversation);
 
-function messageRepo() {
-  return AppDataSource.getRepository(Message);
-}
+const messageRepo = () => AppDataSource.getRepository(Message);
 
 export const getConversations = async (userId: string): Promise<Conversation[]> => {
   return conversationRepo()

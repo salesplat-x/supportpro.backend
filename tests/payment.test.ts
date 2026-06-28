@@ -11,7 +11,7 @@ import {
   clearAllTables,
   testDataSource,
 } from "./helpers/db.js";
-import { createTalent, createRecruiter, createPlan, createPayment } from "./helpers/fixtures.js";
+import { createTalent, createPlan, createPayment } from "./helpers/fixtures.js";
 import { Payment } from "../src/entities/Payment.js";
 import { Subscription } from "../src/entities/Subscription.js";
 import { PaymentStatus } from "../src/types/enums.js";

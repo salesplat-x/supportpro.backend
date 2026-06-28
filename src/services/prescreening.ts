@@ -13,17 +13,11 @@ import {
 import { getProfileCompletion } from "./user.js";
 import logger from "../utils/logger.js";
 
-function preScreeningRepo() {
-  return AppDataSource.getRepository(PreScreening);
-}
+const preScreeningRepo = () => AppDataSource.getRepository(PreScreening);
 
-function userRepo() {
-  return AppDataSource.getRepository(User);
-}
+const userRepo = () => AppDataSource.getRepository(User);
 
-function roleRepo() {
-  return AppDataSource.getRepository(Role);
-}
+const roleRepo = () => AppDataSource.getRepository(Role);
 
 export interface IGeneratedQuestion {
   questionId: string;
@@ -50,7 +44,7 @@ const stripSensitiveFields = (
     options,
   }));
 
-async function validateRoles(user: User): Promise<{ valid: boolean; names: string[] }> {
+const validateRoles = async (user: User): Promise<{ valid: boolean; names: string[] }> => {
   const roles = user.userRoles ?? [];
   const names: string[] = [];
   for (const roleRef of roles) {
@@ -59,7 +53,7 @@ async function validateRoles(user: User): Promise<{ valid: boolean; names: strin
     names.push(role.name);
   }
   return { valid: true, names };
-}
+};
 
 export const generatePreScreeningForUser = async (
   user: User,

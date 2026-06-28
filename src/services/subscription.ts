@@ -12,13 +12,9 @@ import {
   ISubConfig,
 } from "../utils/integrations/paystack.js";
 
-function subscriptionRepo() {
-  return AppDataSource.getRepository(Subscription);
-}
+const subscriptionRepo = () => AppDataSource.getRepository(Subscription);
 
-function planRepo() {
-  return AppDataSource.getRepository(Plan);
-}
+const planRepo = () => AppDataSource.getRepository(Plan);
 
 export const fetchAll = async (): Promise<Subscription[]> => {
   return subscriptionRepo().find({ relations: { user: true, plan: true } });
@@ -178,7 +174,7 @@ export const createSubscription = async (
         }
 
         throw new NotFoundError("No existing subscription found on Paystack");
-      } catch (fetchError) {
+      } catch {
         throw new ValidationError("Error fetching existing subscription from Paystack");
       }
     }

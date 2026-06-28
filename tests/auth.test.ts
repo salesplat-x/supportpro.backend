@@ -6,7 +6,6 @@ import {
   clearAllTables,
   testDataSource,
 } from "./helpers/db.js";
-import EmailService from "../src/utils/integrations/email/index.js";
 import { User } from "../src/entities/User.js";
 import { UserRole } from "../src/types/enums.js";
 import { generateHashedPassword } from "../src/utils/crypto.js";

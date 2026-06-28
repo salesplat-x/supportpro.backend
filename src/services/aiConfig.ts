@@ -4,13 +4,9 @@ import { Job } from "../entities/Job.js";
 import { NotFoundError, ConflictError, AuthorizationError } from "../utils/errors/index.js";
 import { UserRole, ScreeningStage } from "../types/enums.js";
 
-function aiConfigRepo() {
-  return AppDataSource.getRepository(AIConfig);
-}
+const aiConfigRepo = () => AppDataSource.getRepository(AIConfig);
 
-function jobRepo() {
-  return AppDataSource.getRepository(Job);
-}
+const jobRepo = () => AppDataSource.getRepository(Job);
 
 export interface AIConfigPayload {
   name?: string | null;
@@ -28,7 +24,7 @@ export interface AIConfigPayload {
 }
 
 // Build stages object based on recruiter selections (mirrors Mongoose createStages)
-export function createStages(config: AIConfigPayload): Record<string, string> {
+export const createStages = (config: AIConfigPayload): Record<string, string> => {
   const stages: Record<string, string> = {};
   let currentStage: string = ScreeningStage.Prescreening;
 
@@ -47,7 +43,7 @@ export function createStages(config: AIConfigPayload): Record<string, string> {
   stages[currentStage] = ScreeningStage.Completed;
 
   return stages;
-}
+};
 
 export const createAIConfig = async (
   userId: string,

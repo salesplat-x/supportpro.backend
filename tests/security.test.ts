@@ -20,17 +20,8 @@ import {
   clearAllTables,
   testDataSource,
 } from "./helpers/db.js";
-import {
-  createTalent,
-  createRecruiter,
-  createAdmin,
-  createSuperadmin,
-  createJob,
-  createRole,
-  createPayment,
-} from "./helpers/fixtures.js";
+import { createTalent, createRecruiter, createAdmin, createPayment } from "./helpers/fixtures.js";
 import { User } from "../src/entities/User.js";
-import { UserRole } from "../src/types/enums.js";
 import { generateHashedPassword, signToken } from "../src/utils/crypto.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
@@ -100,7 +91,7 @@ describe("Unauthenticated access returns 401", () => {
     it(`${method} ${path} → 401 without token`, async () => {
       const agent = request(app);
       const lm = method.toLowerCase() as keyof typeof agent;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       const res = await (agent[lm] as any)(path);
       expect(res.status).toBe(401);
     });
@@ -281,7 +272,7 @@ describe("Token invalidation after logout", () => {
 
 describe("Token invalidation after password change", () => {
   it("Old token is rejected after password change", async () => {
-    const { user, token } = await createTalent();
+    const { user } = await createTalent();
 
     // Patch password directly in DB so we know it
     const newHash = await generateHashedPassword("OldPass1!");

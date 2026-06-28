@@ -17,29 +17,17 @@ import {
 import { createEmbedding } from "../utils/integrations/openai.js";
 import { convertSimilarityToPercentage, preprocessText, sortDirection } from "../utils/text.js";
 
-function jobRepo() {
-  return AppDataSource.getRepository(Job);
-}
+const jobRepo = () => AppDataSource.getRepository(Job);
 
-function roleRepo() {
-  return AppDataSource.getRepository(Role);
-}
+const roleRepo = () => AppDataSource.getRepository(Role);
 
-function aiConfigRepo() {
-  return AppDataSource.getRepository(AIConfig);
-}
+const aiConfigRepo = () => AppDataSource.getRepository(AIConfig);
 
-function applicationRepo() {
-  return AppDataSource.getRepository(Application);
-}
+const applicationRepo = () => AppDataSource.getRepository(Application);
 
-function userRepo() {
-  return AppDataSource.getRepository(User);
-}
+const userRepo = () => AppDataSource.getRepository(User);
 
-function notificationRepo() {
-  return AppDataSource.getRepository(Notification);
-}
+const notificationRepo = () => AppDataSource.getRepository(Notification);
 
 export interface CreateJobPayload {
   role?: string;
@@ -516,11 +504,11 @@ export const gradeCv = async (
   return { cvSimilarityScore, application };
 };
 
-function getAssessmentRetryDate(days = 7): Date {
+const getAssessmentRetryDate = (days = 7): Date => {
   const d = new Date();
   d.setDate(d.getDate() + days);
   return d;
-}
+};
 
 export interface JobApplicationsParams {
   jobId: string;

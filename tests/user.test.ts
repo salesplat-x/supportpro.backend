@@ -12,12 +12,10 @@ import { UserRole } from "../src/types/enums.js";
 import { generateHashedPassword, signToken } from "../src/utils/crypto.js";
 
 jest.mock("../src/utils/integrations/cloudinary.js", () => ({
-  uploadBuffer: jest
-    .fn()
-    .mockResolvedValue({
-      url: "https://res.cloudinary.com/test/image.jpg",
-      publicId: "test/image",
-    }),
+  uploadBuffer: jest.fn().mockResolvedValue({
+    url: "https://res.cloudinary.com/test/image.jpg",
+    publicId: "test/image",
+  }),
   replaceAsset: jest
     .fn()
     .mockResolvedValue({ url: "https://res.cloudinary.com/test/new.jpg", publicId: "test/new" }),

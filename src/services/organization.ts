@@ -2,13 +2,9 @@ import { AppDataSource } from "../database/dataSource.js";
 import { Organization } from "../entities/Organization.js";
 import { ConflictError, ValidationError } from "../utils/errors/index.js";
 
-function orgRepo() {
-  return AppDataSource.getRepository(Organization);
-}
+const orgRepo = () => AppDataSource.getRepository(Organization);
 
-function validateEmail(email: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
+const validateEmail = (email: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 export interface OrganizationPayload {
   name: string;

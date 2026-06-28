@@ -18,9 +18,7 @@ import {
 } from "../utils/errors/index.js";
 import logger from "../utils/logger.js";
 
-function userRepo(): Repository<User> {
-  return AppDataSource.getRepository(User);
-}
+const userRepo = (): Repository<User> => AppDataSource.getRepository(User);
 
 export const createUser = async (
   payload: {

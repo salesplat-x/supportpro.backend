@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction, RequestHandler } from "express";
 import { AppDataSource } from "../database/dataSource.js";
-import { User } from "../entities/User.js";
+import { User } from "../entities";
 import { UserRole } from "../types/enums.js";
 import { decodeToken } from "../utils/crypto.js";
 
@@ -37,33 +37,27 @@ async function resolveUser(req: Request, res: Response): Promise<User | null> {
       .getOne();
 
     if (!user) {
-      res
-        .status(401)
-        .json({
-          success: false,
-          error: { code: "AUTHENTICATION_ERROR", message: "Login required" },
-        });
+      res.status(401).json({
+        success: false,
+        error: { code: "AUTHENTICATION_ERROR", message: "Login required" },
+      });
       return null;
     }
     if (!user.active) {
-      res
-        .status(403)
-        .json({
-          success: false,
-          error: {
-            code: "AUTHORIZATION_ERROR",
-            message: "Account deactivated, contact support to reactivate",
-          },
-        });
+      res.status(403).json({
+        success: false,
+        error: {
+          code: "AUTHORIZATION_ERROR",
+          message: "Account deactivated, contact support to reactivate",
+        },
+      });
       return null;
     }
     if (user.tokenVersion !== payload.tokenVersion) {
-      res
-        .status(401)
-        .json({
-          success: false,
-          error: { code: "AUTHENTICATION_ERROR", message: "Login required" },
-        });
+      res.status(401).json({
+        success: false,
+        error: { code: "AUTHENTICATION_ERROR", message: "Login required" },
+      });
       return null;
     }
     return user;
@@ -91,15 +85,13 @@ export const validateAccess = (roles: UserRole[]): RequestHandler => {
     const user = await resolveUser(req, res);
     if (!user) return;
     if (!roles.includes(user.userRole)) {
-      res
-        .status(403)
-        .json({
-          success: false,
-          error: {
-            code: "AUTHORIZATION_ERROR",
-            message: "You are not authorized to perform this action",
-          },
-        });
+      res.status(403).json({
+        success: false,
+        error: {
+          code: "AUTHORIZATION_ERROR",
+          message: "You are not authorized to perform this action",
+        },
+      });
       return;
     }
     req.user = user;
@@ -126,15 +118,13 @@ export const requireCompletedProfile: RequestHandler = async (
   }
   const canProceed = !!(req.user.cvUrl && req.user.userRoles?.length);
   if (!canProceed) {
-    res
-      .status(403)
-      .json({
-        success: false,
-        error: {
-          code: "PROFILE_INCOMPLETE",
-          message: "Please complete your profile before proceeding",
-        },
-      });
+    res.status(403).json({
+      success: false,
+      error: {
+        code: "PROFILE_INCOMPLETE",
+        message: "Please complete your profile before proceeding",
+      },
+    });
     return;
   }
   next();

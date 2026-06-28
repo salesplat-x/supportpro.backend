@@ -10,25 +10,15 @@ import { QuestionType, JobStatus, ApplicationStatus, ScreeningStage } from "../t
 import { calculateTimeLeft } from "../utils/text.js";
 import * as AI from "../utils/integrations/openai.js";
 
-function answerRepo() {
-  return AppDataSource.getRepository(Answer);
-}
+const answerRepo = () => AppDataSource.getRepository(Answer);
 
-function questionRepo() {
-  return AppDataSource.getRepository(Question);
-}
+const questionRepo = () => AppDataSource.getRepository(Question);
 
-function applicationRepo() {
-  return AppDataSource.getRepository(Application);
-}
+const applicationRepo = () => AppDataSource.getRepository(Application);
 
-function jobRepo() {
-  return AppDataSource.getRepository(Job);
-}
+const jobRepo = () => AppDataSource.getRepository(Job);
 
-function userRepo() {
-  return AppDataSource.getRepository(User);
-}
+const userRepo = () => AppDataSource.getRepository(User);
 
 interface IResponse {
   questionId: string;
@@ -37,18 +27,18 @@ interface IResponse {
   dichotomyPreference?: string;
 }
 
-function canTakeAssessment(assessmentRetryDate: Date | null): boolean {
+const canTakeAssessment = (assessmentRetryDate: Date | null): boolean => {
   if (!assessmentRetryDate) return true;
   return new Date() >= assessmentRetryDate;
-}
+};
 
-function getAssessmentRetryDate(days = 7): Date {
+const getAssessmentRetryDate = (days = 7): Date => {
   const d = new Date();
   d.setDate(d.getDate() + days);
   return d;
-}
+};
 
-async function saveOrUpdateAnswer(
+const saveOrUpdateAnswer = async (
   filter: {
     userId: string;
     roleId?: string | null;
@@ -56,7 +46,7 @@ async function saveOrUpdateAnswer(
     questionType: QuestionType;
   },
   responses: IResponse[]
-): Promise<Answer> {
+): Promise<Answer> => {
   const answer = await answerRepo().findOne({
     where: {
       userId: filter.userId,
@@ -79,13 +69,13 @@ async function saveOrUpdateAnswer(
     responses,
   });
   return answerRepo().save(newAnswer);
-}
+};
 
-async function processNextStage(
+const processNextStage = async (
   talent: User,
   application: Application,
   stage: ScreeningStage
-): Promise<Application> {
+): Promise<Application> => {
   const stages = application.stages ?? {};
   const nextStage = stages[stage];
 
@@ -104,9 +94,9 @@ async function processNextStage(
   }
 
   return application;
-}
+};
 
-async function rankApplication(talent: User, application: Application): Promise<void> {
+const rankApplication = async (talent: User, application: Application): Promise<void> => {
   const prescreeningScore = talent.prescreeningScore ?? undefined;
   const scores = [
     application.cvSimilarityScore,
@@ -125,7 +115,7 @@ async function rankApplication(talent: User, application: Application): Promise<
     })) + 1;
 
   application.rank = newRank;
-}
+};
 
 export interface AnswerPrescreeningPayload {
   roleId: string;

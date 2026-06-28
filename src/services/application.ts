@@ -5,13 +5,9 @@ import { NotFoundError, AuthorizationError } from "../utils/errors/index.js";
 import { UserRole, ApplicationType, ApplicationStatus, ScreeningStage } from "../types/enums.js";
 import { sortDirection } from "../utils/text.js";
 
-function applicationRepo() {
-  return AppDataSource.getRepository(Application);
-}
+const applicationRepo = () => AppDataSource.getRepository(Application);
 
-function scoutRepo() {
-  return AppDataSource.getRepository(Scout);
-}
+const scoutRepo = () => AppDataSource.getRepository(Scout);
 
 export interface FetchApplicationsParams {
   applicationType?: ApplicationType;

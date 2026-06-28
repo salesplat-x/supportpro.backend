@@ -2,12 +2,11 @@ import { Router } from "express";
 import * as user from "../controllers/user.js";
 import { validate } from "../middleware/validate.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
-import { loginRequired, validateAccess, requireCompletedProfile } from "../middleware/auth.js";
+import { loginRequired, validateAccess } from "../middleware/auth.js";
 import { memoryUpload } from "../middleware/multer.js";
 import { UserRole } from "../types/enums.js";
 import {
   updateUserValidator,
-  updateProfileValidator,
   userProfilesQueryValidator,
   userApplicationsQueryValidator,
   userIdParamValidator,

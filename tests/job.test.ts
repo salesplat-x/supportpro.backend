@@ -25,7 +25,6 @@ jest.mock("../src/utils/integrations/email/emailService.js", () => ({
 }));
 
 let app: ReturnType<typeof createApp>;
-let recruiterToken: string;
 
 async function createRecruiter(): Promise<{ user: User; token: string }> {
   const user = testDataSource.getRepository(User).create({

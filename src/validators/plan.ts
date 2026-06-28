@@ -1,6 +1,5 @@
 import { body, param, query } from "express-validator";
 import { BillingInterval, Currency } from "../types/enums.js";
-import { idParam } from "./shared.js";
 
 export const createPlanValidator = [
   body("name").notEmpty().trim().withMessage("Plan name is required"),

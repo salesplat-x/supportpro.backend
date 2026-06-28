@@ -25,12 +25,7 @@ import {
 import { TalentEmbedding } from "../src/entities/TalentEmbedding.js";
 import { Application } from "../src/entities/Application.js";
 import { Job } from "../src/entities/Job.js";
-import {
-  ApplicationStatus,
-  ApplicationType,
-  QuestionType,
-  ScreeningStage,
-} from "../src/types/enums.js";
+import { ApplicationStatus, QuestionType, ScreeningStage } from "../src/types/enums.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
   __esModule: true,
@@ -367,9 +362,8 @@ describe("POST /v1/questions/personality — generate personality question", () 
 describe("POST /v1/questions/answer/prescreening — submit prescreening answers", () => {
   it("Talent submits valid answers for their role → 200, scorePercent returned", async () => {
     const role = await createRole();
-    const { user: talent, token: talentToken } = await createCompleteTalent(role);
+    const { token: talentToken } = await createCompleteTalent(role);
 
-    // Create questions for the role
     const q1 = await createQuestion(QuestionType.Prescreening, { roleId: role.id });
 
     const answers: Record<string, string> = { [q1.id]: "TypeScript is my primary language" };

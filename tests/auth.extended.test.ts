@@ -258,14 +258,12 @@ describe("POST /v1/auth/register — edge cases", () => {
       })
       .expect(201);
 
-    const res = await request(app)
-      .post("/v1/auth/register")
-      .send({
-        email: "CASETEST@EXAMPLE.COM",
-        firstName: "C",
-        lastName: "D",
-        password: PLAIN_PASSWORD,
-      });
+    const res = await request(app).post("/v1/auth/register").send({
+      email: "CASETEST@EXAMPLE.COM",
+      firstName: "C",
+      lastName: "D",
+      password: PLAIN_PASSWORD,
+    });
     expect(res.status).toBe(409);
   });
 });
@@ -286,14 +284,12 @@ describe("POST /v1/auth/register/recruiter — edge cases", () => {
       })
       .expect(201);
 
-    const res = await request(app)
-      .post("/v1/auth/register/recruiter")
-      .send({
-        email: "recruiter_dup@example.com",
-        firstName: "R",
-        lastName: "E",
-        password: PLAIN_PASSWORD,
-      });
+    const res = await request(app).post("/v1/auth/register/recruiter").send({
+      email: "recruiter_dup@example.com",
+      firstName: "R",
+      lastName: "E",
+      password: PLAIN_PASSWORD,
+    });
     expect(res.status).toBe(409);
   });
 });

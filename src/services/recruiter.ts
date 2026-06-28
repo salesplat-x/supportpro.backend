@@ -4,13 +4,9 @@ import { Job } from "../entities/Job.js";
 import { NotFoundError, AuthorizationError } from "../utils/errors/index.js";
 import { ApplicationType, ApplicationStatus, ScreeningStage } from "../types/enums.js";
 
-function applicationRepo() {
-  return AppDataSource.getRepository(Application);
-}
+const applicationRepo = () => AppDataSource.getRepository(Application);
 
-function jobRepo() {
-  return AppDataSource.getRepository(Job);
-}
+const jobRepo = () => AppDataSource.getRepository(Job);
 
 export interface RecruiterDashboardResult {
   campaignCount: number;

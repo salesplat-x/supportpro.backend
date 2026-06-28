@@ -4,13 +4,9 @@ import { Question } from "../entities/Question.js";
 import { NotFoundError, ConflictError } from "../utils/errors/index.js";
 import { sortDirection } from "../utils/text.js";
 
-function roleRepo() {
-  return AppDataSource.getRepository(Role);
-}
+const roleRepo = () => AppDataSource.getRepository(Role);
 
-function questionRepo() {
-  return AppDataSource.getRepository(Question);
-}
+const questionRepo = () => AppDataSource.getRepository(Question);
 
 export interface RolePayload {
   name: string;

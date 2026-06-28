@@ -5,13 +5,9 @@ import { NotFoundError, AuthorizationError, ValidationError } from "../utils/err
 import { createEmbedding } from "../utils/integrations/openai.js";
 import { preprocessText } from "../utils/text.js";
 
-function scoutJobRepo() {
-  return AppDataSource.getRepository(ScoutJob);
-}
+const scoutJobRepo = () => AppDataSource.getRepository(ScoutJob);
 
-function roleRepo() {
-  return AppDataSource.getRepository(Role);
-}
+const roleRepo = () => AppDataSource.getRepository(Role);
 
 export interface CreateScoutJobPayload {
   roleId: string;

@@ -13,7 +13,6 @@ import {
 import {
   createTalent,
   createRecruiter,
-  createAdmin,
   createRole,
   createJob,
   createAIConfig,
@@ -21,7 +20,7 @@ import {
 } from "./helpers/fixtures.js";
 import { Application } from "../src/entities/Application.js";
 import { Job } from "../src/entities/Job.js";
-import { ApplicationStatus, ApplicationType, ScreeningStage } from "../src/types/enums.js";
+import { ApplicationStatus, ScreeningStage } from "../src/types/enums.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
   __esModule: true,
@@ -265,21 +264,11 @@ describe("PATCH /v1/applications/:_id/status — update status (Recruiter only)"
 
 describe("PATCH /v1/jobs/applications/:jobId — apply for job", () => {
   it("Talent with passing prescreening score applies successfully → 201", async () => {
-    const { user: talent, token: talentToken } = await createTalent({ prescreeningScore: 75 });
+    const { token: talentToken } = await createTalent({ prescreeningScore: 75 });
     const { user: recruiter } = await createRecruiter();
     const role = await createRole();
     const job = await createJob(recruiter, role);
-    await createAIConfig(recruiter, {
-      minPrescreeningScore: 60,
-      stages: {
-        prescreening: "cv_similarity",
-        cv_similarity: "personalized",
-        personalized: "personality",
-        personality: "completed",
-      },
-    });
 
-    // Link aiConfig to job
     const aiConfig = await createAIConfig(recruiter, { minPrescreeningScore: 60 });
     await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
 
@@ -379,38 +368,31 @@ describe("ISSUE-005: Application rank is sequential not score-based", () => {
     const role = await createRole();
     const job = await createJob(recruiter, role);
 
-    // Create 3 completed applications with different average scores
-    const app1 = await createApplication(await (await createTalent()).user, job, {
+    await createApplication(await (await createTalent()).user, job, {
       averageScore: 95,
       currentStage: ScreeningStage.Completed,
       status: ApplicationStatus.Shortlisted,
       rank: 1,
     });
-    const app2 = await createApplication(await (await createTalent()).user, job, {
+    await createApplication(await (await createTalent()).user, job, {
       averageScore: 40,
       currentStage: ScreeningStage.Completed,
       status: ApplicationStatus.Shortlisted,
       rank: 2,
     });
-    const app3 = await createApplication(await (await createTalent()).user, job, {
+    await createApplication(await (await createTalent()).user, job, {
       averageScore: 70,
       currentStage: ScreeningStage.Completed,
       status: ApplicationStatus.Shortlisted,
       rank: 3,
     });
 
-    // ISSUE-005: rank was assigned as count+1 in order of completion.
-    // So app with score=95 gets rank=1, score=40 gets rank=2, score=70 gets rank=3.
-    // This is WRONG: rank=1 should belong to the highest score (95), rank=3 to lowest (40).
+    // ISSUE-005: ranks are sequential by insertion order, not by averageScore.
     const loaded = await testDataSource.getRepository(Application).find({
       where: { jobId: job.id },
       order: { rank: "ASC" },
     });
 
-    // The best-scoring application (95) has rank=1 — coincidentally correct only if it was first
-    // The 40-score application has rank=2 — documents ISSUE-005: rank is not score-based
-    const rankedIds = loaded.map((a) => a.id);
-    // Just verify the data — don't assert specific order as this documents the current (buggy) behavior
     expect(loaded.length).toBe(3);
     expect(loaded.every((a) => a.rank !== null)).toBe(true);
   });

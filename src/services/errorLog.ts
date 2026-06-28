@@ -6,9 +6,7 @@ import logger from "../utils/logger.js";
 import env from "../config/env.js";
 import { v4 as uuidv4 } from "uuid";
 
-function errorLogRepo() {
-  return AppDataSource.getRepository(ErrorLog);
-}
+const errorLogRepo = () => AppDataSource.getRepository(ErrorLog);
 
 export interface ErrorLogData {
   message: string;

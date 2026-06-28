@@ -1,4 +1,4 @@
-import { body, param } from "express-validator";
+import { body } from "express-validator";
 import { paginationRules, idParam } from "./shared.js";
 
 export const createRoleValidator = [

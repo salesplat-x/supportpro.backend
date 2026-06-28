@@ -9,21 +9,13 @@ import { extractText, preprocessText, convertSimilarityToPercentage } from "../u
 import * as AI from "../utils/integrations/openai.js";
 import { v4 as uuidv4 } from "uuid";
 
-function scoutRepo() {
-  return AppDataSource.getRepository(Scout);
-}
+const scoutRepo = () => AppDataSource.getRepository(Scout);
 
-function scoutJobRepo() {
-  return AppDataSource.getRepository(ScoutJob);
-}
+const scoutJobRepo = () => AppDataSource.getRepository(ScoutJob);
 
-function userRepo() {
-  return AppDataSource.getRepository(User);
-}
+const userRepo = () => AppDataSource.getRepository(User);
 
-function roleRepo() {
-  return AppDataSource.getRepository(Role);
-}
+const roleRepo = () => AppDataSource.getRepository(Role);
 
 export interface ScoutTalentsParams {
   scoutJobId: string;

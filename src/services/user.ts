@@ -1,9 +1,6 @@
 import { AppDataSource } from "../database/dataSource.js";
-import { User } from "../entities/User.js";
-import { Role } from "../entities/Role.js";
-import { Application } from "../entities/Application.js";
-import { TalentEmbedding } from "../entities/TalentEmbedding.js";
-import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors/index.js";
+import { Application, Role, TalentEmbedding, User } from "../entities";
+import { NotFoundError, ValidationError } from "../utils/errors";
 import logger from "../utils/logger.js";
 import { UserRole, ApplicationStatus, ApplicationType } from "../types/enums.js";
 import { replaceAsset, extractPublicIdFromUrl } from "../utils/integrations/cloudinary.js";
@@ -31,29 +28,19 @@ const CLOUDINARY_FOLDERS = {
 
 const ROLE_CHANGE_LIMIT = 3;
 
-function userRepo() {
-  return AppDataSource.getRepository(User);
-}
-
-function roleRepo() {
-  return AppDataSource.getRepository(Role);
-}
-
-function applicationRepo() {
-  return AppDataSource.getRepository(Application);
-}
-
-function talentEmbeddingRepo() {
-  return AppDataSource.getRepository(TalentEmbedding);
-}
+const userRepo = () => AppDataSource.getRepository(User);
+const roleRepo = () => AppDataSource.getRepository(Role);
+const applicationRepo = () => AppDataSource.getRepository(Application);
 
 // ---- Profile completion helpers ----
 
-export function getProfileCompletion(user: User): {
+export const getProfileCompletion = (
+  user: User
+): {
   percentage: number;
   isProfileComplete: boolean;
   canProceedToPlatform: boolean;
-} {
+} => {
   const fields = [
     !!user.bio,
     !!user.cvUrl,
@@ -68,21 +55,9 @@ export function getProfileCompletion(user: User): {
   const isProfileComplete = percentage === 100;
   const canProceedToPlatform = !!(user.cvUrl && user.userRoles?.length);
   return { percentage, isProfileComplete, canProceedToPlatform };
-}
+};
 
-export function canTakeAssessment(assessmentRetryDate: Date | null): boolean {
-  if (!assessmentRetryDate) return true;
-  return new Date() >= assessmentRetryDate;
-}
-
-export function getAssessmentRetryDate(days = 7): Date {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d;
-}
-
-// Validate that role IDs exist in the DB
-async function validateAndFetchRoles(roleIds: string[]): Promise<Role[]> {
+const validateAndFetchRoles = async (roleIds: string[]): Promise<Role[]> => {
   const roles: Role[] = [];
   for (const id of roleIds) {
     const role = await roleRepo().findOne({ where: { id } });
@@ -92,14 +67,13 @@ async function validateAndFetchRoles(roleIds: string[]): Promise<Role[]> {
     roles.push(role);
   }
   return roles;
-}
+};
 
-// Returns true when the incoming role IDs differ from the currently persisted ones
-function rolesChanged(existingRoles: Role[], incomingIds: string[]): boolean {
+const rolesChanged = (existingRoles: Role[], incomingIds: string[]): boolean => {
   const existing = existingRoles.map((r) => r.id).sort();
   const incoming = [...incomingIds].sort();
   return JSON.stringify(existing) !== JSON.stringify(incoming);
-}
+};
 
 export interface UpdateUserPayload {
   firstName?: string;
@@ -286,27 +260,25 @@ export const editProfile = async (
   return saved;
 };
 
-// Save talent CV embedding using the TalentEmbedding TypeORM entity
-async function saveTalentEmbedding(
+const saveTalentEmbedding = async (
   userId: string,
   cvText: string[],
   cvEmbedding: Array<{ embedding: number[] }>
-): Promise<void> {
+): Promise<void> => {
   const repo = AppDataSource.getRepository(TalentEmbedding);
-  // Delete existing rows for this user first
   await repo.delete({ userId });
-
   for (let j = 0; j < cvEmbedding.length; j++) {
     const embeddingStr = `[${cvEmbedding[j]!.embedding.toString()}]`;
-    const record = repo.create({
-      userId,
-      cvText: cvText[j] ?? null,
-      cvEmbedding: embeddingStr,
-      generatedAt: new Date(),
-    });
-    await repo.save(record);
+    await repo.save(
+      repo.create({
+        userId,
+        cvText: cvText[j] ?? null,
+        cvEmbedding: embeddingStr,
+        generatedAt: new Date(),
+      })
+    );
   }
-}
+};
 
 export const me = async (userId: string): Promise<User> => {
   const user = await userRepo().findOne({

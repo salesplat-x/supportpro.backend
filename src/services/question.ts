@@ -1,41 +1,19 @@
 import { AppDataSource } from "../database/dataSource.js";
-import { Question } from "../entities/Question.js";
-import { Role } from "../entities/Role.js";
-import { Job } from "../entities/Job.js";
-import { Application } from "../entities/Application.js";
-import { User } from "../entities/User.js";
-import { TalentEmbedding } from "../entities/TalentEmbedding.js";
-import { NotFoundError, ValidationError, AuthorizationError } from "../utils/errors/index.js";
-import { QuestionType, JobStatus, ApplicationStatus, ScreeningStage } from "../types/enums.js";
+import { Application, Job, Question, Role, TalentEmbedding, User } from "../entities";
+import { NotFoundError, ValidationError, AuthorizationError } from "../utils/errors";
+import { QuestionType, JobStatus } from "../types/enums.js";
 import { calculateTimeLeft, sortDirection } from "../utils/text.js";
 import * as AI from "../utils/integrations/openai.js";
 
-function questionRepo() {
-  return AppDataSource.getRepository(Question);
-}
+const questionRepo = () => AppDataSource.getRepository(Question);
+const roleRepo = () => AppDataSource.getRepository(Role);
+const jobRepo = () => AppDataSource.getRepository(Job);
+const applicationRepo = () => AppDataSource.getRepository(Application);
 
-function roleRepo() {
-  return AppDataSource.getRepository(Role);
-}
-
-function jobRepo() {
-  return AppDataSource.getRepository(Job);
-}
-
-function applicationRepo() {
-  return AppDataSource.getRepository(Application);
-}
-
-function canTakeAssessment(assessmentRetryDate: Date | null): boolean {
+const canTakeAssessment = (assessmentRetryDate: Date | null): boolean => {
   if (!assessmentRetryDate) return true;
   return new Date() >= assessmentRetryDate;
-}
-
-function getAssessmentRetryDate(days = 7): Date {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d;
-}
+};
 
 export interface QuestionPayload {
   roleId?: string | null;
@@ -189,7 +167,6 @@ export const generatePersonalizedQuestions = async (
     throw new ValidationError("This feature was not configured for this job");
   }
 
-  // Check if user already has personalized questions
   let application = await applicationRepo().findOne({
     where: { jobId, talentId },
   });
@@ -202,14 +179,12 @@ export const generatePersonalizedQuestions = async (
     return { questions, application };
   }
 
-  // Get job from entity
   const jobEntity = await jobRepo().findOne({ where: { id: jobId } });
   if (!jobEntity) {
     throw new NotFoundError("Job not found in embedding store");
   }
   const jobDescription = jobEntity.jobBrief;
 
-  // Get talent CV texts from TalentEmbedding entity
   const talentEmbeddings = await AppDataSource.getRepository(TalentEmbedding).find({
     where: { userId: talentId },
     select: { cvText: true },
@@ -219,7 +194,6 @@ export const generatePersonalizedQuestions = async (
   }
   const cv = talentEmbeddings.map((r) => r.cvText ?? "");
 
-  // Get talent bio
   const talent = await AppDataSource.getRepository(User).findOne({ where: { id: talentId } });
   const bio = talent?.bio ?? "";
 
@@ -236,7 +210,6 @@ export const generatePersonalizedQuestions = async (
 
   const questions: string[] = JSON.parse(response.message.content).questions;
 
-  // Save questions
   const questionEntities = questions.map((q) =>
     questionRepo().create({
       type: QuestionType.Personalized,
@@ -247,7 +220,6 @@ export const generatePersonalizedQuestions = async (
   const savedQuestions = await questionRepo().save(questionEntities);
   const questionIds = savedQuestions.map((q) => q.id);
 
-  // Create or update application
   if (application) {
     application.personalizedQuestions = questionIds;
     application = await applicationRepo().save(application);
@@ -262,7 +234,6 @@ export const generatePersonalizedQuestions = async (
         personalizedQuestions: questionIds,
       })
     );
-    // Increment noOfApplicants
     await jobRepo().save({ ...existingJob, noOfApplicants: existingJob.noOfApplicants + 1 });
   }
 
@@ -293,7 +264,6 @@ export const generatePersonalityQuestion = async (
   }
   const questionText: string = JSON.parse(response.message.content).question;
 
-  // Create or update personality evaluation question for this job + dichotomy
   const existing = await questionRepo().findOne({
     where: { jobId, type: QuestionType.Personality, criteria: dichotomyPair },
   });

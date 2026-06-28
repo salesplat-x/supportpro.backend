@@ -1,4 +1,4 @@
-import { body, query, param } from "express-validator";
+import { body, query } from "express-validator";
 import { paginationRules, idParam } from "./shared.js";
 import { QuestionType } from "../types/enums.js";
 

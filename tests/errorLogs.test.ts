@@ -8,12 +8,7 @@
 
 import request from "supertest";
 import { createApp } from "../src/app.js";
-import {
-  startTestDatabase,
-  stopTestDatabase,
-  clearAllTables,
-  testDataSource,
-} from "./helpers/db.js";
+import { startTestDatabase, stopTestDatabase, clearAllTables } from "./helpers/db.js";
 import {
   createTalent,
   createRecruiter,

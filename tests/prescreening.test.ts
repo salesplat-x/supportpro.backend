@@ -17,7 +17,6 @@ import {
   createPreScreening,
 } from "./helpers/fixtures.js";
 import { PreScreening } from "../src/entities/PreScreening.js";
-import { User } from "../src/entities/User.js";
 import { PreScreeningStatus } from "../src/types/enums.js";
 import { TalentEmbedding } from "../src/entities/TalentEmbedding.js";
 
@@ -111,12 +110,8 @@ describe("GET /v1/prescreening/ — get or generate prescreening", () => {
   });
 
   it("Talent without complete profile → 404 (auto-generation blocked)", async () => {
-    const { token } = await createCompleteTalent(); // no role → not truly complete
-    // Override: create talent without roles
-    const { user: poorTalent, token: poorToken } = await (async () => {
-      const { createTalent } = await import("./helpers/fixtures.js");
-      return createTalent({ cvUrl: null }); // no CV
-    })();
+    const { createTalent } = await import("./helpers/fixtures.js");
+    const { token: poorToken } = await createTalent({ cvUrl: null });
 
     const res = await request(app)
       .get("/v1/prescreening/")

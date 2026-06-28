@@ -1,17 +1,15 @@
 import { AppDataSource } from "../database/dataSource.js";
-import { Plan } from "../entities/Plan.js";
-import { NotFoundError, ConflictError, ValidationError } from "../utils/errors/index.js";
+import { Plan } from "../entities";
+import { ConflictError, NotFoundError } from "../utils/errors";
 import {
-  generatePlanObject,
   createPlan as paystackCreatePlan,
-  updatePlan as paystackUpdatePlan,
+  generatePlanObject,
   IPlanUpdateConfig,
+  updatePlan as paystackUpdatePlan,
 } from "../utils/integrations/paystack.js";
 import { BillingInterval, Currency } from "../types/enums.js";
 
-function planRepo() {
-  return AppDataSource.getRepository(Plan);
-}
+const planRepo = () => AppDataSource.getRepository(Plan);
 
 export interface PlanPayload {
   name: string;
@@ -91,8 +89,7 @@ export const update = async (
   const planCode = plan.paystackPlanCode ?? "";
   await paystackUpdatePlan(planCode, payload);
 
-  const updated = await planRepo().save({ ...plan, ...(payload as Partial<Plan>) });
-  return updated;
+  return await planRepo().save({ ...plan, ...(payload as Partial<Plan>) });
 };
 
 export const deleteItem = async (planId: string): Promise<void> => {

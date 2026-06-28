@@ -16,21 +16,13 @@ import {
 import { createSubscription, hasRunningSubscription } from "./subscription.js";
 import { generateReference } from "../utils/crypto.js";
 
-function paymentRepo() {
-  return AppDataSource.getRepository(Payment);
-}
+const paymentRepo = () => AppDataSource.getRepository(Payment);
 
-function planRepo() {
-  return AppDataSource.getRepository(Plan);
-}
+const planRepo = () => AppDataSource.getRepository(Plan);
 
-function subscriptionRepo() {
-  return AppDataSource.getRepository(Subscription);
-}
+const subscriptionRepo = () => AppDataSource.getRepository(Subscription);
 
-function userRepo() {
-  return AppDataSource.getRepository(User);
-}
+const userRepo = () => AppDataSource.getRepository(User);
 
 export const paymentRecords = async (userId: string): Promise<Payment[]> => {
   return paymentRepo().find({
