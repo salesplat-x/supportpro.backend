@@ -1,0 +1,48 @@
+import { Router } from "express";
+
+import { baseEndpoint } from "../controllers/main.js";
+import authRoutes from "./auth.js";
+import userRoutes from "./user.js";
+import jobRoutes from "./job.js";
+import roleRoutes from "./role.js";
+import questionRoutes from "./question.js";
+import applicationRoutes from "./application.js";
+import messageRoutes from "./message.js";
+import conversationRoutes from "./conversation.js";
+import notificationRoutes from "./notification.js";
+import organizationRoutes from "./organization.js";
+import aiConfigRoutes from "./aiConfig.js";
+import paymentRoutes from "./payment.js";
+import planRoutes from "./plan.js";
+import subscriptionRoutes from "./subscription.js";
+import scoutRoutes from "./scout.js";
+import recruiterRoutes from "./recruiter.js";
+import uploadRoutes from "./upload.js";
+import errorLogRoutes from "./errorLog.js";
+import prescreeningRoutes from "./prescreening.js";
+
+const v1Router = Router();
+
+v1Router.get("/", baseEndpoint);
+
+authRoutes(v1Router);
+userRoutes(v1Router);
+jobRoutes(v1Router);
+roleRoutes(v1Router);
+questionRoutes(v1Router);
+applicationRoutes(v1Router);
+messageRoutes(v1Router);
+conversationRoutes(v1Router);
+notificationRoutes(v1Router);
+organizationRoutes(v1Router);
+aiConfigRoutes(v1Router);
+paymentRoutes(v1Router);
+planRoutes(v1Router);
+subscriptionRoutes(v1Router);
+scoutRoutes(v1Router);
+recruiterRoutes(v1Router);
+uploadRoutes(v1Router);
+errorLogRoutes(v1Router);
+prescreeningRoutes(v1Router);
+
+export default v1Router;
