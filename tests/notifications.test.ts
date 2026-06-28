@@ -5,8 +5,18 @@
 
 import request from "supertest";
 import { createApp } from "../src/app.js";
-import { startTestDatabase, stopTestDatabase, clearAllTables, testDataSource } from "./helpers/db.js";
-import { createTalent, createRecruiter, createNotification, createConversationWithMessage } from "./helpers/fixtures.js";
+import {
+  startTestDatabase,
+  stopTestDatabase,
+  clearAllTables,
+  testDataSource,
+} from "./helpers/db.js";
+import {
+  createTalent,
+  createRecruiter,
+  createNotification,
+  createConversationWithMessage,
+} from "./helpers/fixtures.js";
 import { Notification } from "../src/entities/Notification.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
@@ -122,7 +132,9 @@ describe("GET /v1/notifications/:id — single notification", () => {
 
     expect(res.status).toBe(200);
 
-    const updated = await testDataSource.getRepository(Notification).findOne({ where: { id: n.id } });
+    const updated = await testDataSource
+      .getRepository(Notification)
+      .findOne({ where: { id: n.id } });
     expect(updated!.isRead).toBe(true);
   });
 
@@ -160,7 +172,9 @@ describe("DELETE /v1/notifications/:id — soft-delete", () => {
       .set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(200);
 
-    const updated = await testDataSource.getRepository(Notification).findOne({ where: { id: n.id } });
+    const updated = await testDataSource
+      .getRepository(Notification)
+      .findOne({ where: { id: n.id } });
     expect(updated!.deleted).toBe(true);
   });
 
@@ -187,9 +201,7 @@ describe("DELETE /v1/notifications/:id — soft-delete", () => {
     const { user, token } = await createTalent();
     const n = await createNotification(user, { message: "Will be deleted" });
 
-    await request(app)
-      .delete(`/v1/notifications/${n.id}`)
-      .set("Authorization", `Bearer ${token}`);
+    await request(app).delete(`/v1/notifications/${n.id}`).set("Authorization", `Bearer ${token}`);
 
     const listRes = await request(app)
       .get("/v1/notifications/")

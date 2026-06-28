@@ -5,7 +5,12 @@
 
 import request from "supertest";
 import { createApp } from "../src/app.js";
-import { startTestDatabase, stopTestDatabase, clearAllTables, testDataSource } from "./helpers/db.js";
+import {
+  startTestDatabase,
+  stopTestDatabase,
+  clearAllTables,
+  testDataSource,
+} from "./helpers/db.js";
 import {
   createTalent,
   createCompleteTalent,
@@ -20,7 +25,12 @@ import {
 import { TalentEmbedding } from "../src/entities/TalentEmbedding.js";
 import { Application } from "../src/entities/Application.js";
 import { Job } from "../src/entities/Job.js";
-import { ApplicationStatus, ApplicationType, QuestionType, ScreeningStage } from "../src/types/enums.js";
+import {
+  ApplicationStatus,
+  ApplicationType,
+  QuestionType,
+  ScreeningStage,
+} from "../src/types/enums.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
   __esModule: true,
@@ -35,7 +45,9 @@ jest.mock("../src/utils/integrations/openai.js", () => ({
     message: { content: JSON.stringify({ questions: ["Q1?", "Q2?"] }) },
   }),
   getPersonalityEvaluationQuestion: jest.fn().mockResolvedValue({
-    message: { content: JSON.stringify({ question: "Are you E or I?", options: ["Extrovert", "Introvert"] }) },
+    message: {
+      content: JSON.stringify({ question: "Are you E or I?", options: ["Extrovert", "Introvert"] }),
+    },
   }),
   gradeAssessmentAnswers: jest.fn().mockImplementation((_questionsJSON: string) => {
     const questions = JSON.parse(_questionsJSON);
@@ -127,7 +139,14 @@ describe("POST /v1/questions/ — create question", () => {
     const res = await request(app)
       .post("/v1/questions/")
       .set("Authorization", `Bearer ${token}`)
-      .send({ role: role.id, roleId: role.id, type: QuestionType.Prescreening, question: "Q?", category: "cat", criteria: "crit" });
+      .send({
+        role: role.id,
+        roleId: role.id,
+        type: QuestionType.Prescreening,
+        question: "Q?",
+        category: "cat",
+        criteria: "crit",
+      });
     expect(res.status).toBe(403);
   });
 
@@ -136,7 +155,13 @@ describe("POST /v1/questions/ — create question", () => {
     const res = await request(app)
       .post("/v1/questions/")
       .set("Authorization", `Bearer ${token}`)
-      .send({ role: "any", type: QuestionType.Prescreening, question: "Q?", category: "cat", criteria: "crit" });
+      .send({
+        role: "any",
+        type: QuestionType.Prescreening,
+        question: "Q?",
+        category: "cat",
+        criteria: "crit",
+      });
     expect(res.status).toBe(403);
   });
 
@@ -150,7 +175,12 @@ describe("POST /v1/questions/ — create question", () => {
     const res = await request(app)
       .post("/v1/questions/")
       .set("Authorization", `Bearer ${token}`)
-      .send({ role: "some-role", type: QuestionType.Prescreening, category: "cat", criteria: "crit" });
+      .send({
+        role: "some-role",
+        type: QuestionType.Prescreening,
+        category: "cat",
+        criteria: "crit",
+      });
     expect(res.status).toBe(400);
   });
 });
@@ -187,18 +217,14 @@ describe("GET /v1/questions/ — fetch questions", () => {
   });
 
   it("Unauthenticated → 401", async () => {
-    const res = await request(app)
-      .get("/v1/questions/")
-      .query({ questionType: "prescreening" });
+    const res = await request(app).get("/v1/questions/").query({ questionType: "prescreening" });
     expect(res.status).toBe(401);
   });
 
   it("Missing questionType → 400", async () => {
     const role = await createRole();
     const { token } = await createCompleteTalent(role);
-    const res = await request(app)
-      .get("/v1/questions/")
-      .set("Authorization", `Bearer ${token}`);
+    const res = await request(app).get("/v1/questions/").set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(400);
   });
 });
@@ -236,8 +262,7 @@ describe("POST /v1/questions/personalized — generate personalized questions", 
       personalizedAssessment: true,
       noPersonalizedQuestions: 2,
     });
-    await testDataSource.getRepository(Job)
-      .update(job.id, { aiConfigId: aiConfig.id });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
 
     const { user: talent } = await createTalent();
 
@@ -278,8 +303,7 @@ describe("POST /v1/questions/personalized — generate personalized questions", 
     const role = await createRole();
     const job = await createJob(recruiter, role);
     const aiConfig = await createAIConfig(recruiter, { personalizedAssessment: false });
-    await testDataSource.getRepository(Job)
-      .update(job.id, { aiConfigId: aiConfig.id });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
     const { user: talent } = await createTalent();
 
     const res = await request(app)
@@ -307,8 +331,7 @@ describe("POST /v1/questions/personality — generate personality question", () 
     const role = await createRole();
     const job = await createJob(recruiter, role);
     const aiConfig = await createAIConfig(recruiter, { personalityEvaluation: true });
-    await testDataSource.getRepository(Job)
-      .update(job.id, { aiConfigId: aiConfig.id });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
 
     const res = await request(app)
       .post("/v1/questions/personality")
@@ -426,8 +449,7 @@ describe("POST /v1/questions/answer/personalized — ISSUE-004 and ISSUE-009", (
       minPrescreeningScore: 60,
       stages: { prescreening: "personalized", personalized: "completed" },
     });
-    await testDataSource.getRepository(Job)
-      .update(job.id, { aiConfigId: aiConfig.id });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
 
     const { user: talent, token: talentToken } = await createTalent({ prescreeningScore: 75 });
     await createApplication(talent, job, {
@@ -438,7 +460,11 @@ describe("POST /v1/questions/answer/personalized — ISSUE-004 and ISSUE-009", (
     const q1 = await createQuestion(QuestionType.Personalized, { jobId: job.id });
 
     // Configure mock to match the question being sent
-    const gradePersonalizedAnswers = (jest.requireMock("../src/utils/integrations/openai.js") as { gradePersonalizedAnswers: jest.Mock }).gradePersonalizedAnswers;
+    const gradePersonalizedAnswers = (
+      jest.requireMock("../src/utils/integrations/openai.js") as {
+        gradePersonalizedAnswers: jest.Mock;
+      }
+    ).gradePersonalizedAnswers;
     gradePersonalizedAnswers.mockResolvedValueOnce({
       message: {
         content: JSON.stringify({
@@ -461,8 +487,7 @@ describe("POST /v1/questions/answer/personalized — ISSUE-004 and ISSUE-009", (
     const role = await createRole();
     const job = await createJob(recruiter, role);
     const aiConfig = await createAIConfig(recruiter, { personalizedAssessment: true });
-    await testDataSource.getRepository(Job)
-      .update(job.id, { aiConfigId: aiConfig.id });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
 
     const { user: talent, token: talentToken } = await createTalent({ prescreeningScore: 75 });
     await createApplication(talent, job);
@@ -472,7 +497,11 @@ describe("POST /v1/questions/answer/personalized — ISSUE-004 and ISSUE-009", (
     const q2 = await createQuestion(QuestionType.Personalized, { jobId: job.id });
 
     // Mock AI to return 2 responses (matching the 2 real questions)
-    const gradePersonalizedAnswers = (jest.requireMock("../src/utils/integrations/openai.js") as { gradePersonalizedAnswers: jest.Mock }).gradePersonalizedAnswers;
+    const gradePersonalizedAnswers = (
+      jest.requireMock("../src/utils/integrations/openai.js") as {
+        gradePersonalizedAnswers: jest.Mock;
+      }
+    ).gradePersonalizedAnswers;
     gradePersonalizedAnswers.mockResolvedValueOnce({
       message: {
         content: JSON.stringify({
@@ -513,8 +542,7 @@ describe("POST /v1/questions/answer/personalized — ISSUE-004 and ISSUE-009", (
       minPrescreeningScore: 90, // This SHOULD only gate prescreening, not personalized (ISSUE-009)
       stages: { prescreening: "personalized", personalized: "completed" },
     });
-    await testDataSource.getRepository(Job)
-      .update(job.id, { aiConfigId: aiConfig.id });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
 
     const { user: talent, token: talentToken } = await createTalent({ prescreeningScore: 95 }); // passes prescreening
     await createApplication(talent, job, {
@@ -525,7 +553,11 @@ describe("POST /v1/questions/answer/personalized — ISSUE-004 and ISSUE-009", (
     const q1 = await createQuestion(QuestionType.Personalized, { jobId: job.id });
 
     // Mock AI to return low score (e.g., 40% = 2/5)
-    const gradePersonalizedAnswers = (jest.requireMock("../src/utils/integrations/openai.js") as { gradePersonalizedAnswers: jest.Mock }).gradePersonalizedAnswers;
+    const gradePersonalizedAnswers = (
+      jest.requireMock("../src/utils/integrations/openai.js") as {
+        gradePersonalizedAnswers: jest.Mock;
+      }
+    ).gradePersonalizedAnswers;
     gradePersonalizedAnswers.mockResolvedValueOnce({
       message: {
         content: JSON.stringify({
@@ -564,8 +596,7 @@ describe("POST /v1/questions/answer/personality — evaluate personality type", 
       personalityEvaluation: true,
       stages: { personality: "completed" },
     });
-    await testDataSource.getRepository(Job)
-      .update(job.id, { aiConfigId: aiConfig.id });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
 
     const { user: talent, token: talentToken } = await createTalent({ prescreeningScore: 75 });
     await createApplication(talent, job, {
@@ -603,8 +634,7 @@ describe("POST /v1/questions/answer/personality — evaluate personality type", 
     const role = await createRole();
     const job = await createJob(recruiter, role);
     const aiConfig = await createAIConfig(recruiter, { personalityEvaluation: true });
-    await testDataSource.getRepository(Job)
-      .update(job.id, { aiConfigId: aiConfig.id });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
 
     const { user: talent, token: talentToken } = await createTalent();
     await createApplication(talent, job);

@@ -96,8 +96,7 @@ export function sortDirection(direction: string): "ASC" | "DESC" {
 
 export function handleFilename(filename: string): { name: string; ext: string | undefined } {
   const parts = filename.split(".");
-  const oldName =
-    parts.length > 1 ? parts.slice(0, parts.length - 1).join("_") : filename;
+  const oldName = parts.length > 1 ? parts.slice(0, parts.length - 1).join("_") : filename;
   const name = oldName.replace(/ /g, "-") + "_" + Date.now().toString();
   return { name, ext: parts.pop() };
 }
@@ -106,7 +105,9 @@ export function renderTemplateString(template: string, data: Record<string, unkn
   return template.replace(/{{([^}]+)}}/g, (_, key: string) => String(data[key] ?? ""));
 }
 
-export function extractAttachments(attachments: string[]): Array<{ filename: string; path: string }> {
+export function extractAttachments(
+  attachments: string[]
+): Array<{ filename: string; path: string }> {
   return attachments.map((attachment) => ({
     filename: path.basename(attachment),
     path: attachment,

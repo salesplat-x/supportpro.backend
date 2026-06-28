@@ -13,7 +13,10 @@ export const broadcastMessage = async (req: Request, res: Response) => {
 };
 
 export const acknowledge = async (req: Request, res: Response) => {
-  const result = await messageService.acknowledge(req.user.id, { id: req.params["id"]!, ...req.body });
+  const result = await messageService.acknowledge(req.user.id, {
+    id: req.params["id"]!,
+    ...req.body,
+  });
   sendSuccessResponse(res, "Message acknowledged", { message: result });
 };
 

@@ -4,7 +4,6 @@ import { User } from "../entities/User.js";
 import { UserRole } from "../types/enums.js";
 import { decodeToken } from "../utils/crypto.js";
 
-
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
@@ -17,12 +16,16 @@ declare global {
 async function resolveUser(req: Request, res: Response): Promise<User | null> {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
-    res.status(401).json({ success: false, error: { code: "AUTHENTICATION_ERROR", message: "Login required" } });
+    res
+      .status(401)
+      .json({ success: false, error: { code: "AUTHENTICATION_ERROR", message: "Login required" } });
     return null;
   }
   const token = authHeader.split(" ")[1];
   if (!token) {
-    res.status(401).json({ success: false, error: { code: "AUTHENTICATION_ERROR", message: "Login required" } });
+    res
+      .status(401)
+      .json({ success: false, error: { code: "AUTHENTICATION_ERROR", message: "Login required" } });
     return null;
   }
   try {
@@ -34,20 +37,40 @@ async function resolveUser(req: Request, res: Response): Promise<User | null> {
       .getOne();
 
     if (!user) {
-      res.status(401).json({ success: false, error: { code: "AUTHENTICATION_ERROR", message: "Login required" } });
+      res
+        .status(401)
+        .json({
+          success: false,
+          error: { code: "AUTHENTICATION_ERROR", message: "Login required" },
+        });
       return null;
     }
     if (!user.active) {
-      res.status(403).json({ success: false, error: { code: "AUTHORIZATION_ERROR", message: "Account deactivated, contact support to reactivate" } });
+      res
+        .status(403)
+        .json({
+          success: false,
+          error: {
+            code: "AUTHORIZATION_ERROR",
+            message: "Account deactivated, contact support to reactivate",
+          },
+        });
       return null;
     }
     if (user.tokenVersion !== payload.tokenVersion) {
-      res.status(401).json({ success: false, error: { code: "AUTHENTICATION_ERROR", message: "Login required" } });
+      res
+        .status(401)
+        .json({
+          success: false,
+          error: { code: "AUTHENTICATION_ERROR", message: "Login required" },
+        });
       return null;
     }
     return user;
   } catch {
-    res.status(401).json({ success: false, error: { code: "AUTHENTICATION_ERROR", message: "Login required" } });
+    res
+      .status(401)
+      .json({ success: false, error: { code: "AUTHENTICATION_ERROR", message: "Login required" } });
     return null;
   }
 }
@@ -68,7 +91,15 @@ export const validateAccess = (roles: UserRole[]): RequestHandler => {
     const user = await resolveUser(req, res);
     if (!user) return;
     if (!roles.includes(user.userRole)) {
-      res.status(403).json({ success: false, error: { code: "AUTHORIZATION_ERROR", message: "You are not authorized to perform this action" } });
+      res
+        .status(403)
+        .json({
+          success: false,
+          error: {
+            code: "AUTHORIZATION_ERROR",
+            message: "You are not authorized to perform this action",
+          },
+        });
       return;
     }
     req.user = user;
@@ -84,7 +115,9 @@ export const requireCompletedProfile: RequestHandler = async (
   // Guard: req.user must be set by loginRequired or validateAccess before this runs.
   // If not, return 401 rather than crashing with TypeError on req.user.userRole.
   if (!req.user) {
-    res.status(401).json({ success: false, error: { code: "AUTHENTICATION_ERROR", message: "Login required" } });
+    res
+      .status(401)
+      .json({ success: false, error: { code: "AUTHENTICATION_ERROR", message: "Login required" } });
     return;
   }
   if (req.user.userRole !== UserRole.Talent) {
@@ -93,7 +126,15 @@ export const requireCompletedProfile: RequestHandler = async (
   }
   const canProceed = !!(req.user.cvUrl && req.user.userRoles?.length);
   if (!canProceed) {
-    res.status(403).json({ success: false, error: { code: "PROFILE_INCOMPLETE", message: "Please complete your profile before proceeding" } });
+    res
+      .status(403)
+      .json({
+        success: false,
+        error: {
+          code: "PROFILE_INCOMPLETE",
+          message: "Please complete your profile before proceeding",
+        },
+      });
     return;
   }
   next();

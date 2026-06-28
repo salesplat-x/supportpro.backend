@@ -9,7 +9,12 @@ import { submitPreScreeningValidator } from "../validators/prescreening.js";
 const router = Router();
 
 router.get("/", validateAccess([UserRole.Talent]), asyncHandler(prescreening.getPreScreening));
-router.post("/submit", validateAccess([UserRole.Talent]), validate(submitPreScreeningValidator), asyncHandler(prescreening.submitAnswers));
+router.post(
+  "/submit",
+  validateAccess([UserRole.Talent]),
+  validate(submitPreScreeningValidator),
+  asyncHandler(prescreening.submitAnswers)
+);
 router.post("/retake", validateAccess([UserRole.Talent]), asyncHandler(prescreening.requestRetake));
 
 export default (app: Router) => app.use("/prescreening", router);

@@ -28,7 +28,10 @@ export const viewProfile = async (req: Request, res: Response) => {
 };
 
 export const applications = async (req: Request, res: Response) => {
-  const result = await userService.userApplications(req.user.id, req.query as Record<string, string>);
+  const result = await userService.userApplications(
+    req.user.id,
+    req.query as Record<string, string>
+  );
   sendSuccessResponse(res, "Applications fetched", result);
 };
 

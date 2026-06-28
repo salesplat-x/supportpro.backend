@@ -6,12 +6,7 @@ import { Application } from "../entities/Application.js";
 import { User } from "../entities/User.js";
 import { TalentEmbedding } from "../entities/TalentEmbedding.js";
 import { NotFoundError, ValidationError, AuthorizationError } from "../utils/errors/index.js";
-import {
-  QuestionType,
-  JobStatus,
-  ApplicationStatus,
-  ScreeningStage,
-} from "../types/enums.js";
+import { QuestionType, JobStatus, ApplicationStatus, ScreeningStage } from "../types/enums.js";
 import { calculateTimeLeft, sortDirection } from "../utils/text.js";
 import * as AI from "../utils/integrations/openai.js";
 
@@ -106,10 +101,7 @@ export const fetchQuestions = async (
     const questionIds = application.personalizedQuestions ?? [];
     if (questionIds.length === 0) return [];
 
-    return questionRepo()
-      .createQueryBuilder("q")
-      .whereInIds(questionIds)
-      .getMany();
+    return questionRepo().createQueryBuilder("q").whereInIds(questionIds).getMany();
   }
 
   // Prescreening questions require a complete profile and matching role
@@ -292,7 +284,10 @@ export const generatePersonalityQuestion = async (
     throw new NotFoundError("Job not found");
   }
 
-  const response = await AI.getPersonalityEvaluationQuestion(jobForPersonality.jobBrief, dichotomyPair);
+  const response = await AI.getPersonalityEvaluationQuestion(
+    jobForPersonality.jobBrief,
+    dichotomyPair
+  );
   if (!response || !response.message.content) {
     throw new ValidationError("Error with LLM");
   }

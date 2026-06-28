@@ -34,7 +34,9 @@ class ErrorLoggerService {
     return uuidv4();
   }
 
-  private sanitizeData(data: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  private sanitizeData(
+    data: Record<string, unknown> | undefined
+  ): Record<string, unknown> | undefined {
     if (!data) return data;
 
     const sensitiveFields = ["password", "token", "secret", "key", "authorization"];
@@ -126,9 +128,12 @@ class ErrorLoggerService {
 
     if (filters.level) qb.andWhere("log.level = :level", { level: filters.level });
     if (filters.environment) qb.andWhere("log.environment = :env", { env: filters.environment });
-    if (filters.resolved !== undefined) qb.andWhere("log.resolved = :resolved", { resolved: filters.resolved });
-    if (filters.errorType) qb.andWhere("log.errorType = :errorType", { errorType: filters.errorType });
-    if (filters.startDate) qb.andWhere("log.timestamp >= :startDate", { startDate: filters.startDate });
+    if (filters.resolved !== undefined)
+      qb.andWhere("log.resolved = :resolved", { resolved: filters.resolved });
+    if (filters.errorType)
+      qb.andWhere("log.errorType = :errorType", { errorType: filters.errorType });
+    if (filters.startDate)
+      qb.andWhere("log.timestamp >= :startDate", { startDate: filters.startDate });
     if (filters.endDate) qb.andWhere("log.timestamp <= :endDate", { endDate: filters.endDate });
 
     const total = await qb.getCount();

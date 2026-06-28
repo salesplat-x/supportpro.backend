@@ -57,11 +57,11 @@ export function getProfileCompletion(user: User): {
   const fields = [
     !!user.bio,
     !!user.cvUrl,
-    !!(user.workType?.length),
+    !!user.workType?.length,
     !!user.locationCountry,
     !!user.experience,
     !!(user.maxSalary && user.minSalary),
-    !!(user.userRoles?.length),
+    !!user.userRoles?.length,
   ];
   const completed = fields.filter(Boolean).length;
   const percentage = Math.round((completed / fields.length) * 100);
@@ -377,9 +377,7 @@ export const viewProfilesForRole = async (payload: FetchProfilesParams): Promise
   const limit = Number(payload.limit) || 50;
   const offset = Number(payload.offset) || 0;
 
-  qb.orderBy("user.prescreeningScore", "DESC")
-    .skip(offset)
-    .take(limit);
+  qb.orderBy("user.prescreeningScore", "DESC").skip(offset).take(limit);
 
   return qb.getMany();
 };
@@ -417,11 +415,7 @@ export const userApplications = async (
   const offset = Number(payload.offset) || 0;
   const order = sortDirection(payload.sort ?? "desc");
 
-  return qb
-    .orderBy("application.createdAt", order)
-    .skip(offset)
-    .take(limit)
-    .getMany();
+  return qb.orderBy("application.createdAt", order).skip(offset).take(limit).getMany();
 };
 
 export const uploadProfileImage = async (
@@ -455,4 +449,3 @@ export const uploadProfileImage = async (
 
   return updated;
 };
-

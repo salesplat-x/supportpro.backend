@@ -3,12 +3,18 @@ import * as notificationService from "../services/notification.js";
 import { sendSuccessResponse } from "../utils/response.js";
 
 export const create = async (req: Request, res: Response) => {
-  const result = await notificationService.createNotification(req.user.id, req.body.message ?? req.body);
+  const result = await notificationService.createNotification(
+    req.user.id,
+    req.body.message ?? req.body
+  );
   sendSuccessResponse(res, "Notification created", { notification: result }, 201);
 };
 
 export const getNotifications = async (req: Request, res: Response) => {
-  const result = await notificationService.getNotifications(req.user.id, req.query as Record<string, string>);
+  const result = await notificationService.getNotifications(
+    req.user.id,
+    req.query as Record<string, string>
+  );
   sendSuccessResponse(res, "Notifications fetched", result);
 };
 

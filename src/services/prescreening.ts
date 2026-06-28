@@ -50,9 +50,7 @@ const stripSensitiveFields = (
     options,
   }));
 
-async function validateRoles(
-  user: User
-): Promise<{ valid: boolean; names: string[] }> {
+async function validateRoles(user: User): Promise<{ valid: boolean; names: string[] }> {
   const roles = user.userRoles ?? [];
   const names: string[] = [];
   for (const roleRef of roles) {
@@ -193,9 +191,7 @@ export const getActivePreScreening = async (
   if (!preScreening) {
     const { isProfileComplete } = getProfileCompletion(user);
     if (!isProfileComplete) {
-      throw new NotFoundError(
-        "No assessment found. Complete your profile to generate one."
-      );
+      throw new NotFoundError("No assessment found. Complete your profile to generate one.");
     }
     await generatePreScreeningForUser(user);
     preScreening = await preScreeningRepo().findOne({ where: { userId } });
@@ -235,9 +231,7 @@ export const submitPreScreeningAnswers = async (
     throw new NotFoundError("No active assessment found");
   }
   if (preScreening.status === PreScreeningStatus.Completed) {
-    throw new ValidationError(
-      "Assessment already completed. Use retake to attempt again."
-    );
+    throw new ValidationError("Assessment already completed. Use retake to attempt again.");
   }
 
   const storedQuestions = preScreening.questions as IGeneratedQuestion[];
@@ -256,9 +250,7 @@ export const submitPreScreeningAnswers = async (
       return { questionId, selectedOption };
     });
     if (invalid.length > 0) {
-      throw new ValidationError(
-        `Invalid option text for question(s): ${invalid.join(", ")}`
-      );
+      throw new ValidationError(`Invalid option text for question(s): ${invalid.join(", ")}`);
     }
   }
 
@@ -376,8 +368,6 @@ export const retakePreScreening = async (userId: string): Promise<void> => {
 // Fire-and-forget wrapper used from profile update hooks
 export const triggerPreScreeningGeneration = (user: User): void => {
   generatePreScreeningForUser(user).catch((err: Error) =>
-    logger.error(
-      `Pre-screening generation failed for user ${user.id}: ${err?.message}`
-    )
+    logger.error(`Pre-screening generation failed for user ${user.id}: ${err?.message}`)
   );
 };

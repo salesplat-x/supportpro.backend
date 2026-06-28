@@ -5,7 +5,13 @@
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import { startTestDatabase, stopTestDatabase, clearAllTables } from "./helpers/db.js";
-import { createTalent, createRecruiter, createAdmin, createRole, createQuestion } from "./helpers/fixtures.js";
+import {
+  createTalent,
+  createRecruiter,
+  createAdmin,
+  createRole,
+  createQuestion,
+} from "./helpers/fixtures.js";
 import { QuestionType } from "../src/types/enums.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({

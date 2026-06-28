@@ -3,12 +3,19 @@ import * as applicationService from "../services/application.js";
 import { sendSuccessResponse } from "../utils/response.js";
 
 export const getApplications = async (req: Request, res: Response) => {
-  const result = await applicationService.getApplications(req.user.id, req.user.userRole, req.query as Record<string, string>);
+  const result = await applicationService.getApplications(
+    req.user.id,
+    req.user.userRole,
+    req.query as Record<string, string>
+  );
   sendSuccessResponse(res, "Applications fetched", result);
 };
 
 export const shortlist = async (req: Request, res: Response) => {
-  const result = await applicationService.shortlist(req.user.id, req.query as Record<string, string>);
+  const result = await applicationService.shortlist(
+    req.user.id,
+    req.query as Record<string, string>
+  );
   sendSuccessResponse(res, "Shortlisted applications fetched", result);
 };
 

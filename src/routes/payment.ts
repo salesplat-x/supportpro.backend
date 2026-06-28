@@ -7,7 +7,12 @@ import { initializePaymentValidator, verifyPaymentValidator } from "../validator
 
 const router = Router();
 
-router.post("/", loginRequired, validate(initializePaymentValidator), asyncHandler(payment.getPaymentLink));
+router.post(
+  "/",
+  loginRequired,
+  validate(initializePaymentValidator),
+  asyncHandler(payment.getPaymentLink)
+);
 router.get("/", loginRequired, asyncHandler(payment.getPaymentRecords));
 router.post("/verify", validate(verifyPaymentValidator), asyncHandler(payment.verify));
 // Obfuscated webhook path

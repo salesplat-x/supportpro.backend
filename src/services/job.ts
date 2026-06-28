@@ -5,11 +5,7 @@ import { AIConfig } from "../entities/AIConfig.js";
 import { Application } from "../entities/Application.js";
 import { User } from "../entities/User.js";
 import { Notification } from "../entities/Notification.js";
-import {
-  NotFoundError,
-  AuthorizationError,
-  ValidationError,
-} from "../utils/errors/index.js";
+import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors/index.js";
 import {
   UserRole,
   JobStatus,
@@ -92,15 +88,14 @@ export interface MatchJobParams {
   incomplete?: string;
 }
 
-export const createJob = async (
-  userId: string,
-  payload: CreateJobPayload
-): Promise<Job> => {
+export const createJob = async (userId: string, payload: CreateJobPayload): Promise<Job> => {
   let roleId: string;
 
   if (payload.role) {
     // Only attempt ID lookup if the value looks like a UUID (avoids PostgreSQL type errors)
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(payload.role);
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      payload.role
+    );
     const roleById = isUUID ? await roleRepo().findOne({ where: { id: payload.role } }) : null;
     if (roleById) {
       roleId = roleById.id;
@@ -191,8 +186,7 @@ export const updateJob = async (
     const notifications = applications
       .filter(
         (app) =>
-          app.status !== ApplicationStatus.Shortlisted &&
-          app.status !== ApplicationStatus.Rejected
+          app.status !== ApplicationStatus.Shortlisted && app.status !== ApplicationStatus.Rejected
       )
       .map((app) =>
         notificationRepo().create({
@@ -247,7 +241,9 @@ export const fetchAllJobs = async (payload: FetchJobsParams): Promise<Job[]> => 
   }
 
   if (payload.country) {
-    qb.andWhere("LOWER(job.locationCountry) = :country", { country: payload.country.toLowerCase() });
+    qb.andWhere("LOWER(job.locationCountry) = :country", {
+      country: payload.country.toLowerCase(),
+    });
   }
 
   if (payload.workMode) {
@@ -261,10 +257,13 @@ export const fetchAllJobs = async (payload: FetchJobsParams): Promise<Job[]> => 
     // simple-array column — use LIKE or ANY approach for each mode
     qb.andWhere(
       workModes.map((_, i) => `job.workMode LIKE :mode${i}`).join(" OR "),
-      workModes.reduce((acc, mode, i) => {
-        acc[`mode${i}`] = `%${mode}%`;
-        return acc;
-      }, {} as Record<string, string>)
+      workModes.reduce(
+        (acc, mode, i) => {
+          acc[`mode${i}`] = `%${mode}%`;
+          return acc;
+        },
+        {} as Record<string, string>
+      )
     );
   }
 
@@ -272,11 +271,7 @@ export const fetchAllJobs = async (payload: FetchJobsParams): Promise<Job[]> => 
   const offset = Number(payload.offset) || 0;
   const order = sortDirection(payload.sort ?? "desc");
 
-  return qb
-    .orderBy("job.createdAt", order)
-    .skip(offset)
-    .take(limit)
-    .getMany();
+  return qb.orderBy("job.createdAt", order).skip(offset).take(limit).getMany();
 };
 
 export const fetchJob = async (jobId: string): Promise<Job> => {
@@ -387,9 +382,10 @@ export const topTalents = async (
   const currentStage = stages[ScreeningStage.CvSimilarity] ?? ScreeningStage.Prescreening;
 
   // Bulk fetch existing applications for all matched talents in a single query
-  const existingApps = talentIds.length > 0
-    ? await applicationRepo().find({ where: talentIds.map((tid) => ({ jobId, talentId: tid })) })
-    : [];
+  const existingApps =
+    talentIds.length > 0
+      ? await applicationRepo().find({ where: talentIds.map((tid) => ({ jobId, talentId: tid })) })
+      : [];
   const existingAppMap = new Map(existingApps.map((a) => [a.talentId, a]));
 
   const toSave: Application[] = [];
@@ -434,13 +430,14 @@ export const topTalents = async (
   }
 
   // Fetch user details for matched talents
-  const talents = talentIds.length > 0
-    ? await userRepo()
-        .createQueryBuilder("user")
-        .whereInIds(talentIds)
-        .leftJoinAndSelect("user.userRoles", "userRoles")
-        .getMany()
-    : [];
+  const talents =
+    talentIds.length > 0
+      ? await userRepo()
+          .createQueryBuilder("user")
+          .whereInIds(talentIds)
+          .leftJoinAndSelect("user.userRoles", "userRoles")
+          .getMany()
+      : [];
 
   return { talents, newApplicants };
 };

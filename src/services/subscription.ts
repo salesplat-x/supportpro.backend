@@ -146,7 +146,13 @@ export const createSubscription = async (
 
         if (paystackSubs.status && paystackSubs.data && paystackSubs.data.length > 0) {
           const existingPaystackSub = paystackSubs.data.find(
-            (sub: Record<string, unknown> & { customer: { email: string }; plan: { plan_code: string }; status: string }) =>
+            (
+              sub: Record<string, unknown> & {
+                customer: { email: string };
+                plan: { plan_code: string };
+                status: string;
+              }
+            ) =>
               sub.customer.email === user.email &&
               sub.plan.plan_code === plan.paystackPlanCode &&
               (sub.status === "active" || sub.status === "non-renewing")
@@ -157,7 +163,9 @@ export const createSubscription = async (
               userId: user.id,
               planId: plan.id,
               paystackSubscriptionCode: existingPaystackSub.subscription_code as string,
-              authorizationCode: (existingPaystackSub.authorization as { authorization_code?: string })?.authorization_code ?? null,
+              authorizationCode:
+                (existingPaystackSub.authorization as { authorization_code?: string })
+                  ?.authorization_code ?? null,
               status: existingPaystackSub.status as SubscriptionStatus,
               startDate: new Date(existingPaystackSub.start as string),
               nextPaymentDate: (existingPaystackSub.next_payment_date as Date) ?? null,
@@ -203,10 +211,7 @@ export const hasRunningSubscription = async (user: User, planId: string): Promis
   return false;
 };
 
-export const subscribe = async (
-  user: User,
-  payload: { planId: string }
-): Promise<Subscription> => {
+export const subscribe = async (user: User, payload: { planId: string }): Promise<Subscription> => {
   const alreadySubscribed = await hasRunningSubscription(user, payload.planId);
   if (alreadySubscribed) {
     throw new ConflictError("User already on a plan, deactivate or unsubscribe first");

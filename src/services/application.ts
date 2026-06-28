@@ -34,10 +34,7 @@ export const getApplication = async (
     throw new NotFoundError("Application not found");
   }
 
-  if (
-    application.job.postedById !== userId &&
-    application.talentId !== userId
-  ) {
+  if (application.job.postedById !== userId && application.talentId !== userId) {
     throw new AuthorizationError("You are not authorized to perform this action");
   }
 

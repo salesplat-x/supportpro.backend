@@ -15,9 +15,19 @@ import {
 
 const router = Router();
 
-router.post("/me/image", loginRequired, memoryUpload.single("image"), asyncHandler(user.uploadProfileImage));
+router.post(
+  "/me/image",
+  loginRequired,
+  memoryUpload.single("image"),
+  asyncHandler(user.uploadProfileImage)
+);
 router.patch("/me", loginRequired, validate(updateUserValidator), asyncHandler(user.updateUser));
-router.patch("/profile", validateAccess([UserRole.Talent]), memoryUpload.single("cv"), asyncHandler(user.editProfile));
+router.patch(
+  "/profile",
+  validateAccess([UserRole.Talent]),
+  memoryUpload.single("cv"),
+  asyncHandler(user.editProfile)
+);
 router.get("/me", loginRequired, asyncHandler(user.me));
 router.get(
   "/profile/",

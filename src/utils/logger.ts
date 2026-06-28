@@ -60,9 +60,8 @@ const morganStream: morgan.StreamOptions = {
   write: (message: string) => logger.http(message.trim()),
 };
 
-export const httpLogger = morgan(
-  ":method :url :status :res[content-length] - :response-time ms",
-  { stream: morganStream }
-);
+export const httpLogger = morgan(":method :url :status :res[content-length] - :response-time ms", {
+  stream: morganStream,
+});
 
 export default logger;

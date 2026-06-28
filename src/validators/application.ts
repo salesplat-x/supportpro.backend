@@ -18,5 +18,7 @@ export const updateApplicationStatusValidator = [
   param("_id").notEmpty().withMessage("Application ID is required"),
   body("status")
     .isIn([ApplicationStatus.Rejected, ApplicationStatus.Shortlisted])
-    .withMessage(`status must be one of: ${ApplicationStatus.Rejected}, ${ApplicationStatus.Shortlisted}`),
+    .withMessage(
+      `status must be one of: ${ApplicationStatus.Rejected}, ${ApplicationStatus.Shortlisted}`
+    ),
 ];

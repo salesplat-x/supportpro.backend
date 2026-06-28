@@ -4,7 +4,12 @@
 
 import request from "supertest";
 import { createApp } from "../src/app.js";
-import { startTestDatabase, stopTestDatabase, clearAllTables, testDataSource } from "./helpers/db.js";
+import {
+  startTestDatabase,
+  stopTestDatabase,
+  clearAllTables,
+  testDataSource,
+} from "./helpers/db.js";
 import { createTalent, createRecruiter, createAdmin, createPlan } from "./helpers/fixtures.js";
 import { Plan } from "../src/entities/Plan.js";
 import { BillingInterval, Currency } from "../src/types/enums.js";
@@ -19,14 +24,24 @@ jest.mock("../src/utils/integrations/email/emailService.js", () => ({
 jest.mock("../src/utils/integrations/paystack.js", () => ({
   createPlan: jest.fn().mockResolvedValue({ status: true, data: { plan_code: "PLN_test123" } }),
   updatePlan: jest.fn().mockResolvedValue({ status: true }),
-  generatePlanObject: jest.fn().mockImplementation((plan: { name: string; amount: number; interval: string; currency: string; description: string }) => ({
-    name: plan.name,
-    interval: plan.interval,
-    amount: Math.round(plan.amount * 100), // paystackAmount in kobo
-    monthlyAmount: plan.amount,            // human-readable amount
-    currency: plan.currency,
-    description: plan.description,
-  })),
+  generatePlanObject: jest
+    .fn()
+    .mockImplementation(
+      (plan: {
+        name: string;
+        amount: number;
+        interval: string;
+        currency: string;
+        description: string;
+      }) => ({
+        name: plan.name,
+        interval: plan.interval,
+        amount: Math.round(plan.amount * 100), // paystackAmount in kobo
+        monthlyAmount: plan.amount, // human-readable amount
+        currency: plan.currency,
+        description: plan.description,
+      })
+    ),
 }));
 
 let app: ReturnType<typeof createApp>;

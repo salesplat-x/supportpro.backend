@@ -56,22 +56,30 @@ async function baseUser(overrides: Partial<User> = {}): Promise<User> {
   return repo.save(user);
 }
 
-export async function createTalent(overrides: Partial<User> = {}): Promise<{ user: User; token: string }> {
+export async function createTalent(
+  overrides: Partial<User> = {}
+): Promise<{ user: User; token: string }> {
   const user = await baseUser({ ...overrides, userRole: UserRole.Talent });
   return { user, token: signToken(user) };
 }
 
-export async function createRecruiter(overrides: Partial<User> = {}): Promise<{ user: User; token: string }> {
+export async function createRecruiter(
+  overrides: Partial<User> = {}
+): Promise<{ user: User; token: string }> {
   const user = await baseUser({ ...overrides, userRole: UserRole.Recruiter });
   return { user, token: signToken(user) };
 }
 
-export async function createAdmin(overrides: Partial<User> = {}): Promise<{ user: User; token: string }> {
+export async function createAdmin(
+  overrides: Partial<User> = {}
+): Promise<{ user: User; token: string }> {
   const user = await baseUser({ ...overrides, userRole: UserRole.Admin });
   return { user, token: signToken(user) };
 }
 
-export async function createSuperadmin(overrides: Partial<User> = {}): Promise<{ user: User; token: string }> {
+export async function createSuperadmin(
+  overrides: Partial<User> = {}
+): Promise<{ user: User; token: string }> {
   const user = await baseUser({ ...overrides, userRole: UserRole.Superadmin });
   return { user, token: signToken(user) };
 }
@@ -280,7 +288,9 @@ export async function createPreScreening(
   return saved;
 }
 
-export async function createOrganization(overrides: Partial<Organization> = {}): Promise<Organization> {
+export async function createOrganization(
+  overrides: Partial<Organization> = {}
+): Promise<Organization> {
   const repo = testDataSource.getRepository(Organization);
   const org = repo.create({
     name: `Org_${Date.now()}`,
@@ -350,9 +360,7 @@ export async function createConversationWithMessage(
   const convRepo = testDataSource.getRepository(Conversation);
   const msgRepo = testDataSource.getRepository(Message);
 
-  const conversation = await convRepo.save(
-    convRepo.create({ participants: [sender, recipient] })
-  );
+  const conversation = await convRepo.save(convRepo.create({ participants: [sender, recipient] }));
 
   const message = await msgRepo.save(
     msgRepo.create({

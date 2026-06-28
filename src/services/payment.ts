@@ -122,10 +122,7 @@ export const paystackWebhook = async (payload: {
 
   if (event === "charge.success" && data.status === "success") {
     const payment = await paymentRepo().findOne({
-      where: [
-        { paystackRef: data.reference as string },
-        { reference: data.reference as string },
-      ],
+      where: [{ paystackRef: data.reference as string }, { reference: data.reference as string }],
     });
     if (!payment) return; // Silently ignore — not our payment
 
@@ -150,9 +147,8 @@ export const paystackWebhook = async (payload: {
     });
 
     if (payment.planId) {
-      const authorizationCode = (
-        data.authorization as Record<string, string> | undefined
-      )?.authorization_code ?? "";
+      const authorizationCode =
+        (data.authorization as Record<string, string> | undefined)?.authorization_code ?? "";
       // Let errors propagate — a failed subscription creation should surface
       // as a 500 so it can be retried via Paystack's webhook retry mechanism.
       await createSubscription(user, payment.planId, authorizationCode);
@@ -171,8 +167,8 @@ export const paystackWebhook = async (payload: {
         status: data.status as SubscriptionStatus,
         startDate: new Date(data.start as string),
         nextPaymentDate: data.next_payment_date ? new Date(data.next_payment_date as string) : null,
-        cron_expression: data.cron_expression as string ?? null,
-        email_token: data.email_token as string ?? null,
+        cron_expression: (data.cron_expression as string) ?? null,
+        email_token: (data.email_token as string) ?? null,
         history: [
           ...(existingSubscription.history ?? []),
           {
@@ -200,9 +196,11 @@ export const paystackWebhook = async (payload: {
           authorizationCode: authData?.authorization_code ?? null,
           status: data.status as SubscriptionStatus,
           startDate: new Date(data.start as string),
-          nextPaymentDate: data.next_payment_date ? new Date(data.next_payment_date as string) : null,
-          cron_expression: data.cron_expression as string ?? null,
-          email_token: data.email_token as string ?? null,
+          nextPaymentDate: data.next_payment_date
+            ? new Date(data.next_payment_date as string)
+            : null,
+          cron_expression: (data.cron_expression as string) ?? null,
+          email_token: (data.email_token as string) ?? null,
         })
       );
     }

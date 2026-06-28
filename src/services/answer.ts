@@ -6,12 +6,7 @@ import { User } from "../entities/User.js";
 import { Job } from "../entities/Job.js";
 import { IsNull } from "typeorm";
 import { NotFoundError, ValidationError, AuthorizationError } from "../utils/errors/index.js";
-import {
-  QuestionType,
-  JobStatus,
-  ApplicationStatus,
-  ScreeningStage,
-} from "../types/enums.js";
+import { QuestionType, JobStatus, ApplicationStatus, ScreeningStage } from "../types/enums.js";
 import { calculateTimeLeft } from "../utils/text.js";
 import * as AI from "../utils/integrations/openai.js";
 
@@ -54,7 +49,12 @@ function getAssessmentRetryDate(days = 7): Date {
 }
 
 async function saveOrUpdateAnswer(
-  filter: { userId: string; roleId?: string | null; jobId?: string | null; questionType: QuestionType },
+  filter: {
+    userId: string;
+    roleId?: string | null;
+    jobId?: string | null;
+    questionType: QuestionType;
+  },
   responses: IResponse[]
 ): Promise<Answer> {
   const answer = await answerRepo().findOne({
@@ -114,9 +114,8 @@ async function rankApplication(talent: User, application: Application): Promise<
     prescreeningScore,
   ].filter((s): s is number => s !== null && s !== undefined);
 
-  const averageScore = scores.length > 0
-    ? Number((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2))
-    : 0;
+  const averageScore =
+    scores.length > 0 ? Number((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2)) : 0;
 
   application.averageScore = averageScore;
 
@@ -411,10 +410,7 @@ export const evaluatePersonalityType = async (
 
   const { mbtiType, responses } = JSON.parse(response.message.content);
 
-  await saveOrUpdateAnswer(
-    { userId, jobId, questionType: QuestionType.Personality },
-    responses
-  );
+  await saveOrUpdateAnswer({ userId, jobId, questionType: QuestionType.Personality }, responses);
 
   application.assessmentRetryDate = getAssessmentRetryDate();
   const user = await userRepo().findOne({ where: { id: userId } });

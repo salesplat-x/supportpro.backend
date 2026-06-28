@@ -5,7 +5,12 @@
 
 import request from "supertest";
 import { createApp } from "../src/app.js";
-import { startTestDatabase, stopTestDatabase, clearAllTables, testDataSource } from "./helpers/db.js";
+import {
+  startTestDatabase,
+  stopTestDatabase,
+  clearAllTables,
+  testDataSource,
+} from "./helpers/db.js";
 import { createTalent, createRecruiter, createPlan, createPayment } from "./helpers/fixtures.js";
 import { Payment } from "../src/entities/Payment.js";
 import { Subscription } from "../src/entities/Subscription.js";
@@ -25,7 +30,13 @@ const mockInitializePayment = jest.fn().mockResolvedValue({
 
 const mockVerifyTransaction = jest.fn().mockResolvedValue({
   status: true,
-  data: { status: "success", currency: "NGN", amount: 500000, plan: null, authorization: { authorization_code: "AUTH_001" } },
+  data: {
+    status: "success",
+    currency: "NGN",
+    amount: 500000,
+    plan: null,
+    authorization: { authorization_code: "AUTH_001" },
+  },
 });
 
 const mockWebhookValidation = jest.fn().mockReturnValue(true);
@@ -38,12 +49,14 @@ jest.mock("../src/utils/integrations/paystack.js", () => ({
   initializePayment: (...args: unknown[]) => mockInitializePayment(...args),
   verifyTransaction: (...args: unknown[]) => mockVerifyTransaction(...args),
   webhookDataValidation: (...args: unknown[]) => mockWebhookValidation(...args),
-  generatePaymentObject: jest.fn().mockImplementation((amount: number, email: string, plan?: string) => ({
-    amount,
-    email,
-    currency: "NGN",
-    plan,
-  })),
+  generatePaymentObject: jest
+    .fn()
+    .mockImplementation((amount: number, email: string, plan?: string) => ({
+      amount,
+      email,
+      currency: "NGN",
+      plan,
+    })),
   createCustomer: (...args: unknown[]) => mockCreateCustomer(...args),
   enableSubscription: jest.fn().mockResolvedValue({ status: true }),
   disableSubscription: jest.fn().mockResolvedValue({ status: true }),
@@ -86,7 +99,13 @@ afterEach(async () => {
   // Restore defaults
   mockVerifyTransaction.mockResolvedValue({
     status: true,
-    data: { status: "success", currency: "NGN", amount: 500000, plan: null, authorization: { authorization_code: "AUTH_001" } },
+    data: {
+      status: "success",
+      currency: "NGN",
+      amount: 500000,
+      plan: null,
+      authorization: { authorization_code: "AUTH_001" },
+    },
   });
   mockWebhookValidation.mockReturnValue(true);
   mockHasRunningSubscription.mockResolvedValue(false);
@@ -179,7 +198,9 @@ describe("POST /v1/payments/ — initialize payment", () => {
       .set("Authorization", `Bearer ${token}`)
       .send({ amount: 5000 });
 
-    const payment = await testDataSource.getRepository(Payment).findOne({ where: { userId: user.id } });
+    const payment = await testDataSource
+      .getRepository(Payment)
+      .findOne({ where: { userId: user.id } });
     expect(payment).not.toBeNull();
     expect(payment!.status).toBe(PaymentStatus.Pending);
   });
@@ -196,9 +217,7 @@ describe("GET /v1/payments/ — get payment records", () => {
     await createPayment(userA);
     await createPayment(userB);
 
-    const res = await request(app)
-      .get("/v1/payments/")
-      .set("Authorization", `Bearer ${tokenA}`);
+    const res = await request(app).get("/v1/payments/").set("Authorization", `Bearer ${tokenA}`);
 
     expect(res.status).toBe(200);
     const payments = res.body.data.payments ?? res.body.data;
@@ -279,11 +298,11 @@ describe("POST /v1/payments/verify — ISSUE-002", () => {
       amount: 5000,
     });
 
-    await request(app)
-      .post("/v1/payments/verify")
-      .send({ reference: payment.paystackRef });
+    await request(app).post("/v1/payments/verify").send({ reference: payment.paystackRef });
 
-    const updated = await testDataSource.getRepository(Payment).findOne({ where: { id: payment.id } });
+    const updated = await testDataSource
+      .getRepository(Payment)
+      .findOne({ where: { id: payment.id } });
     expect(updated!.status).toBe(PaymentStatus.Completed);
   });
 
@@ -323,7 +342,9 @@ describe("POST /payments webhook — Paystack events", () => {
 
     expect(res.status).toBe(200);
 
-    const updated = await testDataSource.getRepository(Payment).findOne({ where: { id: payment.id } });
+    const updated = await testDataSource
+      .getRepository(Payment)
+      .findOne({ where: { id: payment.id } });
     expect(updated!.status).toBe(PaymentStatus.Completed);
   });
 
@@ -357,11 +378,16 @@ describe("POST /payments webhook — Paystack events", () => {
     const res = await request(app)
       .post(WEBHOOK_PATH)
       .set("x-paystack-signature", "valid-sig")
-      .send({ event: "charge.success", data: { reference: payment.paystackRef, status: "success" } });
+      .send({
+        event: "charge.success",
+        data: { reference: payment.paystackRef, status: "success" },
+      });
 
     expect(res.status).toBe(200);
 
-    const subs = await testDataSource.getRepository(Subscription).find({ where: { userId: user.id } });
+    const subs = await testDataSource
+      .getRepository(Subscription)
+      .find({ where: { userId: user.id } });
     expect(subs.length).toBe(0); // no subscription created for already-completed payment
   });
 
@@ -380,7 +406,9 @@ describe("POST /payments webhook — Paystack events", () => {
       });
 
     expect(res.status).toBe(200);
-    const updated = await testDataSource.getRepository(Subscription).findOne({ where: { id: sub.id } });
+    const updated = await testDataSource
+      .getRepository(Subscription)
+      .findOne({ where: { id: sub.id } });
     expect(updated!.status).toBe("cancelled");
   });
 

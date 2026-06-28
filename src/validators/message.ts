@@ -23,4 +23,6 @@ export const fetchMessagesQueryValidator = [
   ...paginationRules,
 ];
 
-export const messageIdParamValidator = [param("id").notEmpty().withMessage("Message ID is required")];
+export const messageIdParamValidator = [
+  param("id").notEmpty().withMessage("Message ID is required"),
+];

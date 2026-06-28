@@ -22,10 +22,7 @@ function applicationRepo() {
   return AppDataSource.getRepository(Application);
 }
 
-async function findOrCreateConversation(
-  userIdA: string,
-  userIdB: string
-): Promise<Conversation> {
+async function findOrCreateConversation(userIdA: string, userIdB: string): Promise<Conversation> {
   // Find existing conversation where both users are participants
   const existing = await conversationRepo()
     .createQueryBuilder("c")
@@ -57,10 +54,7 @@ export interface FetchMessagesParams {
   sort?: string;
 }
 
-export const sendMessage = async (
-  senderId: string,
-  payload: MessageInput
-): Promise<Message> => {
+export const sendMessage = async (senderId: string, payload: MessageInput): Promise<Message> => {
   const { application, content, recipient } = payload;
 
   if (senderId === recipient) {
@@ -157,12 +151,7 @@ export const getMessages = async (
   }
 
   const [messages, unReadCount] = await Promise.all([
-    qb
-      .clone()
-      .orderBy("message.createdAt", order)
-      .skip(offset)
-      .take(limit)
-      .getMany(),
+    qb.clone().orderBy("message.createdAt", order).skip(offset).take(limit).getMany(),
     qb
       .clone()
       .andWhere("message.is_read = false")

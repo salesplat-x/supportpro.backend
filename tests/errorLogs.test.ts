@@ -8,8 +8,19 @@
 
 import request from "supertest";
 import { createApp } from "../src/app.js";
-import { startTestDatabase, stopTestDatabase, clearAllTables, testDataSource } from "./helpers/db.js";
-import { createTalent, createRecruiter, createAdmin, createSuperadmin, createErrorLog } from "./helpers/fixtures.js";
+import {
+  startTestDatabase,
+  stopTestDatabase,
+  clearAllTables,
+  testDataSource,
+} from "./helpers/db.js";
+import {
+  createTalent,
+  createRecruiter,
+  createAdmin,
+  createSuperadmin,
+  createErrorLog,
+} from "./helpers/fixtures.js";
 import { ErrorLog } from "../src/entities/ErrorLog.js";
 import { ErrorLogLevel } from "../src/types/enums.js";
 
@@ -78,9 +89,7 @@ describe("GET /v1/error-logs/ — list error logs (Superadmin only)", () => {
     await createErrorLog({ message: "Test error 1" });
     await createErrorLog({ message: "Test error 2" });
 
-    const res = await request(app)
-      .get("/v1/error-logs/")
-      .set("Authorization", `Bearer ${token}`);
+    const res = await request(app).get("/v1/error-logs/").set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
     const logs = res.body.data.logs ?? res.body.data ?? [];
@@ -165,7 +174,9 @@ describe("GET /v1/error-logs/stats — stats (Superadmin only)", () => {
 
   it("Admin cannot access stats → 403", async () => {
     const { token } = await createAdmin();
-    const res = await request(app).get("/v1/error-logs/stats").set("Authorization", `Bearer ${token}`);
+    const res = await request(app)
+      .get("/v1/error-logs/stats")
+      .set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(403);
   });
 });

@@ -4,8 +4,18 @@
 
 import request from "supertest";
 import { createApp } from "../src/app.js";
-import { startTestDatabase, stopTestDatabase, clearAllTables, testDataSource } from "./helpers/db.js";
-import { createCompleteTalent, createRecruiter, createRole, createPreScreening } from "./helpers/fixtures.js";
+import {
+  startTestDatabase,
+  stopTestDatabase,
+  clearAllTables,
+  testDataSource,
+} from "./helpers/db.js";
+import {
+  createCompleteTalent,
+  createRecruiter,
+  createRole,
+  createPreScreening,
+} from "./helpers/fixtures.js";
 import { PreScreening } from "../src/entities/PreScreening.js";
 import { User } from "../src/entities/User.js";
 import { PreScreeningStatus } from "../src/types/enums.js";
@@ -67,9 +77,7 @@ describe("GET /v1/prescreening/ — get or generate prescreening", () => {
     const role = await createRole();
     const { token } = await createCompleteTalent(role);
 
-    const res = await request(app)
-      .get("/v1/prescreening/")
-      .set("Authorization", `Bearer ${token}`);
+    const res = await request(app).get("/v1/prescreening/").set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
     expect(res.body.data.preScreening).toBeDefined();
@@ -81,9 +89,7 @@ describe("GET /v1/prescreening/ — get or generate prescreening", () => {
     const { user, token } = await createCompleteTalent(role);
     await createPreScreening(user, [role.id]);
 
-    const res = await request(app)
-      .get("/v1/prescreening/")
-      .set("Authorization", `Bearer ${token}`);
+    const res = await request(app).get("/v1/prescreening/").set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
     expect(res.body.data.preScreening.questions).toBeDefined();
@@ -93,9 +99,7 @@ describe("GET /v1/prescreening/ — get or generate prescreening", () => {
     const role = await createRole();
     const { token } = await createCompleteTalent(role);
 
-    const res = await request(app)
-      .get("/v1/prescreening/")
-      .set("Authorization", `Bearer ${token}`);
+    const res = await request(app).get("/v1/prescreening/").set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
     const question = res.body.data.preScreening.questions[0];
@@ -123,9 +127,7 @@ describe("GET /v1/prescreening/ — get or generate prescreening", () => {
 
   it("Recruiter cannot access → 403", async () => {
     const { token } = await createRecruiter();
-    const res = await request(app)
-      .get("/v1/prescreening/")
-      .set("Authorization", `Bearer ${token}`);
+    const res = await request(app).get("/v1/prescreening/").set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(403);
   });
 
@@ -156,7 +158,9 @@ describe("POST /v1/prescreening/submit — submit answers", () => {
     );
 
     // Submit answers matching the stored question (array format — required by validator)
-    const ps = await testDataSource.getRepository(PreScreening).findOne({ where: { userId: user.id } });
+    const ps = await testDataSource
+      .getRepository(PreScreening)
+      .findOne({ where: { userId: user.id } });
     const questions = ps!.questions as Array<{ questionId: string; options: string[] }>;
     const answers = questions.map((q) => ({ questionId: q.questionId, selectedOption: 0 }));
 
@@ -168,7 +172,9 @@ describe("POST /v1/prescreening/submit — submit answers", () => {
     expect(res.status).toBe(200);
     expect(res.body.data.score).toBeDefined();
 
-    const updated = await testDataSource.getRepository(PreScreening).findOne({ where: { userId: user.id } });
+    const updated = await testDataSource
+      .getRepository(PreScreening)
+      .findOne({ where: { userId: user.id } });
     expect(updated!.status).toBe(PreScreeningStatus.Completed);
   });
 
@@ -177,7 +183,9 @@ describe("POST /v1/prescreening/submit — submit answers", () => {
     const { user, token } = await createCompleteTalent(role);
     await createPreScreening(user, [role.id]);
 
-    const ps = await testDataSource.getRepository(PreScreening).findOne({ where: { userId: user.id } });
+    const ps = await testDataSource
+      .getRepository(PreScreening)
+      .findOne({ where: { userId: user.id } });
     const questions = ps!.questions as Array<{ questionId: string }>;
     const answers: Record<string, string> = {};
     for (const q of questions) {
@@ -227,7 +235,7 @@ describe("POST /v1/prescreening/submit — submit answers", () => {
     const res = await request(app)
       .post("/v1/prescreening/submit")
       .set("Authorization", `Bearer ${token}`)
-      .send({ answers: { "q1": "Option A" } });
+      .send({ answers: { q1: "Option A" } });
 
     // Service returns 404 when no assessment exists
     expect([400, 404]).toContain(res.status);

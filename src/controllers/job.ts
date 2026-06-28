@@ -9,7 +9,10 @@ export const create = async (req: Request, res: Response) => {
 };
 
 export const update = async (req: Request, res: Response) => {
-  const result = await jobService.updateJob(req.user.id, req.user.userRole, { id: req.params["_id"]!, ...req.body });
+  const result = await jobService.updateJob(req.user.id, req.user.userRole, {
+    id: req.params["_id"]!,
+    ...req.body,
+  });
   sendSuccessResponse(res, "Job updated", { job: result });
 };
 
@@ -29,7 +32,10 @@ export const fetch = async (req: Request, res: Response) => {
 };
 
 export const matchJob = async (req: Request, res: Response) => {
-  const result = await jobService.matchJob(req.user.id, req.user.userRole, { id: req.params["_id"]!, ...(req.query as Record<string, string>) });
+  const result = await jobService.matchJob(req.user.id, req.user.userRole, {
+    id: req.params["_id"]!,
+    ...(req.query as Record<string, string>),
+  });
   sendSuccessResponse(res, "Talents matched", { talents: result });
 };
 
@@ -48,7 +54,10 @@ export const gradeCv = async (req: Request, res: Response) => {
 };
 
 export const applications = async (req: Request, res: Response) => {
-  const result = await jobService.jobApplications(req.user.id, { jobId: req.params["jobId"]!, ...(req.query as Record<string, string | number>) });
+  const result = await jobService.jobApplications(req.user.id, {
+    jobId: req.params["jobId"]!,
+    ...(req.query as Record<string, string | number>),
+  });
   sendSuccessResponse(res, "Applications fetched", { applications: result });
 };
 

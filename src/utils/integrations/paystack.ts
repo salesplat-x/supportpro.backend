@@ -239,7 +239,9 @@ export const createCustomer = async (payload: ICreatePaystackCustomer): Promise<
   return response.data as ISubCreateRes;
 };
 
-export const enableSubscription = async (payload: ISubDisOrEnableConfig): Promise<IPlanUpdateRes> => {
+export const enableSubscription = async (
+  payload: ISubDisOrEnableConfig
+): Promise<IPlanUpdateRes> => {
   const response = await axios({
     method: "post",
     url: `${env.paystackUrl}/subscription/enable`,
@@ -252,7 +254,9 @@ export const enableSubscription = async (payload: ISubDisOrEnableConfig): Promis
   return response.data as IPlanUpdateRes;
 };
 
-export const disableSubscription = async (payload: ISubDisOrEnableConfig): Promise<IPlanUpdateRes> => {
+export const disableSubscription = async (
+  payload: ISubDisOrEnableConfig
+): Promise<IPlanUpdateRes> => {
   const response = await axios({
     method: "post",
     url: `${env.paystackUrl}/subscription/disable`,

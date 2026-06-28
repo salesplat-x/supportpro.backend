@@ -1,6 +1,12 @@
 import { body, query } from "express-validator";
 import { phoneRule, paginationRules, idParam } from "./shared.js";
-import { ExperienceLevel, WorkType, Currency, ApplicationType, ApplicationStatus } from "../types/enums.js";
+import {
+  ExperienceLevel,
+  WorkType,
+  Currency,
+  ApplicationType,
+  ApplicationStatus,
+} from "../types/enums.js";
 
 export const updateUserValidator = [
   body("firstName").optional().trim(),
@@ -15,10 +21,7 @@ export const updateUserValidator = [
 
 export const updateProfileValidator = [
   body("bio").optional().isLength({ max: 1000 }).withMessage("Bio must be at most 1000 characters"),
-  body("workType")
-    .optional()
-    .isArray({ min: 1 })
-    .withMessage("workType must be a non-empty array"),
+  body("workType").optional().isArray({ min: 1 }).withMessage("workType must be a non-empty array"),
   body("workType.*")
     .optional()
     .isIn(Object.values(WorkType))

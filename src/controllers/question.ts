@@ -9,7 +9,10 @@ export const create = async (req: Request, res: Response) => {
 };
 
 export const fetchQuestions = async (req: Request, res: Response) => {
-  const result = await questionService.fetchQuestions(req.user, req.query as Record<string, string>);
+  const result = await questionService.fetchQuestions(
+    req.user,
+    req.query as Record<string, string>
+  );
   sendSuccessResponse(res, "Questions fetched", { questions: result });
 };
 

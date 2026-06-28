@@ -7,9 +7,7 @@ export const openaiMocks = {
   gradeAssessmentAnswers: jest.fn().mockResolvedValue({
     message: {
       content: JSON.stringify({
-        responses: [
-          { questionId: "q1", answer: "Good answer", score: 4 },
-        ],
+        responses: [{ questionId: "q1", answer: "Good answer", score: 4 }],
       }),
     },
   }),
@@ -17,9 +15,7 @@ export const openaiMocks = {
   gradePersonalizedAnswers: jest.fn().mockResolvedValue({
     message: {
       content: JSON.stringify({
-        responses: [
-          { questionId: "q1", answer: "Strong answer", score: 4 },
-        ],
+        responses: [{ questionId: "q1", answer: "Strong answer", score: 4 }],
       }),
     },
   }),
@@ -45,9 +41,7 @@ export const openaiMocks = {
     message: {
       content: JSON.stringify({
         mbtiType: "INTJ",
-        responses: [
-          { questionId: "q1", answer: "Introvert", dichotomyPreference: "I" },
-        ],
+        responses: [{ questionId: "q1", answer: "Introvert", dichotomyPreference: "I" }],
       }),
     },
   }),
@@ -165,12 +159,14 @@ export const paystackMocks = {
     data: [],
   }),
 
-  generatePaymentObject: jest.fn().mockImplementation((amount: number, email: string, plan?: string) => ({
-    amount,
-    email,
-    currency: "NGN",
-    plan,
-  })),
+  generatePaymentObject: jest
+    .fn()
+    .mockImplementation((amount: number, email: string, plan?: string) => ({
+      amount,
+      email,
+      currency: "NGN",
+      plan,
+    })),
 
   generateUpdateSubscriptionLink: jest.fn().mockResolvedValue({
     status: true,

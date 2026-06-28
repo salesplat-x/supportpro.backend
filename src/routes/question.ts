@@ -17,7 +17,12 @@ import {
 
 const router = Router();
 
-router.post("/", validateAccess([UserRole.Admin]), validate(createQuestionValidator), asyncHandler(question.create));
+router.post(
+  "/",
+  validateAccess([UserRole.Admin]),
+  validate(createQuestionValidator),
+  asyncHandler(question.create)
+);
 router.get(
   "/",
   loginRequired,
@@ -25,11 +30,37 @@ router.get(
   validate(getQuestionsValidator),
   asyncHandler(question.fetchQuestions)
 );
-router.post("/personalized", validateAccess([UserRole.Recruiter, UserRole.Talent]), validate(personalizedQuestionsValidator), asyncHandler(question.generatePersonalizedQuestions));
-router.post("/personality", validateAccess([UserRole.Recruiter]), validate(generatePersonalityQuestionsValidator), asyncHandler(question.generatePersonalityQuestion));
-router.post("/answer/prescreening", validateAccess([UserRole.Talent]), requireCompletedProfile, validate(answerPrescreeningValidator), asyncHandler(question.answerPrescreening));
-router.post("/answer/personality", validateAccess([UserRole.Talent]), validate(evaluatePersonalityValidator), asyncHandler(question.evaluatePersonalityType));
-router.post("/answer/personalized", validateAccess([UserRole.Talent]), validate(answerPersonalizedValidator), asyncHandler(question.answerPersonalizedQuestions));
+router.post(
+  "/personalized",
+  validateAccess([UserRole.Recruiter, UserRole.Talent]),
+  validate(personalizedQuestionsValidator),
+  asyncHandler(question.generatePersonalizedQuestions)
+);
+router.post(
+  "/personality",
+  validateAccess([UserRole.Recruiter]),
+  validate(generatePersonalityQuestionsValidator),
+  asyncHandler(question.generatePersonalityQuestion)
+);
+router.post(
+  "/answer/prescreening",
+  validateAccess([UserRole.Talent]),
+  requireCompletedProfile,
+  validate(answerPrescreeningValidator),
+  asyncHandler(question.answerPrescreening)
+);
+router.post(
+  "/answer/personality",
+  validateAccess([UserRole.Talent]),
+  validate(evaluatePersonalityValidator),
+  asyncHandler(question.evaluatePersonalityType)
+);
+router.post(
+  "/answer/personalized",
+  validateAccess([UserRole.Talent]),
+  validate(answerPersonalizedValidator),
+  asyncHandler(question.answerPersonalizedQuestions)
+);
 router.get("/:_id", validate(questionIdParamValidator), asyncHandler(question.fetch));
 
 export default (app: Router) => app.use("/questions", router);

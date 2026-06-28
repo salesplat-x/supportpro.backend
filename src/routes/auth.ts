@@ -15,11 +15,30 @@ import {
 const router = Router();
 
 router.post("/register", validate(registerValidator), asyncHandler(auth.register));
-router.post("/register/recruiter", validate(registerValidator), asyncHandler(auth.registerRecruiter));
+router.post(
+  "/register/recruiter",
+  validate(registerValidator),
+  asyncHandler(auth.registerRecruiter)
+);
 router.post("/login", authLimiter, validate(loginValidator), asyncHandler(auth.login));
-router.post("/forgot-password", authLimiter, validate(emailOnlyValidator), asyncHandler(auth.forgotPassword));
-router.post("/reset-password", authLimiter, validate(resetPasswordValidator), asyncHandler(auth.resetPassword));
-router.post("/change-password", loginRequired, validate(changePasswordValidator), asyncHandler(auth.changePassword));
+router.post(
+  "/forgot-password",
+  authLimiter,
+  validate(emailOnlyValidator),
+  asyncHandler(auth.forgotPassword)
+);
+router.post(
+  "/reset-password",
+  authLimiter,
+  validate(resetPasswordValidator),
+  asyncHandler(auth.resetPassword)
+);
+router.post(
+  "/change-password",
+  loginRequired,
+  validate(changePasswordValidator),
+  asyncHandler(auth.changePassword)
+);
 router.post("/logout", loginRequired, asyncHandler(auth.logout));
 
 export default (app: Router) => app.use("/auth", router);

@@ -8,6 +8,11 @@ import { createOrganizationValidator } from "../validators/organization.js";
 
 const router = Router();
 
-router.post("/", validateAccess([UserRole.Admin]), validate(createOrganizationValidator), asyncHandler(organization.registerOrganization));
+router.post(
+  "/",
+  validateAccess([UserRole.Admin]),
+  validate(createOrganizationValidator),
+  asyncHandler(organization.registerOrganization)
+);
 
 export default (app: Router) => app.use("/organizations", router);

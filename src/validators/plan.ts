@@ -20,10 +20,7 @@ export const createPlanValidator = [
 export const updatePlanValidator = [
   param("_id").notEmpty().withMessage("Plan ID is required"),
   body("name").optional().trim(),
-  body("interval")
-    .optional()
-    .isIn(Object.values(BillingInterval))
-    .withMessage("Invalid interval"),
+  body("interval").optional().isIn(Object.values(BillingInterval)).withMessage("Invalid interval"),
   body("amount").optional().isFloat({ min: 0.01 }).toFloat(),
   body("currency").optional().isIn(Object.values(Currency)).withMessage("Invalid currency"),
   body("description").optional().isString(),
@@ -34,9 +31,6 @@ export const updatePlanValidator = [
 export const planIdParamValidator = [param("id").notEmpty().withMessage("Plan ID is required")];
 
 export const fetchPlansQueryValidator = [
-  query("interval")
-    .optional()
-    .isIn(Object.values(BillingInterval))
-    .withMessage("Invalid interval"),
+  query("interval").optional().isIn(Object.values(BillingInterval)).withMessage("Invalid interval"),
   query("currency").optional().isIn(Object.values(Currency)).withMessage("Invalid currency"),
 ];

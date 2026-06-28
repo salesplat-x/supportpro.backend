@@ -1,14 +1,26 @@
 import request from "supertest";
 import { createApp } from "../src/app.js";
-import { startTestDatabase, stopTestDatabase, clearAllTables, testDataSource } from "./helpers/db.js";
+import {
+  startTestDatabase,
+  stopTestDatabase,
+  clearAllTables,
+  testDataSource,
+} from "./helpers/db.js";
 import { User } from "../src/entities/User.js";
 import { Role } from "../src/entities/Role.js";
 import { UserRole } from "../src/types/enums.js";
 import { generateHashedPassword, signToken } from "../src/utils/crypto.js";
 
 jest.mock("../src/utils/integrations/cloudinary.js", () => ({
-  uploadBuffer: jest.fn().mockResolvedValue({ url: "https://res.cloudinary.com/test/image.jpg", publicId: "test/image" }),
-  replaceAsset: jest.fn().mockResolvedValue({ url: "https://res.cloudinary.com/test/new.jpg", publicId: "test/new" }),
+  uploadBuffer: jest
+    .fn()
+    .mockResolvedValue({
+      url: "https://res.cloudinary.com/test/image.jpg",
+      publicId: "test/image",
+    }),
+  replaceAsset: jest
+    .fn()
+    .mockResolvedValue({ url: "https://res.cloudinary.com/test/new.jpg", publicId: "test/new" }),
   destroyAsset: jest.fn().mockResolvedValue(undefined),
   extractPublicIdFromUrl: jest.fn().mockReturnValue("test/image"),
 }));
@@ -61,9 +73,7 @@ describe("GET /v1/user/me", () => {
   it("returns the authenticated user", async () => {
     const { token } = await createTalentWithToken();
 
-    const res = await request(app)
-      .get("/v1/user/me")
-      .set("Authorization", `Bearer ${token}`);
+    const res = await request(app).get("/v1/user/me").set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
     expect(res.body.data.user.email).toBe("talent@example.com");

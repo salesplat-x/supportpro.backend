@@ -117,7 +117,9 @@ describe("GET /v1/ai-config/ — list AI configs", () => {
     expect(res.status).toBe(200);
     const configs = res.body.data.aiConfigs ?? res.body.data ?? [];
     expect(Array.isArray(configs)).toBe(true);
-    expect(configs.every((c: { recruiterId: string }) => c.recruiterId === recruiter.id)).toBe(true);
+    expect(configs.every((c: { recruiterId: string }) => c.recruiterId === recruiter.id)).toBe(
+      true
+    );
   });
 
   it("Talent cannot access → 403", async () => {

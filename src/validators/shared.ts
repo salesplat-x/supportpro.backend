@@ -8,9 +8,7 @@ export const passwordRules = (field: string): ValidationChain =>
     .isLength({ min: 8, max: 72 })
     .withMessage("Password must be between 8 and 72 characters")
     .matches(/^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#.?&])[A-Za-z\d@$!%*#?.&]{8,}$/)
-    .withMessage(
-      "Password must contain at least one number, one letter and one special character"
-    );
+    .withMessage("Password must contain at least one number, one letter and one special character");
 
 export const phoneRule = (field: string): ValidationChain =>
   body(field)
@@ -23,9 +21,7 @@ export const phoneRule = (field: string): ValidationChain =>
         }
         return true;
       } catch {
-        throw new Error(
-          "must be a valid international phone number e.g., +2348058272524"
-        );
+        throw new Error("must be a valid international phone number e.g., +2348058272524");
       }
     });
 
@@ -35,5 +31,4 @@ export const paginationRules = [
   query("sort").optional().isIn(["asc", "desc"]),
 ];
 
-export const idParam = (name = "_id") =>
-  param(name).notEmpty().withMessage(`${name} is required`);
+export const idParam = (name = "_id") => param(name).notEmpty().withMessage(`${name} is required`);

@@ -14,10 +14,30 @@ import {
 
 const router = Router();
 
-router.post("/broadcast", validateAccess([UserRole.Recruiter]), validate(broadcastMessageValidator), asyncHandler(message.broadcastMessage));
-router.patch("/:id", validateAccess([UserRole.Talent]), validate(acknowledgeMessageValidator), asyncHandler(message.acknowledge));
+router.post(
+  "/broadcast",
+  validateAccess([UserRole.Recruiter]),
+  validate(broadcastMessageValidator),
+  asyncHandler(message.broadcastMessage)
+);
+router.patch(
+  "/:id",
+  validateAccess([UserRole.Talent]),
+  validate(acknowledgeMessageValidator),
+  asyncHandler(message.acknowledge)
+);
 router.post("/", loginRequired, validate(sendMessageValidator), asyncHandler(message.create));
-router.get("/", loginRequired, validate(fetchMessagesQueryValidator), asyncHandler(message.getMessages));
-router.get("/:id", loginRequired, validate(messageIdParamValidator), asyncHandler(message.getMessage));
+router.get(
+  "/",
+  loginRequired,
+  validate(fetchMessagesQueryValidator),
+  asyncHandler(message.getMessages)
+);
+router.get(
+  "/:id",
+  loginRequired,
+  validate(messageIdParamValidator),
+  asyncHandler(message.getMessage)
+);
 
 export default (app: Router) => app.use("/messages", router);

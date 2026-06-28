@@ -1,13 +1,20 @@
 import request from "supertest";
 import { createApp } from "../src/app.js";
-import { startTestDatabase, stopTestDatabase, clearAllTables, testDataSource } from "./helpers/db.js";
+import {
+  startTestDatabase,
+  stopTestDatabase,
+  clearAllTables,
+  testDataSource,
+} from "./helpers/db.js";
 import { User } from "../src/entities/User.js";
 import { UserRole } from "../src/types/enums.js";
 import { generateHashedPassword, signToken } from "../src/utils/crypto.js";
 
 jest.mock("../src/utils/integrations/openai.js", () => ({
   createEmbedding: jest.fn().mockResolvedValue([{ embedding: new Array(512).fill(0.1) }]),
-  generatePersonalizedQuestions: jest.fn().mockResolvedValue({ message: { content: JSON.stringify({ questions: ["Q1", "Q2"] }) } }),
+  generatePersonalizedQuestions: jest
+    .fn()
+    .mockResolvedValue({ message: { content: JSON.stringify({ questions: ["Q1", "Q2"] }) } }),
 }));
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({

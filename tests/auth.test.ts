@@ -1,6 +1,11 @@
 import request from "supertest";
 import { createApp } from "../src/app.js";
-import { startTestDatabase, stopTestDatabase, clearAllTables, testDataSource } from "./helpers/db.js";
+import {
+  startTestDatabase,
+  stopTestDatabase,
+  clearAllTables,
+  testDataSource,
+} from "./helpers/db.js";
 import EmailService from "../src/utils/integrations/email/index.js";
 import { User } from "../src/entities/User.js";
 import { UserRole } from "../src/types/enums.js";
@@ -167,9 +172,7 @@ describe("POST /v1/auth/logout", () => {
     expect(logoutRes.status).toBe(200);
 
     // Token should now be invalid (tokenVersion mismatch)
-    const meRes = await request(app)
-      .get("/v1/user/me")
-      .set("Authorization", `Bearer ${token}`);
+    const meRes = await request(app).get("/v1/user/me").set("Authorization", `Bearer ${token}`);
     expect(meRes.status).toBe(401);
   });
 });

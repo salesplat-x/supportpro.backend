@@ -18,6 +18,9 @@ export const fetch = async (req: Request, res: Response) => {
 };
 
 export const questions = async (req: Request, res: Response) => {
-  const result = await roleService.fetchRoleQuestions(req.params["_id"]!, req.query as Record<string, string>);
+  const result = await roleService.fetchRoleQuestions(
+    req.params["_id"]!,
+    req.query as Record<string, string>
+  );
   sendSuccessResponse(res, "Questions fetched", { questions: result });
 };

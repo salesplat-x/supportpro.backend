@@ -5,7 +5,12 @@
 
 import request from "supertest";
 import { createApp } from "../src/app.js";
-import { startTestDatabase, stopTestDatabase, clearAllTables, testDataSource } from "./helpers/db.js";
+import {
+  startTestDatabase,
+  stopTestDatabase,
+  clearAllTables,
+  testDataSource,
+} from "./helpers/db.js";
 import { createTalent, PLAIN_PASSWORD } from "./helpers/fixtures.js";
 import { User } from "../src/entities/User.js";
 import { generateHashedPassword, signToken } from "../src/utils/crypto.js";
@@ -38,7 +43,11 @@ afterEach(async () => {
 // Helper: plant OTP in DB
 // ---------------------------------------------------------------------------
 
-async function plantOTP(userId: string, otp: string, expiryOffsetMs = 15 * 60 * 1000): Promise<void> {
+async function plantOTP(
+  userId: string,
+  otp: string,
+  expiryOffsetMs = 15 * 60 * 1000
+): Promise<void> {
   const expiry = new Date(Date.now() + expiryOffsetMs);
   await testDataSource
     .createQueryBuilder()
@@ -107,9 +116,7 @@ describe("POST /v1/auth/reset-password", () => {
       .send({ email: user.email, otp, password: "NewPassword1!" })
       .expect(200);
 
-    const meRes = await request(app)
-      .get("/v1/user/me")
-      .set("Authorization", `Bearer ${oldToken}`);
+    const meRes = await request(app).get("/v1/user/me").set("Authorization", `Bearer ${oldToken}`);
     expect(meRes.status).toBe(401);
   });
 
@@ -243,12 +250,22 @@ describe("POST /v1/auth/register — edge cases", () => {
   it("email is case-insensitively deduplicated (TALENT@EXAMPLE.COM rejected after talent@example.com)", async () => {
     await request(app)
       .post("/v1/auth/register")
-      .send({ email: "casetest@example.com", firstName: "A", lastName: "B", password: PLAIN_PASSWORD })
+      .send({
+        email: "casetest@example.com",
+        firstName: "A",
+        lastName: "B",
+        password: PLAIN_PASSWORD,
+      })
       .expect(201);
 
     const res = await request(app)
       .post("/v1/auth/register")
-      .send({ email: "CASETEST@EXAMPLE.COM", firstName: "C", lastName: "D", password: PLAIN_PASSWORD });
+      .send({
+        email: "CASETEST@EXAMPLE.COM",
+        firstName: "C",
+        lastName: "D",
+        password: PLAIN_PASSWORD,
+      });
     expect(res.status).toBe(409);
   });
 });
@@ -261,12 +278,22 @@ describe("POST /v1/auth/register/recruiter — edge cases", () => {
   it("rejects duplicate email → 409", async () => {
     await request(app)
       .post("/v1/auth/register/recruiter")
-      .send({ email: "recruiter_dup@example.com", firstName: "R", lastName: "E", password: PLAIN_PASSWORD })
+      .send({
+        email: "recruiter_dup@example.com",
+        firstName: "R",
+        lastName: "E",
+        password: PLAIN_PASSWORD,
+      })
       .expect(201);
 
     const res = await request(app)
       .post("/v1/auth/register/recruiter")
-      .send({ email: "recruiter_dup@example.com", firstName: "R", lastName: "E", password: PLAIN_PASSWORD });
+      .send({
+        email: "recruiter_dup@example.com",
+        firstName: "R",
+        lastName: "E",
+        password: PLAIN_PASSWORD,
+      });
     expect(res.status).toBe(409);
   });
 });

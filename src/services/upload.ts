@@ -15,7 +15,9 @@ const CLOUDINARY_FOLDERS = {
   cv: "salesplate/cv",
 } as const;
 
-export const uploadCloudinary = async (file?: Express.Multer.File): Promise<{ fileUrl: string }> => {
+export const uploadCloudinary = async (
+  file?: Express.Multer.File
+): Promise<{ fileUrl: string }> => {
   if (!file) {
     throw new ValidationError("No file uploaded");
   }

@@ -1,6 +1,12 @@
 import { body, query, param } from "express-validator";
 import { paginationRules, idParam } from "./shared.js";
-import { ExperienceLevel, WorkMode, JobStatus, ApplicationType, ApplicationStatus } from "../types/enums.js";
+import {
+  ExperienceLevel,
+  WorkMode,
+  JobStatus,
+  ApplicationType,
+  ApplicationStatus,
+} from "../types/enums.js";
 
 export const createJobValidator = [
   body("role").notEmpty().trim().withMessage("Role is required"),
@@ -9,7 +15,10 @@ export const createJobValidator = [
   body("experienceLevel")
     .isIn(Object.values(ExperienceLevel))
     .withMessage(`experienceLevel must be one of: ${Object.values(ExperienceLevel).join(", ")}`),
-  body("maxSalary").isFloat({ min: 0, max: 100000000 }).toFloat().withMessage("Valid maxSalary required"),
+  body("maxSalary")
+    .isFloat({ min: 0, max: 100000000 })
+    .toFloat()
+    .withMessage("Valid maxSalary required"),
   body("minSalary")
     .isFloat({ min: 0, max: 100000000 })
     .toFloat()
@@ -24,9 +33,7 @@ export const createJobValidator = [
   body("location.city").optional().trim(),
   body("location.state").optional().trim(),
   body("location.country").optional().trim(),
-  body("workMode")
-    .isArray({ min: 1 })
-    .withMessage("workMode must be a non-empty array"),
+  body("workMode").isArray({ min: 1 }).withMessage("workMode must be a non-empty array"),
   body("workMode.*")
     .isIn(Object.values(WorkMode))
     .withMessage(`workMode items must be one of: ${Object.values(WorkMode).join(", ")}`),

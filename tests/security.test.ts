@@ -14,8 +14,21 @@
 import request from "supertest";
 import jwt from "jsonwebtoken";
 import { createApp } from "../src/app.js";
-import { startTestDatabase, stopTestDatabase, clearAllTables, testDataSource } from "./helpers/db.js";
-import { createTalent, createRecruiter, createAdmin, createSuperadmin, createJob, createRole, createPayment } from "./helpers/fixtures.js";
+import {
+  startTestDatabase,
+  stopTestDatabase,
+  clearAllTables,
+  testDataSource,
+} from "./helpers/db.js";
+import {
+  createTalent,
+  createRecruiter,
+  createAdmin,
+  createSuperadmin,
+  createJob,
+  createRole,
+  createPayment,
+} from "./helpers/fixtures.js";
 import { User } from "../src/entities/User.js";
 import { UserRole } from "../src/types/enums.js";
 import { generateHashedPassword, signToken } from "../src/utils/crypto.js";
@@ -39,7 +52,9 @@ jest.mock("../src/utils/integrations/paystack.js", () => ({
     data: { status: "success", currency: "NGN", amount: 500000 },
   }),
   webhookDataValidation: jest.fn().mockReturnValue(true),
-  generatePaymentObject: jest.fn().mockReturnValue({ amount: 500000, email: "u@e.com", currency: "NGN" }),
+  generatePaymentObject: jest
+    .fn()
+    .mockReturnValue({ amount: 500000, email: "u@e.com", currency: "NGN" }),
   createCustomer: jest.fn().mockResolvedValue({ status: true }),
   hasRunningSubscription: jest.fn().mockResolvedValue(false),
 }));
@@ -102,13 +117,24 @@ describe("Role enforcement — Talent blocked from Recruiter-only routes", () =>
     const res = await request(app)
       .post("/v1/jobs/")
       .set("Authorization", `Bearer ${token}`)
-      .send({ role: "engineer", jobBrief: "test", maxSalary: 100000, minSalary: 50000, experienceLevel: "1-3 years", locationState: "Lagos", locationCountry: "Nigeria", workMode: ["remote"] });
+      .send({
+        role: "engineer",
+        jobBrief: "test",
+        maxSalary: 100000,
+        minSalary: 50000,
+        experienceLevel: "1-3 years",
+        locationState: "Lagos",
+        locationCountry: "Nigeria",
+        workMode: ["remote"],
+      });
     expect(res.status).toBe(403);
   });
 
   it("Talent cannot access recruiter dashboard → 403", async () => {
     const { token } = await createTalent();
-    const res = await request(app).get("/v1/recruiter/dashboard").set("Authorization", `Bearer ${token}`);
+    const res = await request(app)
+      .get("/v1/recruiter/dashboard")
+      .set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(403);
   });
 
@@ -208,18 +234,17 @@ describe("JWT token validation", () => {
   });
 
   it("Returns 401 for a token signed with the wrong secret", async () => {
-    const fakeToken = jwt.sign({ id: "some-uuid", email: "x@y.com", tokenVersion: 0 }, "wrong-secret");
-    const res = await request(app)
-      .get("/v1/user/me")
-      .set("Authorization", `Bearer ${fakeToken}`);
+    const fakeToken = jwt.sign(
+      { id: "some-uuid", email: "x@y.com", tokenVersion: 0 },
+      "wrong-secret"
+    );
+    const res = await request(app).get("/v1/user/me").set("Authorization", `Bearer ${fakeToken}`);
     expect(res.status).toBe(401);
   });
 
   it("Returns 401 when Authorization header is missing the Bearer prefix", async () => {
     const { token } = await createTalent();
-    const res = await request(app)
-      .get("/v1/user/me")
-      .set("Authorization", token); // missing "Bearer "
+    const res = await request(app).get("/v1/user/me").set("Authorization", token); // missing "Bearer "
     expect(res.status).toBe(401);
   });
 
@@ -227,18 +252,14 @@ describe("JWT token validation", () => {
     // Create user, sign token, then delete user from DB
     const { user, token } = await createTalent();
     await testDataSource.getRepository(User).delete(user.id);
-    const res = await request(app)
-      .get("/v1/user/me")
-      .set("Authorization", `Bearer ${token}`);
+    const res = await request(app).get("/v1/user/me").set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(401);
   });
 
   it("Returns 403 for a deactivated user's token", async () => {
     const { user, token } = await createTalent();
     await testDataSource.getRepository(User).update(user.id, { active: false });
-    const res = await request(app)
-      .get("/v1/user/me")
-      .set("Authorization", `Bearer ${token}`);
+    const res = await request(app).get("/v1/user/me").set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(403);
   });
 });
@@ -251,14 +272,9 @@ describe("Token invalidation after logout", () => {
   it("Old token is rejected after logout (tokenVersion mismatch)", async () => {
     const { token } = await createTalent();
 
-    await request(app)
-      .post("/v1/auth/logout")
-      .set("Authorization", `Bearer ${token}`)
-      .expect(200);
+    await request(app).post("/v1/auth/logout").set("Authorization", `Bearer ${token}`).expect(200);
 
-    const res = await request(app)
-      .get("/v1/user/me")
-      .set("Authorization", `Bearer ${token}`);
+    const res = await request(app).get("/v1/user/me").set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(401);
   });
 });
@@ -342,9 +358,7 @@ describe("ISSUE-001: OTP truncation bypass in resetPassword", () => {
 
 describe("ISSUE-007: CORS wildcard origin", () => {
   it("API responds with Access-Control-Allow-Origin: * for any origin", async () => {
-    const res = await request(app)
-      .get("/v1/")
-      .set("Origin", "https://evil.example.com");
+    const res = await request(app).get("/v1/").set("Origin", "https://evil.example.com");
     expect(res.headers["access-control-allow-origin"]).toBe("*");
   });
 });

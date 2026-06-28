@@ -102,9 +102,10 @@ export const scoutTalents = async (
   const talentIds = users.map((u) => u.id);
 
   // Get CV similarity scores from pgvector
-  const res: Array<{ user_id: string; similarity: number }> = talentIds.length > 0
-    ? await AppDataSource.query(
-        `
+  const res: Array<{ user_id: string; similarity: number }> =
+    talentIds.length > 0
+      ? await AppDataSource.query(
+          `
         WITH jd_cte AS (
           SELECT job_embedding::vector FROM scout_jobs WHERE id = $1
         ),
@@ -123,9 +124,9 @@ export const scoutTalents = async (
         ) ranked
         WHERE rn = 1
         `,
-        [payload.scoutJobId, talentIds]
-      )
-    : [];
+          [payload.scoutJobId, talentIds]
+        )
+      : [];
 
   const resMap = new Map(
     res.map((item) => [item.user_id, convertSimilarityToPercentage(item.similarity)])

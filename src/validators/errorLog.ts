@@ -18,6 +18,4 @@ export const resolveErrorLogValidator = [
   body("notes").optional().isString(),
 ];
 
-export const cleanupLogsValidator = [
-  body("daysToKeep").optional().isInt({ min: 1 }).toInt(),
-];
+export const cleanupLogsValidator = [body("daysToKeep").optional().isInt({ min: 1 }).toInt()];

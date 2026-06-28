@@ -13,7 +13,12 @@ import {
 
 const router = Router();
 
-router.post("/", validateAccess([UserRole.Recruiter, UserRole.Admin]), validate(createRoleValidator), asyncHandler(role.create));
+router.post(
+  "/",
+  validateAccess([UserRole.Recruiter, UserRole.Admin]),
+  validate(createRoleValidator),
+  asyncHandler(role.create)
+);
 router.get("/", validate(allRolesQueryValidator), asyncHandler(role.fetchAll));
 router.get("/:_id/questions", validate(roleQuestionsValidator), asyncHandler(role.questions));
 router.get("/:_id", validate(roleIdParamValidator), asyncHandler(role.fetch));

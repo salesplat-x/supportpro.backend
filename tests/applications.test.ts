@@ -4,7 +4,12 @@
 
 import request from "supertest";
 import { createApp } from "../src/app.js";
-import { startTestDatabase, stopTestDatabase, clearAllTables, testDataSource } from "./helpers/db.js";
+import {
+  startTestDatabase,
+  stopTestDatabase,
+  clearAllTables,
+  testDataSource,
+} from "./helpers/db.js";
 import {
   createTalent,
   createRecruiter,
@@ -243,7 +248,10 @@ describe("PATCH /v1/applications/:_id/status — update status (Recruiter only)"
 
     // Direct service call (bypassing middleware) — talent passes the check
     const { updateStatus } = await import("../src/services/application.js");
-    const updated = await updateStatus(talent.id, { id: app_.id, status: ApplicationStatus.Shortlisted });
+    const updated = await updateStatus(talent.id, {
+      id: app_.id,
+      status: ApplicationStatus.Shortlisted,
+    });
 
     // Service-level: talent CAN update because talentId === userId (ISSUE-006)
     expect(updated.status).toBe(ApplicationStatus.Shortlisted);
@@ -261,12 +269,19 @@ describe("PATCH /v1/jobs/applications/:jobId — apply for job", () => {
     const { user: recruiter } = await createRecruiter();
     const role = await createRole();
     const job = await createJob(recruiter, role);
-    await createAIConfig(recruiter, { minPrescreeningScore: 60, stages: { prescreening: "cv_similarity", cv_similarity: "personalized", personalized: "personality", personality: "completed" } });
+    await createAIConfig(recruiter, {
+      minPrescreeningScore: 60,
+      stages: {
+        prescreening: "cv_similarity",
+        cv_similarity: "personalized",
+        personalized: "personality",
+        personality: "completed",
+      },
+    });
 
     // Link aiConfig to job
     const aiConfig = await createAIConfig(recruiter, { minPrescreeningScore: 60 });
-    await testDataSource.getRepository(Job)
-      .update(job.id, { aiConfigId: aiConfig.id });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
 
     const res = await request(app)
       .patch(`/v1/jobs/applications/${job.id}`)
@@ -281,8 +296,7 @@ describe("PATCH /v1/jobs/applications/:jobId — apply for job", () => {
     const role = await createRole();
     const job = await createJob(recruiter, role);
     const aiConfig = await createAIConfig(recruiter, { minPrescreeningScore: 60 });
-    await testDataSource.getRepository(Job)
-      .update(job.id, { aiConfigId: aiConfig.id });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
 
     const res = await request(app)
       .patch(`/v1/jobs/applications/${job.id}`)
@@ -297,8 +311,7 @@ describe("PATCH /v1/jobs/applications/:jobId — apply for job", () => {
     const role = await createRole();
     const job = await createJob(recruiter, role);
     const aiConfig = await createAIConfig(recruiter, { minPrescreeningScore: 70 });
-    await testDataSource.getRepository(Job)
-      .update(job.id, { aiConfigId: aiConfig.id });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
 
     const res = await request(app)
       .patch(`/v1/jobs/applications/${job.id}`)
@@ -334,8 +347,7 @@ describe("PATCH /v1/jobs/applications/:jobId — apply for job", () => {
     const role = await createRole();
     const job = await createJob(recruiter, role);
     const aiConfig = await createAIConfig(recruiter, { minPrescreeningScore: 60 });
-    await testDataSource.getRepository(Job)
-      .update(job.id, { aiConfigId: aiConfig.id });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
 
     const res1 = await request(app)
       .patch(`/v1/jobs/applications/${job.id}`)
@@ -397,9 +409,9 @@ describe("ISSUE-005: Application rank is sequential not score-based", () => {
 
     // The best-scoring application (95) has rank=1 — coincidentally correct only if it was first
     // The 40-score application has rank=2 — documents ISSUE-005: rank is not score-based
-    const rankedIds = loaded.map(a => a.id);
+    const rankedIds = loaded.map((a) => a.id);
     // Just verify the data — don't assert specific order as this documents the current (buggy) behavior
     expect(loaded.length).toBe(3);
-    expect(loaded.every(a => a.rank !== null)).toBe(true);
+    expect(loaded.every((a) => a.rank !== null)).toBe(true);
   });
 });

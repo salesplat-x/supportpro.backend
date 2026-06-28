@@ -5,13 +5,23 @@ import { sendSuccessResponse } from "../utils/response.js";
 
 export const register = async (req: Request, res: Response) => {
   const result = await authService.createUser(req.body, req.ip ?? undefined);
-  sendSuccessResponse(res, "User Registered Successfully", { user: result.user, token: result.token }, 201);
+  sendSuccessResponse(
+    res,
+    "User Registered Successfully",
+    { user: result.user, token: result.token },
+    201
+  );
 };
 
 export const registerRecruiter = async (req: Request, res: Response) => {
   req.body.userRole = UserRole.Recruiter;
   const result = await authService.createUser(req.body, req.ip ?? undefined);
-  sendSuccessResponse(res, "User Registered Successfully", { user: result.user, token: result.token }, 201);
+  sendSuccessResponse(
+    res,
+    "User Registered Successfully",
+    { user: result.user, token: result.token },
+    201
+  );
 };
 
 export const login = async (req: Request, res: Response) => {

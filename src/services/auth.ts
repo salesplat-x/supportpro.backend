@@ -79,7 +79,10 @@ export const loginUser = async (
   if (!user) {
     // Run a dummy bcrypt comparison to equalise response time and prevent
     // timing-based email enumeration (bcrypt takes ~100 ms; skipping it leaks existence).
-    await compareHashedPassword(password, "$2b$10$dummyhashplaceholderXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
+    await compareHashedPassword(
+      password,
+      "$2b$10$dummyhashplaceholderXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    );
     logger.error(`Failed login: email=${email} ip=${ip ?? "unknown"}`);
     throw new AuthorizationError("Invalid email or password");
   }
@@ -99,10 +102,7 @@ export const loginUser = async (
   return { user, token };
 };
 
-export const forgotPassword = async (
-  { email }: { email: string },
-  ip?: string
-): Promise<void> => {
+export const forgotPassword = async ({ email }: { email: string }, ip?: string): Promise<void> => {
   logger.info(`Password reset requested: email=${email.toLowerCase()} ip=${ip ?? "unknown"}`);
 
   const user = await userRepo().findOne({ where: { email: email.toLowerCase() } });
@@ -147,11 +147,13 @@ export const resetPassword = async (
   // Constant-time comparison to prevent timing side-channel on OTP value.
   // Buffers must be the same length for timingSafeEqual; pad to the stored code length.
   const storedBuf = Buffer.from(user.recoveryCode, "utf8");
-  const inputBuf = Buffer.from(otp.padEnd(user.recoveryCode.length, "\0").slice(0, user.recoveryCode.length), "utf8");
-  const otpMatches = storedBuf.length === inputBuf.length && timingSafeEqual(
-    new Uint8Array(storedBuf),
-    new Uint8Array(inputBuf)
+  const inputBuf = Buffer.from(
+    otp.padEnd(user.recoveryCode.length, "\0").slice(0, user.recoveryCode.length),
+    "utf8"
   );
+  const otpMatches =
+    storedBuf.length === inputBuf.length &&
+    timingSafeEqual(new Uint8Array(storedBuf), new Uint8Array(inputBuf));
   if (!otpMatches || new Date() > user.recoveryCodeExpiry) {
     invalidToken();
     return;

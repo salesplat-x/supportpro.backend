@@ -8,7 +8,12 @@ export const createAIConfig = async (req: Request, res: Response) => {
 };
 
 export const update = async (req: Request, res: Response) => {
-  const result = await aiConfigService.updateAIConfig(req.user.id, req.user.userRole, req.params["_id"]!, req.body);
+  const result = await aiConfigService.updateAIConfig(
+    req.user.id,
+    req.user.userRole,
+    req.params["_id"]!,
+    req.body
+  );
   sendSuccessResponse(res, "AI Config updated", { aiConfig: result });
 };
 
