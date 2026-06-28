@@ -20,9 +20,6 @@ import { Scout } from "../entities/Scout.js";
 import { TalentEmbedding } from "../entities/TalentEmbedding.js";
 import { ErrorLog } from "../entities/ErrorLog.js";
 
-const isTest = env.app_env === "test";
-const isDev = env.app_env === "dev";
-
 const databaseConfig: DataSourceOptions = {
   type: "postgres",
   host: env.pg_host,
@@ -52,8 +49,8 @@ const databaseConfig: DataSourceOptions = {
     ErrorLog,
   ],
   migrations: [],
-  synchronize: isDev || isTest,
-  logging: isDev ? ["query", "error"] : ["error"],
+  synchronize: true,
+  logging: false,
   ssl:
     env.pg_host && !["localhost", "127.0.0.1", "postgres"].includes(env.pg_host)
       ? { rejectUnauthorized: false }
