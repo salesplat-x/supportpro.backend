@@ -2,7 +2,7 @@ import bcrypt from "bcrypt";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import authConfig from "../config/auth.js";
-import type { User } from "../entities/User.js";
+import type { User } from "../entities";
 
 export const generateHashedPassword = async (password: string): Promise<string> => {
   const salt = await bcrypt.genSalt(authConfig.saltRounds);
