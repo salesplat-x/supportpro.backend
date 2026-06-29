@@ -21,6 +21,8 @@ const jobRepo = () => AppDataSource.getRepository(Job);
 
 const roleRepo = () => AppDataSource.getRepository(Role);
 
+const MAX_PAGE_SIZE = 100;
+
 const aiConfigRepo = () => AppDataSource.getRepository(AIConfig);
 
 const applicationRepo = () => AppDataSource.getRepository(Application);
@@ -255,7 +257,7 @@ export const fetchAllJobs = async (payload: FetchJobsParams): Promise<Job[]> => 
     );
   }
 
-  const limit = Number(payload.limit) || 50;
+  const limit = Math.min(Number(payload.limit) || 50, MAX_PAGE_SIZE);
   const offset = Number(payload.offset) || 0;
   const order = sortDirection(payload.sort ?? "desc");
 
@@ -575,7 +577,7 @@ export const jobApplications = async (
   }
 
   const offset = Number(payload.offset) || 0;
-  const limit = Number(payload.limit) || 50;
+  const limit = Math.min(Number(payload.limit) || 50, MAX_PAGE_SIZE);
 
   return qb
     .orderBy("application.cvSimilarityScore", "DESC")

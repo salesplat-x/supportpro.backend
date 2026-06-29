@@ -5,6 +5,8 @@ import { sortDirection } from "../utils/text.js";
 
 const notificationRepo = () => AppDataSource.getRepository(Notification);
 
+const MAX_PAGE_SIZE = 100;
+
 export interface PagingParams {
   limit?: number | string;
   offset?: number | string;
@@ -23,7 +25,7 @@ export const getNotifications = async (
   userId: string,
   paging: PagingParams
 ): Promise<{ notifications: Notification[]; unReadCount: number }> => {
-  const limit = Number(paging.limit) || 50;
+  const limit = Math.min(Number(paging.limit) || 50, MAX_PAGE_SIZE);
   const offset = Number(paging.offset) || 0;
   const order = sortDirection(paging.sort ?? "desc");
 
