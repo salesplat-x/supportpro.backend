@@ -55,6 +55,12 @@ const databaseConfig: DataSourceOptions = {
     env.pg_host && !["localhost", "127.0.0.1", "postgres"].includes(env.pg_host)
       ? { rejectUnauthorized: false }
       : false,
+  extra: {
+    max: 20,
+    min: 2,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
+  },
 };
 
 export default databaseConfig;
