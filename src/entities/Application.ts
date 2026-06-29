@@ -15,6 +15,8 @@ import type { Role } from "./Role.js";
 
 @Entity("applications")
 @Index(["talentId", "jobId"], { unique: true })
+@Index(["recruiterId"])
+@Index(["jobId", "status"])
 export class Application {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
