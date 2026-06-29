@@ -1,3 +1,4 @@
+import { In } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { PreScreening } from "../entities/PreScreening.js";
 import { User } from "../entities/User.js";
@@ -45,14 +46,11 @@ const stripSensitiveFields = (
   }));
 
 const validateRoles = async (user: User): Promise<{ valid: boolean; names: string[] }> => {
-  const roles = user.userRoles ?? [];
-  const names: string[] = [];
-  for (const roleRef of roles) {
-    const role = await roleRepo().findOne({ where: { id: roleRef.id } });
-    if (!role) return { valid: false, names: [] };
-    names.push(role.name);
-  }
-  return { valid: true, names };
+  const roleIds = (user.userRoles ?? []).map((r) => r.id);
+  if (roleIds.length === 0) return { valid: true, names: [] };
+  const roles = await roleRepo().findBy({ id: In(roleIds) });
+  if (roles.length !== roleIds.length) return { valid: false, names: [] };
+  return { valid: true, names: roles.map((r) => r.name) };
 };
 
 export const generatePreScreeningForUser = async (
@@ -267,12 +265,9 @@ export const submitPreScreeningAnswers = async (
 
   let roleNames: string[] = preScreening.roles;
   if (user?.userRoles?.length) {
-    roleNames = await Promise.all(
-      user.userRoles.map(async (r) => {
-        const role = await roleRepo().findOne({ where: { id: r.id } });
-        return role?.name ?? r.id;
-      })
-    );
+    const ids = user.userRoles.map((r) => r.id);
+    const roles = await roleRepo().findBy({ id: In(ids) });
+    roleNames = roles.map((r) => r.name);
   }
 
   const scoringQuestions = storedQuestions.map((q) => ({

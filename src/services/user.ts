@@ -1,3 +1,4 @@
+import { In } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { Application, Role, TalentEmbedding, User } from "../entities";
 import { NotFoundError, ValidationError } from "../utils/errors";
@@ -58,14 +59,10 @@ export const getProfileCompletion = (
 };
 
 const validateAndFetchRoles = async (roleIds: string[]): Promise<Role[]> => {
-  const roles: Role[] = [];
-  for (const id of roleIds) {
-    const role = await roleRepo().findOne({ where: { id } });
-    if (!role) {
-      throw new NotFoundError(`Role does not exist: ${id}`);
-    }
-    roles.push(role);
-  }
+  if (roleIds.length === 0) return [];
+  const roles = await roleRepo().findBy({ id: In(roleIds) });
+  const missing = roleIds.find((id) => !roles.find((r) => r.id === id));
+  if (missing) throw new NotFoundError(`Role does not exist: ${missing}`);
   return roles;
 };
 
