@@ -219,11 +219,6 @@ export const editProfile = async (
     }
     const processedText = overlapChunkText(preprocessText(text));
 
-    const cvEmbedding = await createEmbedding(processedText);
-
-    // Save embedding in talent_embeddings table
-    await saveTalentEmbedding(userId, processedText, cvEmbedding);
-
     const asset = await replaceAsset(existingUser.cvPublicId ?? undefined, file.buffer, {
       folder: CLOUDINARY_FOLDERS.cv,
       publicId: `${userId}-cv`,
@@ -235,6 +230,16 @@ export const editProfile = async (
     update.cvUrl = asset.url;
     update.cvPublicId = asset.publicId;
     update.cvUploadedAt = new Date();
+
+    // Generate embedding asynchronously — not needed for the response, takes 5–20s
+    const textSnapshot = [...processedText];
+    setImmediate(() => {
+      createEmbedding(textSnapshot)
+        .then((cvEmbedding) => saveTalentEmbedding(userId, textSnapshot, cvEmbedding))
+        .catch((err: Error) =>
+          logger.error(`CV embedding generation failed for user ${userId}: ${err.message}`)
+        );
+    });
   }
 
   const saved = await userRepo().save({ ...existingUser, ...update });
