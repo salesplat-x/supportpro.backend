@@ -6,6 +6,9 @@
   "engines": {
     "node": ">=22"
   },
+  "overrides": {
+    "tar": "^7.5.19"
+  },
   "scripts": {
     "start": "node ./dist/app.js",
     "start:build": "npm run build && npm start",

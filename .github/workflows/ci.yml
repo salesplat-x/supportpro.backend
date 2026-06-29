@@ -50,6 +50,24 @@ jobs:
       - name: 🧪 Run tests
         run: npm test
 
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📦 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🚀 Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: 📚 Install Packages
+        run: npm ci --legacy-peer-deps
+
+      - name: 🔒 Check for vulnerable dependencies
+        run: npm audit --audit-level=high
+
   commitlint:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
