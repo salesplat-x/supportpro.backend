@@ -4,7 +4,7 @@
   "description": "Backend server for SupportPro",
   "main": "index.js",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "start": "node ./dist/app.js",
