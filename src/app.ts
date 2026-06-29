@@ -9,7 +9,7 @@ import logger, { httpLogger } from "./utils/logger.js";
 import { generalLimiter } from "./middleware/rateLimiter.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { sendSuccessResponse } from "./utils/response.js";
-import { initializeDatabase } from "./database/dataSource.js";
+import { AppDataSource, initializeDatabase } from "./database/dataSource.js";
 import v1Router from "./routes/index.js";
 import swaggerDocs from "./swagger.js";
 
@@ -18,12 +18,20 @@ export function createApp(): Application {
 
   app.use(express.urlencoded({ extended: true }));
   app.use(express.json());
-  app.use(cors({ origin: "*" }));
+  app.use(cors({ origin: env.website, credentials: true }));
   app.use(helmet({ frameguard: { action: "deny" } }));
   app.use(httpLogger);
   app.use(generalLimiter);
 
   app.get("/", (_req, res) => sendSuccessResponse(res, "Welcome to SupportPro Backend"));
+  app.get("/health", async (_req, res) => {
+    try {
+      await AppDataSource.query("SELECT 1");
+      res.json({ status: "ok", db: "connected", timestamp: new Date().toISOString() });
+    } catch {
+      res.status(503).json({ status: "error", db: "disconnected", timestamp: new Date().toISOString() });
+    }
+  });
   app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
   swaggerDocs(app, env.port);
@@ -43,9 +51,24 @@ async function startApplication(): Promise<void> {
   const app = createApp();
   const PORT = env.port || 3000;
 
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     logger.info(`App listening on http://localhost:${PORT}`);
   });
+
+  const shutdown = async (signal: string): Promise<void> => {
+    logger.info(`${signal} received — shutting down gracefully`);
+    server.close(async () => {
+      await AppDataSource.destroy().catch(() => {});
+      process.exit(0);
+    });
+    setTimeout(() => {
+      logger.error("Forced shutdown after timeout");
+      process.exit(1);
+    }, 30_000).unref();
+  };
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
 // Do not auto-start when imported by tests (Jest sets NODE_ENV=test).
