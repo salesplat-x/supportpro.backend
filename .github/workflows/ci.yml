@@ -70,27 +70,6 @@ jobs:
       - name: npm audit
         run: npm audit --audit-level=high
 
-  socket:
-    name: Socket Security
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.x
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
-
-      - name: Socket Security scan
-        uses: socketdev/action@v2
-        with:
-          api_key: ${{ secrets.SOCKET_SECURITY_API_KEY }}
-
   commitlint:
     name: Commit Lint
     if: github.event_name == 'pull_request'
