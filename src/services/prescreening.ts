@@ -159,7 +159,7 @@ export const getActivePreScreening = async (
   userId: string
 ): Promise<{
   preScreening: {
-    id: string;
+    id: string | null;
     status: PreScreeningStatus;
     score: number | null;
     attemptCount: number;
@@ -168,6 +168,7 @@ export const getActivePreScreening = async (
     completedAt: Date | null;
     roles: string[];
     questions: ReturnType<typeof stripSensitiveFields>;
+    generating?: boolean;
   };
 }> => {
   const user = await userRepo().findOne({
@@ -178,18 +179,29 @@ export const getActivePreScreening = async (
     throw new NotFoundError("User not found");
   }
 
-  let preScreening = await preScreeningRepo().findOne({ where: { userId } });
+  const preScreening = await preScreeningRepo().findOne({ where: { userId } });
 
   if (!preScreening) {
     const { isProfileComplete } = getProfileCompletion(user);
     if (!isProfileComplete) {
       throw new NotFoundError("No assessment found. Complete your profile to generate one.");
     }
-    await generatePreScreeningForUser(user);
-    preScreening = await preScreeningRepo().findOne({ where: { userId } });
-    if (!preScreening) {
-      throw new ValidationError("Failed to generate assessment. Please try again.");
-    }
+    // Fire-and-forget — client should poll until generating is false
+    triggerPreScreeningGeneration(user);
+    return {
+      preScreening: {
+        id: null,
+        status: PreScreeningStatus.Pending,
+        score: null,
+        attemptCount: 0,
+        maxAttempts: 2,
+        generatedAt: new Date(),
+        completedAt: null,
+        roles: [],
+        questions: [],
+        generating: true,
+      },
+    };
   }
 
   const safeQuestions = stripSensitiveFields(preScreening.questions as IGeneratedQuestion[]);
