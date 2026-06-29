@@ -29,7 +29,9 @@ export function createApp(): Application {
       await AppDataSource.query("SELECT 1");
       res.json({ status: "ok", db: "connected", timestamp: new Date().toISOString() });
     } catch {
-      res.status(503).json({ status: "error", db: "disconnected", timestamp: new Date().toISOString() });
+      res
+        .status(503)
+        .json({ status: "error", db: "disconnected", timestamp: new Date().toISOString() });
     }
   });
   app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));

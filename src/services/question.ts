@@ -240,7 +240,7 @@ export const generatePersonalizedQuestions = async (
       .createQueryBuilder()
       .update(Job)
       .set({ noOfApplicants: () => '"noOfApplicants" + 1' })
-      .where('id = :id', { id: jobId })
+      .where("id = :id", { id: jobId })
       .execute();
   }
 

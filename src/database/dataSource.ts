@@ -11,20 +11,26 @@ export async function initializeDatabase(): Promise<void> {
     await AppDataSource.query("CREATE EXTENSION IF NOT EXISTS vector;").catch(() => {});
 
     // Partial index on talent users — not expressible via @Index decorator
-    await AppDataSource.query(`
+    await AppDataSource.query(
+      `
       CREATE INDEX IF NOT EXISTS idx_users_talent_score
         ON users(user_role, prescreening_score DESC)
         WHERE user_role = 'talent'
-    `).catch(() => {});
+    `
+    ).catch(() => {});
 
     // HNSW indexes — effective only once cv_embedding/job_embedding columns are vector(512) type
-    await AppDataSource.query(`
+    await AppDataSource.query(
+      `
       CREATE INDEX IF NOT EXISTS idx_talent_embeddings_hnsw
         ON talent_embeddings USING hnsw (cv_embedding vector_cosine_ops)
-    `).catch(() => {});
-    await AppDataSource.query(`
+    `
+    ).catch(() => {});
+    await AppDataSource.query(
+      `
       CREATE INDEX IF NOT EXISTS idx_jobs_hnsw
         ON jobs USING hnsw (job_embedding vector_cosine_ops)
-    `).catch(() => {});
+    `
+    ).catch(() => {});
   }
 }

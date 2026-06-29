@@ -1,4 +1,5 @@
 import { AppDataSource } from "../database/dataSource.js";
+import logger from "../utils/logger.js";
 import { Job } from "../entities/Job.js";
 import { Role } from "../entities/Role.js";
 import { AIConfig } from "../entities/AIConfig.js";
@@ -654,7 +655,7 @@ export const apply = async (user: User, payload: ApplyPayload): Promise<Applicat
     .createQueryBuilder()
     .update(Job)
     .set({ noOfApplicants: () => '"noOfApplicants" + 1' })
-    .where('id = :id', { id: jobId })
+    .where("id = :id", { id: jobId })
     .execute();
 
   return saved;

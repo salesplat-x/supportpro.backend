@@ -96,7 +96,9 @@ describe("GET /v1/prescreening/ — get or generate prescreening", () => {
 
   it("Sensitive fields are stripped from questions (no correctOption/intent/scoringHint)", async () => {
     const role = await createRole();
-    const { token } = await createCompleteTalent(role);
+    const { user, token } = await createCompleteTalent(role);
+    // Pre-seed prescreening so the endpoint returns existing questions rather than triggering async generation
+    await createPreScreening(user, [role.id]);
 
     const res = await request(app).get("/v1/prescreening/").set("Authorization", `Bearer ${token}`);
 

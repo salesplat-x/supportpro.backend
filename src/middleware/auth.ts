@@ -84,12 +84,18 @@ export const validateAccess = (roles: UserRole[]): RequestHandler => {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
-      res.status(401).json({ success: false, error: { code: "AUTHENTICATION_ERROR", message: "Login required" } });
+      res.status(401).json({
+        success: false,
+        error: { code: "AUTHENTICATION_ERROR", message: "Login required" },
+      });
       return;
     }
     const token = authHeader.split(" ")[1];
     if (!token) {
-      res.status(401).json({ success: false, error: { code: "AUTHENTICATION_ERROR", message: "Login required" } });
+      res.status(401).json({
+        success: false,
+        error: { code: "AUTHENTICATION_ERROR", message: "Login required" },
+      });
       return;
     }
 
@@ -97,7 +103,10 @@ export const validateAccess = (roles: UserRole[]): RequestHandler => {
     try {
       payload = decodeToken(token);
     } catch {
-      res.status(401).json({ success: false, error: { code: "AUTHENTICATION_ERROR", message: "Login required" } });
+      res.status(401).json({
+        success: false,
+        error: { code: "AUTHENTICATION_ERROR", message: "Login required" },
+      });
       return;
     }
 
@@ -105,7 +114,10 @@ export const validateAccess = (roles: UserRole[]): RequestHandler => {
     if (payload.userRole && !roles.includes(payload.userRole)) {
       res.status(403).json({
         success: false,
-        error: { code: "AUTHORIZATION_ERROR", message: "You are not authorized to perform this action" },
+        error: {
+          code: "AUTHORIZATION_ERROR",
+          message: "You are not authorized to perform this action",
+        },
       });
       return;
     }

@@ -344,12 +344,17 @@ describe("ISSUE-001: OTP truncation bypass in resetPassword", () => {
 });
 
 // ---------------------------------------------------------------------------
-// ISSUE-007: CORS wildcard (documents the configuration)
+// ISSUE-007: CORS wildcard — fixed, origin is now restricted to FRONTEND_CALLBACK_URL
 // ---------------------------------------------------------------------------
 
-describe("ISSUE-007: CORS wildcard origin", () => {
-  it("API responds with Access-Control-Allow-Origin: * for any origin", async () => {
+describe("ISSUE-007: CORS wildcard origin (fixed)", () => {
+  it("API does not reflect wildcard CORS for unknown origins", async () => {
     const res = await request(app).get("/v1/").set("Origin", "https://evil.example.com");
-    expect(res.headers["access-control-allow-origin"]).toBe("*");
+    expect(res.headers["access-control-allow-origin"]).not.toBe("*");
+  });
+
+  it("API allows requests from the configured frontend origin", async () => {
+    const res = await request(app).get("/v1/").set("Origin", "http://localhost:5173");
+    expect(res.headers["access-control-allow-origin"]).toBe("http://localhost:5173");
   });
 });

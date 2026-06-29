@@ -17,9 +17,16 @@ export const compareHashedPassword = async (
   return bcrypt.compare(password, hashedPassword);
 };
 
-export const signToken = (user: Pick<User, "id" | "email" | "tokenVersion" | "userRole">): string => {
+export const signToken = (
+  user: Pick<User, "id" | "email" | "tokenVersion" | "userRole">
+): string => {
   return jwt.sign(
-    { id: user.id, email: user.email, tokenVersion: user.tokenVersion ?? 0, userRole: user.userRole },
+    {
+      id: user.id,
+      email: user.email,
+      tokenVersion: user.tokenVersion ?? 0,
+      userRole: user.userRole,
+    },
     authConfig.jwtSecret,
     { expiresIn: authConfig.tokenExpiresIn, algorithm: "HS256" }
   );
