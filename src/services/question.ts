@@ -234,7 +234,12 @@ export const generatePersonalizedQuestions = async (
         personalizedQuestions: questionIds,
       })
     );
-    await jobRepo().save({ ...existingJob, noOfApplicants: existingJob.noOfApplicants + 1 });
+    await jobRepo()
+      .createQueryBuilder()
+      .update(Job)
+      .set({ noOfApplicants: () => '"noOfApplicants" + 1' })
+      .where('id = :id', { id: jobId })
+      .execute();
   }
 
   return { questions: savedQuestions, application };

@@ -414,7 +414,10 @@ export const topTalents = async (
 
   // Update noOfApplicants on job
   if (newApplicants > 0) {
-    await jobRepo().save({ ...job, noOfApplicants: job.noOfApplicants + newApplicants });
+    await AppDataSource.query(
+      'UPDATE jobs SET "noOfApplicants" = "noOfApplicants" + $1 WHERE id = $2',
+      [newApplicants, jobId]
+    );
   }
 
   // Fetch user details for matched talents
@@ -641,7 +644,12 @@ export const apply = async (user: User, payload: ApplyPayload): Promise<Applicat
   const saved = await applicationRepo().save(application);
 
   // Increment noOfApplicants
-  await jobRepo().save({ ...job, noOfApplicants: job.noOfApplicants + 1 });
+  await jobRepo()
+    .createQueryBuilder()
+    .update(Job)
+    .set({ noOfApplicants: () => '"noOfApplicants" + 1' })
+    .where('id = :id', { id: jobId })
+    .execute();
 
   return saved;
 };
