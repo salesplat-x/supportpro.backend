@@ -14,6 +14,7 @@ import type { User } from "./User.js";
 import type { AIConfig } from "./AIConfig.js";
 
 @Entity("jobs")
+@Index(["status", "roleId"])
 export class Job {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

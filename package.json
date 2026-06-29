@@ -20,6 +20,7 @@
     "docker:drop": "docker compose down -v --remove-orphans",
     "docs:generate": "npx ts-node generate-swagger.ts",
     "seed:roles": "npx ts-node src/scripts/seedRoles.ts",
+    "cleanup:notifications": "npx ts-node src/scripts/cleanupNotifications.ts",
     "prepare": "husky",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

@@ -10,6 +10,8 @@ const roleRepo = () => AppDataSource.getRepository(Role);
 const jobRepo = () => AppDataSource.getRepository(Job);
 const applicationRepo = () => AppDataSource.getRepository(Application);
 
+const MAX_PAGE_SIZE = 100;
+
 const canTakeAssessment = (assessmentRetryDate: Date | null): boolean => {
   if (!assessmentRetryDate) return true;
   return new Date() >= assessmentRetryDate;
@@ -100,7 +102,7 @@ export const fetchQuestions = async (
       throw new AuthorizationError("User is not permitted to take assessment for this role");
     }
 
-    const limit = Number(payload.limit) || 50;
+    const limit = Math.min(Number(payload.limit) || 50, MAX_PAGE_SIZE);
     const offset = Number(payload.offset) || 0;
     const order = sortDirection(payload.sort ?? "desc");
 
@@ -234,7 +236,12 @@ export const generatePersonalizedQuestions = async (
         personalizedQuestions: questionIds,
       })
     );
-    await jobRepo().save({ ...existingJob, noOfApplicants: existingJob.noOfApplicants + 1 });
+    await jobRepo()
+      .createQueryBuilder()
+      .update(Job)
+      .set({ noOfApplicants: () => '"noOfApplicants" + 1' })
+      .where("id = :id", { id: jobId })
+      .execute();
   }
 
   return { questions: savedQuestions, application };

@@ -57,7 +57,11 @@ export const createUser = async (
 
   const saved = await userRepo().save(user);
 
-  await new EmailService().sendWelcome(saved);
+  new EmailService()
+    .sendWelcome(saved)
+    .catch((err: Error) =>
+      logger.error(`Welcome email failed for user ${saved.id}: ${err.message}`)
+    );
   logger.info(`User registered: id=${saved.id} email=${saved.email} ip=${ip ?? "unknown"}`);
 
   const token = signToken(saved);

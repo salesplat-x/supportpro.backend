@@ -11,6 +11,7 @@ import type { User } from "./User.js";
 
 @Entity("notifications")
 @Index(["userId"])
+@Index(["userId", "deleted", "createdAt"])
 export class Notification {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

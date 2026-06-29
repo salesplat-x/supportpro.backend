@@ -1,3 +1,4 @@
+import { In } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { Application, Role, TalentEmbedding, User } from "../entities";
 import { NotFoundError, ValidationError } from "../utils/errors";
@@ -58,14 +59,10 @@ export const getProfileCompletion = (
 };
 
 const validateAndFetchRoles = async (roleIds: string[]): Promise<Role[]> => {
-  const roles: Role[] = [];
-  for (const id of roleIds) {
-    const role = await roleRepo().findOne({ where: { id } });
-    if (!role) {
-      throw new NotFoundError(`Role does not exist: ${id}`);
-    }
-    roles.push(role);
-  }
+  if (roleIds.length === 0) return [];
+  const roles = await roleRepo().findBy({ id: In(roleIds) });
+  const missing = roleIds.find((id) => !roles.find((r) => r.id === id));
+  if (missing) throw new NotFoundError(`Role does not exist: ${missing}`);
   return roles;
 };
 
@@ -222,11 +219,6 @@ export const editProfile = async (
     }
     const processedText = overlapChunkText(preprocessText(text));
 
-    const cvEmbedding = await createEmbedding(processedText);
-
-    // Save embedding in talent_embeddings table
-    await saveTalentEmbedding(userId, processedText, cvEmbedding);
-
     const asset = await replaceAsset(existingUser.cvPublicId ?? undefined, file.buffer, {
       folder: CLOUDINARY_FOLDERS.cv,
       publicId: `${userId}-cv`,
@@ -238,6 +230,16 @@ export const editProfile = async (
     update.cvUrl = asset.url;
     update.cvPublicId = asset.publicId;
     update.cvUploadedAt = new Date();
+
+    // Generate embedding asynchronously — not needed for the response, takes 5–20s
+    const textSnapshot = [...processedText];
+    setImmediate(() => {
+      createEmbedding(textSnapshot)
+        .then((cvEmbedding) => saveTalentEmbedding(userId, textSnapshot, cvEmbedding))
+        .catch((err: Error) =>
+          logger.error(`CV embedding generation failed for user ${userId}: ${err.message}`)
+        );
+    });
   }
 
   const saved = await userRepo().save({ ...existingUser, ...update });

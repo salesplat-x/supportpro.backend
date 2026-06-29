@@ -1,4 +1,5 @@
 import { AppDataSource } from "../database/dataSource.js";
+import logger from "../utils/logger.js";
 import { Job } from "../entities/Job.js";
 import { Role } from "../entities/Role.js";
 import { AIConfig } from "../entities/AIConfig.js";
@@ -20,6 +21,8 @@ import { convertSimilarityToPercentage, preprocessText, sortDirection } from "..
 const jobRepo = () => AppDataSource.getRepository(Job);
 
 const roleRepo = () => AppDataSource.getRepository(Role);
+
+const MAX_PAGE_SIZE = 100;
 
 const aiConfigRepo = () => AppDataSource.getRepository(AIConfig);
 
@@ -165,27 +168,31 @@ export const updateJob = async (
     delete (update as Record<string, unknown>)["role"];
   }
 
-  // Notify applicants when job status changes
+  // Notify applicants when job status changes — fire and forget, chunked to avoid bulk write timeouts
   if (update.status && update.status !== existingJob.status) {
-    const applications = await applicationRepo().find({
-      where: { jobId: id },
-    });
-
-    const notifications = applications
-      .filter(
-        (app) =>
-          app.status !== ApplicationStatus.Shortlisted && app.status !== ApplicationStatus.Rejected
-      )
-      .map((app) =>
-        notificationRepo().create({
-          userId: app.talentId,
-          message: `Applications for this job has been ${update.status}`,
-        })
-      );
-
-    if (notifications.length > 0) {
-      await notificationRepo().save(notifications);
-    }
+    const statusLabel = update.status;
+    const jobId = id;
+    (async () => {
+      const applications = await applicationRepo().find({ where: { jobId } });
+      const notifications = applications
+        .filter(
+          (app) =>
+            app.status !== ApplicationStatus.Shortlisted &&
+            app.status !== ApplicationStatus.Rejected
+        )
+        .map((app) =>
+          notificationRepo().create({
+            userId: app.talentId,
+            message: `Applications for this job has been ${statusLabel}`,
+          })
+        );
+      const CHUNK = 500;
+      for (let i = 0; i < notifications.length; i += CHUNK) {
+        await notificationRepo().save(notifications.slice(i, i + CHUNK));
+      }
+    })().catch((err: Error) =>
+      logger.error(`Notification fan-out failed for job ${id}: ${err.message}`)
+    );
   }
 
   // Exclude 'role' string field to avoid type conflict with Role entity
@@ -255,7 +262,7 @@ export const fetchAllJobs = async (payload: FetchJobsParams): Promise<Job[]> => 
     );
   }
 
-  const limit = Number(payload.limit) || 50;
+  const limit = Math.min(Number(payload.limit) || 50, MAX_PAGE_SIZE);
   const offset = Number(payload.offset) || 0;
   const order = sortDirection(payload.sort ?? "desc");
 
@@ -414,7 +421,10 @@ export const topTalents = async (
 
   // Update noOfApplicants on job
   if (newApplicants > 0) {
-    await jobRepo().save({ ...job, noOfApplicants: job.noOfApplicants + newApplicants });
+    await AppDataSource.query(
+      'UPDATE jobs SET "noOfApplicants" = "noOfApplicants" + $1 WHERE id = $2',
+      [newApplicants, jobId]
+    );
   }
 
   // Fetch user details for matched talents
@@ -572,7 +582,7 @@ export const jobApplications = async (
   }
 
   const offset = Number(payload.offset) || 0;
-  const limit = Number(payload.limit) || 50;
+  const limit = Math.min(Number(payload.limit) || 50, MAX_PAGE_SIZE);
 
   return qb
     .orderBy("application.cvSimilarityScore", "DESC")
@@ -641,7 +651,12 @@ export const apply = async (user: User, payload: ApplyPayload): Promise<Applicat
   const saved = await applicationRepo().save(application);
 
   // Increment noOfApplicants
-  await jobRepo().save({ ...job, noOfApplicants: job.noOfApplicants + 1 });
+  await jobRepo()
+    .createQueryBuilder()
+    .update(Job)
+    .set({ noOfApplicants: () => '"noOfApplicants" + 1' })
+    .where("id = :id", { id: jobId })
+    .execute();
 
   return saved;
 };

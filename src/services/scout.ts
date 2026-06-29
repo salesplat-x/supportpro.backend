@@ -13,6 +13,8 @@ const scoutRepo = () => AppDataSource.getRepository(Scout);
 
 const scoutJobRepo = () => AppDataSource.getRepository(ScoutJob);
 
+const MAX_PAGE_SIZE = 100;
+
 const userRepo = () => AppDataSource.getRepository(User);
 
 const roleRepo = () => AppDataSource.getRepository(Role);
@@ -82,7 +84,7 @@ export const scoutTalents = async (
     qb.andWhere("user.workType LIKE :workMode", { workMode: `%${payload.workMode}%` });
   }
 
-  const limit = Number(payload.limit) || 50;
+  const limit = Math.min(Number(payload.limit) || 50, MAX_PAGE_SIZE);
   const offset = Number(payload.offset) || 0;
 
   const users = await qb

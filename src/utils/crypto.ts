@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import authConfig from "../config/auth.js";
+import { UserRole } from "../types/enums.js";
 import type { User } from "../entities";
 
 export const generateHashedPassword = async (password: string): Promise<string> => {
@@ -16,9 +17,16 @@ export const compareHashedPassword = async (
   return bcrypt.compare(password, hashedPassword);
 };
 
-export const signToken = (user: Pick<User, "id" | "email" | "tokenVersion">): string => {
+export const signToken = (
+  user: Pick<User, "id" | "email" | "tokenVersion" | "userRole">
+): string => {
   return jwt.sign(
-    { id: user.id, email: user.email, tokenVersion: user.tokenVersion ?? 0 },
+    {
+      id: user.id,
+      email: user.email,
+      tokenVersion: user.tokenVersion ?? 0,
+      userRole: user.userRole,
+    },
     authConfig.jwtSecret,
     { expiresIn: authConfig.tokenExpiresIn, algorithm: "HS256" }
   );
@@ -28,6 +36,7 @@ export interface JwtPayload {
   id: string;
   email: string;
   tokenVersion: number;
+  userRole: UserRole;
 }
 
 export const decodeToken = (token: string): JwtPayload => {

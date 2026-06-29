@@ -9,6 +9,8 @@ const applicationRepo = () => AppDataSource.getRepository(Application);
 
 const scoutRepo = () => AppDataSource.getRepository(Scout);
 
+const MAX_PAGE_SIZE = 100;
+
 export interface FetchApplicationsParams {
   applicationType?: ApplicationType;
   applicationStatus?: ApplicationStatus;
@@ -47,8 +49,11 @@ export const getApplication = async (
 export const getApplications = async (
   userId: string,
   userRole: UserRole,
-  _payload: FetchApplicationsParams
+  payload: FetchApplicationsParams
 ): Promise<Application[]> => {
+  const limit = Math.min(Number(payload.limit) || 50, MAX_PAGE_SIZE);
+  const offset = Number(payload.offset) || 0;
+
   const qb = applicationRepo()
     .createQueryBuilder("application")
     .leftJoinAndSelect("application.job", "job")
@@ -61,14 +66,14 @@ export const getApplications = async (
     qb.where("application.talent_id = :userId", { userId });
   }
 
-  return qb.getMany();
+  return qb.skip(offset).take(limit).getMany();
 };
 
 export const shortlist = async (
   userId: string,
   payload: FetchApplicationsParams
 ): Promise<{ campaigns: Application[]; scouts: Scout[] }> => {
-  const limit = Number(payload.limit) || 50;
+  const limit = Math.min(Number(payload.limit) || 50, MAX_PAGE_SIZE);
   const offset = Number(payload.offset) || 0;
   const order = sortDirection(payload.sort ?? "desc");
 
