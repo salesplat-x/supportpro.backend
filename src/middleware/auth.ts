@@ -2,7 +2,7 @@ import { Request, Response, NextFunction, RequestHandler } from "express";
 import { AppDataSource } from "../database/dataSource.js";
 import { User } from "../entities";
 import { UserRole } from "../types/enums.js";
-import { decodeToken } from "../utils/crypto.js";
+import { decodeToken, JwtPayload } from "../utils/crypto.js";
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -82,18 +82,37 @@ export const loginRequired: RequestHandler = async (
 
 export const validateAccess = (roles: UserRole[]): RequestHandler => {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const user = await resolveUser(req, res);
-    if (!user) return;
-    if (!roles.includes(user.userRole)) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) {
+      res.status(401).json({ success: false, error: { code: "AUTHENTICATION_ERROR", message: "Login required" } });
+      return;
+    }
+    const token = authHeader.split(" ")[1];
+    if (!token) {
+      res.status(401).json({ success: false, error: { code: "AUTHENTICATION_ERROR", message: "Login required" } });
+      return;
+    }
+
+    let payload: JwtPayload;
+    try {
+      payload = decodeToken(token);
+    } catch {
+      res.status(401).json({ success: false, error: { code: "AUTHENTICATION_ERROR", message: "Login required" } });
+      return;
+    }
+
+    // Fast role rejection from token — no DB hit needed
+    if (payload.userRole && !roles.includes(payload.userRole)) {
       res.status(403).json({
         success: false,
-        error: {
-          code: "AUTHORIZATION_ERROR",
-          message: "You are not authorized to perform this action",
-        },
+        error: { code: "AUTHORIZATION_ERROR", message: "You are not authorized to perform this action" },
       });
       return;
     }
+
+    // Full user fetch — validates tokenVersion (revocation) and populates req.user
+    const user = await resolveUser(req, res);
+    if (!user) return;
     req.user = user;
     next();
   };
