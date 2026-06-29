@@ -1,27 +1,4 @@
 services:
-  app:
-    image: salesplat/supportpro-backend:latest
-    build: .
-    restart: unless-stopped
-    ports:
-      - "${PORT:-3000}:3000"
-    env_file:
-      - .env
-    environment:
-      - PG_HOST=postgres
-      - DB_URI=mongodb://mongo:27017/${MONGO_DB:-supportpro}
-    depends_on:
-      - mongo
-      - postgres
-
-  mongo:
-    image: mongo:7
-    restart: unless-stopped
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
-
   postgres:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
@@ -33,7 +10,25 @@ services:
       - "${PG_PORT:-5434}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-postgres} -d ${PG_DB:-supportpro}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    image: salesplat/supportpro-backend:latest
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file:
+      - .env
+    environment:
+      - PG_HOST=postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
-  mongo_data:
   postgres_data:

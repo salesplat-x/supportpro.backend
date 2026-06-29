@@ -14,7 +14,9 @@
     "moduleResolution": "NodeNext",
     "outDir": "./dist",
     "sourceMap": true,
-    "typeRoots": ["./src/typings", "./node_modules/@types"]
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "typeRoots": ["./src/typings", "./src/types", "./node_modules/@types"]
 
     // "paths": {
     //   "@config/*": ["./src/config/*"],

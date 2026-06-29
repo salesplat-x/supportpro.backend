@@ -2,7 +2,9 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "rootDir": ".",
-    "isolatedModules": true
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "esModuleInterop": true
   },
   "include": ["src/**/*.ts", "tests/**/*.ts"]
 }

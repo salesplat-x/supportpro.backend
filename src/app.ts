@@ -1,7 +1,57 @@
-import logger from "./config/logger";
-import startApplication from "./server";
+import "reflect-metadata";
+import "dotenv/config";
+import express, { Application } from "express";
+import cors from "cors";
+import helmet from "helmet";
+import path from "path";
+import env from "./config/env.js";
+import logger, { httpLogger } from "./utils/logger.js";
+import { generalLimiter } from "./middleware/rateLimiter.js";
+import { errorHandler } from "./middleware/errorHandler.js";
+import { sendSuccessResponse } from "./utils/response.js";
+import { initializeDatabase } from "./database/dataSource.js";
+import v1Router from "./routes/index.js";
+import swaggerDocs from "./swagger.js";
 
-startApplication().catch((error: Error) => {
-  logger.logErrorMessage(`Failed to start application: ${error.message}`);
-  process.exit(1);
-});
+export function createApp(): Application {
+  const app = express();
+
+  app.use(express.urlencoded({ extended: true }));
+  app.use(express.json());
+  app.use(cors({ origin: "*" }));
+  app.use(helmet({ frameguard: { action: "deny" } }));
+  app.use(httpLogger);
+  app.use(generalLimiter);
+
+  app.get("/", (_req, res) => sendSuccessResponse(res, "Welcome to SupportPro Backend"));
+  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+
+  swaggerDocs(app, env.port);
+
+  app.use("/v1", v1Router);
+
+  // Global error handler — must be last
+  app.use(errorHandler);
+
+  return app;
+}
+
+async function startApplication(): Promise<void> {
+  await initializeDatabase();
+  logger.info("Database connected successfully");
+
+  const app = createApp();
+  const PORT = env.port || 3000;
+
+  app.listen(PORT, () => {
+    logger.info(`App listening on http://localhost:${PORT}`);
+  });
+}
+
+// Do not auto-start when imported by tests (Jest sets NODE_ENV=test).
+if (process.env.NODE_ENV !== "test") {
+  startApplication().catch((err: Error) => {
+    logger.error("Failed to start application", { message: err.message, stack: err.stack });
+    process.exit(1);
+  });
+}

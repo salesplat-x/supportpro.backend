@@ -5,28 +5,22 @@ import fs from "fs";
 import yaml from "js-yaml";
 import path from "path";
 
-function loadSwaggerSpec(): swaggerUi.JsonObject | null {
+const loadSwaggerSpec = (): swaggerUi.JsonObject | null => {
   try {
     const filePath = path.join(__dirname, "../swagger.yaml");
     if (!fs.existsSync(filePath)) {
       throw new Error("Swagger file not found");
     }
-
-    const fileContents = fs.readFileSync(filePath, "utf8");
-    return yaml.load(fileContents) as swaggerUi.JsonObject;
+    return yaml.load(fs.readFileSync(filePath, "utf8")) as swaggerUi.JsonObject;
   } catch (error) {
     console.error("Error loading Swagger spec:", error);
     return null;
   }
-}
+};
 
-// Serve Swagger UI
-//const swaggerSpec = loadSwaggerSpec();
-
-function swaggerDocs(app: Application, port: number) {
+const swaggerDocs = (app: Application, port: number): void => {
   app.use("/v1/docs", swaggerUi.serve);
 
-  // Middleware that will load spec per request and invoke the setup middleware
   app.get("/v1/docs", (req: Request, res: Response, next: NextFunction) => {
     const swaggerSpec = loadSwaggerSpec();
     if (!swaggerSpec) {
@@ -43,7 +37,8 @@ function swaggerDocs(app: Application, port: number) {
     res.setHeader("Expires", "0");
     res.send(swaggerSpec);
   });
+
   logger.log(`Docs available at http://localhost:${port}/v1/docs`);
-}
+};
 
 export default swaggerDocs;

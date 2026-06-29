@@ -20,7 +20,6 @@ const optionalEnvVars = {
 } as const;
 
 const requiredEnvVars = {
-  db_database: process.env.DB_URI,
   pg_host: process.env.PG_HOST,
   pg_port: process.env.PG_PORT,
   pg_db: process.env.PG_DB,
