@@ -12,6 +12,7 @@ concurrency:
 
 jobs:
   build:
+    name: Build & Test (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
 
     strategy:
@@ -23,68 +24,91 @@ jobs:
       NODE_ENV: test
 
     steps:
-      - name: 📦 Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 🚀 Use Node.js ${{ matrix.node-version }}
+      - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
 
-      - name: 📚 Install Packages
+      - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: 📝 Check for formatting issues
+      - name: Format check
         run: npm run format:check
 
-      - name: 🕵️ Check for linting issues
+      - name: Lint
         run: npm run lint
 
-      - name: 🔍 Check for type errors
+      - name: Type check
         run: npm run type-check
 
-      - name: 🏗️ Build
+      - name: Build
         run: npm run build
 
-      - name: 🧪 Run tests
+      - name: Test
         run: npm test
 
   audit:
+    name: Dependency Audit
     runs-on: ubuntu-latest
     steps:
-      - name: 📦 Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 🚀 Use Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
           cache: npm
 
-      - name: 📚 Install Packages
+      - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: 🔒 Check for vulnerable dependencies
+      - name: npm audit
         run: npm audit --audit-level=high
 
+  socket:
+    name: Socket Security
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Socket Security scan
+        uses: socketdev/action@v2
+        with:
+          api_key: ${{ secrets.SOCKET_SECURITY_API_KEY }}
+
   commitlint:
+    name: Commit Lint
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - name: 📦 Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: 🚀 Use Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
           cache: npm
 
-      - name: 📚 Install Packages
+      - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: 📝 Lint commit messages
+      - name: Lint commit messages
         uses: wagoid/commitlint-github-action@v6
