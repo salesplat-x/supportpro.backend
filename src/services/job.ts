@@ -167,27 +167,31 @@ export const updateJob = async (
     delete (update as Record<string, unknown>)["role"];
   }
 
-  // Notify applicants when job status changes
+  // Notify applicants when job status changes — fire and forget, chunked to avoid bulk write timeouts
   if (update.status && update.status !== existingJob.status) {
-    const applications = await applicationRepo().find({
-      where: { jobId: id },
-    });
-
-    const notifications = applications
-      .filter(
-        (app) =>
-          app.status !== ApplicationStatus.Shortlisted && app.status !== ApplicationStatus.Rejected
-      )
-      .map((app) =>
-        notificationRepo().create({
-          userId: app.talentId,
-          message: `Applications for this job has been ${update.status}`,
-        })
-      );
-
-    if (notifications.length > 0) {
-      await notificationRepo().save(notifications);
-    }
+    const statusLabel = update.status;
+    const jobId = id;
+    (async () => {
+      const applications = await applicationRepo().find({ where: { jobId } });
+      const notifications = applications
+        .filter(
+          (app) =>
+            app.status !== ApplicationStatus.Shortlisted &&
+            app.status !== ApplicationStatus.Rejected
+        )
+        .map((app) =>
+          notificationRepo().create({
+            userId: app.talentId,
+            message: `Applications for this job has been ${statusLabel}`,
+          })
+        );
+      const CHUNK = 500;
+      for (let i = 0; i < notifications.length; i += CHUNK) {
+        await notificationRepo().save(notifications.slice(i, i + CHUNK));
+      }
+    })().catch((err: Error) =>
+      logger.error(`Notification fan-out failed for job ${id}: ${err.message}`)
+    );
   }
 
   // Exclude 'role' string field to avoid type conflict with Role entity
