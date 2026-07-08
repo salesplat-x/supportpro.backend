@@ -32,9 +32,16 @@ const requiredEnvVars = {
   website: process.env.FRONTEND_CALLBACK_URL,
 } as const;
 
+const allowedOrigins = (process.env.FRONTEND_CALLBACK_URL ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 const env = {
   ...optionalEnvVars,
   ...requiredEnvVars,
+  website: allowedOrigins[0],
+  allowedOrigins,
 } as const;
 
 const missingEnvVars = Object.entries(requiredEnvVars)
