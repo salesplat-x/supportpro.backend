@@ -1,4 +1,4 @@
-import { Application, Request, Response, NextFunction } from "express";
+import { Application, Request, Response } from "express";
 import swaggerUi from "swagger-ui-express";
 import logger from "./config/logger";
 import fs from "fs";
@@ -19,18 +19,19 @@ const loadSwaggerSpec = (): swaggerUi.JsonObject | null => {
 };
 
 const swaggerDocs = (app: Application, port: number): void => {
-  app.use("/v1/docs", swaggerUi.serve);
+  const swaggerSpec = loadSwaggerSpec();
+  if (!swaggerSpec) {
+    logger.logErrorMessage("Swagger spec failed to load — /v1/docs will be unavailable");
+    return;
+  }
 
-  app.get("/v1/docs", (req: Request, res: Response, next: NextFunction) => {
-    const swaggerSpec = loadSwaggerSpec();
-    if (!swaggerSpec) {
-      return res.status(500).send("Swagger spec not available");
-    }
-    return swaggerUi.setup(swaggerSpec)(req, res, next);
-  });
+  const options = {
+    swaggerOptions: { supportedSubmitMethods: ["get", "post", "put", "delete"] },
+  };
 
-  app.get("/v1/docs.json", (req: Request, res: Response) => {
-    const swaggerSpec = loadSwaggerSpec();
+  app.use("/v1/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, options));
+
+  app.get("/v1/docs.json", (_req: Request, res: Response) => {
     res.setHeader("Content-Type", "application/json");
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     res.setHeader("Pragma", "no-cache");
