@@ -28,7 +28,7 @@ export function createApp(): Application {
         }
       },
       credentials: true,
-    }),
+    })
   );
   app.use(helmet({ frameguard: { action: "deny" } }));
   app.use(httpLogger);
