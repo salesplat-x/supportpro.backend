@@ -134,9 +134,7 @@ describe("PATCH /v1/user/me", () => {
     expect(dbUser?.minSalary).toBe(50000);
     expect(dbUser?.maxSalary).toBe(100000);
 
-    const getRes = await request(app)
-      .get("/v1/user/me")
-      .set("Authorization", `Bearer ${token}`);
+    const getRes = await request(app).get("/v1/user/me").set("Authorization", `Bearer ${token}`);
     expect(getRes.body.data.user.locationCity).toBe("Lagos");
     expect(getRes.body.data.user.experience).toBe("4-6 years");
     expect(getRes.body.data.user.currency).toBe(Currency.USD);
