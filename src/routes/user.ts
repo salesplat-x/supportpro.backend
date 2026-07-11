@@ -7,6 +7,7 @@ import { memoryUpload } from "../middleware/multer.js";
 import { UserRole } from "../types/enums.js";
 import {
   updateUserValidator,
+  updateProfileValidator,
   userProfilesQueryValidator,
   userApplicationsQueryValidator,
   userIdParamValidator,
@@ -20,11 +21,15 @@ router.post(
   memoryUpload.single("image"),
   asyncHandler(user.uploadProfileImage)
 );
+// General profile-field updates; cv accepted as a URL string only.
 router.patch("/me", loginRequired, validate(updateUserValidator), asyncHandler(user.updateUser));
+// Distinct from /me: accepts a multipart cv file upload (parsed by extraction/embedding
+// pipeline), so it stays separate rather than merging into /me.
 router.patch(
   "/profile",
   validateAccess([UserRole.Talent]),
   memoryUpload.single("cv"),
+  validate(updateProfileValidator),
   asyncHandler(user.editProfile)
 );
 router.get("/me", loginRequired, asyncHandler(user.me));

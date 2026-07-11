@@ -8,8 +8,9 @@ import {
 } from "./helpers/db.js";
 import { User } from "../src/entities/User.js";
 import { Role } from "../src/entities/Role.js";
-import { UserRole } from "../src/types/enums.js";
+import { UserRole, Currency, WorkType } from "../src/types/enums.js";
 import { generateHashedPassword, signToken } from "../src/utils/crypto.js";
+import { createTalent, createRole } from "./helpers/fixtures.js";
 
 jest.mock("../src/utils/integrations/cloudinary.js", () => ({
   uploadBuffer: jest.fn().mockResolvedValue({
@@ -94,6 +95,111 @@ describe("PATCH /v1/user/me", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.data.user.firstName).toBe("Updated");
+  });
+
+  it("persists a full profile payload (roleIds, location, experience, currency, workType, salary)", async () => {
+    const { token, user } = await createTalent();
+    const role = await createRole();
+
+    const payload = {
+      roleIds: [role.id],
+      locationCity: "Lagos",
+      locationState: "Lagos",
+      locationCountry: "Nigeria",
+      experience: "4-6 years",
+      currency: Currency.USD,
+      workType: [WorkType.Remote],
+      minSalary: 50000,
+      maxSalary: 100000,
+    };
+
+    const patchRes = await request(app)
+      .patch("/v1/user/me")
+      .set("Authorization", `Bearer ${token}`)
+      .send(payload);
+
+    expect(patchRes.status).toBe(200);
+
+    const dbUser = await testDataSource.getRepository(User).findOne({
+      where: { id: user.id },
+      relations: { userRoles: true },
+    });
+    expect(dbUser?.userRoles.map((r) => r.id)).toEqual([role.id]);
+    expect(dbUser?.locationCity).toBe("Lagos");
+    expect(dbUser?.locationState).toBe("Lagos");
+    expect(dbUser?.locationCountry).toBe("Nigeria");
+    expect(dbUser?.experience).toBe("4-6 years");
+    expect(dbUser?.currency).toBe(Currency.USD);
+    expect(dbUser?.workType).toEqual([WorkType.Remote]);
+    expect(dbUser?.minSalary).toBe(50000);
+    expect(dbUser?.maxSalary).toBe(100000);
+
+    const getRes = await request(app)
+      .get("/v1/user/me")
+      .set("Authorization", `Bearer ${token}`);
+    expect(getRes.body.data.user.locationCity).toBe("Lagos");
+    expect(getRes.body.data.user.experience).toBe("4-6 years");
+    expect(getRes.body.data.user.currency).toBe(Currency.USD);
+    expect(getRes.body.data.user.workType).toEqual([WorkType.Remote]);
+    expect(getRes.body.data.user.minSalary).toBe(50000);
+    expect(getRes.body.data.user.maxSalary).toBe(100000);
+  });
+
+  it("rejects an invalid currency with a 400 field validation error", async () => {
+    const { token } = await createTalent();
+
+    const res = await request(app)
+      .patch("/v1/user/me")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ currency: "NOT_A_CURRENCY" });
+
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("PATCH /v1/user/profile", () => {
+  it("persists a full profile payload sent as multipart fields", async () => {
+    const { token, user } = await createTalent();
+    const role = await createRole();
+
+    const res = await request(app)
+      .patch("/v1/user/profile")
+      .set("Authorization", `Bearer ${token}`)
+      .field("roleIds[]", role.id)
+      .field("locationCity", "Abuja")
+      .field("locationState", "FCT")
+      .field("locationCountry", "Nigeria")
+      .field("experience", "1-3 years")
+      .field("currency", Currency.NGN)
+      .field("workType[]", WorkType.Hybrid)
+      .field("minSalary", "20000")
+      .field("maxSalary", "40000");
+
+    expect(res.status).toBe(200);
+
+    const dbUser = await testDataSource.getRepository(User).findOne({
+      where: { id: user.id },
+      relations: { userRoles: true },
+    });
+    expect(dbUser?.userRoles.map((r) => r.id)).toEqual([role.id]);
+    expect(dbUser?.locationCity).toBe("Abuja");
+    expect(dbUser?.locationCountry).toBe("Nigeria");
+    expect(dbUser?.experience).toBe("1-3 years");
+    expect(dbUser?.currency).toBe(Currency.NGN);
+    expect(dbUser?.workType).toEqual([WorkType.Hybrid]);
+    expect(dbUser?.minSalary).toBe(20000);
+    expect(dbUser?.maxSalary).toBe(40000);
+  });
+
+  it("rejects an invalid workType with a 400 field validation error", async () => {
+    const { token } = await createTalent();
+
+    const res = await request(app)
+      .patch("/v1/user/profile")
+      .set("Authorization", `Bearer ${token}`)
+      .field("workType[]", "not-a-work-type");
+
+    expect(res.status).toBe(400);
   });
 });
 
