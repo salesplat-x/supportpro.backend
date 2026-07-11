@@ -1,0 +1,38 @@
+name: Deploy Backend Engine to DigitalOcean
+
+on:
+  push:
+    branches: [ main ]  # Triggers the deployment every time you push to the main branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Deploy via SSH to Droplet
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DIGITAL_OCEAN_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd ~/app-stack
+            
+            # 1. Pull the absolute latest image from Docker Hub
+            docker pull salesplat/supportpro-backend:latest
+            
+            # 2. Safely stop and clear the old container instance
+            docker stop supportpro-backend || true
+            docker rm supportpro-backend || true
+            
+            # 3. Fire up the fresh container attached to your internal database network
+            docker run -d \
+              --name supportpro-backend \
+              --network app-network \
+              -p 8000:8000 \
+              --env-file .env \
+              --restart always \
+              salesplat/supportpro-backend:latest
