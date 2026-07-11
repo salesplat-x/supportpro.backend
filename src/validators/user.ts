@@ -8,28 +8,19 @@ import {
   ApplicationStatus,
 } from "../types/enums.js";
 
-export const updateUserValidator = [
-  body("firstName").optional().trim(),
-  body("lastName").optional().trim(),
-  body("middleName").optional().trim(),
-  phoneRule("phone"),
-  body("picture").optional().isURL().withMessage("Picture must be a valid URL"),
-  body("cv").optional().isURL().withMessage("CV must be a valid URL"),
-  body("bio").optional().isLength({ max: 1000 }).withMessage("Bio must be at most 1000 characters"),
-  body("country").optional().trim(),
-];
-
-export const updateProfileValidator = [
+// Shared profile fields persisted by both userService.updateUser and
+// userService.editProfile — keep the two validators in lockstep with the
+// fields the services actually read to avoid silent field-name drift.
+export const profileFieldRules = [
   body("bio").optional().isLength({ max: 1000 }).withMessage("Bio must be at most 1000 characters"),
   body("workType").optional().isArray({ min: 1 }).withMessage("workType must be a non-empty array"),
   body("workType.*")
     .optional()
     .isIn(Object.values(WorkType))
     .withMessage(`workType must be one of: ${Object.values(WorkType).join(", ")}`),
-  body("location").optional().isObject(),
-  body("location.city").optional().trim(),
-  body("location.state").optional().trim(),
-  body("location.country").optional().trim(),
+  body("locationCity").optional().trim(),
+  body("locationState").optional().trim(),
+  body("locationCountry").optional().trim(),
   body("experience")
     .optional()
     .isIn(Object.values(ExperienceLevel))
@@ -49,9 +40,22 @@ export const updateProfileValidator = [
       }
       return true;
     }),
-  body("role").optional().isArray(),
-  body("role.*").optional().isString(),
+  body("roleIds").optional().isArray(),
+  body("roleIds.*").optional().isString(),
 ];
+
+export const updateUserValidator = [
+  body("firstName").optional().trim(),
+  body("lastName").optional().trim(),
+  body("middleName").optional().trim(),
+  phoneRule("phone"),
+  body("picture").optional().isURL().withMessage("Picture must be a valid URL"),
+  body("cv").optional().isURL().withMessage("CV must be a valid URL"),
+  body("country").optional().trim(),
+  ...profileFieldRules,
+];
+
+export const updateProfileValidator = [...profileFieldRules];
 
 export const userProfilesQueryValidator = [
   ...paginationRules,
