@@ -25,15 +25,25 @@ services:
       - POSTGRESQL_USERNAME=${PG_USER:-postgres}
       - POSTGRESQL_PASSWORD=${PG_PASSWORD:-postgres}
       - POSTGRESQL_DATABASE=${PG_DB:-supportpro}
+      - PGBOUNCER_DATABASE=${PG_DB:-supportpro}
       - PGBOUNCER_POOL_MODE=transaction
       - PGBOUNCER_MAX_CLIENT_CONN=1000
       - PGBOUNCER_DEFAULT_POOL_SIZE=20
       - PGBOUNCER_AUTH_TYPE=plain
     ports:
-      - "${PG_BOUNCER_PORT:-5433}:5432"
+      - "${PG_BOUNCER_PORT:-5433}:6432"
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "PGPASSWORD=$$POSTGRESQL_PASSWORD /opt/bitnami/postgresql/bin/psql -h 127.0.0.1 -p 6432 -U $$POSTGRESQL_USERNAME -d $$POSTGRESQL_DATABASE -c 'SELECT 1'",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   app:
     image: salesplat/supportpro-backend:latest
@@ -44,9 +54,13 @@ services:
     env_file:
       - .env
     environment:
-      - PG_HOST=postgres
+      # Route through pgbouncer so the app's TypeORM pool doesn't open
+      # connections directly against Postgres. Bitnami's pgbouncer image
+      # listens on 6432 internally, not 5432.
+      - PG_HOST=pgbouncer
+      - PG_PORT=6432
     depends_on:
-      postgres:
+      pgbouncer:
         condition: service_healthy
 
 volumes:
