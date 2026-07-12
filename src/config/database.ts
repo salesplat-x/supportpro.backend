@@ -1,3 +1,4 @@
+import path from "path";
 import { DataSourceOptions } from "typeorm";
 import env from "./env.js";
 import { User } from "../entities/User.js";
@@ -48,11 +49,11 @@ const databaseConfig: DataSourceOptions = {
     TalentEmbedding,
     ErrorLog,
   ],
-  migrations: [],
-  synchronize: true,
+  migrations: [path.join(__dirname, "../migrations/*.{js,ts}")],
+  synchronize: false,
   logging: false,
   ssl:
-    env.pg_host && !["localhost", "127.0.0.1", "postgres"].includes(env.pg_host)
+    env.pg_host && !["localhost", "127.0.0.1", "postgres", "pgbouncer"].includes(env.pg_host)
       ? { rejectUnauthorized: false }
       : false,
   extra: {
