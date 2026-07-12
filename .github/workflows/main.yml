@@ -1,17 +1,33 @@
-name: Deploy Backend Engine to DigitalOcean
+name: Continuous Build and Deployment Engine
 
 on:
   push:
-    branches: [main] # Triggers the deployment every time you push to the main branch
+    branches: [ main ]
 
 jobs:
-  deploy:
+  build-and-push:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
 
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: salesplat/supportpro-backend:latest
+
+  deploy:
+    needs: build-and-push  # Waits for the Docker build to finish successfully first
+    runs-on: ubuntu-latest
+    steps:
       - name: Deploy via SSH to Droplet
         uses: appleboy/ssh-action@master
         with:
@@ -20,14 +36,14 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd ~/app-stack
-
-            # 1. Pull the absolute latest image from Docker Hub
+            
+            # 1. Pull the absolute latest image that GitHub just built
             docker pull salesplat/supportpro-backend:latest
-
+            
             # 2. Safely stop and clear the old container instance
             docker stop supportpro-backend || true
             docker rm supportpro-backend || true
-
+            
             # 3. Fire up the fresh container attached to your internal database network
             docker run -d \
               --name supportpro-backend \
