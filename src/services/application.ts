@@ -1,13 +1,9 @@
 import { AppDataSource } from "../database/dataSource.js";
 import { Application } from "../entities/Application.js";
-import { Scout } from "../entities/Scout.js";
 import { NotFoundError, AuthorizationError } from "../utils/errors/index.js";
 import { UserRole, ApplicationType, ApplicationStatus, ScreeningStage } from "../types/enums.js";
-import { sortDirection } from "../utils/text.js";
 
 const applicationRepo = () => AppDataSource.getRepository(Application);
-
-const scoutRepo = () => AppDataSource.getRepository(Scout);
 
 const MAX_PAGE_SIZE = 100;
 
@@ -66,39 +62,19 @@ export const getApplications = async (
     qb.where("application.talent_id = :userId", { userId });
   }
 
+  if (payload.applicationType) {
+    qb.andWhere("application.applicationType = :applicationType", {
+      applicationType: payload.applicationType,
+    });
+  }
+
+  if (payload.applicationStatus) {
+    qb.andWhere("application.status = :applicationStatus", {
+      applicationStatus: payload.applicationStatus,
+    });
+  }
+
   return qb.skip(offset).take(limit).getMany();
-};
-
-export const shortlist = async (
-  userId: string,
-  payload: FetchApplicationsParams
-): Promise<{ campaigns: Application[]; scouts: Scout[] }> => {
-  const limit = Math.min(Number(payload.limit) || 50, MAX_PAGE_SIZE);
-  const offset = Number(payload.offset) || 0;
-  const order = sortDirection(payload.sort ?? "desc");
-
-  const [campaigns, scouts] = await Promise.all([
-    applicationRepo().find({
-      where: { recruiterId: userId },
-      relations: { talent: true, job: { role: true } },
-      skip: offset,
-      take: limit,
-      order: { updatedAt: order },
-    }),
-    scoutRepo().find({
-      where: { recruiterId: userId },
-      select: {
-        id: true,
-        cvName: true,
-        evaluationScore: true,
-      },
-      skip: offset,
-      take: limit,
-      order: { updatedAt: order },
-    }),
-  ]);
-
-  return { campaigns, scouts };
 };
 
 export const updateStatus = async (

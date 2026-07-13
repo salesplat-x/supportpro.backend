@@ -9,7 +9,7 @@ const router = Router();
 router.get(
   "/shortlist",
   validateAccess([UserRole.Recruiter]),
-  asyncHandler(recruiter.recentApplications)
+  asyncHandler(recruiter.shortlistedApplications)
 );
 router.get(
   "/dashboard",

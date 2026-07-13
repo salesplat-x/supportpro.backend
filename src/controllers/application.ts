@@ -11,14 +11,6 @@ export const getApplications = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Applications fetched", result);
 };
 
-export const shortlist = async (req: Request, res: Response) => {
-  const result = await applicationService.shortlist(
-    req.user.id,
-    req.query as Record<string, string>
-  );
-  sendSuccessResponse(res, "Shortlisted applications fetched", result);
-};
-
 export const getApplication = async (req: Request, res: Response) => {
   const result = await applicationService.getApplication(req.user.id, req.params["_id"]!);
   sendSuccessResponse(res, "Application fetched", result);
