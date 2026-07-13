@@ -1,7 +1,7 @@
 import { AppDataSource } from "../database/dataSource.js";
 import { AIConfig } from "../entities/AIConfig.js";
 import { Job } from "../entities/Job.js";
-import { NotFoundError, ConflictError, AuthorizationError } from "../utils/errors/index.js";
+import { NotFoundError, ConflictError, AuthorizationError } from "../utils/errors";
 import { UserRole, ScreeningStage } from "../types/enums.js";
 
 const aiConfigRepo = () => AppDataSource.getRepository(AIConfig);

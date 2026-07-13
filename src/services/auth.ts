@@ -9,13 +9,13 @@ import {
   generateOTP,
   signToken,
 } from "../utils/crypto.js";
-import EmailService from "../utils/integrations/email/index.js";
+import EmailService from "../utils/integrations/email";
 import {
   AuthenticationError,
   AuthorizationError,
   ConflictError,
   NotFoundError,
-} from "../utils/errors/index.js";
+} from "../utils/errors";
 import logger from "../utils/logger.js";
 
 const userRepo = (): Repository<User> => AppDataSource.getRepository(User);

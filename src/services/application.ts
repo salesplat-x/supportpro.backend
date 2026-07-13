@@ -1,6 +1,6 @@
 import { AppDataSource } from "../database/dataSource.js";
 import { Application } from "../entities/Application.js";
-import { NotFoundError, AuthorizationError } from "../utils/errors/index.js";
+import { NotFoundError, AuthorizationError } from "../utils/errors";
 import { UserRole, ApplicationType, ApplicationStatus, ScreeningStage } from "../types/enums.js";
 
 const applicationRepo = () => AppDataSource.getRepository(Application);

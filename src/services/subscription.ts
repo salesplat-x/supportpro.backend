@@ -2,7 +2,7 @@ import { AppDataSource } from "../database/dataSource.js";
 import { Subscription } from "../entities/Subscription.js";
 import { Plan } from "../entities/Plan.js";
 import { User } from "../entities/User.js";
-import { NotFoundError, ConflictError, ValidationError } from "../utils/errors/index.js";
+import { NotFoundError, ConflictError, ValidationError } from "../utils/errors";
 import { SubscriptionStatus } from "../types/enums.js";
 import {
   createSubscription as paystackCreateSubscription,

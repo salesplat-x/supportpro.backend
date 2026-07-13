@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import * as uploadService from "../services/upload.js";
-import { ValidationError } from "../utils/errors/index.js";
+import { ValidationError } from "../utils/errors";
 import { sendSuccessResponse } from "../utils/response.js";
 
 export const uploadCloudinary = async (req: Request, res: Response) => {

@@ -1,6 +1,6 @@
 import { QueryRunner, QueryFailedError } from "typeorm";
 import { AppDataSource } from "./dataSource.js";
-import { AppError, DatabaseError } from "../utils/errors/index.js";
+import { AppError, DatabaseError } from "../utils/errors";
 import logger from "../utils/logger.js";
 
 export async function withTransaction<T>(fn: (queryRunner: QueryRunner) => Promise<T>): Promise<T> {

@@ -1,7 +1,7 @@
 import { AppDataSource } from "../database/dataSource.js";
 import { ScoutJob } from "../entities/ScoutJob.js";
 import { Role } from "../entities/Role.js";
-import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors/index.js";
+import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
 import { createEmbedding } from "../utils/integrations/openai.js";
 import { preprocessText } from "../utils/text.js";
 

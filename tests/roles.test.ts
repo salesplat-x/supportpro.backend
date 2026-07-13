@@ -1,7 +1,3 @@
-/**
- * Role CRUD tests — create, list, get single, get questions.
- */
-
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import { startTestDatabase, stopTestDatabase, clearAllTables } from "./helpers/db.js";
@@ -12,6 +8,7 @@ import {
   createRole,
   createQuestion,
 } from "./helpers/fixtures.js";
+import { apiData } from "./helpers/http.js";
 import { QuestionType } from "../src/types/enums.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
@@ -37,10 +34,6 @@ afterEach(async () => {
   jest.clearAllMocks();
 });
 
-// ---------------------------------------------------------------------------
-// POST /v1/roles/ — create role (Recruiter/Admin)
-// ---------------------------------------------------------------------------
-
 describe("POST /v1/roles/ — create role", () => {
   it("Recruiter creates a role → 201", async () => {
     const { token } = await createRecruiter();
@@ -49,7 +42,7 @@ describe("POST /v1/roles/ — create role", () => {
       .set("Authorization", `Bearer ${token}`)
       .send({ name: "Software Engineer", description: "Backend dev role" });
     expect(res.status).toBe(201);
-    expect(res.body.data.role.name).toBe("software engineer");
+    expect(apiData<{ role: { name: string } }>(res).role.name).toBe("software engineer");
   });
 
   it("Admin creates a role → 201", async () => {
@@ -103,13 +96,9 @@ describe("POST /v1/roles/ — create role", () => {
       .set("Authorization", `Bearer ${token}`)
       .send({ name: "UPPERCASE ROLE" });
     expect(res.status).toBe(201);
-    expect(res.body.data.role.name).toBe("uppercase role");
+    expect(apiData<{ role: { name: string } }>(res).role.name).toBe("uppercase role");
   });
 });
-
-// ---------------------------------------------------------------------------
-// GET /v1/roles/ — list roles (public)
-// ---------------------------------------------------------------------------
 
 describe("GET /v1/roles/ — list roles", () => {
   it("Returns paginated roles → 200 (public)", async () => {
@@ -118,7 +107,7 @@ describe("GET /v1/roles/ — list roles", () => {
 
     const res = await request(app).get("/v1/roles/");
     expect(res.status).toBe(200);
-    const roles = res.body.data.roles ?? res.body.data ?? [];
+    const { roles } = apiData<{ roles: unknown[] }>(res);
     expect(Array.isArray(roles)).toBe(true);
     expect(roles.length).toBeGreaterThanOrEqual(2);
   });
@@ -133,21 +122,17 @@ describe("GET /v1/roles/ — list roles", () => {
 
     const res = await request(app).get("/v1/roles/").query({ limit: 2, offset: 0 });
     expect(res.status).toBe(200);
-    const roles = res.body.data.roles ?? res.body.data ?? [];
+    const { roles } = apiData<{ roles: unknown[] }>(res);
     expect(roles.length).toBeLessThanOrEqual(2);
   });
 });
-
-// ---------------------------------------------------------------------------
-// GET /v1/roles/:_id — get single role
-// ---------------------------------------------------------------------------
 
 describe("GET /v1/roles/:_id — get single role", () => {
   it("Returns role by ID → 200", async () => {
     const role = await createRole("my-role");
     const res = await request(app).get(`/v1/roles/${role.id}`);
     expect(res.status).toBe(200);
-    expect(res.body.data.role.name).toBe("my-role");
+    expect(apiData<{ role: { name: string } }>(res).role.name).toBe("my-role");
   });
 
   it("Non-existent ID → 404", async () => {
@@ -156,10 +141,6 @@ describe("GET /v1/roles/:_id — get single role", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// GET /v1/roles/:_id/questions — role questions
-// ---------------------------------------------------------------------------
-
 describe("GET /v1/roles/:_id/questions", () => {
   it("Returns prescreening questions for the role → 200", async () => {
     const role = await createRole();
@@ -167,7 +148,7 @@ describe("GET /v1/roles/:_id/questions", () => {
 
     const res = await request(app).get(`/v1/roles/${role.id}/questions`);
     expect(res.status).toBe(200);
-    const questions = res.body.data.questions ?? res.body.data ?? [];
+    const { questions } = apiData<{ questions: unknown[] }>(res);
     expect(Array.isArray(questions)).toBe(true);
     expect(questions.length).toBeGreaterThanOrEqual(1);
   });
@@ -181,7 +162,7 @@ describe("GET /v1/roles/:_id/questions", () => {
     const role = await createRole("empty-role");
     const res = await request(app).get(`/v1/roles/${role.id}/questions`);
     expect(res.status).toBe(200);
-    const questions = res.body.data.questions ?? res.body.data ?? [];
+    const { questions } = apiData<{ questions: unknown[] }>(res);
     expect(questions.length).toBe(0);
   });
 });

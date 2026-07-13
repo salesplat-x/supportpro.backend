@@ -1,4 +1,4 @@
-import { ValidationError } from "../utils/errors/index.js";
+import { ValidationError } from "../utils/errors";
 import { handleUpload } from "../utils/integrations/cloudinary.js";
 import { handleFilename } from "../utils/text.js";
 

@@ -1,6 +1,6 @@
 import { AppDataSource } from "../database/dataSource.js";
 import { Notification } from "../entities/Notification.js";
-import { NotFoundError, AuthorizationError } from "../utils/errors/index.js";
+import { NotFoundError, AuthorizationError } from "../utils/errors";
 import { sortDirection } from "../utils/text.js";
 
 const notificationRepo = () => AppDataSource.getRepository(Notification);

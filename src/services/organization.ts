@@ -1,6 +1,6 @@
 import { AppDataSource } from "../database/dataSource.js";
 import { Organization } from "../entities/Organization.js";
-import { ConflictError, ValidationError } from "../utils/errors/index.js";
+import { ConflictError, ValidationError } from "../utils/errors";
 
 const orgRepo = () => AppDataSource.getRepository(Organization);
 

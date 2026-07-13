@@ -1,9 +1,6 @@
 import { AppDataSource } from "../database/dataSource.js";
-import { Scout } from "../entities/Scout.js";
-import { ScoutJob } from "../entities/ScoutJob.js";
-import { User } from "../entities/User.js";
-import { Role } from "../entities/Role.js";
-import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors/index.js";
+import { Scout, ScoutJob, User, Role } from "../entities";
+import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
 import { UserRole } from "../types/enums.js";
 import { extractText, preprocessText, convertSimilarityToPercentage } from "../utils/text.js";
 import * as AI from "../utils/integrations/openai.js";

@@ -1,7 +1,7 @@
 import { AppDataSource } from "../database/dataSource.js";
 import { Role } from "../entities/Role.js";
 import { Question } from "../entities/Question.js";
-import { NotFoundError, ConflictError } from "../utils/errors/index.js";
+import { NotFoundError, ConflictError } from "../utils/errors";
 import { sortDirection } from "../utils/text.js";
 
 const roleRepo = () => AppDataSource.getRepository(Role);
