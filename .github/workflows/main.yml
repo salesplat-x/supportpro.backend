@@ -40,11 +40,20 @@ jobs:
             # 1. Pull the absolute latest image that GitHub just built
             docker pull salesplat/supportpro-backend:latest
             
-            # 2. Safely stop and clear the old container instance
+            # 2. Run pending migrations as an explicit, one-off step — before
+            #    the running app container is touched. Keeps migration
+            #    execution out of application startup.
+            docker run --rm \
+              --network app-network \
+              --env-file .env \
+              salesplat/supportpro-backend:latest \
+              node dist/scripts/migrate.js
+
+            # 3. Safely stop and clear the old container instance
             docker stop supportpro-backend || true
             docker rm supportpro-backend || true
             
-            # 3. Fire up the fresh container attached to your internal database network
+            # 4. Fire up the fresh container attached to your internal database network
             docker run -d \
               --name supportpro-backend \
               --network app-network \

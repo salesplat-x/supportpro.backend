@@ -51,6 +51,9 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Check for migration drift
+        run: npm run migration:check
+
   audit:
     name: Dependency Audit
     runs-on: ubuntu-latest

@@ -1,224 +1,490 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
 export class InitialSchema1783832227481 implements MigrationInterface {
-    name = 'InitialSchema1783832227481'
+  name = "InitialSchema1783832227481";
 
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`CREATE TYPE "public"."users_userrole_enum" AS ENUM('admin', 'superadmin', 'talent', 'recruiter')`);
-        await queryRunner.query(`CREATE TYPE "public"."users_currency_enum" AS ENUM('NGN', 'USD')`);
-        await queryRunner.query(`CREATE TABLE "users" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "email" character varying NOT NULL, "password" character varying NOT NULL, "firstName" character varying NOT NULL, "lastName" character varying NOT NULL, "middleName" character varying, "profileImageUrl" character varying, "profileImagePublicId" character varying, "userRole" "public"."users_userrole_enum" NOT NULL DEFAULT 'talent', "phone" character varying, "country" character varying, "organization_id" uuid, "emailVerified" boolean NOT NULL DEFAULT true, "active" boolean NOT NULL DEFAULT true, "recoveryCode" character varying, "recoveryCodeExpiry" TIMESTAMP, "tokenVersion" integer NOT NULL DEFAULT '0', "bio" text, "cvUrl" character varying, "cvPublicId" character varying, "cvUploadedAt" TIMESTAMP, "workType" text, "locationCity" character varying, "locationState" character varying, "locationCountry" character varying, "experience" character varying, "currency" "public"."users_currency_enum" DEFAULT 'NGN', "maxSalary" double precision, "minSalary" double precision, "prescreeningScore" double precision, "assessmentRetryDate" TIMESTAMP, "roleChangeCount" integer NOT NULL DEFAULT '0', "active_prescreening_id" uuid, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"), CONSTRAINT "PK_a3ffb1c0c8416b9fc6f907b7433" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_97672ac88f789774dd47f7c8be" ON "users"  ("email") `);
-        await queryRunner.query(`CREATE TABLE "organizations" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "name" character varying NOT NULL, "email" character varying, "phone" character varying, "address" character varying, "industry" character varying, "website" character varying, "facebook" character varying, "linkedin" character varying, "twitter" character varying, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_6b031fcd0863e3f6b44230163f9" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TABLE "roles" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "name" character varying NOT NULL, "description" character varying, CONSTRAINT "UQ_648e3f5447f725579d7d4ffdfb7" UNIQUE ("name"), CONSTRAINT "PK_c1433d71a4838793a49dcad46ab" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."pre_screenings_status_enum" AS ENUM('pending', 'completed')`);
-        await queryRunner.query(`CREATE TABLE "pre_screenings" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "user_id" uuid NOT NULL, "roles" text NOT NULL, "questions" jsonb NOT NULL DEFAULT '[]', "score" double precision, "status" "public"."pre_screenings_status_enum" NOT NULL DEFAULT 'pending', "attemptCount" integer NOT NULL DEFAULT '1', "maxAttempts" integer NOT NULL DEFAULT '2', "generatedAt" TIMESTAMP NOT NULL, "completedAt" TIMESTAMP, "metadata" jsonb, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_7643d4d68c8863cb9ad240f7d4e" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_b0cd8d1ec347dcff1d6609a0db" ON "pre_screenings"  ("user_id") `);
-        await queryRunner.query(`CREATE TYPE "public"."jobs_status_enum" AS ENUM('active', 'suspended', 'closed')`);
-        await queryRunner.query(`CREATE TABLE "jobs" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "role_id" uuid NOT NULL, "posted_by_id" uuid NOT NULL, "ai_config_id" uuid, "jobBrief" text NOT NULL, "status" "public"."jobs_status_enum" NOT NULL DEFAULT 'active', "maxSalary" double precision NOT NULL, "minSalary" double precision NOT NULL, "experienceLevel" character varying NOT NULL, "locationCity" character varying, "locationState" character varying NOT NULL, "locationCountry" character varying NOT NULL, "workMode" text NOT NULL, "currency" character varying, "requirements" text, "skills" text, "goals" text, "noOfApplicants" integer NOT NULL DEFAULT '0', "job_embedding" text, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_cf0a6c42b72fcc7f7c237def345" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_a0c30e3eb9649fe7fbcd336a63" ON "jobs"  ("status") `);
-        await queryRunner.query(`CREATE INDEX "IDX_db290f32f910737649ea4cfcb1" ON "jobs"  ("status", "role_id") `);
-        await queryRunner.query(`CREATE TABLE "ai_configs" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "name" character varying, "recruiter_id" uuid NOT NULL, "organization_id" uuid, "prescreeningAssessment" boolean NOT NULL DEFAULT true, "minPrescreeningScore" double precision, "cvSimilarity" boolean NOT NULL DEFAULT true, "minCvSimilarityScore" double precision, "noOfCvSimilarCandidates" integer, "personalizedAssessment" boolean NOT NULL DEFAULT true, "noPersonalizedQuestions" integer NOT NULL DEFAULT '15', "recruiterGuide" text, "uploadedQuestions" text, "personalityEvaluation" boolean NOT NULL DEFAULT true, "stages" jsonb, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_e062638208222edc23b70e8c31b" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."applications_applicationtype_enum" AS ENUM('by invitation', 'by application')`);
-        await queryRunner.query(`CREATE TYPE "public"."applications_status_enum" AS ENUM('pending', 'retake_assessment', 'not_proceeding', 'shortlisted', 'rejected')`);
-        await queryRunner.query(`CREATE TYPE "public"."applications_currentstage_enum" AS ENUM('prescreening', 'cv_similarity', 'personalized', 'personality', 'completed')`);
-        await queryRunner.query(`CREATE TABLE "applications" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "job_id" uuid NOT NULL, "talent_id" uuid NOT NULL, "recruiter_id" uuid NOT NULL, "role_id" uuid, "applicationType" "public"."applications_applicationtype_enum" NOT NULL, "status" "public"."applications_status_enum" NOT NULL DEFAULT 'pending', "currentStage" "public"."applications_currentstage_enum" NOT NULL DEFAULT 'prescreening', "personalizedQuestions" text, "personalizedScore" double precision, "cvSimilarityScore" double precision, "rank" double precision, "averageScore" double precision, "mbtiType" character varying, "stages" jsonb, "assessmentRetryDate" TIMESTAMP, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_938c0a27255637bde919591888f" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_8ee114cee92e995a9e75c05cfb" ON "applications"  ("status") `);
-        await queryRunner.query(`CREATE INDEX "IDX_8669c2e52c554fe8874e6a20b7" ON "applications"  ("job_id", "status") `);
-        await queryRunner.query(`CREATE INDEX "IDX_fe6e522f9d864dd3a2289ace8c" ON "applications"  ("recruiter_id") `);
-        await queryRunner.query(`CREATE UNIQUE INDEX "IDX_cae78d80246594bf53e6562231" ON "applications"  ("talent_id", "job_id") `);
-        await queryRunner.query(`CREATE TABLE "conversations" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "last_message_id" uuid, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_ee34f4f7ced4ec8681f26bf04ef" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TABLE "messages" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "conversation_id" uuid NOT NULL, "application_id" uuid, "sender_id" uuid NOT NULL, "recipient_id" uuid NOT NULL, "content" text NOT NULL, "acknowledged" boolean, "isRead" boolean NOT NULL DEFAULT false, "deleted" boolean NOT NULL DEFAULT false, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_18325f38ae6de43878487eff986" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_bcaa4c1057c044ca2cf006c41d" ON "messages"  ("isRead") `);
-        await queryRunner.query(`CREATE TABLE "notifications" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "user_id" uuid NOT NULL, "message" text NOT NULL, "isRead" boolean NOT NULL DEFAULT false, "deleted" boolean NOT NULL DEFAULT false, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_6a72c3c0f683f6462415e653c3a" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_c9e12f0313104e107041b5b670" ON "notifications"  ("user_id", "deleted", "createdAt") `);
-        await queryRunner.query(`CREATE INDEX "IDX_9a8a82462cab47c73d25f49261" ON "notifications"  ("user_id") `);
-        await queryRunner.query(`CREATE TYPE "public"."plans_interval_enum" AS ENUM('monthly', 'annually')`);
-        await queryRunner.query(`CREATE TYPE "public"."plans_currency_enum" AS ENUM('NGN', 'USD')`);
-        await queryRunner.query(`CREATE TABLE "plans" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "name" character varying NOT NULL, "amount" double precision NOT NULL, "paystackAmount" double precision NOT NULL, "interval" "public"."plans_interval_enum" NOT NULL, "paystackPlanCode" character varying, "currency" "public"."plans_currency_enum" NOT NULL, "update_existing_subscriptions" boolean, "description" text NOT NULL, "features" text, "isDeleted" boolean NOT NULL DEFAULT false, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_3720521a81c7c24fe9b7202ba61" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."payments_status_enum" AS ENUM('pending', 'failed', 'cancelled', 'completed')`);
-        await queryRunner.query(`CREATE TABLE "payments" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "user_id" uuid NOT NULL, "plan_id" uuid, "amount" double precision NOT NULL, "currency" character varying NOT NULL, "reference" character varying, "paystackRef" character varying, "paymentLink" character varying, "status" "public"."payments_status_enum" NOT NULL DEFAULT 'pending', "history" jsonb, "initialConfig" jsonb, "finalConfig" jsonb, "paidAt" TIMESTAMP, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_197ab7af18c93fbb0c9b28b4a59" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_32b41cdb985a296213e9a928b5" ON "payments"  ("status") `);
-        await queryRunner.query(`CREATE TYPE "public"."subscriptions_status_enum" AS ENUM('active', 'pending', 'non-renewing', 'attention', 'completed', 'cancelled', 'expired')`);
-        await queryRunner.query(`CREATE TABLE "subscriptions" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "user_id" uuid NOT NULL, "plan_id" uuid NOT NULL, "paystackSubscriptionCode" character varying NOT NULL, "authorizationCode" character varying, "email_token" character varying, "status" "public"."subscriptions_status_enum" NOT NULL DEFAULT 'active', "startDate" TIMESTAMP, "nextPaymentDate" TIMESTAMP, "expiryDate" TIMESTAMP, "cron_expression" character varying, "usage" jsonb NOT NULL DEFAULT '{"jobListingsUsed":0,"candidatesAccessed":0,"aiTestsUsed":0}', "history" jsonb, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_a87248d73155605cf782be9ee5e" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_6ccf973355b70645eff37774de" ON "subscriptions"  ("status") `);
-        await queryRunner.query(`CREATE TYPE "public"."questions_type_enum" AS ENUM('prescreening', 'personality', 'personalized')`);
-        await queryRunner.query(`CREATE TABLE "questions" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "role_id" uuid, "job_id" uuid, "type" "public"."questions_type_enum" NOT NULL, "question" text NOT NULL, "criteria" character varying, "category" character varying, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_08a6d4b0f49ff300bf3a0ca60ac" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."answers_questiontype_enum" AS ENUM('prescreening', 'personality', 'personalized')`);
-        await queryRunner.query(`CREATE TABLE "answers" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "role_id" uuid, "job_id" uuid, "user_id" uuid NOT NULL, "questionType" "public"."answers_questiontype_enum" NOT NULL, "responses" jsonb NOT NULL DEFAULT '[]', "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_9c32cec6c71e06da0254f2226c6" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TABLE "scout_jobs" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "role_id" uuid NOT NULL, "posted_by_id" uuid NOT NULL, "jobBrief" text NOT NULL, "name" character varying NOT NULL, "recruiterGuide" text NOT NULL, "job_embedding" text, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_7f4639c00c99db6483f6ba3f63f" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TABLE "scouts" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "batchId" character varying, "cvName" character varying, "cvText" text, "coverLetterName" character varying, "coverLetterText" text, "cvScore" double precision, "coverLetterScore" double precision, "evaluationScore" double precision, "recruiter_id" uuid, "scout_job_id" uuid, "batch_embedding" text, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_edf48b1d3a931a439b224b038d2" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_876a8724f48fb6a18d8499d539" ON "scouts"  ("batchId") `);
-        await queryRunner.query(`CREATE TABLE "talent_embeddings" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "user_id" uuid NOT NULL, "cv_public_id" character varying, "cv_text" text, "cv_embedding" text, "generated_at" TIMESTAMP NOT NULL, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_6f45d5157b045e25b5d7f6c057e" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_625377855a41c91177d5a91b86" ON "talent_embeddings"  ("user_id") `);
-        await queryRunner.query(`CREATE TYPE "public"."error_logs_level_enum" AS ENUM('error', 'warn', 'info', 'debug')`);
-        await queryRunner.query(`CREATE TABLE "error_logs" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "timestamp" TIMESTAMP NOT NULL DEFAULT now(), "level" "public"."error_logs_level_enum" NOT NULL DEFAULT 'error', "message" text NOT NULL, "stack" text, "errorType" character varying NOT NULL, "userId" character varying, "requestId" character varying, "endpoint" character varying, "method" character varying, "userAgent" character varying, "ip" character varying, "requestBody" jsonb, "requestQuery" jsonb, "requestParams" jsonb, "responseStatus" integer, "environment" character varying NOT NULL, "version" character varying, "metadata" jsonb, "resolved" boolean NOT NULL DEFAULT false, "resolvedAt" TIMESTAMP, "resolvedBy" character varying, "tags" text, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_6840885d7eb78406fa7d358be72" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_288837dc06eb99a3ae3d9083b2" ON "error_logs"  ("timestamp") `);
-        await queryRunner.query(`CREATE INDEX "IDX_ccb7cd23633b5565a39ea80e0b" ON "error_logs"  ("level") `);
-        await queryRunner.query(`CREATE INDEX "IDX_5eccb27af8f14d9bb79e8b8535" ON "error_logs"  ("message") `);
-        await queryRunner.query(`CREATE INDEX "IDX_ad75212b4acd33fcbd05ed3ea6" ON "error_logs"  ("errorType") `);
-        await queryRunner.query(`CREATE INDEX "IDX_93172909565ba6cf0d3d8314df" ON "error_logs"  ("userId") `);
-        await queryRunner.query(`CREATE INDEX "IDX_f81f52a373844307979a0b073a" ON "error_logs"  ("requestId") `);
-        await queryRunner.query(`CREATE INDEX "IDX_11a9dc7f882eb1efc56209b702" ON "error_logs"  ("endpoint") `);
-        await queryRunner.query(`CREATE INDEX "IDX_186da663400814c62b609720f5" ON "error_logs"  ("method") `);
-        await queryRunner.query(`CREATE INDEX "IDX_1542ff2bec960fbea5516c439b" ON "error_logs"  ("ip") `);
-        await queryRunner.query(`CREATE INDEX "IDX_9a7a06e7b2160458d74f4e6f57" ON "error_logs"  ("responseStatus") `);
-        await queryRunner.query(`CREATE INDEX "IDX_6ab6b5569956873f367b49c37a" ON "error_logs"  ("environment") `);
-        await queryRunner.query(`CREATE INDEX "IDX_9c8d4c24666877a0fa01f97b3c" ON "error_logs"  ("resolved") `);
-        await queryRunner.query(`CREATE INDEX "IDX_8898d428aa08c5a76d7476b2f1" ON "error_logs"  ("errorType", "timestamp") `);
-        await queryRunner.query(`CREATE INDEX "IDX_43ceb9af28f127c267847495a8" ON "error_logs"  ("resolved", "timestamp") `);
-        await queryRunner.query(`CREATE INDEX "IDX_1f41b19e0e9272f0e53de53a76" ON "error_logs"  ("environment", "timestamp") `);
-        await queryRunner.query(`CREATE INDEX "IDX_bd8f5d532d624d68caa2c7b9dc" ON "error_logs"  ("timestamp", "level") `);
-        await queryRunner.query(`CREATE TABLE "user_roles" ("user_id" uuid NOT NULL, "role_id" uuid NOT NULL, CONSTRAINT "PK_23ed6f04fe43066df08379fd034" PRIMARY KEY ("user_id", "role_id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_87b8888186ca9769c960e92687" ON "user_roles"  ("user_id") `);
-        await queryRunner.query(`CREATE INDEX "IDX_b23c65e50a758245a33ee35fda" ON "user_roles"  ("role_id") `);
-        await queryRunner.query(`CREATE TABLE "conversation_participants" ("conversation_id" uuid NOT NULL, "user_id" uuid NOT NULL, CONSTRAINT "PK_fdcd6405d74e797f10fa8360338" PRIMARY KEY ("conversation_id", "user_id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_1559e8a16b828f2e836a231280" ON "conversation_participants"  ("conversation_id") `);
-        await queryRunner.query(`CREATE INDEX "IDX_377d4041a495b81ee1a85ae026" ON "conversation_participants"  ("user_id") `);
-        await queryRunner.query(`ALTER TABLE "users" ADD CONSTRAINT "FK_21a659804ed7bf61eb91688dea7" FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "users" ADD CONSTRAINT "FK_33f3f76c723a292793373a0cfd7" FOREIGN KEY ("active_prescreening_id") REFERENCES "pre_screenings"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "pre_screenings" ADD CONSTRAINT "FK_b0cd8d1ec347dcff1d6609a0db4" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "jobs" ADD CONSTRAINT "FK_52eb1e9bce5a39e82266a9b42aa" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "jobs" ADD CONSTRAINT "FK_6779db8162016f25cbb2fa82630" FOREIGN KEY ("posted_by_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "jobs" ADD CONSTRAINT "FK_919efe01c9199ad69cc52f04840" FOREIGN KEY ("ai_config_id") REFERENCES "ai_configs"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "ai_configs" ADD CONSTRAINT "FK_d386fdba9ec8e5cb705fb519782" FOREIGN KEY ("recruiter_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "ai_configs" ADD CONSTRAINT "FK_f254b09ca6b19e375727f1a0195" FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "applications" ADD CONSTRAINT "FK_8aba14d7f098c23ba06d8693235" FOREIGN KEY ("job_id") REFERENCES "jobs"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "applications" ADD CONSTRAINT "FK_af9cfddd578e4d7e25025f93197" FOREIGN KEY ("talent_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "applications" ADD CONSTRAINT "FK_fe6e522f9d864dd3a2289ace8c2" FOREIGN KEY ("recruiter_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "applications" ADD CONSTRAINT "FK_0765275891b64a32533bf3e30e3" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "conversations" ADD CONSTRAINT "FK_a53679287450d522a3f700088e9" FOREIGN KEY ("last_message_id") REFERENCES "messages"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "messages" ADD CONSTRAINT "FK_3bc55a7c3f9ed54b520bb5cfe23" FOREIGN KEY ("conversation_id") REFERENCES "conversations"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "messages" ADD CONSTRAINT "FK_5d3ec1cb962de6488637fd779d6" FOREIGN KEY ("application_id") REFERENCES "applications"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "messages" ADD CONSTRAINT "FK_22133395bd13b970ccd0c34ab22" FOREIGN KEY ("sender_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "messages" ADD CONSTRAINT "FK_566c3d68184e83d4307b86f85ab" FOREIGN KEY ("recipient_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "notifications" ADD CONSTRAINT "FK_9a8a82462cab47c73d25f49261f" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "payments" ADD CONSTRAINT "FK_427785468fb7d2733f59e7d7d39" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "payments" ADD CONSTRAINT "FK_f9b6a4c3196864cdd91b1a440ee" FOREIGN KEY ("plan_id") REFERENCES "plans"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "subscriptions" ADD CONSTRAINT "FK_d0a95ef8a28188364c546eb65c1" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "subscriptions" ADD CONSTRAINT "FK_e45fca5d912c3a2fab512ac25dc" FOREIGN KEY ("plan_id") REFERENCES "plans"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "questions" ADD CONSTRAINT "FK_939360dcd69d13a8a3e416a09b2" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "questions" ADD CONSTRAINT "FK_0a7640593ffd9990c2fee468301" FOREIGN KEY ("job_id") REFERENCES "jobs"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "answers" ADD CONSTRAINT "FK_9d8c8ed01b3a8188f79b376f737" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "answers" ADD CONSTRAINT "FK_cccb21789b12bf8eaf05288728d" FOREIGN KEY ("job_id") REFERENCES "jobs"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "answers" ADD CONSTRAINT "FK_f4cf663ebeca05b7a12f6a2cc97" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "scout_jobs" ADD CONSTRAINT "FK_cc2024244de0b2cc3223025956f" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "scout_jobs" ADD CONSTRAINT "FK_c53125414b14b0291d8bbac0036" FOREIGN KEY ("posted_by_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "scouts" ADD CONSTRAINT "FK_043e5b02d2eaa2b6a82105be0f6" FOREIGN KEY ("recruiter_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "scouts" ADD CONSTRAINT "FK_e6868710cb0edc8c63f0d3fc032" FOREIGN KEY ("scout_job_id") REFERENCES "scout_jobs"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "talent_embeddings" ADD CONSTRAINT "FK_625377855a41c91177d5a91b864" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "user_roles" ADD CONSTRAINT "FK_87b8888186ca9769c960e926870" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE`);
-        await queryRunner.query(`ALTER TABLE "user_roles" ADD CONSTRAINT "FK_b23c65e50a758245a33ee35fda1" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE`);
-        await queryRunner.query(`ALTER TABLE "conversation_participants" ADD CONSTRAINT "FK_1559e8a16b828f2e836a2312800" FOREIGN KEY ("conversation_id") REFERENCES "conversations"("id") ON DELETE CASCADE ON UPDATE CASCADE`);
-        await queryRunner.query(`ALTER TABLE "conversation_participants" ADD CONSTRAINT "FK_377d4041a495b81ee1a85ae026f" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE`);
-    }
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
+    await queryRunner.query(
+      `CREATE TYPE "public"."users_userrole_enum" AS ENUM('admin', 'superadmin', 'talent', 'recruiter')`
+    );
+    await queryRunner.query(`CREATE TYPE "public"."users_currency_enum" AS ENUM('NGN', 'USD')`);
+    await queryRunner.query(
+      `CREATE TABLE "users" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "email" character varying NOT NULL, "password" character varying NOT NULL, "firstName" character varying NOT NULL, "lastName" character varying NOT NULL, "middleName" character varying, "profileImageUrl" character varying, "profileImagePublicId" character varying, "userRole" "public"."users_userrole_enum" NOT NULL DEFAULT 'talent', "phone" character varying, "country" character varying, "organization_id" uuid, "emailVerified" boolean NOT NULL DEFAULT true, "active" boolean NOT NULL DEFAULT true, "recoveryCode" character varying, "recoveryCodeExpiry" TIMESTAMP, "tokenVersion" integer NOT NULL DEFAULT '0', "bio" text, "cvUrl" character varying, "cvPublicId" character varying, "cvUploadedAt" TIMESTAMP, "workType" text, "locationCity" character varying, "locationState" character varying, "locationCountry" character varying, "experience" character varying, "currency" "public"."users_currency_enum" DEFAULT 'NGN', "maxSalary" double precision, "minSalary" double precision, "prescreeningScore" double precision, "assessmentRetryDate" TIMESTAMP, "roleChangeCount" integer NOT NULL DEFAULT '0', "active_prescreening_id" uuid, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"), CONSTRAINT "PK_a3ffb1c0c8416b9fc6f907b7433" PRIMARY KEY ("id"))`
+    );
+    await queryRunner.query(`CREATE INDEX "IDX_97672ac88f789774dd47f7c8be" ON "users"  ("email") `);
+    await queryRunner.query(
+      `CREATE TABLE "organizations" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "name" character varying NOT NULL, "email" character varying, "phone" character varying, "address" character varying, "industry" character varying, "website" character varying, "facebook" character varying, "linkedin" character varying, "twitter" character varying, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_6b031fcd0863e3f6b44230163f9" PRIMARY KEY ("id"))`
+    );
+    await queryRunner.query(
+      `CREATE TABLE "roles" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "name" character varying NOT NULL, "description" character varying, CONSTRAINT "UQ_648e3f5447f725579d7d4ffdfb7" UNIQUE ("name"), CONSTRAINT "PK_c1433d71a4838793a49dcad46ab" PRIMARY KEY ("id"))`
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."pre_screenings_status_enum" AS ENUM('pending', 'completed')`
+    );
+    await queryRunner.query(
+      `CREATE TABLE "pre_screenings" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "user_id" uuid NOT NULL, "roles" text NOT NULL, "questions" jsonb NOT NULL DEFAULT '[]', "score" double precision, "status" "public"."pre_screenings_status_enum" NOT NULL DEFAULT 'pending', "attemptCount" integer NOT NULL DEFAULT '1', "maxAttempts" integer NOT NULL DEFAULT '2', "generatedAt" TIMESTAMP NOT NULL, "completedAt" TIMESTAMP, "metadata" jsonb, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_7643d4d68c8863cb9ad240f7d4e" PRIMARY KEY ("id"))`
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_b0cd8d1ec347dcff1d6609a0db" ON "pre_screenings"  ("user_id") `
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."jobs_status_enum" AS ENUM('active', 'suspended', 'closed')`
+    );
+    await queryRunner.query(
+      `CREATE TABLE "jobs" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "role_id" uuid NOT NULL, "posted_by_id" uuid NOT NULL, "ai_config_id" uuid, "jobBrief" text NOT NULL, "status" "public"."jobs_status_enum" NOT NULL DEFAULT 'active', "maxSalary" double precision NOT NULL, "minSalary" double precision NOT NULL, "experienceLevel" character varying NOT NULL, "locationCity" character varying, "locationState" character varying NOT NULL, "locationCountry" character varying NOT NULL, "workMode" text NOT NULL, "currency" character varying, "requirements" text, "skills" text, "goals" text, "noOfApplicants" integer NOT NULL DEFAULT '0', "job_embedding" text, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_cf0a6c42b72fcc7f7c237def345" PRIMARY KEY ("id"))`
+    );
+    await queryRunner.query(`CREATE INDEX "IDX_a0c30e3eb9649fe7fbcd336a63" ON "jobs"  ("status") `);
+    await queryRunner.query(
+      `CREATE INDEX "IDX_db290f32f910737649ea4cfcb1" ON "jobs"  ("status", "role_id") `
+    );
+    await queryRunner.query(
+      `CREATE TABLE "ai_configs" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "name" character varying, "recruiter_id" uuid NOT NULL, "organization_id" uuid, "prescreeningAssessment" boolean NOT NULL DEFAULT true, "minPrescreeningScore" double precision, "cvSimilarity" boolean NOT NULL DEFAULT true, "minCvSimilarityScore" double precision, "noOfCvSimilarCandidates" integer, "personalizedAssessment" boolean NOT NULL DEFAULT true, "noPersonalizedQuestions" integer NOT NULL DEFAULT '15', "recruiterGuide" text, "uploadedQuestions" text, "personalityEvaluation" boolean NOT NULL DEFAULT true, "stages" jsonb, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_e062638208222edc23b70e8c31b" PRIMARY KEY ("id"))`
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."applications_applicationtype_enum" AS ENUM('by invitation', 'by application')`
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."applications_status_enum" AS ENUM('pending', 'retake_assessment', 'not_proceeding', 'shortlisted', 'rejected')`
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."applications_currentstage_enum" AS ENUM('prescreening', 'cv_similarity', 'personalized', 'personality', 'completed')`
+    );
+    await queryRunner.query(
+      `CREATE TABLE "applications" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "job_id" uuid NOT NULL, "talent_id" uuid NOT NULL, "recruiter_id" uuid NOT NULL, "role_id" uuid, "applicationType" "public"."applications_applicationtype_enum" NOT NULL, "status" "public"."applications_status_enum" NOT NULL DEFAULT 'pending', "currentStage" "public"."applications_currentstage_enum" NOT NULL DEFAULT 'prescreening', "personalizedQuestions" text, "personalizedScore" double precision, "cvSimilarityScore" double precision, "rank" double precision, "averageScore" double precision, "mbtiType" character varying, "stages" jsonb, "assessmentRetryDate" TIMESTAMP, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_938c0a27255637bde919591888f" PRIMARY KEY ("id"))`
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_8ee114cee92e995a9e75c05cfb" ON "applications"  ("status") `
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_8669c2e52c554fe8874e6a20b7" ON "applications"  ("job_id", "status") `
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_fe6e522f9d864dd3a2289ace8c" ON "applications"  ("recruiter_id") `
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX "IDX_cae78d80246594bf53e6562231" ON "applications"  ("talent_id", "job_id") `
+    );
+    await queryRunner.query(
+      `CREATE TABLE "conversations" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "last_message_id" uuid, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_ee34f4f7ced4ec8681f26bf04ef" PRIMARY KEY ("id"))`
+    );
+    await queryRunner.query(
+      `CREATE TABLE "messages" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "conversation_id" uuid NOT NULL, "application_id" uuid, "sender_id" uuid NOT NULL, "recipient_id" uuid NOT NULL, "content" text NOT NULL, "acknowledged" boolean, "isRead" boolean NOT NULL DEFAULT false, "deleted" boolean NOT NULL DEFAULT false, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_18325f38ae6de43878487eff986" PRIMARY KEY ("id"))`
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_bcaa4c1057c044ca2cf006c41d" ON "messages"  ("isRead") `
+    );
+    await queryRunner.query(
+      `CREATE TABLE "notifications" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "user_id" uuid NOT NULL, "message" text NOT NULL, "isRead" boolean NOT NULL DEFAULT false, "deleted" boolean NOT NULL DEFAULT false, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_6a72c3c0f683f6462415e653c3a" PRIMARY KEY ("id"))`
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_c9e12f0313104e107041b5b670" ON "notifications"  ("user_id", "deleted", "createdAt") `
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_9a8a82462cab47c73d25f49261" ON "notifications"  ("user_id") `
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."plans_interval_enum" AS ENUM('monthly', 'annually')`
+    );
+    await queryRunner.query(`CREATE TYPE "public"."plans_currency_enum" AS ENUM('NGN', 'USD')`);
+    await queryRunner.query(
+      `CREATE TABLE "plans" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "name" character varying NOT NULL, "amount" double precision NOT NULL, "paystackAmount" double precision NOT NULL, "interval" "public"."plans_interval_enum" NOT NULL, "paystackPlanCode" character varying, "currency" "public"."plans_currency_enum" NOT NULL, "update_existing_subscriptions" boolean, "description" text NOT NULL, "features" text, "isDeleted" boolean NOT NULL DEFAULT false, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_3720521a81c7c24fe9b7202ba61" PRIMARY KEY ("id"))`
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."payments_status_enum" AS ENUM('pending', 'failed', 'cancelled', 'completed')`
+    );
+    await queryRunner.query(
+      `CREATE TABLE "payments" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "user_id" uuid NOT NULL, "plan_id" uuid, "amount" double precision NOT NULL, "currency" character varying NOT NULL, "reference" character varying, "paystackRef" character varying, "paymentLink" character varying, "status" "public"."payments_status_enum" NOT NULL DEFAULT 'pending', "history" jsonb, "initialConfig" jsonb, "finalConfig" jsonb, "paidAt" TIMESTAMP, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_197ab7af18c93fbb0c9b28b4a59" PRIMARY KEY ("id"))`
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_32b41cdb985a296213e9a928b5" ON "payments"  ("status") `
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."subscriptions_status_enum" AS ENUM('active', 'pending', 'non-renewing', 'attention', 'completed', 'cancelled', 'expired')`
+    );
+    await queryRunner.query(
+      `CREATE TABLE "subscriptions" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "user_id" uuid NOT NULL, "plan_id" uuid NOT NULL, "paystackSubscriptionCode" character varying NOT NULL, "authorizationCode" character varying, "email_token" character varying, "status" "public"."subscriptions_status_enum" NOT NULL DEFAULT 'active', "startDate" TIMESTAMP, "nextPaymentDate" TIMESTAMP, "expiryDate" TIMESTAMP, "cron_expression" character varying, "usage" jsonb NOT NULL DEFAULT '{"aiTestsUsed": 0, "jobListingsUsed": 0, "candidatesAccessed": 0}', "history" jsonb, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_a87248d73155605cf782be9ee5e" PRIMARY KEY ("id"))`
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_6ccf973355b70645eff37774de" ON "subscriptions"  ("status") `
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."questions_type_enum" AS ENUM('prescreening', 'personality', 'personalized')`
+    );
+    await queryRunner.query(
+      `CREATE TABLE "questions" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "role_id" uuid, "job_id" uuid, "type" "public"."questions_type_enum" NOT NULL, "question" text NOT NULL, "criteria" character varying, "category" character varying, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_08a6d4b0f49ff300bf3a0ca60ac" PRIMARY KEY ("id"))`
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."answers_questiontype_enum" AS ENUM('prescreening', 'personality', 'personalized')`
+    );
+    await queryRunner.query(
+      `CREATE TABLE "answers" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "role_id" uuid, "job_id" uuid, "user_id" uuid NOT NULL, "questionType" "public"."answers_questiontype_enum" NOT NULL, "responses" jsonb NOT NULL DEFAULT '[]', "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_9c32cec6c71e06da0254f2226c6" PRIMARY KEY ("id"))`
+    );
+    await queryRunner.query(
+      `CREATE TABLE "scout_jobs" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "role_id" uuid NOT NULL, "posted_by_id" uuid NOT NULL, "jobBrief" text NOT NULL, "name" character varying NOT NULL, "recruiterGuide" text NOT NULL, "job_embedding" text, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_7f4639c00c99db6483f6ba3f63f" PRIMARY KEY ("id"))`
+    );
+    await queryRunner.query(
+      `CREATE TABLE "scouts" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "batchId" character varying, "cvName" character varying, "cvText" text, "coverLetterName" character varying, "coverLetterText" text, "cvScore" double precision, "coverLetterScore" double precision, "evaluationScore" double precision, "recruiter_id" uuid, "scout_job_id" uuid, "batch_embedding" text, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_edf48b1d3a931a439b224b038d2" PRIMARY KEY ("id"))`
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_876a8724f48fb6a18d8499d539" ON "scouts"  ("batchId") `
+    );
+    await queryRunner.query(
+      `CREATE TABLE "talent_embeddings" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "user_id" uuid NOT NULL, "cv_public_id" character varying, "cv_text" text, "cv_embedding" text, "generated_at" TIMESTAMP NOT NULL, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_6f45d5157b045e25b5d7f6c057e" PRIMARY KEY ("id"))`
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_625377855a41c91177d5a91b86" ON "talent_embeddings"  ("user_id") `
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."error_logs_level_enum" AS ENUM('error', 'warn', 'info', 'debug')`
+    );
+    await queryRunner.query(
+      `CREATE TABLE "error_logs" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "timestamp" TIMESTAMP NOT NULL DEFAULT now(), "level" "public"."error_logs_level_enum" NOT NULL DEFAULT 'error', "message" text NOT NULL, "stack" text, "errorType" character varying NOT NULL, "userId" character varying, "requestId" character varying, "endpoint" character varying, "method" character varying, "userAgent" character varying, "ip" character varying, "requestBody" jsonb, "requestQuery" jsonb, "requestParams" jsonb, "responseStatus" integer, "environment" character varying NOT NULL, "version" character varying, "metadata" jsonb, "resolved" boolean NOT NULL DEFAULT false, "resolvedAt" TIMESTAMP, "resolvedBy" character varying, "tags" text, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_6840885d7eb78406fa7d358be72" PRIMARY KEY ("id"))`
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_288837dc06eb99a3ae3d9083b2" ON "error_logs"  ("timestamp") `
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_ccb7cd23633b5565a39ea80e0b" ON "error_logs"  ("level") `
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_5eccb27af8f14d9bb79e8b8535" ON "error_logs"  ("message") `
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_ad75212b4acd33fcbd05ed3ea6" ON "error_logs"  ("errorType") `
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_93172909565ba6cf0d3d8314df" ON "error_logs"  ("userId") `
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_f81f52a373844307979a0b073a" ON "error_logs"  ("requestId") `
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_11a9dc7f882eb1efc56209b702" ON "error_logs"  ("endpoint") `
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_186da663400814c62b609720f5" ON "error_logs"  ("method") `
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_1542ff2bec960fbea5516c439b" ON "error_logs"  ("ip") `
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_9a7a06e7b2160458d74f4e6f57" ON "error_logs"  ("responseStatus") `
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_6ab6b5569956873f367b49c37a" ON "error_logs"  ("environment") `
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_9c8d4c24666877a0fa01f97b3c" ON "error_logs"  ("resolved") `
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_8898d428aa08c5a76d7476b2f1" ON "error_logs"  ("errorType", "timestamp") `
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_43ceb9af28f127c267847495a8" ON "error_logs"  ("resolved", "timestamp") `
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_1f41b19e0e9272f0e53de53a76" ON "error_logs"  ("environment", "timestamp") `
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_bd8f5d532d624d68caa2c7b9dc" ON "error_logs"  ("timestamp", "level") `
+    );
+    await queryRunner.query(
+      `CREATE TABLE "user_roles" ("user_id" uuid NOT NULL, "role_id" uuid NOT NULL, CONSTRAINT "PK_23ed6f04fe43066df08379fd034" PRIMARY KEY ("user_id", "role_id"))`
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_87b8888186ca9769c960e92687" ON "user_roles"  ("user_id") `
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_b23c65e50a758245a33ee35fda" ON "user_roles"  ("role_id") `
+    );
+    await queryRunner.query(
+      `CREATE TABLE "conversation_participants" ("conversation_id" uuid NOT NULL, "user_id" uuid NOT NULL, CONSTRAINT "PK_fdcd6405d74e797f10fa8360338" PRIMARY KEY ("conversation_id", "user_id"))`
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_1559e8a16b828f2e836a231280" ON "conversation_participants"  ("conversation_id") `
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_377d4041a495b81ee1a85ae026" ON "conversation_participants"  ("user_id") `
+    );
+    await queryRunner.query(
+      `ALTER TABLE "users" ADD CONSTRAINT "FK_21a659804ed7bf61eb91688dea7" FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "users" ADD CONSTRAINT "FK_33f3f76c723a292793373a0cfd7" FOREIGN KEY ("active_prescreening_id") REFERENCES "pre_screenings"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "pre_screenings" ADD CONSTRAINT "FK_b0cd8d1ec347dcff1d6609a0db4" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "jobs" ADD CONSTRAINT "FK_52eb1e9bce5a39e82266a9b42aa" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "jobs" ADD CONSTRAINT "FK_6779db8162016f25cbb2fa82630" FOREIGN KEY ("posted_by_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "jobs" ADD CONSTRAINT "FK_919efe01c9199ad69cc52f04840" FOREIGN KEY ("ai_config_id") REFERENCES "ai_configs"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "ai_configs" ADD CONSTRAINT "FK_d386fdba9ec8e5cb705fb519782" FOREIGN KEY ("recruiter_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "ai_configs" ADD CONSTRAINT "FK_f254b09ca6b19e375727f1a0195" FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "applications" ADD CONSTRAINT "FK_8aba14d7f098c23ba06d8693235" FOREIGN KEY ("job_id") REFERENCES "jobs"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "applications" ADD CONSTRAINT "FK_af9cfddd578e4d7e25025f93197" FOREIGN KEY ("talent_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "applications" ADD CONSTRAINT "FK_fe6e522f9d864dd3a2289ace8c2" FOREIGN KEY ("recruiter_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "applications" ADD CONSTRAINT "FK_0765275891b64a32533bf3e30e3" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "conversations" ADD CONSTRAINT "FK_a53679287450d522a3f700088e9" FOREIGN KEY ("last_message_id") REFERENCES "messages"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "messages" ADD CONSTRAINT "FK_3bc55a7c3f9ed54b520bb5cfe23" FOREIGN KEY ("conversation_id") REFERENCES "conversations"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "messages" ADD CONSTRAINT "FK_5d3ec1cb962de6488637fd779d6" FOREIGN KEY ("application_id") REFERENCES "applications"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "messages" ADD CONSTRAINT "FK_22133395bd13b970ccd0c34ab22" FOREIGN KEY ("sender_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "messages" ADD CONSTRAINT "FK_566c3d68184e83d4307b86f85ab" FOREIGN KEY ("recipient_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "notifications" ADD CONSTRAINT "FK_9a8a82462cab47c73d25f49261f" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "payments" ADD CONSTRAINT "FK_427785468fb7d2733f59e7d7d39" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "payments" ADD CONSTRAINT "FK_f9b6a4c3196864cdd91b1a440ee" FOREIGN KEY ("plan_id") REFERENCES "plans"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "subscriptions" ADD CONSTRAINT "FK_d0a95ef8a28188364c546eb65c1" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "subscriptions" ADD CONSTRAINT "FK_e45fca5d912c3a2fab512ac25dc" FOREIGN KEY ("plan_id") REFERENCES "plans"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "questions" ADD CONSTRAINT "FK_939360dcd69d13a8a3e416a09b2" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "questions" ADD CONSTRAINT "FK_0a7640593ffd9990c2fee468301" FOREIGN KEY ("job_id") REFERENCES "jobs"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "answers" ADD CONSTRAINT "FK_9d8c8ed01b3a8188f79b376f737" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "answers" ADD CONSTRAINT "FK_cccb21789b12bf8eaf05288728d" FOREIGN KEY ("job_id") REFERENCES "jobs"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "answers" ADD CONSTRAINT "FK_f4cf663ebeca05b7a12f6a2cc97" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "scout_jobs" ADD CONSTRAINT "FK_cc2024244de0b2cc3223025956f" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "scout_jobs" ADD CONSTRAINT "FK_c53125414b14b0291d8bbac0036" FOREIGN KEY ("posted_by_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "scouts" ADD CONSTRAINT "FK_043e5b02d2eaa2b6a82105be0f6" FOREIGN KEY ("recruiter_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "scouts" ADD CONSTRAINT "FK_e6868710cb0edc8c63f0d3fc032" FOREIGN KEY ("scout_job_id") REFERENCES "scout_jobs"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "talent_embeddings" ADD CONSTRAINT "FK_625377855a41c91177d5a91b864" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "user_roles" ADD CONSTRAINT "FK_87b8888186ca9769c960e926870" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "user_roles" ADD CONSTRAINT "FK_b23c65e50a758245a33ee35fda1" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "conversation_participants" ADD CONSTRAINT "FK_1559e8a16b828f2e836a2312800" FOREIGN KEY ("conversation_id") REFERENCES "conversations"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "conversation_participants" ADD CONSTRAINT "FK_377d4041a495b81ee1a85ae026f" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+    );
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`ALTER TABLE "conversation_participants" DROP CONSTRAINT "FK_377d4041a495b81ee1a85ae026f"`);
-        await queryRunner.query(`ALTER TABLE "conversation_participants" DROP CONSTRAINT "FK_1559e8a16b828f2e836a2312800"`);
-        await queryRunner.query(`ALTER TABLE "user_roles" DROP CONSTRAINT "FK_b23c65e50a758245a33ee35fda1"`);
-        await queryRunner.query(`ALTER TABLE "user_roles" DROP CONSTRAINT "FK_87b8888186ca9769c960e926870"`);
-        await queryRunner.query(`ALTER TABLE "talent_embeddings" DROP CONSTRAINT "FK_625377855a41c91177d5a91b864"`);
-        await queryRunner.query(`ALTER TABLE "scouts" DROP CONSTRAINT "FK_e6868710cb0edc8c63f0d3fc032"`);
-        await queryRunner.query(`ALTER TABLE "scouts" DROP CONSTRAINT "FK_043e5b02d2eaa2b6a82105be0f6"`);
-        await queryRunner.query(`ALTER TABLE "scout_jobs" DROP CONSTRAINT "FK_c53125414b14b0291d8bbac0036"`);
-        await queryRunner.query(`ALTER TABLE "scout_jobs" DROP CONSTRAINT "FK_cc2024244de0b2cc3223025956f"`);
-        await queryRunner.query(`ALTER TABLE "answers" DROP CONSTRAINT "FK_f4cf663ebeca05b7a12f6a2cc97"`);
-        await queryRunner.query(`ALTER TABLE "answers" DROP CONSTRAINT "FK_cccb21789b12bf8eaf05288728d"`);
-        await queryRunner.query(`ALTER TABLE "answers" DROP CONSTRAINT "FK_9d8c8ed01b3a8188f79b376f737"`);
-        await queryRunner.query(`ALTER TABLE "questions" DROP CONSTRAINT "FK_0a7640593ffd9990c2fee468301"`);
-        await queryRunner.query(`ALTER TABLE "questions" DROP CONSTRAINT "FK_939360dcd69d13a8a3e416a09b2"`);
-        await queryRunner.query(`ALTER TABLE "subscriptions" DROP CONSTRAINT "FK_e45fca5d912c3a2fab512ac25dc"`);
-        await queryRunner.query(`ALTER TABLE "subscriptions" DROP CONSTRAINT "FK_d0a95ef8a28188364c546eb65c1"`);
-        await queryRunner.query(`ALTER TABLE "payments" DROP CONSTRAINT "FK_f9b6a4c3196864cdd91b1a440ee"`);
-        await queryRunner.query(`ALTER TABLE "payments" DROP CONSTRAINT "FK_427785468fb7d2733f59e7d7d39"`);
-        await queryRunner.query(`ALTER TABLE "notifications" DROP CONSTRAINT "FK_9a8a82462cab47c73d25f49261f"`);
-        await queryRunner.query(`ALTER TABLE "messages" DROP CONSTRAINT "FK_566c3d68184e83d4307b86f85ab"`);
-        await queryRunner.query(`ALTER TABLE "messages" DROP CONSTRAINT "FK_22133395bd13b970ccd0c34ab22"`);
-        await queryRunner.query(`ALTER TABLE "messages" DROP CONSTRAINT "FK_5d3ec1cb962de6488637fd779d6"`);
-        await queryRunner.query(`ALTER TABLE "messages" DROP CONSTRAINT "FK_3bc55a7c3f9ed54b520bb5cfe23"`);
-        await queryRunner.query(`ALTER TABLE "conversations" DROP CONSTRAINT "FK_a53679287450d522a3f700088e9"`);
-        await queryRunner.query(`ALTER TABLE "applications" DROP CONSTRAINT "FK_0765275891b64a32533bf3e30e3"`);
-        await queryRunner.query(`ALTER TABLE "applications" DROP CONSTRAINT "FK_fe6e522f9d864dd3a2289ace8c2"`);
-        await queryRunner.query(`ALTER TABLE "applications" DROP CONSTRAINT "FK_af9cfddd578e4d7e25025f93197"`);
-        await queryRunner.query(`ALTER TABLE "applications" DROP CONSTRAINT "FK_8aba14d7f098c23ba06d8693235"`);
-        await queryRunner.query(`ALTER TABLE "ai_configs" DROP CONSTRAINT "FK_f254b09ca6b19e375727f1a0195"`);
-        await queryRunner.query(`ALTER TABLE "ai_configs" DROP CONSTRAINT "FK_d386fdba9ec8e5cb705fb519782"`);
-        await queryRunner.query(`ALTER TABLE "jobs" DROP CONSTRAINT "FK_919efe01c9199ad69cc52f04840"`);
-        await queryRunner.query(`ALTER TABLE "jobs" DROP CONSTRAINT "FK_6779db8162016f25cbb2fa82630"`);
-        await queryRunner.query(`ALTER TABLE "jobs" DROP CONSTRAINT "FK_52eb1e9bce5a39e82266a9b42aa"`);
-        await queryRunner.query(`ALTER TABLE "pre_screenings" DROP CONSTRAINT "FK_b0cd8d1ec347dcff1d6609a0db4"`);
-        await queryRunner.query(`ALTER TABLE "users" DROP CONSTRAINT "FK_33f3f76c723a292793373a0cfd7"`);
-        await queryRunner.query(`ALTER TABLE "users" DROP CONSTRAINT "FK_21a659804ed7bf61eb91688dea7"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_377d4041a495b81ee1a85ae026"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_1559e8a16b828f2e836a231280"`);
-        await queryRunner.query(`DROP TABLE "conversation_participants"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_b23c65e50a758245a33ee35fda"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_87b8888186ca9769c960e92687"`);
-        await queryRunner.query(`DROP TABLE "user_roles"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_bd8f5d532d624d68caa2c7b9dc"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_1f41b19e0e9272f0e53de53a76"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_43ceb9af28f127c267847495a8"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_8898d428aa08c5a76d7476b2f1"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_9c8d4c24666877a0fa01f97b3c"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_6ab6b5569956873f367b49c37a"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_9a7a06e7b2160458d74f4e6f57"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_1542ff2bec960fbea5516c439b"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_186da663400814c62b609720f5"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_11a9dc7f882eb1efc56209b702"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_f81f52a373844307979a0b073a"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_93172909565ba6cf0d3d8314df"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_ad75212b4acd33fcbd05ed3ea6"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_5eccb27af8f14d9bb79e8b8535"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_ccb7cd23633b5565a39ea80e0b"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_288837dc06eb99a3ae3d9083b2"`);
-        await queryRunner.query(`DROP TABLE "error_logs"`);
-        await queryRunner.query(`DROP TYPE "public"."error_logs_level_enum"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_625377855a41c91177d5a91b86"`);
-        await queryRunner.query(`DROP TABLE "talent_embeddings"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_876a8724f48fb6a18d8499d539"`);
-        await queryRunner.query(`DROP TABLE "scouts"`);
-        await queryRunner.query(`DROP TABLE "scout_jobs"`);
-        await queryRunner.query(`DROP TABLE "answers"`);
-        await queryRunner.query(`DROP TYPE "public"."answers_questiontype_enum"`);
-        await queryRunner.query(`DROP TABLE "questions"`);
-        await queryRunner.query(`DROP TYPE "public"."questions_type_enum"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_6ccf973355b70645eff37774de"`);
-        await queryRunner.query(`DROP TABLE "subscriptions"`);
-        await queryRunner.query(`DROP TYPE "public"."subscriptions_status_enum"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_32b41cdb985a296213e9a928b5"`);
-        await queryRunner.query(`DROP TABLE "payments"`);
-        await queryRunner.query(`DROP TYPE "public"."payments_status_enum"`);
-        await queryRunner.query(`DROP TABLE "plans"`);
-        await queryRunner.query(`DROP TYPE "public"."plans_currency_enum"`);
-        await queryRunner.query(`DROP TYPE "public"."plans_interval_enum"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_9a8a82462cab47c73d25f49261"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_c9e12f0313104e107041b5b670"`);
-        await queryRunner.query(`DROP TABLE "notifications"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_bcaa4c1057c044ca2cf006c41d"`);
-        await queryRunner.query(`DROP TABLE "messages"`);
-        await queryRunner.query(`DROP TABLE "conversations"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_cae78d80246594bf53e6562231"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_fe6e522f9d864dd3a2289ace8c"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_8669c2e52c554fe8874e6a20b7"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_8ee114cee92e995a9e75c05cfb"`);
-        await queryRunner.query(`DROP TABLE "applications"`);
-        await queryRunner.query(`DROP TYPE "public"."applications_currentstage_enum"`);
-        await queryRunner.query(`DROP TYPE "public"."applications_status_enum"`);
-        await queryRunner.query(`DROP TYPE "public"."applications_applicationtype_enum"`);
-        await queryRunner.query(`DROP TABLE "ai_configs"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_db290f32f910737649ea4cfcb1"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_a0c30e3eb9649fe7fbcd336a63"`);
-        await queryRunner.query(`DROP TABLE "jobs"`);
-        await queryRunner.query(`DROP TYPE "public"."jobs_status_enum"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_b0cd8d1ec347dcff1d6609a0db"`);
-        await queryRunner.query(`DROP TABLE "pre_screenings"`);
-        await queryRunner.query(`DROP TYPE "public"."pre_screenings_status_enum"`);
-        await queryRunner.query(`DROP TABLE "roles"`);
-        await queryRunner.query(`DROP TABLE "organizations"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_97672ac88f789774dd47f7c8be"`);
-        await queryRunner.query(`DROP TABLE "users"`);
-        await queryRunner.query(`DROP TYPE "public"."users_currency_enum"`);
-        await queryRunner.query(`DROP TYPE "public"."users_userrole_enum"`);
-    }
-
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `ALTER TABLE "conversation_participants" DROP CONSTRAINT "FK_377d4041a495b81ee1a85ae026f"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "conversation_participants" DROP CONSTRAINT "FK_1559e8a16b828f2e836a2312800"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "user_roles" DROP CONSTRAINT "FK_b23c65e50a758245a33ee35fda1"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "user_roles" DROP CONSTRAINT "FK_87b8888186ca9769c960e926870"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "talent_embeddings" DROP CONSTRAINT "FK_625377855a41c91177d5a91b864"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "scouts" DROP CONSTRAINT "FK_e6868710cb0edc8c63f0d3fc032"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "scouts" DROP CONSTRAINT "FK_043e5b02d2eaa2b6a82105be0f6"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "scout_jobs" DROP CONSTRAINT "FK_c53125414b14b0291d8bbac0036"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "scout_jobs" DROP CONSTRAINT "FK_cc2024244de0b2cc3223025956f"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "answers" DROP CONSTRAINT "FK_f4cf663ebeca05b7a12f6a2cc97"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "answers" DROP CONSTRAINT "FK_cccb21789b12bf8eaf05288728d"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "answers" DROP CONSTRAINT "FK_9d8c8ed01b3a8188f79b376f737"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "questions" DROP CONSTRAINT "FK_0a7640593ffd9990c2fee468301"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "questions" DROP CONSTRAINT "FK_939360dcd69d13a8a3e416a09b2"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "subscriptions" DROP CONSTRAINT "FK_e45fca5d912c3a2fab512ac25dc"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "subscriptions" DROP CONSTRAINT "FK_d0a95ef8a28188364c546eb65c1"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "payments" DROP CONSTRAINT "FK_f9b6a4c3196864cdd91b1a440ee"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "payments" DROP CONSTRAINT "FK_427785468fb7d2733f59e7d7d39"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "notifications" DROP CONSTRAINT "FK_9a8a82462cab47c73d25f49261f"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "messages" DROP CONSTRAINT "FK_566c3d68184e83d4307b86f85ab"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "messages" DROP CONSTRAINT "FK_22133395bd13b970ccd0c34ab22"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "messages" DROP CONSTRAINT "FK_5d3ec1cb962de6488637fd779d6"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "messages" DROP CONSTRAINT "FK_3bc55a7c3f9ed54b520bb5cfe23"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "conversations" DROP CONSTRAINT "FK_a53679287450d522a3f700088e9"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "applications" DROP CONSTRAINT "FK_0765275891b64a32533bf3e30e3"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "applications" DROP CONSTRAINT "FK_fe6e522f9d864dd3a2289ace8c2"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "applications" DROP CONSTRAINT "FK_af9cfddd578e4d7e25025f93197"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "applications" DROP CONSTRAINT "FK_8aba14d7f098c23ba06d8693235"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "ai_configs" DROP CONSTRAINT "FK_f254b09ca6b19e375727f1a0195"`
+    );
+    await queryRunner.query(
+      `ALTER TABLE "ai_configs" DROP CONSTRAINT "FK_d386fdba9ec8e5cb705fb519782"`
+    );
+    await queryRunner.query(`ALTER TABLE "jobs" DROP CONSTRAINT "FK_919efe01c9199ad69cc52f04840"`);
+    await queryRunner.query(`ALTER TABLE "jobs" DROP CONSTRAINT "FK_6779db8162016f25cbb2fa82630"`);
+    await queryRunner.query(`ALTER TABLE "jobs" DROP CONSTRAINT "FK_52eb1e9bce5a39e82266a9b42aa"`);
+    await queryRunner.query(
+      `ALTER TABLE "pre_screenings" DROP CONSTRAINT "FK_b0cd8d1ec347dcff1d6609a0db4"`
+    );
+    await queryRunner.query(`ALTER TABLE "users" DROP CONSTRAINT "FK_33f3f76c723a292793373a0cfd7"`);
+    await queryRunner.query(`ALTER TABLE "users" DROP CONSTRAINT "FK_21a659804ed7bf61eb91688dea7"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_377d4041a495b81ee1a85ae026"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_1559e8a16b828f2e836a231280"`);
+    await queryRunner.query(`DROP TABLE "conversation_participants"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_b23c65e50a758245a33ee35fda"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_87b8888186ca9769c960e92687"`);
+    await queryRunner.query(`DROP TABLE "user_roles"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_bd8f5d532d624d68caa2c7b9dc"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_1f41b19e0e9272f0e53de53a76"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_43ceb9af28f127c267847495a8"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_8898d428aa08c5a76d7476b2f1"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_9c8d4c24666877a0fa01f97b3c"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_6ab6b5569956873f367b49c37a"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_9a7a06e7b2160458d74f4e6f57"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_1542ff2bec960fbea5516c439b"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_186da663400814c62b609720f5"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_11a9dc7f882eb1efc56209b702"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_f81f52a373844307979a0b073a"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_93172909565ba6cf0d3d8314df"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_ad75212b4acd33fcbd05ed3ea6"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_5eccb27af8f14d9bb79e8b8535"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_ccb7cd23633b5565a39ea80e0b"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_288837dc06eb99a3ae3d9083b2"`);
+    await queryRunner.query(`DROP TABLE "error_logs"`);
+    await queryRunner.query(`DROP TYPE "public"."error_logs_level_enum"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_625377855a41c91177d5a91b86"`);
+    await queryRunner.query(`DROP TABLE "talent_embeddings"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_876a8724f48fb6a18d8499d539"`);
+    await queryRunner.query(`DROP TABLE "scouts"`);
+    await queryRunner.query(`DROP TABLE "scout_jobs"`);
+    await queryRunner.query(`DROP TABLE "answers"`);
+    await queryRunner.query(`DROP TYPE "public"."answers_questiontype_enum"`);
+    await queryRunner.query(`DROP TABLE "questions"`);
+    await queryRunner.query(`DROP TYPE "public"."questions_type_enum"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_6ccf973355b70645eff37774de"`);
+    await queryRunner.query(`DROP TABLE "subscriptions"`);
+    await queryRunner.query(`DROP TYPE "public"."subscriptions_status_enum"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_32b41cdb985a296213e9a928b5"`);
+    await queryRunner.query(`DROP TABLE "payments"`);
+    await queryRunner.query(`DROP TYPE "public"."payments_status_enum"`);
+    await queryRunner.query(`DROP TABLE "plans"`);
+    await queryRunner.query(`DROP TYPE "public"."plans_currency_enum"`);
+    await queryRunner.query(`DROP TYPE "public"."plans_interval_enum"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_9a8a82462cab47c73d25f49261"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_c9e12f0313104e107041b5b670"`);
+    await queryRunner.query(`DROP TABLE "notifications"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_bcaa4c1057c044ca2cf006c41d"`);
+    await queryRunner.query(`DROP TABLE "messages"`);
+    await queryRunner.query(`DROP TABLE "conversations"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_cae78d80246594bf53e6562231"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_fe6e522f9d864dd3a2289ace8c"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_8669c2e52c554fe8874e6a20b7"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_8ee114cee92e995a9e75c05cfb"`);
+    await queryRunner.query(`DROP TABLE "applications"`);
+    await queryRunner.query(`DROP TYPE "public"."applications_currentstage_enum"`);
+    await queryRunner.query(`DROP TYPE "public"."applications_status_enum"`);
+    await queryRunner.query(`DROP TYPE "public"."applications_applicationtype_enum"`);
+    await queryRunner.query(`DROP TABLE "ai_configs"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_db290f32f910737649ea4cfcb1"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_a0c30e3eb9649fe7fbcd336a63"`);
+    await queryRunner.query(`DROP TABLE "jobs"`);
+    await queryRunner.query(`DROP TYPE "public"."jobs_status_enum"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_b0cd8d1ec347dcff1d6609a0db"`);
+    await queryRunner.query(`DROP TABLE "pre_screenings"`);
+    await queryRunner.query(`DROP TYPE "public"."pre_screenings_status_enum"`);
+    await queryRunner.query(`DROP TABLE "roles"`);
+    await queryRunner.query(`DROP TABLE "organizations"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_97672ac88f789774dd47f7c8be"`);
+    await queryRunner.query(`DROP TABLE "users"`);
+    await queryRunner.query(`DROP TYPE "public"."users_currency_enum"`);
+    await queryRunner.query(`DROP TYPE "public"."users_userrole_enum"`);
+  }
 }
