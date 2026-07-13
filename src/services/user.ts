@@ -262,7 +262,7 @@ export const editProfile = async (
   return saved;
 };
 
-const saveTalentEmbedding = async (
+export const saveTalentEmbedding = async (
   userId: string,
   cvText: string[],
   cvEmbedding: Array<{ embedding: number[] }>

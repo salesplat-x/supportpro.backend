@@ -12,6 +12,7 @@ import { sendSuccessResponse } from "./utils/response.js";
 import { AppDataSource, initializeDatabase } from "./database/dataSource.js";
 import v1Router from "./routes/index.js";
 import swaggerDocs from "./swagger.js";
+import { reconcilePendingCvEmbeddings } from "./services/reconciliation.js";
 
 export function createApp(): Application {
   const app = express();
@@ -68,8 +69,20 @@ async function startApplication(): Promise<void> {
     logger.info(`App listening on http://localhost:${PORT}`);
   });
 
+  // Self-healing sweep for CV embeddings left orphaned by a failed or interrupted
+  // fire-and-forget generation (see services/reconciliation.ts). Runs in-process —
+  // no separate worker/queue — so it only needs the Postgres connection we already have.
+  const RECONCILE_INTERVAL_MS = 15 * 60 * 1000;
+  const reconcileInterval = setInterval(() => {
+    reconcilePendingCvEmbeddings().catch((err: Error) =>
+      logger.error(`CV embedding reconciliation sweep failed: ${err.message}`)
+    );
+  }, RECONCILE_INTERVAL_MS);
+  reconcileInterval.unref();
+
   const shutdown = async (signal: string): Promise<void> => {
     logger.info(`${signal} received — shutting down gracefully`);
+    clearInterval(reconcileInterval);
     server.close(async () => {
       await AppDataSource.destroy().catch(() => {});
       process.exit(0);

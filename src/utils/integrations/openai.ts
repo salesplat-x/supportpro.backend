@@ -1,7 +1,27 @@
 import OpenAI from "openai";
 import env from "../../config/env.js";
+import { withRetry } from "../retry.js";
+import { createLimiter } from "../concurrencyLimiter.js";
 
 const openai = new OpenAI({ apiKey: env.openai_secret });
+
+// Single choke point for all OpenAI calls: caps concurrency so bursts (batch CV
+// scoring, many CV uploads) don't blow through OpenAI's rate limit, and retries
+// transient failures (429/5xx/timeouts) so fire-and-forget callers don't silently
+// drop work on a momentary blip.
+const limiter = createLimiter(5);
+
+const runCompletion = (
+  params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
+) =>
+  limiter.run(() =>
+    withRetry(() => openai.chat.completions.create(params), { label: "OpenAI chat completion" })
+  );
+
+const runEmbedding = (params: OpenAI.Embeddings.EmbeddingCreateParams) =>
+  limiter.run(() =>
+    withRetry(() => openai.embeddings.create(params), { label: "OpenAI embedding" })
+  );
 
 export const gradeAssessmentAnswers = async (
   questionsJSON: string
@@ -40,7 +60,7 @@ export const gradeAssessmentAnswers = async (
     ]
   }', the length of the array of Response objects must match the length of the array of the Assessment object`;
 
-  const completion = await openai.chat.completions.create({
+  const completion = await runCompletion({
     messages: [
       { role: "system", content: prompt },
       { role: "user", content: questionsJSON },
@@ -52,7 +72,7 @@ export const gradeAssessmentAnswers = async (
 };
 
 export const createEmbedding = async (text: string | string[]) => {
-  const embedding = await openai.embeddings.create({
+  const embedding = await runEmbedding({
     model: "text-embedding-3-small",
     input: text,
     encoding_format: "float",
@@ -93,7 +113,7 @@ export const generatePersonalizedQuestions = async (
   ${recruiterGuide}
   Make sure the generated personalized questions lays emphasis on the recruiter's guide especially, also factor in the talent's cv and bio
 `;
-  const completion = await openai.chat.completions.create({
+  const completion = await runCompletion({
     messages: [
       { role: "system", content: system },
       { role: "user", content: prompt },
@@ -143,7 +163,7 @@ export const gradePersonalizedAnswers = async (
     ]
   }', the length of the array of Response objects must match the length of the array of the Assessment object`;
 
-  const completion = await openai.chat.completions.create({
+  const completion = await runCompletion({
     messages: [
       { role: "system", content: prompt },
       { role: "user", content: questionsJSON },
@@ -172,7 +192,7 @@ export const getPersonalityEvaluationQuestion = async (
     "question": "..."
   }
 `;
-  const completion = await openai.chat.completions.create({
+  const completion = await runCompletion({
     messages: [
       { role: "system", content: system },
       { role: "user", content: prompt },
@@ -212,7 +232,7 @@ export const evaluatePersonalityType = async (
   "mbtiType": "ESTJ"
 }
 '`;
-  const completion = await openai.chat.completions.create({
+  const completion = await runCompletion({
     messages: [
       { role: "system", content: prompt },
       { role: "user", content: questionsJSON },
@@ -235,13 +255,18 @@ export const assessCVandCoverLetter = async (
   2. coverLetter: A string containing the cover letter of the job applicant.
   3. jobDescription: A string containing the job description for the position.
   4. recruiterGuide: A string with instructions on how to assess the CV and cover letter against the job description to generate a percentage match.
+
+  For each of the CV and the cover letter, also provide brief explanatory insights (2-4 sentences) covering: the candidate's key strengths relative to the job description, any notable gaps or concerns, and the main reasoning behind the score.
+
   Output: You should produce a JSON object with the following structure:
 
   {
-    "cvScore": <cvPercentage>
-    "coverLetterScore": <coverLetterPercentage>
+    "cvScore": <cvPercentage>,
+    "cvInsights": "<explanatory insights for the CV score>",
+    "coverLetterScore": <coverLetterPercentage>,
+    "coverLetterInsights": "<explanatory insights for the cover letter score>"
   }`;
-  const completion = await openai.chat.completions.create({
+  const completion = await runCompletion({
     messages: [
       { role: "system", content: prompt },
       { role: "user", content: input },
@@ -263,12 +288,16 @@ export const assessCV = async (
   1. cv: A string containing the CV of the job applicant.
   2. jobDescription: A string containing the job description for the position.
   3. recruiterGuide: A string with instructions on how to assess the CV against the job description to generate a percentage match.
+
+  Also provide brief explanatory insights (2-4 sentences) covering: the candidate's key strengths relative to the job description, any notable gaps or concerns, and the main reasoning behind the score.
+
   Output: You should produce a JSON object with the following structure:
 
   {
-    "cvScore": <cvPercentage>
+    "cvScore": <cvPercentage>,
+    "insights": "<explanatory insights for the score>"
   }`;
-  const completion = await openai.chat.completions.create({
+  const completion = await runCompletion({
     messages: [
       { role: "system", content: prompt },
       { role: "user", content: input },
@@ -339,7 +368,7 @@ Location: ${context.location ? `${context.location.city ?? ""} ${context.locatio
 CV Content:
 ${context.cvContent}`;
 
-  const completion = await openai.chat.completions.create({
+  const completion = await runCompletion({
     messages: [
       { role: "system", content: system },
       { role: "user", content: userPrompt },
@@ -370,7 +399,7 @@ CV Content: ${context.profileContext.cvContent}
 Assessment Questions and Answers:
 ${JSON.stringify(context.questions, null, 2)}`;
 
-  const completion = await openai.chat.completions.create({
+  const completion = await runCompletion({
     messages: [
       { role: "system", content: system },
       { role: "user", content: userPrompt },

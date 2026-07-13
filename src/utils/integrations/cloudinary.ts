@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from "cloudinary";
 import env from "../../config/env.js";
+import { withRetry } from "../retry.js";
 
 cloudinary.config({
   cloud_name: env.cloudinary_name,
@@ -16,13 +17,17 @@ export const handleUpload = async (
   if (format === "doc" || format === "docx") {
     name = name.concat(".", format);
   }
-  return await cloudinary.uploader.upload(file, {
-    use_filename: true,
-    resource_type: "auto",
-    format,
-    public_id: name,
-    folder,
-  });
+  return await withRetry(
+    () =>
+      cloudinary.uploader.upload(file, {
+        use_filename: true,
+        resource_type: "auto",
+        format,
+        public_id: name,
+        folder,
+      }),
+    { label: "Cloudinary upload" }
+  );
 };
 
 export interface CloudAsset {
@@ -44,13 +49,17 @@ export const uploadBuffer = async (
 ): Promise<CloudAsset> => {
   const base64 = buffer.toString("base64");
   const dataURI = `data:${options.mimetype};base64,${base64}`;
-  const res = await cloudinary.uploader.upload(dataURI, {
-    resource_type: options.resourceType ?? "auto",
-    overwrite: true,
-    folder: options.folder,
-    public_id: options.publicId,
-    format: options.format,
-  });
+  const res = await withRetry(
+    () =>
+      cloudinary.uploader.upload(dataURI, {
+        resource_type: options.resourceType ?? "auto",
+        overwrite: true,
+        folder: options.folder,
+        public_id: options.publicId,
+        format: options.format,
+      }),
+    { label: "Cloudinary upload" }
+  );
   return { url: res.secure_url, publicId: res.public_id };
 };
 
@@ -63,7 +72,9 @@ export const destroyAsset = async (
   publicId: string,
   resourceType: "image" | "raw" | "auto" = "auto"
 ) => {
-  await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
+  await withRetry(() => cloudinary.uploader.destroy(publicId, { resource_type: resourceType }), {
+    label: "Cloudinary destroy",
+  });
 };
 
 export const replaceAsset = async (
