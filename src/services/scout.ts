@@ -192,9 +192,16 @@ export const scoutCvAndCl = async (
     throw new ValidationError("Error with LLM");
   }
 
-  const { cvScore, coverLetterScore } = JSON.parse(response.message.content) as {
+  const {
+    cvScore,
+    cvInsights,
+    coverLetterScore,
+    coverLetterInsights,
+  } = JSON.parse(response.message.content) as {
     cvScore?: number;
+    cvInsights?: string;
     coverLetterScore?: number;
+    coverLetterInsights?: string;
   };
   if (!cvScore || !coverLetterScore) {
     throw new ValidationError("Error assessing CV and Cover Letter");
@@ -210,7 +217,9 @@ export const scoutCvAndCl = async (
     cvText,
     coverLetterText,
     cvScore,
+    insights: cvInsights ?? null,
     coverLetterScore,
+    coverLetterInsights: coverLetterInsights ?? null,
     evaluationScore,
     recruiterId: userId,
     scoutJobId: payload.scoutJobId,
@@ -268,7 +277,10 @@ export const scoutCv = async (
     throw new ValidationError("Error with LLM");
   }
 
-  const { cvScore } = JSON.parse(response.message.content) as { cvScore?: number };
+  const { cvScore, insights } = JSON.parse(response.message.content) as {
+    cvScore?: number;
+    insights?: string;
+  };
   if (!cvScore) {
     throw new ValidationError("Error assessing CV");
   }
@@ -281,6 +293,7 @@ export const scoutCv = async (
     cvName,
     cvText,
     cvScore,
+    insights: insights ?? null,
     evaluationScore,
     scoutJobId: payload.scoutJobId,
     recruiterId: userId,
