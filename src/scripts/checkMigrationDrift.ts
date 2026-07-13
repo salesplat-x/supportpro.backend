@@ -68,7 +68,10 @@ async function run(): Promise<void> {
   await dataSource.initialize();
 
   try {
-    await dataSource.runMigrations();
+    // "each" — matches src/scripts/migrate.ts — some migrations (e.g. adding an
+    // enum value) can't be used until their own transaction commits, which the
+    // default "all" mode would prevent when running every migration from scratch.
+    await dataSource.runMigrations({ transaction: "each" });
 
     const sqlInMemory = await dataSource.driver.createSchemaBuilder().log();
     const pending = [...sqlInMemory.upQueries];
