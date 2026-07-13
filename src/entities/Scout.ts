@@ -35,8 +35,14 @@ export class Scout {
   @Column({ type: "float", nullable: true, default: null })
   cvScore!: number | null;
 
+  @Column({ type: "text", nullable: true, default: null })
+  insights!: string | null;
+
   @Column({ type: "float", nullable: true, default: null })
   coverLetterScore!: number | null;
+
+  @Column({ type: "text", nullable: true, default: null })
+  coverLetterInsights!: string | null;
 
   @Column({ type: "float", nullable: true, default: null })
   evaluationScore!: number | null;
