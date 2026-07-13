@@ -43,7 +43,9 @@ export class Job {
   @Column({ type: "text" })
   jobBrief!: string;
 
-  @Column({ type: "enum", enum: JobStatus, default: JobStatus.Active })
+  // Jobs are created as Draft and are invisible to talents (GET /jobs forces
+  // status=Active) until the recruiter explicitly publishes via PATCH /jobs/:_id.
+  @Column({ type: "enum", enum: JobStatus, default: JobStatus.Draft })
   @Index()
   status!: JobStatus;
 
