@@ -58,7 +58,11 @@ export class Subscription {
 
   @Column({
     type: "jsonb",
-    default: () => `'{"jobListingsUsed":0,"candidatesAccessed":0,"aiTestsUsed":0}'`,
+    // Key order matches jsonb's canonical on-disk representation (Postgres
+    // reorders object keys internally), and no explicit ::jsonb cast (TypeORM
+    // strips casts off the introspected DB default before comparing) —
+    // both must match exactly or the schema diff reports a false mismatch.
+    default: () => `'{"aiTestsUsed": 0, "jobListingsUsed": 0, "candidatesAccessed": 0}'`,
   })
   usage!: {
     jobListingsUsed: number;

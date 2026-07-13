@@ -16,6 +16,9 @@ import type { Role } from "./Role.js";
 import type { PreScreening } from "./PreScreening.js";
 
 @Entity("users")
+@Index("idx_users_talent_score", ["userRole", "prescreeningScore"], {
+  where: `"userRole" = 'talent'`,
+})
 export class User {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
