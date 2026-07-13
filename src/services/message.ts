@@ -5,6 +5,7 @@ import { User } from "../entities/User.js";
 import { Application } from "../entities/Application.js";
 import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors/index.js";
 import { sortDirection } from "../utils/text.js";
+import { UserRole, ApplicationStatus } from "../types/enums.js";
 
 const messageRepo = () => AppDataSource.getRepository(Message);
 
@@ -14,26 +15,50 @@ const userRepo = () => AppDataSource.getRepository(User);
 
 const applicationRepo = () => AppDataSource.getRepository(Application);
 
-const findOrCreateConversation = async (
+const findConversation = async (
   userIdA: string,
   userIdB: string
-): Promise<Conversation> => {
-  // Find existing conversation where both users are participants
-  const existing = await conversationRepo()
+): Promise<Conversation | null> => {
+  return conversationRepo()
     .createQueryBuilder("c")
     .innerJoin("c.participants", "p1", "p1.id = :a", { a: userIdA })
     .innerJoin("c.participants", "p2", "p2.id = :b", { b: userIdB })
     .leftJoinAndSelect("c.participants", "participants")
     .getOne();
+};
 
-  if (existing) return existing;
-
-  const userA = await userRepo().findOne({ where: { id: userIdA } });
-  const userB = await userRepo().findOne({ where: { id: userIdB } });
-  if (!userA || !userB) throw new NotFoundError("User not found");
-
+const createConversation = async (userA: User, userB: User): Promise<Conversation> => {
   const conv = conversationRepo().create({ participants: [userA, userB] });
   return conversationRepo().save(conv);
+};
+
+// A brand-new conversation may only be started between a recruiter and a talent
+// they have shortlisted — messaging is for continuing the hiring process, not
+// open DMs between any two users. Once a conversation exists, replies are free
+// (a subsequent status change shouldn't retroactively lock out an ongoing thread).
+// Admins/superadmins are exempt for support purposes.
+const canStartConversation = async (userA: User, userB: User): Promise<boolean> => {
+  const exemptRoles = new Set([UserRole.Admin, UserRole.Superadmin]);
+  if (exemptRoles.has(userA.userRole) || exemptRoles.has(userB.userRole)) {
+    return true;
+  }
+
+  let recruiterId: string;
+  let talentId: string;
+  if (userA.userRole === UserRole.Recruiter && userB.userRole === UserRole.Talent) {
+    recruiterId = userA.id;
+    talentId = userB.id;
+  } else if (userA.userRole === UserRole.Talent && userB.userRole === UserRole.Recruiter) {
+    recruiterId = userB.id;
+    talentId = userA.id;
+  } else {
+    return false;
+  }
+
+  const count = await applicationRepo().count({
+    where: { recruiterId, talentId, status: ApplicationStatus.Shortlisted },
+  });
+  return count > 0;
 };
 
 export interface MessageInput {
@@ -56,12 +81,26 @@ export const sendMessage = async (senderId: string, payload: MessageInput): Prom
     throw new ValidationError("You cannot message yourself");
   }
 
-  const receiver = await userRepo().findOne({ where: { id: recipient } });
+  const [sender, receiver] = await Promise.all([
+    userRepo().findOne({ where: { id: senderId } }),
+    userRepo().findOne({ where: { id: recipient } }),
+  ]);
+  if (!sender) {
+    throw new NotFoundError("Sender not found");
+  }
   if (!receiver) {
     throw new NotFoundError("Recipient not found");
   }
 
-  const conversation = await findOrCreateConversation(senderId, recipient);
+  let conversation = await findConversation(senderId, recipient);
+  if (!conversation) {
+    if (!(await canStartConversation(sender, receiver))) {
+      throw new AuthorizationError(
+        "You can only message a recruiter/talent you have a shortlisted application with"
+      );
+    }
+    conversation = await createConversation(sender, receiver);
+  }
 
   const message = messageRepo().create({
     conversationId: conversation.id,
@@ -108,14 +147,27 @@ export const broadcastMessage = async (
   if (!targetApplication) {
     throw new NotFoundError("Application not found");
   }
+  if (targetApplication.recruiterId !== senderId) {
+    throw new AuthorizationError("You are not authorized to perform this action");
+  }
+
+  const sender = await userRepo().findOne({ where: { id: senderId } });
+  if (!sender) {
+    throw new NotFoundError("Sender not found");
+  }
 
   // Get all applications for the same job
   const applications = await applicationRepo().find({
     where: { jobId: targetApplication.jobId },
+    relations: { talent: true },
   });
 
   for (const app of applications) {
-    const conversation = await findOrCreateConversation(senderId, app.talentId);
+    if (!app.talent) continue;
+    let conversation = await findConversation(senderId, app.talentId);
+    if (!conversation) {
+      conversation = await createConversation(sender, app.talent);
+    }
     const message = messageRepo().create({
       conversationId: conversation.id,
       senderId,
