@@ -2,7 +2,7 @@ name: Continuous Build and Deployment Engine
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   build-and-push:
@@ -25,7 +25,7 @@ jobs:
           tags: salesplat/supportpro-backend:latest
 
   deploy:
-    needs: build-and-push  # Waits for the Docker build to finish successfully first
+    needs: build-and-push # Waits for the Docker build to finish successfully first
     runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH to Droplet
@@ -36,10 +36,10 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd ~/app-stack
-            
+
             # 1. Pull the absolute latest image that GitHub just built
             docker pull salesplat/supportpro-backend:latest
-            
+
             # 2. Run pending migrations as an explicit, one-off step — before
             #    the running app container is touched. Keeps migration
             #    execution out of application startup.
@@ -52,7 +52,7 @@ jobs:
             # 3. Safely stop and clear the old container instance
             docker stop supportpro-backend || true
             docker rm supportpro-backend || true
-            
+
             # 4. Fire up the fresh container attached to your internal database network
             docker run -d \
               --name supportpro-backend \

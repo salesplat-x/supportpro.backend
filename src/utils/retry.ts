@@ -7,7 +7,13 @@ interface RetryOptions {
   label?: string;
 }
 
-const RETRYABLE_CODES = new Set(["ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "ECONNABORTED", "EAI_AGAIN"]);
+const RETRYABLE_CODES = new Set([
+  "ECONNRESET",
+  "ETIMEDOUT",
+  "ENOTFOUND",
+  "ECONNABORTED",
+  "EAI_AGAIN",
+]);
 
 const getStatus = (err: unknown): number | undefined => {
   const e = err as Record<string, unknown> | undefined;
@@ -32,7 +38,10 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
  * Retries transient failures (429 rate limits, 5xx, connection resets/timeouts) with
  * exponential backoff + jitter. Non-retryable errors (4xx, validation, parse errors) fail immediately.
  */
-export const withRetry = async <T>(fn: () => Promise<T>, options: RetryOptions = {}): Promise<T> => {
+export const withRetry = async <T>(
+  fn: () => Promise<T>,
+  options: RetryOptions = {}
+): Promise<T> => {
   const { retries = 3, baseDelayMs = 500, maxDelayMs = 8000, label = "operation" } = options;
 
   for (let attempt = 1; attempt <= retries; attempt++) {
