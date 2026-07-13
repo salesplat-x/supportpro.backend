@@ -1,6 +1,6 @@
 import { body, param, query } from "express-validator";
 import { paginationRules, idParam } from "./shared.js";
-import { ApplicationStatus, ExperienceLevel } from "../types/enums.js";
+import { ApplicationStatus, ApplicationType, ExperienceLevel } from "../types/enums.js";
 
 export const getApplicationsQueryValidator = [
   ...paginationRules,
@@ -10,6 +10,14 @@ export const getApplicationsQueryValidator = [
     .isIn(Object.values(ExperienceLevel))
     .withMessage("Invalid experienceLevel"),
   query("job").optional().isString(),
+  query("applicationType")
+    .optional()
+    .isIn(Object.values(ApplicationType))
+    .withMessage("Invalid applicationType"),
+  query("applicationStatus")
+    .optional()
+    .isIn(Object.values(ApplicationStatus))
+    .withMessage("Invalid applicationStatus"),
 ];
 
 export const applicationIdParamValidator = [idParam("_id")];

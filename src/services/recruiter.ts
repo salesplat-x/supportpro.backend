@@ -122,6 +122,7 @@ export const recruiterDashboard = async (
 export interface RecruiterApplicationsParams {
   jobId?: string;
   applicationType?: ApplicationType;
+  applicationStatus?: ApplicationStatus;
   offset?: number | string;
   limit?: number | string;
 }
@@ -130,7 +131,7 @@ export const recruiterApplications = async (
   userId: string,
   payload: RecruiterApplicationsParams
 ): Promise<Application[]> => {
-  const { jobId, applicationType, offset, limit } = payload;
+  const { jobId, applicationType, applicationStatus, offset, limit } = payload;
 
   const qb = applicationRepo()
     .createQueryBuilder("application")
@@ -153,6 +154,10 @@ export const recruiterApplications = async (
     if (applicationType === ApplicationType.Application) {
       qb.orderBy("application.createdAt", "DESC");
     }
+  }
+
+  if (applicationStatus) {
+    qb.andWhere("application.status = :applicationStatus", { applicationStatus });
   }
 
   const skip = Number(offset) || 0;
