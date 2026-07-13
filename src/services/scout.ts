@@ -192,12 +192,9 @@ export const scoutCvAndCl = async (
     throw new ValidationError("Error with LLM");
   }
 
-  const {
-    cvScore,
-    cvInsights,
-    coverLetterScore,
-    coverLetterInsights,
-  } = JSON.parse(response.message.content) as {
+  const { cvScore, cvInsights, coverLetterScore, coverLetterInsights } = JSON.parse(
+    response.message.content
+  ) as {
     cvScore?: number;
     cvInsights?: string;
     coverLetterScore?: number;

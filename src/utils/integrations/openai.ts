@@ -11,9 +11,7 @@ const openai = new OpenAI({ apiKey: env.openai_secret });
 // drop work on a momentary blip.
 const limiter = createLimiter(5);
 
-const runCompletion = (
-  params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
-) =>
+const runCompletion = (params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming) =>
   limiter.run(() =>
     withRetry(() => openai.chat.completions.create(params), { label: "OpenAI chat completion" })
   );

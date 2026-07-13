@@ -15,10 +15,7 @@ const userRepo = () => AppDataSource.getRepository(User);
 
 const applicationRepo = () => AppDataSource.getRepository(Application);
 
-const findConversation = async (
-  userIdA: string,
-  userIdB: string
-): Promise<Conversation | null> => {
+const findConversation = async (userIdA: string, userIdB: string): Promise<Conversation | null> => {
   return conversationRepo()
     .createQueryBuilder("c")
     .innerJoin("c.participants", "p1", "p1.id = :a", { a: userIdA })
