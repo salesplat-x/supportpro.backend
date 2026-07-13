@@ -25,6 +25,7 @@ export enum Currency {
 }
 
 export enum JobStatus {
+  Draft = "draft",
   Active = "active",
   Suspended = "suspended",
   Closed = "closed",
