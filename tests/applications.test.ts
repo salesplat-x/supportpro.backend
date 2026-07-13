@@ -368,19 +368,19 @@ describe("ISSUE-005: Application rank is sequential not score-based", () => {
     const role = await createRole();
     const job = await createJob(recruiter, role);
 
-    await createApplication(await (await createTalent()).user, job, {
+    await createApplication((await createTalent()).user, job, {
       averageScore: 95,
       currentStage: ScreeningStage.Completed,
       status: ApplicationStatus.Shortlisted,
       rank: 1,
     });
-    await createApplication(await (await createTalent()).user, job, {
+    await createApplication((await createTalent()).user, job, {
       averageScore: 40,
       currentStage: ScreeningStage.Completed,
       status: ApplicationStatus.Shortlisted,
       rank: 2,
     });
-    await createApplication(await (await createTalent()).user, job, {
+    await createApplication((await createTalent()).user, job, {
       averageScore: 70,
       currentStage: ScreeningStage.Completed,
       status: ApplicationStatus.Shortlisted,

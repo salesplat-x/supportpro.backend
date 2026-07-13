@@ -5,7 +5,7 @@ import { Application } from "../entities/Application.js";
 import { User } from "../entities/User.js";
 import { Job } from "../entities/Job.js";
 import { IsNull } from "typeorm";
-import { NotFoundError, ValidationError, AuthorizationError } from "../utils/errors/index.js";
+import { NotFoundError, ValidationError, AuthorizationError } from "../utils/errors";
 import { QuestionType, JobStatus, ApplicationStatus, ScreeningStage } from "../types/enums.js";
 import { calculateTimeLeft } from "../utils/text.js";
 import * as AI from "../utils/integrations/openai.js";

@@ -4,7 +4,7 @@ import { PreScreening } from "../entities/PreScreening.js";
 import { User } from "../entities/User.js";
 import { Role } from "../entities/Role.js";
 import { TalentEmbedding } from "../entities/TalentEmbedding.js";
-import { NotFoundError, ValidationError } from "../utils/errors/index.js";
+import { NotFoundError, ValidationError } from "../utils/errors";
 import { PreScreeningStatus } from "../types/enums.js";
 import {
   generatePreScreeningAssessment,

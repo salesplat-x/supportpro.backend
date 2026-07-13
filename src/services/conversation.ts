@@ -1,7 +1,7 @@
 import { AppDataSource } from "../database/dataSource.js";
 import { Conversation } from "../entities/Conversation.js";
 import { Message } from "../entities/Message.js";
-import { NotFoundError, AuthorizationError } from "../utils/errors/index.js";
+import { NotFoundError, AuthorizationError } from "../utils/errors";
 
 const conversationRepo = () => AppDataSource.getRepository(Conversation);
 

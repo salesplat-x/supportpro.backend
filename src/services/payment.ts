@@ -3,7 +3,7 @@ import { Payment } from "../entities/Payment.js";
 import { Plan } from "../entities/Plan.js";
 import { Subscription } from "../entities/Subscription.js";
 import { User } from "../entities/User.js";
-import { NotFoundError, ValidationError, ConflictError } from "../utils/errors/index.js";
+import { NotFoundError, ValidationError, ConflictError } from "../utils/errors";
 import { PaymentStatus, SubscriptionStatus } from "../types/enums.js";
 import {
   initializePayment,

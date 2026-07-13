@@ -10,9 +10,10 @@ import { generalLimiter } from "./middleware/rateLimiter.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { sendSuccessResponse } from "./utils/response.js";
 import { AppDataSource, initializeDatabase } from "./database/dataSource.js";
-import v1Router from "./routes/index.js";
+import v1Router from "./routes";
 import swaggerDocs from "./swagger.js";
 import { reconcilePendingCvEmbeddings } from "./services/reconciliation.js";
+import { asyncHandler } from "./middleware/asyncHandler.js";
 
 export function createApp(): Application {
   const app = express();
@@ -36,16 +37,19 @@ export function createApp(): Application {
   app.use(generalLimiter);
 
   app.get("/", (_req, res) => sendSuccessResponse(res, "Welcome to SupportPro Backend"));
-  app.get("/health", async (_req, res) => {
-    try {
-      await AppDataSource.query("SELECT 1");
-      res.json({ status: "ok", db: "connected", timestamp: new Date().toISOString() });
-    } catch {
-      res
-        .status(503)
-        .json({ status: "error", db: "disconnected", timestamp: new Date().toISOString() });
-    }
-  });
+  app.get(
+    "/health",
+    asyncHandler(async (_req, res) => {
+      try {
+        await AppDataSource.query("SELECT 1");
+        res.json({ status: "ok", db: "connected", timestamp: new Date().toISOString() });
+      } catch {
+        res
+          .status(503)
+          .json({ status: "error", db: "disconnected", timestamp: new Date().toISOString() });
+      }
+    })
+  );
   app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
   swaggerDocs(app, env.port);
@@ -80,12 +84,13 @@ async function startApplication(): Promise<void> {
   }, RECONCILE_INTERVAL_MS);
   reconcileInterval.unref();
 
-  const shutdown = async (signal: string): Promise<void> => {
+  const shutdown = (signal: string): void => {
     logger.info(`${signal} received — shutting down gracefully`);
     clearInterval(reconcileInterval);
-    server.close(async () => {
-      await AppDataSource.destroy().catch(() => {});
-      process.exit(0);
+    server.close(() => {
+      void AppDataSource.destroy()
+        .catch(() => {})
+        .finally(() => process.exit(0));
     });
     setTimeout(() => {
       logger.error("Forced shutdown after timeout");

@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import * as paymentService from "../services/payment.js";
 import { webhookDataValidation } from "../utils/integrations/paystack.js";
 import { sendSuccessResponse } from "../utils/response.js";
-import { AuthenticationError } from "../utils/errors/index.js";
+import { AuthenticationError } from "../utils/errors";
 
 export const getPaymentLink = async (req: Request, res: Response) => {
   const result = await paymentService.initiateTransaction(req.user, req.body);

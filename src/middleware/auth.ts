@@ -3,6 +3,7 @@ import { AppDataSource } from "../database/dataSource.js";
 import { User } from "../entities";
 import { UserRole } from "../types/enums.js";
 import { decodeToken, JwtPayload } from "../utils/crypto.js";
+import { asyncHandler } from "./asyncHandler.js";
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -69,19 +70,17 @@ async function resolveUser(req: Request, res: Response): Promise<User | null> {
   }
 }
 
-export const loginRequired: RequestHandler = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  const user = await resolveUser(req, res);
-  if (!user) return;
-  req.user = user;
-  next();
-};
+export const loginRequired: RequestHandler = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const user = await resolveUser(req, res);
+    if (!user) return;
+    req.user = user;
+    next();
+  }
+);
 
 export const validateAccess = (roles: UserRole[]): RequestHandler => {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  return asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
       res.status(401).json({
@@ -127,36 +126,35 @@ export const validateAccess = (roles: UserRole[]): RequestHandler => {
     if (!user) return;
     req.user = user;
     next();
-  };
+  });
 };
 
-export const requireCompletedProfile: RequestHandler = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  // Guard: req.user must be set by loginRequired or validateAccess before this runs.
-  // If not, return 401 rather than crashing with TypeError on req.user.userRole.
-  if (!req.user) {
-    res
-      .status(401)
-      .json({ success: false, error: { code: "AUTHENTICATION_ERROR", message: "Login required" } });
-    return;
-  }
-  if (req.user.userRole !== UserRole.Talent) {
+export const requireCompletedProfile: RequestHandler = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    // Guard: req.user must be set by loginRequired or validateAccess before this runs.
+    // If not, return 401 rather than crashing with TypeError on req.user.userRole.
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        error: { code: "AUTHENTICATION_ERROR", message: "Login required" },
+      });
+      return;
+    }
+    if (req.user.userRole !== UserRole.Talent) {
+      next();
+      return;
+    }
+    const canProceed = !!(req.user.cvUrl && req.user.userRoles?.length);
+    if (!canProceed) {
+      res.status(403).json({
+        success: false,
+        error: {
+          code: "PROFILE_INCOMPLETE",
+          message: "Please complete your profile before proceeding",
+        },
+      });
+      return;
+    }
     next();
-    return;
   }
-  const canProceed = !!(req.user.cvUrl && req.user.userRoles?.length);
-  if (!canProceed) {
-    res.status(403).json({
-      success: false,
-      error: {
-        code: "PROFILE_INCOMPLETE",
-        message: "Please complete your profile before proceeding",
-      },
-    });
-    return;
-  }
-  next();
-};
+);

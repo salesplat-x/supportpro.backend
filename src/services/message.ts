@@ -3,7 +3,7 @@ import { Message } from "../entities/Message.js";
 import { Conversation } from "../entities/Conversation.js";
 import { User } from "../entities/User.js";
 import { Application } from "../entities/Application.js";
-import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors/index.js";
+import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
 import { sortDirection } from "../utils/text.js";
 import { UserRole, ApplicationStatus } from "../types/enums.js";
 

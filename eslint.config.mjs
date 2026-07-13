@@ -1,6 +1,7 @@
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import eslintConfigPrettier from "eslint-config-prettier";
+import importX from "eslint-plugin-import-x";
 
 export default tseslint.config(
   {
@@ -10,6 +11,12 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   eslintConfigPrettier,
   {
+    plugins: { "import-x": importX },
+    settings: {
+      "import-x/resolver": {
+        typescript: { project: "./tsconfig.json" },
+      },
+    },
     rules: {
       "@typescript-eslint/no-unused-vars": [
         "warn",
@@ -23,6 +30,47 @@ export default tseslint.config(
       "no-useless-assignment": "warn",
       "@typescript-eslint/no-non-null-asserted-optional-chain": "warn",
       "@typescript-eslint/no-unsafe-function-type": "warn",
+      // Catches "Import can be shortened" cases — e.g. "./foo/index.js" instead
+      // of "./foo.js", or redundant "../" segments.
+      "import-x/no-useless-path-segments": ["warn", { noUselessIndex: true }],
+    },
+  },
+  {
+    // Type-aware linting, scoped to files actually covered by a tsconfig —
+    // lets us catch real bugs invisible to syntax-only rules (floating
+    // promises, promises misused as sync callbacks, etc). Applying this
+    // block globally breaks parsing for plain-JS config files that aren't
+    // part of either tsconfig.
+    files: ["src/**/*.ts", "tests/**/*.ts"],
+    languageOptions: {
+      parserOptions: {
+        project: ["./tsconfig.json", "./tsconfig.jest.json"],
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/no-misused-promises": "error",
+      "@typescript-eslint/await-thenable": "error",
+    },
+  },
+  {
+    // supertest's res.body is typed `any`, so unguarded res.body.data.x.y chains
+    // are invisible to type checking — these rules catch that. Scoped to tests/
+    // only: src/ intentionally keeps no-explicit-any off, and enabling the
+    // no-unsafe-* family there is a separate, larger decision.
+    files: ["tests/**/*.ts"],
+    languageOptions: {
+      parserOptions: {
+        project: "./tsconfig.jest.json",
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-unsafe-member-access": "warn",
+      "@typescript-eslint/no-unsafe-assignment": "warn",
+      "@typescript-eslint/no-unsafe-call": "warn",
+      "@typescript-eslint/no-unsafe-argument": "warn",
     },
   },
   {

@@ -6,7 +6,7 @@ import { AIConfig } from "../entities/AIConfig.js";
 import { Application } from "../entities/Application.js";
 import { User } from "../entities/User.js";
 import { Notification } from "../entities/Notification.js";
-import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors/index.js";
+import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
 import {
   UserRole,
   JobStatus,
