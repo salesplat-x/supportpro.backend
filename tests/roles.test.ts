@@ -7,6 +7,7 @@ import {
   createAdmin,
   createRole,
   createQuestion,
+  createJob,
 } from "./helpers/fixtures.js";
 import { apiData } from "./helpers/http.js";
 import { QuestionType } from "../src/types/enums.js";
@@ -138,6 +139,117 @@ describe("GET /v1/roles/:_id — get single role", () => {
   it("Non-existent ID → 404", async () => {
     const res = await request(app).get("/v1/roles/00000000-0000-0000-0000-000000000000");
     expect(res.status).toBe(404);
+  });
+});
+
+describe("PATCH /v1/roles/:_id — update role", () => {
+  it("Admin updates a role → 200", async () => {
+    const { token } = await createAdmin();
+    const role = await createRole("old-name");
+
+    const res = await request(app)
+      .patch(`/v1/roles/${role.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "New Name", description: "Updated description" });
+
+    expect(res.status).toBe(200);
+    expect(apiData<{ role: { name: string; description: string } }>(res).role.name).toBe(
+      "new name"
+    );
+  });
+
+  it("Non-admin cannot update → 403", async () => {
+    const { token } = await createRecruiter();
+    const role = await createRole("some-role");
+
+    const res = await request(app)
+      .patch(`/v1/roles/${role.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "hacked" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("Non-existent ID → 404", async () => {
+    const { token } = await createAdmin();
+    const res = await request(app)
+      .patch("/v1/roles/00000000-0000-0000-0000-000000000000")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "whatever" });
+    expect(res.status).toBe(404);
+  });
+
+  it("Duplicate name on update → 409", async () => {
+    const { token } = await createAdmin();
+    await createRole("taken-name");
+    const role = await createRole("original-name");
+
+    const res = await request(app)
+      .patch(`/v1/roles/${role.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "taken-name" });
+
+    expect(res.status).toBe(409);
+  });
+
+  it("Unauthenticated → 401", async () => {
+    const role = await createRole("auth-role");
+    const res = await request(app).patch(`/v1/roles/${role.id}`).send({ name: "x" });
+    expect(res.status).toBe(401);
+  });
+});
+
+describe("DELETE /v1/roles/:_id — delete role", () => {
+  it("Admin deletes an unused role → 200", async () => {
+    const { token } = await createAdmin();
+    const role = await createRole("deletable-role");
+
+    const res = await request(app)
+      .delete(`/v1/roles/${role.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+
+    const getRes = await request(app).get(`/v1/roles/${role.id}`);
+    expect(getRes.status).toBe(404);
+  });
+
+  it("Deleting a role still referenced by a Job → 409", async () => {
+    const { token } = await createAdmin();
+    const role = await createRole("in-use-role");
+    const { user: recruiter } = await createRecruiter();
+    await createJob(recruiter, role);
+
+    const res = await request(app)
+      .delete(`/v1/roles/${role.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(409);
+  });
+
+  it("Non-admin cannot delete → 403", async () => {
+    const { token } = await createRecruiter();
+    const role = await createRole("protected-role");
+
+    const res = await request(app)
+      .delete(`/v1/roles/${role.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it("Non-existent ID → 404", async () => {
+    const { token } = await createAdmin();
+    const res = await request(app)
+      .delete("/v1/roles/00000000-0000-0000-0000-000000000000")
+      .set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(404);
+  });
+
+  it("Unauthenticated → 401", async () => {
+    const role = await createRole("unauth-delete-role");
+    const res = await request(app).delete(`/v1/roles/${role.id}`);
+    expect(res.status).toBe(401);
   });
 });
 

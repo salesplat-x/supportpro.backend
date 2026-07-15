@@ -17,6 +17,16 @@ export const fetch = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Role fetched", { role: result });
 };
 
+export const update = async (req: Request, res: Response) => {
+  const result = await roleService.updateRole(req.params["_id"]!, req.body);
+  sendSuccessResponse(res, "Role updated", { role: result });
+};
+
+export const remove = async (req: Request, res: Response) => {
+  await roleService.deleteRole(req.params["_id"]!);
+  sendSuccessResponse(res, "Role deleted");
+};
+
 export const questions = async (req: Request, res: Response) => {
   const result = await roleService.fetchRoleQuestions(
     req.params["_id"]!,

@@ -33,9 +33,9 @@ const createConversation = async (userA: User, userB: User): Promise<Conversatio
 // they have shortlisted — messaging is for continuing the hiring process, not
 // open DMs between any two users. Once a conversation exists, replies are free
 // (a subsequent status change shouldn't retroactively lock out an ongoing thread).
-// Admins/superadmins are exempt for support purposes.
+// Admins are exempt for support purposes.
 const canStartConversation = async (userA: User, userB: User): Promise<boolean> => {
-  const exemptRoles = new Set([UserRole.Admin, UserRole.Superadmin]);
+  const exemptRoles = new Set([UserRole.Admin]);
   if (exemptRoles.has(userA.userRole) || exemptRoles.has(userB.userRole)) {
     return true;
   }

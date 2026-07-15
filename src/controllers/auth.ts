@@ -4,7 +4,7 @@ import * as authService from "../services/auth.js";
 import { sendSuccessResponse } from "../utils/response.js";
 
 export const register = async (req: Request, res: Response) => {
-  const result = await authService.createUser(req.body, req.ip ?? undefined);
+  const result = await authService.createUser(req.body, UserRole.Talent, req.ip ?? undefined);
   sendSuccessResponse(
     res,
     "User Registered Successfully",
@@ -14,8 +14,7 @@ export const register = async (req: Request, res: Response) => {
 };
 
 export const registerRecruiter = async (req: Request, res: Response) => {
-  req.body.userRole = UserRole.Recruiter;
-  const result = await authService.createUser(req.body, req.ip ?? undefined);
+  const result = await authService.createUser(req.body, UserRole.Recruiter, req.ip ?? undefined);
   sendSuccessResponse(
     res,
     "User Registered Successfully",

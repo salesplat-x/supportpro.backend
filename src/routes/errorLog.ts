@@ -14,20 +14,20 @@ const router = Router();
 
 router.get(
   "/",
-  validateAccess([UserRole.Superadmin]),
+  validateAccess([UserRole.Admin]),
   validate(getErrorLogsQueryValidator),
   asyncHandler(errorLog.getErrorLogs)
 );
-router.get("/stats", validateAccess([UserRole.Superadmin]), asyncHandler(errorLog.getErrorStats));
+router.get("/stats", validateAccess([UserRole.Admin]), asyncHandler(errorLog.getErrorStats));
 router.patch(
   "/:requestId/resolve",
-  validateAccess([UserRole.Superadmin]),
+  validateAccess([UserRole.Admin]),
   validate(resolveErrorLogValidator),
   asyncHandler(errorLog.markErrorAsResolved)
 );
 router.delete(
   "/cleanup",
-  validateAccess([UserRole.Superadmin]),
+  validateAccess([UserRole.Admin]),
   validate(cleanupLogsValidator),
   asyncHandler(errorLog.cleanupOldLogs)
 );
