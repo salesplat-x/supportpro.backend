@@ -77,13 +77,6 @@ export async function createAdmin(
   return { user, token: signToken(user) };
 }
 
-export async function createSuperadmin(
-  overrides: Partial<User> = {}
-): Promise<{ user: User; token: string }> {
-  const user = await baseUser({ ...overrides, userRole: UserRole.Superadmin });
-  return { user, token: signToken(user) };
-}
-
 // A talent with all required profile fields set — passes requireCompletedProfile
 export async function createCompleteTalent(
   role?: Role,

@@ -9,6 +9,7 @@ import {
   roleIdParamValidator,
   allRolesQueryValidator,
   roleQuestionsValidator,
+  updateRoleValidator,
 } from "../validators/role.js";
 
 const router = Router();
@@ -22,5 +23,17 @@ router.post(
 router.get("/", validate(allRolesQueryValidator), asyncHandler(role.fetchAll));
 router.get("/:_id/questions", validate(roleQuestionsValidator), asyncHandler(role.questions));
 router.get("/:_id", validate(roleIdParamValidator), asyncHandler(role.fetch));
+router.patch(
+  "/:_id",
+  validateAccess([UserRole.Admin]),
+  validate([...roleIdParamValidator, ...updateRoleValidator]),
+  asyncHandler(role.update)
+);
+router.delete(
+  "/:_id",
+  validateAccess([UserRole.Admin]),
+  validate(roleIdParamValidator),
+  asyncHandler(role.remove)
+);
 
 export default (app: Router) => app.use("/roles", router);

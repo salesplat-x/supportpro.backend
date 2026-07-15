@@ -29,8 +29,8 @@ export const createUser = async (
     middleName?: string;
     phone?: string;
     country?: string;
-    userRole?: UserRole;
   },
+  role: UserRole.Talent | UserRole.Recruiter,
   ip?: string
 ): Promise<{ user: User; token: string }> => {
   const email = payload.email.toLowerCase();
@@ -51,7 +51,10 @@ export const createUser = async (
     password: hashedPassword,
     // emailVerified defaults to true — this product has no email-confirmation flow
     emailVerified: true,
-    userRole: payload.userRole ?? UserRole.Talent,
+    // role is always set by the route (register vs. register/recruiter), never
+    // trusted from the request body — the admin account can only be created by
+    // the seedAdmin script, so no public endpoint can ever mint an admin user.
+    userRole: role,
     roleChangeCount: 0,
   });
 

@@ -8,6 +8,11 @@ export const createRoleValidator = [
 
 export const roleIdParamValidator = [idParam("_id")];
 
+export const updateRoleValidator = [
+  body("name").optional().notEmpty().trim().withMessage("Role name cannot be empty"),
+  body("description").optional().trim(),
+];
+
 export const allRolesQueryValidator = [...paginationRules];
 
 export const roleQuestionsValidator = [idParam("_id"), ...paginationRules];

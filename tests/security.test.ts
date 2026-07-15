@@ -192,11 +192,11 @@ describe("Role enforcement — Recruiter blocked from Admin-only routes", () => 
   });
 });
 
-describe("Role enforcement — Non-Superadmin blocked from error log routes", () => {
-  it("Admin cannot access error logs → 403", async () => {
+describe("Role enforcement — Non-Admin blocked from error log routes", () => {
+  it("Admin can access error logs → 200", async () => {
     const { token } = await createAdmin();
     const res = await request(app).get("/v1/error-logs/").set("Authorization", `Bearer ${token}`);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
   it("Recruiter cannot access error logs → 403", async () => {

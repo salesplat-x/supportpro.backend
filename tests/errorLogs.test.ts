@@ -1,21 +1,11 @@
 /**
- * Error log tests — Superadmin-only access.
- * Documents ISSUE-008 (no registration path for Superadmin).
- *
- * Superadmin users are created directly via testDataSource since there is
- * no registration API route for them (ISSUE-008).
+ * Error log tests — Admin-only access.
  */
 
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import { startTestDatabase, stopTestDatabase, clearAllTables } from "./helpers/db.js";
-import {
-  createTalent,
-  createRecruiter,
-  createAdmin,
-  createSuperadmin,
-  createErrorLog,
-} from "./helpers/fixtures.js";
+import { createTalent, createRecruiter, createAdmin, createErrorLog } from "./helpers/fixtures.js";
 import { ErrorLog } from "../src/entities/ErrorLog.js";
 import { ErrorLogLevel } from "../src/types/enums.js";
 
@@ -43,44 +33,40 @@ afterEach(async () => {
 });
 
 // ---------------------------------------------------------------------------
-// ISSUE-008: No Superadmin registration path
+// Registration must never grant the admin role from client input
 // ---------------------------------------------------------------------------
 
-describe("ISSUE-008: No Superadmin registration path", () => {
-  it("ISSUE-011 CRITICAL: POST /v1/auth/register accepts userRole in body → attacker can self-register as Superadmin", async () => {
+describe("POST /v1/auth/register — cannot self-register as admin", () => {
+  it("ignores a client-supplied userRole and always creates a talent", async () => {
     const res = await request(app).post("/v1/auth/register").send({
-      email: "trysuperadmin@example.com",
+      email: "tryadmin@example.com",
       firstName: "A",
       lastName: "B",
       password: "Password1!",
-      userRole: "superadmin", // attempting to self-register as superadmin
+      userRole: "admin", // attempting to self-register as admin
     });
     expect(res.status).toBe(201);
-    // BUG (ISSUE-011): the user IS created as superadmin — userRole is accepted from req.body
-    // This should be 201 with userRole: "talent" (role hardcoded by route, not from body)
-    // When ISSUE-011 is fixed, change this to: expect(res.body.data.user.userRole).toBe("talent")
-    expect(res.body.data.user.userRole).toBe("superadmin"); // Documents the vulnerability
+    expect(res.body.data.user.userRole).toBe("talent");
   });
 
-  it("There is no POST /v1/auth/register/superadmin route → 404", async () => {
-    const res = await request(app).post("/v1/auth/register/superadmin").send({
+  it("there is no POST /v1/auth/register/admin route → 404", async () => {
+    const res = await request(app).post("/v1/auth/register/admin").send({
       email: "sa@example.com",
       firstName: "SA",
       lastName: "User",
       password: "Password1!",
     });
-    // Route does not exist → 404
     expect(res.status).toBe(404);
   });
 });
 
 // ---------------------------------------------------------------------------
-// GET /v1/error-logs/ — list error logs (Superadmin only)
+// GET /v1/error-logs/ — list error logs (Admin only)
 // ---------------------------------------------------------------------------
 
-describe("GET /v1/error-logs/ — list error logs (Superadmin only)", () => {
-  it("Superadmin fetches error logs → 200", async () => {
-    const { token } = await createSuperadmin();
+describe("GET /v1/error-logs/ — list error logs (Admin only)", () => {
+  it("Admin fetches error logs → 200", async () => {
+    const { token } = await createAdmin();
     await createErrorLog({ message: "Test error 1" });
     await createErrorLog({ message: "Test error 2" });
 
@@ -89,12 +75,6 @@ describe("GET /v1/error-logs/ — list error logs (Superadmin only)", () => {
     expect(res.status).toBe(200);
     const logs = res.body.data.logs ?? res.body.data ?? [];
     expect(Array.isArray(logs)).toBe(true);
-  });
-
-  it("Admin cannot access error logs → 403", async () => {
-    const { token } = await createAdmin();
-    const res = await request(app).get("/v1/error-logs/").set("Authorization", `Bearer ${token}`);
-    expect(res.status).toBe(403);
   });
 
   it("Recruiter cannot access error logs → 403", async () => {
@@ -115,7 +95,7 @@ describe("GET /v1/error-logs/ — list error logs (Superadmin only)", () => {
   });
 
   it("Filter by level=error returns only error logs", async () => {
-    const { token } = await createSuperadmin();
+    const { token } = await createAdmin();
     await createErrorLog({ level: ErrorLogLevel.Error });
     await createErrorLog({ level: ErrorLogLevel.Warn });
 
@@ -132,7 +112,7 @@ describe("GET /v1/error-logs/ — list error logs (Superadmin only)", () => {
   });
 
   it("Filter by resolved=true returns only resolved logs", async () => {
-    const { token } = await createSuperadmin();
+    const { token } = await createAdmin();
     await createErrorLog({ resolved: true });
     await createErrorLog({ resolved: false });
 
@@ -150,12 +130,12 @@ describe("GET /v1/error-logs/ — list error logs (Superadmin only)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// GET /v1/error-logs/stats — stats (Superadmin only)
+// GET /v1/error-logs/stats — stats (Admin only)
 // ---------------------------------------------------------------------------
 
-describe("GET /v1/error-logs/stats — stats (Superadmin only)", () => {
-  it("Superadmin gets stats → 200", async () => {
-    const { token } = await createSuperadmin();
+describe("GET /v1/error-logs/stats — stats (Admin only)", () => {
+  it("Admin gets stats → 200", async () => {
+    const { token } = await createAdmin();
     await createErrorLog({ resolved: false });
     await createErrorLog({ resolved: true });
 
@@ -167,8 +147,8 @@ describe("GET /v1/error-logs/stats — stats (Superadmin only)", () => {
     expect(res.body.data).toBeDefined();
   });
 
-  it("Admin cannot access stats → 403", async () => {
-    const { token } = await createAdmin();
+  it("Recruiter cannot access stats → 403", async () => {
+    const { token } = await createRecruiter();
     const res = await request(app)
       .get("/v1/error-logs/stats")
       .set("Authorization", `Bearer ${token}`);
@@ -177,24 +157,24 @@ describe("GET /v1/error-logs/stats — stats (Superadmin only)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// PATCH /v1/error-logs/:requestId/resolve — mark resolved (Superadmin only)
+// PATCH /v1/error-logs/:requestId/resolve — mark resolved (Admin only)
 // ---------------------------------------------------------------------------
 
 describe("PATCH /v1/error-logs/:requestId/resolve — mark resolved", () => {
-  it("Superadmin marks an error log as resolved → 200", async () => {
-    const { token } = await createSuperadmin();
+  it("Admin marks an error log as resolved → 200", async () => {
+    const { token } = await createAdmin();
     const log = await createErrorLog({ requestId: "REQ-001", resolved: false });
 
     const res = await request(app)
       .patch(`/v1/error-logs/${log.requestId ?? "REQ-001"}/resolve`)
       .set("Authorization", `Bearer ${token}`)
-      .send({ resolvedBy: "superadmin" });
+      .send({ resolvedBy: "admin" });
 
     expect(res.status).toBe(200);
   });
 
-  it("Admin cannot resolve → 403", async () => {
-    const { token } = await createAdmin();
+  it("Recruiter cannot resolve → 403", async () => {
+    const { token } = await createRecruiter();
     const res = await request(app)
       .patch("/v1/error-logs/some-id/resolve")
       .set("Authorization", `Bearer ${token}`);
@@ -203,12 +183,12 @@ describe("PATCH /v1/error-logs/:requestId/resolve — mark resolved", () => {
 });
 
 // ---------------------------------------------------------------------------
-// DELETE /v1/error-logs/cleanup — cleanup old logs (Superadmin only)
+// DELETE /v1/error-logs/cleanup — cleanup old logs (Admin only)
 // ---------------------------------------------------------------------------
 
-describe("DELETE /v1/error-logs/cleanup — cleanup (Superadmin only)", () => {
-  it("Superadmin triggers cleanup → 200", async () => {
-    const { token } = await createSuperadmin();
+describe("DELETE /v1/error-logs/cleanup — cleanup (Admin only)", () => {
+  it("Admin triggers cleanup → 200", async () => {
+    const { token } = await createAdmin();
 
     // Create some resolved old logs
     const oldDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000); // 90 days ago
@@ -222,8 +202,8 @@ describe("DELETE /v1/error-logs/cleanup — cleanup (Superadmin only)", () => {
     expect(res.status).toBe(200);
   });
 
-  it("Admin cannot cleanup → 403", async () => {
-    const { token } = await createAdmin();
+  it("Recruiter cannot cleanup → 403", async () => {
+    const { token } = await createRecruiter();
     const res = await request(app)
       .delete("/v1/error-logs/cleanup")
       .set("Authorization", `Bearer ${token}`);
