@@ -19,6 +19,10 @@ import type { PreScreening } from "./PreScreening.js";
 @Index("idx_users_talent_score", ["userRole", "prescreeningScore"], {
   where: `"userRole" = 'talent'`,
 })
+@Index("idx_users_single_admin", ["userRole"], {
+  unique: true,
+  where: `"userRole" = 'admin'`,
+})
 export class User {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
