@@ -6,7 +6,9 @@ export class RemoveSuperadminRole1784000000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Superadmin had no registration path — collapse any existing rows into
     // 'admin' before narrowing the enum, so the type change below can't fail.
-    await queryRunner.query(`UPDATE "users" SET "userRole" = 'admin' WHERE "userRole" = 'superadmin'`);
+    await queryRunner.query(
+      `UPDATE "users" SET "userRole" = 'admin' WHERE "userRole" = 'superadmin'`
+    );
 
     // idx_users_talent_score is a partial index predicated on "userRole" = 'talent'
     // (added in AddVectorSupportAndIndexes) — it depends on the enum type, so it

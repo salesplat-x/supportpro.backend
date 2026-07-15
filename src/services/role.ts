@@ -88,7 +88,10 @@ export const deleteRole = async (roleId: string): Promise<void> => {
   try {
     await roleRepo().remove(role);
   } catch (err) {
-    if (err instanceof QueryFailedError && (err as unknown as { code?: string }).code === FOREIGN_KEY_VIOLATION) {
+    if (
+      err instanceof QueryFailedError &&
+      (err as unknown as { code?: string }).code === FOREIGN_KEY_VIOLATION
+    ) {
       throw new ConflictError("Role is in use and cannot be deleted");
     }
     throw err;

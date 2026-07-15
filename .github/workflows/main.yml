@@ -49,6 +49,14 @@ jobs:
               salesplat/supportpro-backend:latest \
               node dist/scripts/migrate.js
 
+            # 2b. Seed the admin account. No-ops if an admin already exists,
+            #     so it's safe to run on every deploy, not just the first.
+            docker run --rm \
+              --network app-network \
+              --env-file .env \
+              salesplat/supportpro-backend:latest \
+              node dist/scripts/seedAdmin.js
+
             # 3. Safely stop and clear the old container instance
             docker stop supportpro-backend || true
             docker rm supportpro-backend || true
