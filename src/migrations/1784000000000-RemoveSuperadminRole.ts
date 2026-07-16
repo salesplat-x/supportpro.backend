@@ -4,6 +4,21 @@ export class RemoveSuperadminRole1784000000000 implements MigrationInterface {
   name = "RemoveSuperadminRole1784000000000";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    // Production's migrations bookkeeping table has been found out of sync with
+    // the actual schema. If 'superadmin' is no longer a valid users_userrole_enum
+    // value, this migration's narrowing (and its idx_users_single_admin index)
+    // already landed — treat a desynced re-run as a safe no-op.
+    const [{ exists }] = (await queryRunner.query(`
+      SELECT EXISTS (
+        SELECT 1 FROM pg_enum e
+        JOIN pg_type t ON e.enumtypid = t.oid
+        WHERE t.typname = 'users_userrole_enum' AND e.enumlabel = 'superadmin'
+      ) AS exists
+    `)) as [{ exists: boolean }];
+    if (!exists) {
+      return;
+    }
+
     // Superadmin had no registration path — collapse any existing rows into
     // 'admin' before narrowing the enum, so the type change below can't fail.
     await queryRunner.query(
@@ -36,8 +51,11 @@ export class RemoveSuperadminRole1784000000000 implements MigrationInterface {
     `);
 
     // Enforce single-admin at the database level, independent of application logic.
+    // IF NOT EXISTS as a second line of defense — this specific index is confirmed
+    // to already exist in production despite this migration never being recorded
+    // as applied (see 4c2f0d9's entity-side drift fix).
     await queryRunner.query(
-      `CREATE UNIQUE INDEX "idx_users_single_admin" ON "users" ("userRole") WHERE "userRole" = 'admin'`
+      `CREATE UNIQUE INDEX IF NOT EXISTS "idx_users_single_admin" ON "users" ("userRole") WHERE "userRole" = 'admin'`
     );
   }
 
