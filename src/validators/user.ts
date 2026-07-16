@@ -41,7 +41,7 @@ export const profileFieldRules = [
       return true;
     }),
   body("roleIds").optional().isArray(),
-  body("roleIds.*").optional().isString(),
+  body("roleIds.*").optional().isUUID().withMessage("roleIds must be valid UUIDs"),
 ];
 
 export const updateUserValidator = [
