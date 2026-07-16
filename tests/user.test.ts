@@ -153,6 +153,17 @@ describe("PATCH /v1/user/me", () => {
 
     expect(res.status).toBe(400);
   });
+
+  it("rejects a non-UUID roleIds entry with a 400 field validation error", async () => {
+    const { token } = await createTalent();
+
+    const res = await request(app)
+      .patch("/v1/user/me")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ roleIds: ["undefined"] });
+
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("PATCH /v1/user/profile", () => {
