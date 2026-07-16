@@ -29,45 +29,52 @@ async function resolveUser(req: Request, res: Response): Promise<User | null> {
       .json({ success: false, error: { code: "AUTHENTICATION_ERROR", message: "Login required" } });
     return null;
   }
+  let payload: JwtPayload;
   try {
-    const payload = decodeToken(token);
-    const user = await AppDataSource.getRepository(User)
-      .createQueryBuilder("user")
-      .leftJoinAndSelect("user.userRoles", "userRoles")
-      .where("user.id = :id", { id: payload.id })
-      .getOne();
-
-    if (!user) {
-      res.status(401).json({
-        success: false,
-        error: { code: "AUTHENTICATION_ERROR", message: "Login required" },
-      });
-      return null;
-    }
-    if (!user.active) {
-      res.status(403).json({
-        success: false,
-        error: {
-          code: "AUTHORIZATION_ERROR",
-          message: "Account deactivated, contact support to reactivate",
-        },
-      });
-      return null;
-    }
-    if (user.tokenVersion !== payload.tokenVersion) {
-      res.status(401).json({
-        success: false,
-        error: { code: "AUTHENTICATION_ERROR", message: "Login required" },
-      });
-      return null;
-    }
-    return user;
+    payload = decodeToken(token);
   } catch {
     res
       .status(401)
       .json({ success: false, error: { code: "AUTHENTICATION_ERROR", message: "Login required" } });
     return null;
   }
+
+  // Not wrapped in try/catch on purpose: failures here are DB/infra errors
+  // (e.g. PgBouncer transaction-mode pool exhaustion/reset in production),
+  // not authentication failures. Let them propagate to asyncHandler ->
+  // errorHandler so they surface as 500s instead of being misreported as
+  // 401 "Login required".
+  const user = await AppDataSource.getRepository(User)
+    .createQueryBuilder("user")
+    .leftJoinAndSelect("user.userRoles", "userRoles")
+    .where("user.id = :id", { id: payload.id })
+    .getOne();
+
+  if (!user) {
+    res.status(401).json({
+      success: false,
+      error: { code: "AUTHENTICATION_ERROR", message: "Login required" },
+    });
+    return null;
+  }
+  if (!user.active) {
+    res.status(403).json({
+      success: false,
+      error: {
+        code: "AUTHORIZATION_ERROR",
+        message: "Account deactivated, contact support to reactivate",
+      },
+    });
+    return null;
+  }
+  if (user.tokenVersion !== payload.tokenVersion) {
+    res.status(401).json({
+      success: false,
+      error: { code: "AUTHENTICATION_ERROR", message: "Login required" },
+    });
+    return null;
+  }
+  return user;
 }
 
 export const loginRequired: RequestHandler = asyncHandler(
