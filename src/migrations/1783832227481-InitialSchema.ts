@@ -4,6 +4,15 @@ export class InitialSchema1783832227481 implements MigrationInterface {
   name = "InitialSchema1783832227481";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    // Production's migrations bookkeeping table has been found out of sync with
+    // the actual schema (this migration recorded as never-run even though the
+    // schema it creates already exists). Guard on "users" — the first table this
+    // migration creates — so a desynced re-run is a safe no-op instead of
+    // colliding with existing types/tables.
+    if (await queryRunner.hasTable("users")) {
+      return;
+    }
+
     await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
     await queryRunner.query(
       `CREATE TYPE "public"."users_userrole_enum" AS ENUM('admin', 'superadmin', 'talent', 'recruiter')`
