@@ -29,10 +29,9 @@ export const createJobValidator = [
       }
       return true;
     }),
-  body("location").optional().isObject(),
-  body("location.city").optional().trim(),
-  body("location.state").optional().trim(),
-  body("location.country").optional().trim(),
+  body("locationCountry").notEmpty().trim().withMessage("locationCountry is required"),
+  body("locationState").optional().trim(),
+  body("locationCity").optional().trim(),
   body("workMode").isArray({ min: 1 }).withMessage("workMode must be a non-empty array"),
   body("workMode.*")
     .isIn(Object.values(WorkMode))
@@ -68,7 +67,9 @@ export const updateJobValidator = [
       }
       return true;
     }),
-  body("location").optional().isObject(),
+  body("locationState").optional().trim(),
+  body("locationCountry").optional().trim(),
+  body("locationCity").optional().trim(),
   body("workMode").optional().isArray({ min: 1 }),
   body("workMode.*")
     .optional()
