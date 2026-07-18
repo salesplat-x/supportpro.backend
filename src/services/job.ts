@@ -40,7 +40,7 @@ export interface CreateJobPayload {
   minSalary: number;
   experienceLevel: string;
   locationCity?: string | null;
-  locationState: string;
+  locationState?: string | null;
   locationCountry: string;
   workMode: string[];
   currency?: string | null;
