@@ -78,6 +78,27 @@ describe("POST /v1/jobs/", () => {
     expect(res.body.data.job.jobBrief).toBe("Looking for a great engineer");
   });
 
+  it("creates a job with only Country (no State/City) → 201", async () => {
+    const { token } = await createRecruiter();
+
+    const res = await request(app)
+      .post("/v1/jobs/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        role: "software-engineer",
+        jobBrief: "Looking for a great engineer",
+        experienceLevel: "4-6 years",
+        maxSalary: 100000,
+        minSalary: 50000,
+        locationCountry: "Nigeria",
+        workMode: ["remote"],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.job.locationCountry).toBe("Nigeria");
+    expect(res.body.data.job.locationState).toBeNull();
+  });
+
   it("rejects job creation without a recruiter role", async () => {
     const talent = testDataSource.getRepository(User).create({
       email: "talent@example.com",

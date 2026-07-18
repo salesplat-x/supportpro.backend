@@ -61,8 +61,8 @@ export class Job {
   @Column({ type: "varchar", nullable: true, default: null })
   locationCity!: string | null;
 
-  @Column({ type: "varchar" })
-  locationState!: string;
+  @Column({ type: "varchar", nullable: true, default: null })
+  locationState!: string | null;
 
   @Column({ type: "varchar" })
   locationCountry!: string;
