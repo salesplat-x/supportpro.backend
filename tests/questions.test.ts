@@ -41,7 +41,7 @@ jest.mock("../src/utils/integrations/openai.js", () => ({
   }),
   getPersonalityEvaluationQuestion: jest.fn().mockResolvedValue({
     message: {
-      content: JSON.stringify({ question: "Are you E or I?", options: ["Extrovert", "Introvert"] }),
+      content: JSON.stringify({ questions: ["Are you more E or I?"] }),
     },
   }),
   gradeAssessmentAnswers: jest.fn().mockImplementation((_questionsJSON: string) => {

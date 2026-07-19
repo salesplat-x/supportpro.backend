@@ -28,6 +28,12 @@ router.patch(
   validate(updateJobValidator),
   asyncHandler(job.update)
 );
+router.delete(
+  "/:_id",
+  validateAccess([UserRole.Recruiter]),
+  validate(matchJobValidator),
+  asyncHandler(job.remove)
+);
 router.get("/", validate(allJobsQueryValidator), asyncHandler(job.fetchAll));
 router.get(
   "/me",

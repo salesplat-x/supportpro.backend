@@ -1,5 +1,5 @@
 import { AppDataSource } from "../database/dataSource.js";
-import { Application, Job, Question, Role, TalentEmbedding, User } from "../entities";
+import { AIConfig, Application, Job, Question, Role, TalentEmbedding, User } from "../entities";
 import { NotFoundError, ValidationError, AuthorizationError } from "../utils/errors";
 import { QuestionType, JobStatus } from "../types/enums.js";
 import { calculateTimeLeft, sortDirection } from "../utils/text.js";
@@ -252,39 +252,57 @@ export interface GeneratePersonalityQuestionPayload {
   dichotomyPair: string;
 }
 
+const DICHOTOMY_COUNT_FIELD: Record<string, keyof AIConfig> = {
+  EI: "noOfEIQuestions",
+  SN: "noOfSNQuestions",
+  TF: "noOfTFQuestions",
+  JP: "noOfJPQuestions",
+};
+
 export const generatePersonalityQuestion = async (
   payload: GeneratePersonalityQuestionPayload
-): Promise<Question> => {
+): Promise<Question[]> => {
   const { jobId, dichotomyPair } = payload;
 
-  const jobForPersonality = await jobRepo().findOne({ where: { id: jobId } });
+  const jobForPersonality = await jobRepo().findOne({
+    where: { id: jobId },
+    relations: { aiConfig: true },
+  });
   if (!jobForPersonality) {
     throw new NotFoundError("Job not found");
   }
 
+  const existingCount = await questionRepo().count({
+    where: { jobId, type: QuestionType.Personality, criteria: dichotomyPair },
+  });
+
+  let count = 1;
+  if (existingCount === 0) {
+    const countField = DICHOTOMY_COUNT_FIELD[dichotomyPair];
+    const configuredCount = countField
+      ? (jobForPersonality.aiConfig?.[countField] as number | undefined)
+      : undefined;
+    count = configuredCount ?? 3;
+  }
+
   const response = await AI.getPersonalityEvaluationQuestion(
     jobForPersonality.jobBrief,
-    dichotomyPair
+    dichotomyPair,
+    count
   );
   if (!response || !response.message.content) {
     throw new ValidationError("Error with LLM");
   }
-  const questionText: string = JSON.parse(response.message.content).question;
+  const questionTexts: string[] = JSON.parse(response.message.content).questions;
 
-  const existing = await questionRepo().findOne({
-    where: { jobId, type: QuestionType.Personality, criteria: dichotomyPair },
-  });
+  const questionEntities = questionTexts.map((text) =>
+    questionRepo().create({
+      type: QuestionType.Personality,
+      question: text,
+      jobId,
+      criteria: dichotomyPair,
+    })
+  );
 
-  if (existing) {
-    existing.question = questionText;
-    return questionRepo().save(existing);
-  }
-
-  const q = questionRepo().create({
-    type: QuestionType.Personality,
-    question: questionText,
-    jobId,
-    criteria: dichotomyPair,
-  });
-  return questionRepo().save(q);
+  return questionRepo().save(questionEntities);
 };

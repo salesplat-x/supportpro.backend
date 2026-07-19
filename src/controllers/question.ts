@@ -38,7 +38,7 @@ export const answerPersonalizedQuestions = async (req: Request, res: Response) =
 
 export const generatePersonalityQuestion = async (req: Request, res: Response) => {
   const result = await questionService.generatePersonalityQuestion(req.body);
-  sendSuccessResponse(res, "Personality question generated", { question: result });
+  sendSuccessResponse(res, "Personality question generated", { questions: result });
 };
 
 export const evaluatePersonalityType = async (req: Request, res: Response) => {

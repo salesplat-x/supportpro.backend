@@ -16,6 +16,11 @@ export const update = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Job updated", { job: result });
 };
 
+export const remove = async (req: Request, res: Response) => {
+  await jobService.deleteJob(req.user.id, req.params["_id"]!);
+  sendSuccessResponse(res, "Job deleted", {});
+};
+
 export const fetchAll = async (req: Request, res: Response) => {
   const result = await jobService.fetchAllJobs({ ...req.query, status: JobStatus.Active });
   sendSuccessResponse(res, "Jobs fetched", { jobs: result });
