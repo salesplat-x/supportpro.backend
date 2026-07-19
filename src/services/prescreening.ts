@@ -20,6 +20,12 @@ const userRepo = () => AppDataSource.getRepository(User);
 
 const roleRepo = () => AppDataSource.getRepository(Role);
 
+// Guards against a client polling GET /prescreening/ again before the previous
+// fire-and-forget generation for the same user has committed a row — without
+// this, a second poll re-triggers a second full generation (wasted OpenAI
+// calls, and a race on which one "wins" the pre_screenings row for that user).
+const generationInFlight = new Set<string>();
+
 export interface IGeneratedQuestion {
   questionId: string;
   question: string;
@@ -152,7 +158,7 @@ export const generatePreScreeningForUser = async (
   const saved = await preScreeningRepo().save(preScreening);
 
   // Update user's activePreScreeningId
-  await userRepo().save({ ...user, activePreScreeningId: saved.id });
+  await userRepo().update(user.id, { activePreScreeningId: saved.id });
 };
 
 export const getActivePreScreening = async (
@@ -328,7 +334,7 @@ export const submitPreScreeningAnswers = async (
 
   // Update user's prescreeningScore
   if (user) {
-    await userRepo().save({ ...user, prescreeningScore: totalScore });
+    await userRepo().update(user.id, { prescreeningScore: totalScore });
   }
 
   return {
@@ -368,7 +374,12 @@ export const retakePreScreening = async (userId: string): Promise<void> => {
 
 // Fire-and-forget wrapper used from profile update hooks
 export const triggerPreScreeningGeneration = (user: User): void => {
-  generatePreScreeningForUser(user).catch((err: Error) =>
-    logger.error(`Pre-screening generation failed for user ${user.id}: ${err?.message}`)
-  );
+  if (generationInFlight.has(user.id)) return;
+  generationInFlight.add(user.id);
+
+  generatePreScreeningForUser(user)
+    .catch((err: Error) =>
+      logger.error(`Pre-screening generation failed for user ${user.id}: ${err?.message}`)
+    )
+    .finally(() => generationInFlight.delete(user.id));
 };

@@ -12,7 +12,7 @@ import { PreScreeningStatus } from "../types/enums.js";
 import type { User } from "./User.js";
 
 @Entity("pre_screenings")
-@Index(["userId"])
+@Index(["userId"], { unique: true })
 export class PreScreening {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

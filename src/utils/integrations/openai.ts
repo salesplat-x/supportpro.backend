@@ -174,20 +174,22 @@ export const gradePersonalizedAnswers = async (
 
 export const getPersonalityEvaluationQuestion = async (
   jobDescription: string,
-  dichotomyPair: string
+  dichotomyPair: string,
+  count = 1
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
   const system = `
   You are an automated system for generating questions to determine the personality type of a job applicant based on the MBTI model.
   You will be provided with the job description and the MBTI dichotomy pair,
-  use them to generate a tailor-made question to assess the applicant's personality trait in the given dichotomy pair.
+  use them to generate tailor-made questions to assess the applicant's personality trait in the given dichotomy pair.
   `;
   const prompt = `
   Job Description below: ${jobDescription},
   Dichotomy Pair: ${dichotomyPair}
-  Generate a question to determine if a person is more inclined towards ${dichotomyPair[0]} or ${dichotomyPair[1]} in the MBTI personality assessment.
-  Your output should be a JSON object with the question. For example:
+  Generate ${count} distinct question${count > 1 ? "s" : ""} to determine if a person is more inclined towards ${dichotomyPair[0]} or ${dichotomyPair[1]} in the MBTI personality assessment.
+  ${count > 1 ? "Each question must be meaningfully different from the others — do not repeat wording or intent." : ""}
+  Your output should be a JSON object with an array of questions. For example:
   {
-    "question": "..."
+    "questions": ["...", "..."]
   }
 `;
   const completion = await runCompletion({

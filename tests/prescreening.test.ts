@@ -132,6 +132,30 @@ describe("GET /v1/prescreening/ — get or generate prescreening", () => {
     const res = await request(app).get("/v1/prescreening/");
     expect(res.status).toBe(401);
   });
+
+  it("A second concurrent poll does not re-trigger generation or create a duplicate row", async () => {
+    const openai = await import("../src/utils/integrations/openai.js");
+    const role = await createRole();
+    const { user, token } = await createCompleteTalent(role);
+
+    const [res1, res2] = await Promise.all([
+      request(app).get("/v1/prescreening/").set("Authorization", `Bearer ${token}`),
+      request(app).get("/v1/prescreening/").set("Authorization", `Bearer ${token}`),
+    ]);
+
+    expect(res1.status).toBe(200);
+    expect(res2.status).toBe(200);
+
+    // Let the fire-and-forget generation settle before asserting on its side effects.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(openai.generatePreScreeningAssessment).toHaveBeenCalledTimes(1);
+
+    const rows = await testDataSource
+      .getRepository(PreScreening)
+      .find({ where: { userId: user.id } });
+    expect(rows.length).toBe(1);
+  });
 });
 
 // ---------------------------------------------------------------------------

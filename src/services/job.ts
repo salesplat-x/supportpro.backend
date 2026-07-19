@@ -6,6 +6,8 @@ import { AIConfig } from "../entities/AIConfig.js";
 import { Application } from "../entities/Application.js";
 import { User } from "../entities/User.js";
 import { Notification } from "../entities/Notification.js";
+import { Question } from "../entities/Question.js";
+import { Answer } from "../entities/Answer.js";
 import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
 import {
   UserRole,
@@ -199,6 +201,25 @@ export const updateJob = async (
   const { role: _role2, ...updateData } = update;
   const updated = await jobRepo().save({ ...existingJob, ...updateData });
   return updated;
+};
+
+export const deleteJob = async (userId: string, jobId: string): Promise<void> => {
+  const job = await jobRepo().findOne({ where: { id: jobId } });
+  if (!job) {
+    throw new NotFoundError("Job does not exist");
+  }
+  if (job.postedById !== userId) {
+    throw new AuthorizationError("You are not authorized to perform this action");
+  }
+
+  // FKs from answers/applications/questions to jobs are ON DELETE NO ACTION,
+  // so dependent rows must be removed first, in one transaction, before the job.
+  await AppDataSource.transaction(async (manager) => {
+    await manager.delete(Answer, { jobId });
+    await manager.delete(Application, { jobId });
+    await manager.delete(Question, { jobId });
+    await manager.delete(Job, { id: jobId });
+  });
 };
 
 export const fetchAllJobs = async (payload: FetchJobsParams): Promise<Job[]> => {
