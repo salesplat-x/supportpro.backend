@@ -1,6 +1,8 @@
 import { body, param } from "express-validator";
 import { idParam } from "./shared.js";
 
+const blankToUndefined = (value: unknown) => (value === "" || value === null ? undefined : value);
+
 export const createAIConfigValidator = [
   body("name").optional().trim(),
   body("prescreeningAssessment").isBoolean().withMessage("prescreeningAssessment must be boolean"),
@@ -11,10 +13,26 @@ export const createAIConfigValidator = [
   body("personalizedAssessment").isBoolean().withMessage("personalizedAssessment must be boolean"),
   body("noPersonalizedQuestions").optional().isInt({ min: 1, max: 20 }).toInt(),
   body("personalityEvaluation").isBoolean().withMessage("personalityEvaluation must be boolean"),
-  body("noOfEIQuestions").optional().isInt({ min: 1, max: 20 }).toInt(),
-  body("noOfSNQuestions").optional().isInt({ min: 1, max: 20 }).toInt(),
-  body("noOfTFQuestions").optional().isInt({ min: 1, max: 20 }).toInt(),
-  body("noOfJPQuestions").optional().isInt({ min: 1, max: 20 }).toInt(),
+  body("noOfEIQuestions")
+    .customSanitizer(blankToUndefined)
+    .optional()
+    .isInt({ min: 1, max: 20 })
+    .toInt(),
+  body("noOfSNQuestions")
+    .customSanitizer(blankToUndefined)
+    .optional()
+    .isInt({ min: 1, max: 20 })
+    .toInt(),
+  body("noOfTFQuestions")
+    .customSanitizer(blankToUndefined)
+    .optional()
+    .isInt({ min: 1, max: 20 })
+    .toInt(),
+  body("noOfJPQuestions")
+    .customSanitizer(blankToUndefined)
+    .optional()
+    .isInt({ min: 1, max: 20 })
+    .toInt(),
   body("uploadedQuestions").optional().isArray(),
   body("uploadedQuestions.*").optional().isString(),
   body("recruiterGuide").optional().isString(),
@@ -31,10 +49,26 @@ export const updateAIConfigValidator = [
   body("personalizedAssessment").optional().isBoolean(),
   body("noPersonalizedQuestions").optional().isInt({ min: 1, max: 20 }).toInt(),
   body("personalityEvaluation").optional().isBoolean(),
-  body("noOfEIQuestions").optional().isInt({ min: 1, max: 20 }).toInt(),
-  body("noOfSNQuestions").optional().isInt({ min: 1, max: 20 }).toInt(),
-  body("noOfTFQuestions").optional().isInt({ min: 1, max: 20 }).toInt(),
-  body("noOfJPQuestions").optional().isInt({ min: 1, max: 20 }).toInt(),
+  body("noOfEIQuestions")
+    .customSanitizer(blankToUndefined)
+    .optional()
+    .isInt({ min: 1, max: 20 })
+    .toInt(),
+  body("noOfSNQuestions")
+    .customSanitizer(blankToUndefined)
+    .optional()
+    .isInt({ min: 1, max: 20 })
+    .toInt(),
+  body("noOfTFQuestions")
+    .customSanitizer(blankToUndefined)
+    .optional()
+    .isInt({ min: 1, max: 20 })
+    .toInt(),
+  body("noOfJPQuestions")
+    .customSanitizer(blankToUndefined)
+    .optional()
+    .isInt({ min: 1, max: 20 })
+    .toInt(),
   body("uploadedQuestions").optional().isString(),
   body("recruiterGuide").optional().isString(),
 ];
