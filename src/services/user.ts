@@ -192,6 +192,7 @@ export const editProfile = async (
   if (payload.workType !== undefined) update.workType = payload.workType;
 
   let roleDidChange = false;
+  let embeddingPromise: Promise<void> | undefined;
 
   if (payload.roleIds !== undefined) {
     const newRoles = await validateAndFetchRoles(payload.roleIds);
@@ -245,32 +246,48 @@ export const editProfile = async (
     update.cvPublicId = asset.publicId;
     update.cvUploadedAt = new Date();
 
-    // Generate embedding asynchronously — not needed for the response, takes 5–20s
+    // Generate embedding asynchronously — not needed for the response, takes 5–20s.
+    // The returned promise always resolves (never rejects) so callers can await
+    // "embedding write settled" without needing their own try/catch.
     const textSnapshot = [...processedText];
-    setImmediate(() => {
-      createEmbedding(textSnapshot)
-        .then((cvEmbedding) => saveTalentEmbedding(userId, textSnapshot, cvEmbedding))
-        .catch((err: Error) =>
-          logger.error(`CV embedding generation failed for user ${userId}: ${err.message}`)
-        );
+    embeddingPromise = new Promise<void>((resolve) => {
+      setImmediate(() => {
+        createEmbedding(textSnapshot)
+          .then((cvEmbedding) => saveTalentEmbedding(userId, textSnapshot, cvEmbedding))
+          .catch((err: Error) =>
+            logger.error(`CV embedding generation failed for user ${userId}: ${err.message}`)
+          )
+          .finally(resolve);
+      });
     });
   }
 
   const saved = await userRepo().save({ ...existingUser, ...update });
 
-  // Trigger prescreening generation when profile becomes complete or roles change
-  const { isProfileComplete } = getProfileCompletion(saved);
-  if (roleDidChange || isProfileComplete) {
-    // Fire-and-forget: prescreening generation is non-blocking but errors must be logged.
-    // The dynamic import avoids a circular dependency (prescreening.ts imports user.ts).
-    import("./prescreening.js")
-      .then(({ triggerPreScreeningGeneration }) => triggerPreScreeningGeneration(saved))
-      .catch((err: unknown) => {
-        logger.error("Prescreening generation failed after profile update", {
-          userId: saved.id,
-          message: err instanceof Error ? err.message : String(err),
+  // Only a role change regenerates the assessment — CV replacement (or any other
+  // profile edit) must never trigger a new assessment. Initial generation for a
+  // profile that has just become complete is handled lazily by getActivePreScreening().
+  if (roleDidChange) {
+    const triggerGeneration = () => {
+      // Fire-and-forget: prescreening generation is non-blocking but errors must be logged.
+      // The dynamic import avoids a circular dependency (prescreening.ts imports user.ts).
+      import("./prescreening.js")
+        .then(({ triggerPreScreeningGeneration }) => triggerPreScreeningGeneration(saved))
+        .catch((err: unknown) => {
+          logger.error("Prescreening generation failed after profile update", {
+            userId: saved.id,
+            message: err instanceof Error ? err.message : String(err),
+          });
         });
-      });
+    };
+
+    // If this request also replaced the CV, wait for its embedding write to settle
+    // first — otherwise generation can read stale or half-written TalentEmbedding rows.
+    if (embeddingPromise) {
+      void embeddingPromise.then(triggerGeneration);
+    } else {
+      triggerGeneration();
+    }
   }
 
   return saved;
