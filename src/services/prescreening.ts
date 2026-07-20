@@ -110,12 +110,15 @@ export const generatePreScreeningForUser = async (
         questions?: IGeneratedQuestion[];
       };
       const count = candidate.questions?.length ?? 0;
-      if (Array.isArray(candidate.questions) && count >= 5 && count <= 10) {
+      const optionsValid =
+        Array.isArray(candidate.questions) &&
+        candidate.questions.every((q) => Array.isArray(q.options) && q.options.length === 4);
+      if (Array.isArray(candidate.questions) && count >= 5 && count <= 10 && optionsValid) {
         parsed = { questions: candidate.questions };
         break;
       }
       logger.error(
-        `Pre-screening attempt ${attempt} returned ${count} questions (expected 5–10) for user ${user.id}`
+        `Pre-screening attempt ${attempt} returned ${count} questions (expected 5–10) or invalid option counts for user ${user.id}`
       );
     } catch {
       logger.error(
