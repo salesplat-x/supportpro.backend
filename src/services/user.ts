@@ -10,15 +10,15 @@ import { createEmbedding } from "../utils/integrations/openai.js";
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
+// mammoth (used by extractText) only supports .docx, not legacy binary .doc —
+// keep this in sync with what extractText can actually parse.
 const ALLOWED_CV_TYPES = [
   "application/pdf",
-  "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
 
 const CV_EXT_BY_MIME: Record<string, string> = {
   "application/pdf": "pdf",
-  "application/msword": "doc",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
 };
 
@@ -213,19 +213,33 @@ export const editProfile = async (
       throw new ValidationError("Unsupported CV file type");
     }
 
-    const text = await extractText(file.buffer, file.mimetype);
-    if (!text) {
-      throw new ValidationError("Unable to extract text from CV");
-    }
-    const processedText = overlapChunkText(preprocessText(text));
+    let text: string;
+    let asset: Awaited<ReturnType<typeof replaceAsset>>;
+    try {
+      text = await extractText(file.buffer, file.mimetype);
+      if (!text) {
+        throw new ValidationError("Unable to extract text from CV");
+      }
 
-    const asset = await replaceAsset(existingUser.cvPublicId ?? undefined, file.buffer, {
-      folder: CLOUDINARY_FOLDERS.cv,
-      publicId: `${userId}-cv`,
-      mimetype: file.mimetype,
-      format: CV_EXT_BY_MIME[file.mimetype],
-      resourceType: "auto",
-    });
+      asset = await replaceAsset(existingUser.cvPublicId ?? undefined, file.buffer, {
+        folder: CLOUDINARY_FOLDERS.cv,
+        publicId: `${userId}-cv`,
+        mimetype: file.mimetype,
+        format: CV_EXT_BY_MIME[file.mimetype],
+        // CVs are non-image documents — Cloudinary stores them as "raw", and
+        // its destroy API (unlike upload) rejects "auto".
+        resourceType: "raw",
+      });
+    } catch (err) {
+      if (err instanceof ValidationError) throw err;
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error(`CV processing failed for user ${userId}: ${message}`);
+      throw new ValidationError(
+        "We couldn't process this CV file. Please upload a PDF or DOCX file."
+      );
+    }
+
+    const processedText = overlapChunkText(preprocessText(text));
 
     update.cvUrl = asset.url;
     update.cvPublicId = asset.publicId;
