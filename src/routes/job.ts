@@ -2,7 +2,7 @@ import { Router } from "express";
 import * as job from "../controllers/job.js";
 import { validate } from "../middleware/validate.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
-import { validateAccess } from "../middleware/auth.js";
+import { optionalAuth, validateAccess } from "../middleware/auth.js";
 import { UserRole } from "../types/enums.js";
 import {
   createJobValidator,
@@ -34,7 +34,7 @@ router.delete(
   validate(matchJobValidator),
   asyncHandler(job.remove)
 );
-router.get("/", validate(allJobsQueryValidator), asyncHandler(job.fetchAll));
+router.get("/", optionalAuth, validate(allJobsQueryValidator), asyncHandler(job.fetchAll));
 router.get(
   "/me",
   validateAccess([UserRole.Recruiter]),
@@ -72,6 +72,6 @@ router.get(
   validate(jobApplicationsQueryValidator),
   asyncHandler(job.applications)
 );
-router.get("/:_id", validate(matchJobValidator), asyncHandler(job.fetch));
+router.get("/:_id", optionalAuth, validate(matchJobValidator), asyncHandler(job.fetch));
 
 export default (app: Router) => app.use("/jobs", router);

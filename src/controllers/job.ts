@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import * as jobService from "../services/job.js";
-import { JobStatus } from "../types/enums.js";
+import { JobStatus, UserRole } from "../types/enums.js";
 import { sendSuccessResponse } from "../utils/response.js";
 
 export const create = async (req: Request, res: Response) => {
@@ -22,7 +22,12 @@ export const remove = async (req: Request, res: Response) => {
 };
 
 export const fetchAll = async (req: Request, res: Response) => {
-  const result = await jobService.fetchAllJobs({ ...req.query, status: JobStatus.Active });
+  const talentId = req.user?.userRole === UserRole.Talent ? req.user.id : undefined;
+  const result = await jobService.fetchAllJobs({
+    ...req.query,
+    status: JobStatus.Active,
+    talentId,
+  });
   sendSuccessResponse(res, "Jobs fetched", { jobs: result });
 };
 
@@ -32,7 +37,8 @@ export const jobsPosted = async (req: Request, res: Response) => {
 };
 
 export const fetch = async (req: Request, res: Response) => {
-  const result = await jobService.fetchJob(req.params["_id"]!);
+  const talentId = req.user?.userRole === UserRole.Talent ? req.user.id : undefined;
+  const result = await jobService.fetchJob(req.params["_id"]!, talentId);
   sendSuccessResponse(res, "Job fetched", { job: result });
 };
 

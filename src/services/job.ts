@@ -1,3 +1,4 @@
+import { In } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import logger from "../utils/logger.js";
 import { Job } from "../entities/Job.js";
@@ -70,6 +71,7 @@ export interface FetchJobsParams {
   limit?: number | string;
   offset?: number | string;
   sort?: string;
+  talentId?: string;
 }
 
 export interface TopTalentsParams {
@@ -224,7 +226,9 @@ export const deleteJob = async (userId: string, jobId: string): Promise<void> =>
   });
 };
 
-export const fetchAllJobs = async (payload: FetchJobsParams): Promise<Job[]> => {
+export const fetchAllJobs = async (
+  payload: FetchJobsParams
+): Promise<(Job & { hasApplied?: boolean })[]> => {
   const qb = jobRepo()
     .createQueryBuilder("job")
     .leftJoinAndSelect("job.role", "role")
@@ -289,10 +293,25 @@ export const fetchAllJobs = async (payload: FetchJobsParams): Promise<Job[]> => 
   const offset = Number(payload.offset) || 0;
   const order = sortDirection(payload.sort ?? "desc");
 
-  return qb.orderBy("job.createdAt", order).skip(offset).take(limit).getMany();
+  const jobs = await qb.orderBy("job.createdAt", order).skip(offset).take(limit).getMany();
+
+  if (!payload.talentId || jobs.length === 0) {
+    return jobs;
+  }
+
+  const applied = await applicationRepo().find({
+    where: { talentId: payload.talentId, jobId: In(jobs.map((job) => job.id)) },
+    select: { jobId: true },
+  });
+  const appliedJobIds = new Set(applied.map((application) => application.jobId));
+
+  return jobs.map((job) => Object.assign(job, { hasApplied: appliedJobIds.has(job.id) }));
 };
 
-export const fetchJob = async (jobId: string): Promise<Job> => {
+export const fetchJob = async (
+  jobId: string,
+  talentId?: string
+): Promise<Job & { hasApplied?: boolean }> => {
   const job = await jobRepo().findOne({
     where: { id: jobId },
     relations: { role: true, postedBy: true, aiConfig: true },
@@ -300,7 +319,15 @@ export const fetchJob = async (jobId: string): Promise<Job> => {
   if (!job) {
     throw new NotFoundError("Job not found");
   }
-  return job;
+  if (!talentId) {
+    return job;
+  }
+
+  const existingApplication = await applicationRepo().findOne({
+    where: { talentId, jobId },
+    select: { id: true },
+  });
+  return Object.assign(job, { hasApplied: !!existingApplication });
 };
 
 export const matchJob = async (
