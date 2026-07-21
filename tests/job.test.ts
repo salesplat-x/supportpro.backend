@@ -70,6 +70,7 @@ describe("POST /v1/jobs/", () => {
         experienceLevel: "4-6 years",
         maxSalary: 100000,
         minSalary: 50000,
+        compensationPeriod: "yearly",
         locationState: "Lagos",
         locationCountry: "Nigeria",
         workMode: ["remote"],
@@ -91,6 +92,7 @@ describe("POST /v1/jobs/", () => {
         experienceLevel: "4-6 years",
         maxSalary: 100000,
         minSalary: 50000,
+        compensationPeriod: "yearly",
         locationCountry: "Nigeria",
         workMode: ["remote"],
       });
@@ -153,6 +155,48 @@ describe("Job salary validation", () => {
         jobBrief: "Test",
         experienceLevel: "1-3 years",
         maxSalary: 50000,
+        minSalary: 60000,
+        compensationPeriod: "yearly",
+        locationState: "Lagos",
+        locationCountry: "Nigeria",
+        workMode: ["remote"],
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("creates a job without maxSalary (optional) → 201", async () => {
+    const { token } = await createRecruiter();
+
+    const res = await request(app)
+      .post("/v1/jobs/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        role: "engineer",
+        jobBrief: "Test",
+        experienceLevel: "1-3 years",
+        minSalary: 60000,
+        compensationPeriod: "monthly",
+        locationState: "Lagos",
+        locationCountry: "Nigeria",
+        workMode: ["remote"],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.job.maxSalary).toBeNull();
+    expect(res.body.data.job.compensationPeriod).toBe("monthly");
+  });
+
+  it("rejects job creation without compensationPeriod", async () => {
+    const { token } = await createRecruiter();
+
+    const res = await request(app)
+      .post("/v1/jobs/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        role: "engineer",
+        jobBrief: "Test",
+        experienceLevel: "1-3 years",
         minSalary: 60000,
         locationState: "Lagos",
         locationCountry: "Nigeria",

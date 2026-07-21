@@ -30,6 +30,11 @@ export enum JobStatus {
   Closed = "closed",
 }
 
+export enum CompensationPeriod {
+  Monthly = "monthly",
+  Yearly = "yearly",
+}
+
 export enum WorkMode {
   Remote = "remote",
   OnSite = "onSite",
