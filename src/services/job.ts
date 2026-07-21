@@ -310,13 +310,17 @@ export const fetchAllJobs = async (
 
 export const fetchJob = async (
   jobId: string,
-  talentId?: string
+  talentId?: string,
+  isAuthenticated?: boolean
 ): Promise<Job & { hasApplied?: boolean }> => {
   const job = await jobRepo().findOne({
     where: { id: jobId },
     relations: { role: true, postedBy: true, aiConfig: true },
   });
   if (!job) {
+    throw new NotFoundError("Job not found");
+  }
+  if (!isAuthenticated && job.status !== JobStatus.Active) {
     throw new NotFoundError("Job not found");
   }
   if (!talentId) {
