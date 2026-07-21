@@ -32,7 +32,7 @@ export const applications = async (req: Request, res: Response) => {
     req.user.id,
     req.query as Record<string, string>
   );
-  sendSuccessResponse(res, "Applications fetched", result);
+  sendSuccessResponse(res, "Applications fetched", { applications: result });
 };
 
 export const uploadProfileImage = async (req: Request, res: Response) => {

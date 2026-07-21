@@ -14,29 +14,38 @@ declare global {
   }
 }
 
-async function resolveUser(req: Request, res: Response): Promise<User | null> {
+interface ResolveUserResult {
+  user: User | null;
+  status: number;
+  error?: { code: string; message: string };
+}
+
+async function tryResolveUser(req: Request): Promise<ResolveUserResult> {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
-    res
-      .status(401)
-      .json({ success: false, error: { code: "AUTHENTICATION_ERROR", message: "Login required" } });
-    return null;
+    return {
+      user: null,
+      status: 401,
+      error: { code: "AUTHENTICATION_ERROR", message: "Login required" },
+    };
   }
   const token = authHeader.split(" ")[1];
   if (!token) {
-    res
-      .status(401)
-      .json({ success: false, error: { code: "AUTHENTICATION_ERROR", message: "Login required" } });
-    return null;
+    return {
+      user: null,
+      status: 401,
+      error: { code: "AUTHENTICATION_ERROR", message: "Login required" },
+    };
   }
   let payload: JwtPayload;
   try {
     payload = decodeToken(token);
   } catch {
-    res
-      .status(401)
-      .json({ success: false, error: { code: "AUTHENTICATION_ERROR", message: "Login required" } });
-    return null;
+    return {
+      user: null,
+      status: 401,
+      error: { code: "AUTHENTICATION_ERROR", message: "Login required" },
+    };
   }
 
   // Not wrapped in try/catch on purpose: failures here are DB/infra errors
@@ -51,30 +60,39 @@ async function resolveUser(req: Request, res: Response): Promise<User | null> {
     .getOne();
 
   if (!user) {
-    res.status(401).json({
-      success: false,
+    return {
+      user: null,
+      status: 401,
       error: { code: "AUTHENTICATION_ERROR", message: "Login required" },
-    });
-    return null;
+    };
   }
   if (!user.active) {
-    res.status(403).json({
-      success: false,
+    return {
+      user: null,
+      status: 403,
       error: {
         code: "AUTHORIZATION_ERROR",
         message: "Account deactivated, contact support to reactivate",
       },
-    });
-    return null;
+    };
   }
   if (user.tokenVersion !== payload.tokenVersion) {
-    res.status(401).json({
-      success: false,
+    return {
+      user: null,
+      status: 401,
       error: { code: "AUTHENTICATION_ERROR", message: "Login required" },
-    });
+    };
+  }
+  return { user, status: 200 };
+}
+
+async function resolveUser(req: Request, res: Response): Promise<User | null> {
+  const result = await tryResolveUser(req);
+  if (!result.user) {
+    res.status(result.status).json({ success: false, error: result.error });
     return null;
   }
-  return user;
+  return result.user;
 }
 
 export const loginRequired: RequestHandler = asyncHandler(
@@ -135,6 +153,16 @@ export const validateAccess = (roles: UserRole[]): RequestHandler => {
     next();
   });
 };
+
+export const optionalAuth: RequestHandler = asyncHandler(
+  async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+    const { user } = await tryResolveUser(req);
+    if (user) {
+      req.user = user;
+    }
+    next();
+  }
+);
 
 export const requireCompletedProfile: RequestHandler = asyncHandler(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
