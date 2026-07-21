@@ -6,6 +6,7 @@ import {
   JobStatus,
   ApplicationType,
   ApplicationStatus,
+  CompensationPeriod,
 } from "../types/enums.js";
 
 export const createJobValidator = [
@@ -16,6 +17,7 @@ export const createJobValidator = [
     .isIn(Object.values(ExperienceLevel))
     .withMessage(`experienceLevel must be one of: ${Object.values(ExperienceLevel).join(", ")}`),
   body("maxSalary")
+    .optional()
     .isFloat({ min: 0, max: 100000000 })
     .toFloat()
     .withMessage("Valid maxSalary required"),
@@ -29,6 +31,11 @@ export const createJobValidator = [
       }
       return true;
     }),
+  body("compensationPeriod")
+    .isIn(Object.values(CompensationPeriod))
+    .withMessage(
+      `compensationPeriod must be one of: ${Object.values(CompensationPeriod).join(", ")}`
+    ),
   body("locationCountry").notEmpty().trim().withMessage("locationCountry is required"),
   body("locationState").optional().trim(),
   body("locationCity").optional().trim(),
@@ -67,6 +74,12 @@ export const updateJobValidator = [
       }
       return true;
     }),
+  body("compensationPeriod")
+    .optional()
+    .isIn(Object.values(CompensationPeriod))
+    .withMessage(
+      `compensationPeriod must be one of: ${Object.values(CompensationPeriod).join(", ")}`
+    ),
   body("locationState").optional().trim(),
   body("locationCountry").optional().trim(),
   body("locationCity").optional().trim(),

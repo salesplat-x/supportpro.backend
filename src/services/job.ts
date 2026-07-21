@@ -17,6 +17,7 @@ import {
   ApplicationType,
   ApplicationStatus,
   ScreeningStage,
+  CompensationPeriod,
 } from "../types/enums.js";
 import { createEmbedding } from "../utils/integrations/openai.js";
 import { convertSimilarityToPercentage, preprocessText, sortDirection } from "../utils/text.js";
@@ -41,8 +42,9 @@ export interface CreateJobPayload {
   role?: string;
   aiConfigId?: string | null;
   jobBrief: string;
-  maxSalary: number;
+  maxSalary?: number | null;
   minSalary: number;
+  compensationPeriod: CompensationPeriod;
   experienceLevel: string;
   locationCity?: string | null;
   locationState?: string | null;
@@ -356,8 +358,12 @@ export const matchJob = async (
     .leftJoinAndSelect("user.userRoles", "userRoles")
     .where("user.userRole = :role", { role: UserRole.Talent })
     .andWhere("userRoles.id = :roleId", { roleId: job.roleId })
-    .andWhere("user.experience = :exp", { exp: job.experienceLevel })
-    .andWhere("user.maxSalary <= :maxSalary", { maxSalary: job.maxSalary });
+    .andWhere("user.experience = :exp", { exp: job.experienceLevel });
+
+  // A job with no max salary has no ceiling to filter talents against.
+  if (job.maxSalary != null) {
+    qb.andWhere("user.maxSalary <= :maxSalary", { maxSalary: job.maxSalary });
+  }
 
   if (payload.incomplete !== "true") {
     qb.andWhere("user.prescreeningScore IS NOT NULL");

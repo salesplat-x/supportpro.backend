@@ -8,7 +8,7 @@ import {
   UpdateDateColumn,
   Index,
 } from "typeorm";
-import { JobStatus } from "../types/enums.js";
+import { CompensationPeriod, JobStatus } from "../types/enums.js";
 import type { Role } from "./Role.js";
 import type { User } from "./User.js";
 import type { AIConfig } from "./AIConfig.js";
@@ -49,11 +49,14 @@ export class Job {
   @Index()
   status!: JobStatus;
 
-  @Column({ type: "float" })
-  maxSalary!: number;
+  @Column({ type: "float", nullable: true, default: null })
+  maxSalary!: number | null;
 
   @Column({ type: "float" })
   minSalary!: number;
+
+  @Column({ type: "enum", enum: CompensationPeriod, default: CompensationPeriod.Yearly })
+  compensationPeriod!: CompensationPeriod;
 
   @Column({ type: "varchar" })
   experienceLevel!: string;
