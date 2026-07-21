@@ -9,6 +9,7 @@ import { NotFoundError, ValidationError, AuthorizationError } from "../utils/err
 import { QuestionType, JobStatus, ApplicationStatus, ScreeningStage } from "../types/enums.js";
 import { calculateTimeLeft } from "../utils/text.js";
 import * as AI from "../utils/integrations/openai.js";
+import { canTakeAssessment, getAssessmentRetryDate, processNextStage } from "./applicationStage.js";
 
 const answerRepo = () => AppDataSource.getRepository(Answer);
 
@@ -26,17 +27,6 @@ interface IResponse {
   score?: number;
   dichotomyPreference?: string;
 }
-
-const canTakeAssessment = (assessmentRetryDate: Date | null): boolean => {
-  if (!assessmentRetryDate) return true;
-  return new Date() >= assessmentRetryDate;
-};
-
-const getAssessmentRetryDate = (days = 7): Date => {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d;
-};
 
 const saveOrUpdateAnswer = async (
   filter: {
@@ -69,52 +59,6 @@ const saveOrUpdateAnswer = async (
     responses,
   });
   return answerRepo().save(newAnswer);
-};
-
-const processNextStage = async (
-  talent: User,
-  application: Application,
-  stage: ScreeningStage
-): Promise<Application> => {
-  const stages = application.stages ?? {};
-  const nextStage = stages[stage];
-
-  if (!nextStage) {
-    throw new ValidationError("Next stage not found");
-  }
-
-  application.currentStage = nextStage as Application["currentStage"];
-
-  if (nextStage === ScreeningStage.Completed) {
-    // Rank the application
-    await rankApplication(talent, application);
-    application.status = ApplicationStatus.Shortlisted;
-  } else {
-    application.status = ApplicationStatus.Pending;
-  }
-
-  return application;
-};
-
-const rankApplication = async (talent: User, application: Application): Promise<void> => {
-  const prescreeningScore = talent.prescreeningScore ?? undefined;
-  const scores = [
-    application.cvSimilarityScore,
-    application.personalizedScore,
-    prescreeningScore,
-  ].filter((s): s is number => s !== null && s !== undefined);
-
-  const averageScore =
-    scores.length > 0 ? Number((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2)) : 0;
-
-  application.averageScore = averageScore;
-
-  const newRank =
-    (await applicationRepo().count({
-      where: { jobId: application.jobId },
-    })) + 1;
-
-  application.rank = newRank;
 };
 
 export interface AnswerPrescreeningPayload {
@@ -244,6 +188,10 @@ export const answerPersonalizedQuestions = async (
     throw new NotFoundError("Job application not found");
   }
 
+  if (application.currentStage !== ScreeningStage.Personalized) {
+    throw new ValidationError("This stage is not currently active for this application");
+  }
+
   if (!canTakeAssessment(application.assessmentRetryDate)) {
     const days = calculateTimeLeft(application.assessmentRetryDate!);
     throw new AuthorizationError(
@@ -349,6 +297,10 @@ export const evaluatePersonalityType = async (
   });
   if (!application) {
     throw new NotFoundError("Job application not found");
+  }
+
+  if (application.currentStage !== ScreeningStage.Personality) {
+    throw new ValidationError("This stage is not currently active for this application");
   }
 
   if (!canTakeAssessment(application.assessmentRetryDate)) {

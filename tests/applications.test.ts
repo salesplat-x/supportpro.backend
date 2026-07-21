@@ -279,7 +279,7 @@ describe("PATCH /v1/jobs/applications/:jobId — apply for job", () => {
     expect(res.status).toBe(201);
   });
 
-  it("Talent without prescreeningScore cannot apply → 400", async () => {
+  it("Talent without prescreeningScore can still apply immediately → 201", async () => {
     const { token } = await createTalent({ prescreeningScore: null });
     const { user: recruiter } = await createRecruiter();
     const role = await createRole();
@@ -291,10 +291,10 @@ describe("PATCH /v1/jobs/applications/:jobId — apply for job", () => {
       .patch(`/v1/jobs/applications/${job.id}`)
       .set("Authorization", `Bearer ${token}`)
       .send({});
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(201);
   });
 
-  it("Talent with score below minPrescreeningScore is rejected → 403", async () => {
+  it("Talent with score below minPrescreeningScore can still apply immediately → 201", async () => {
     const { token } = await createTalent({ prescreeningScore: 30 });
     const { user: recruiter } = await createRecruiter();
     const role = await createRole();
@@ -306,7 +306,7 @@ describe("PATCH /v1/jobs/applications/:jobId — apply for job", () => {
       .patch(`/v1/jobs/applications/${job.id}`)
       .set("Authorization", `Bearer ${token}`)
       .send({});
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(201);
   });
 
   it("Job not found → 404", async () => {

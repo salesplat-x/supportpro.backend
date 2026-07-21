@@ -23,26 +23,29 @@ export interface AIConfigPayload {
   personalityEvaluation?: boolean;
 }
 
-// Build stages object based on recruiter selections (mirrors Mongoose createStages)
-export const createStages = (config: AIConfigPayload): Record<string, string> => {
+export interface StagesResult {
+  stages: Record<string, string>;
+  entryStage: ScreeningStage;
+}
+
+// Fixed pipeline order: Personality -> Personalized -> Prescreening -> CvSimilarity -> Completed,
+// skipping any stage the recruiter didn't enable for this job.
+const STAGE_ORDER: Array<{ flag: keyof AIConfigPayload; stage: ScreeningStage }> = [
+  { flag: "personalityEvaluation", stage: ScreeningStage.Personality },
+  { flag: "personalizedAssessment", stage: ScreeningStage.Personalized },
+  { flag: "prescreeningAssessment", stage: ScreeningStage.Prescreening },
+  { flag: "cvSimilarity", stage: ScreeningStage.CvSimilarity },
+];
+
+export const createStages = (config: AIConfigPayload): StagesResult => {
+  const enabled = STAGE_ORDER.filter((o) => config[o.flag]).map((o) => o.stage);
+
   const stages: Record<string, string> = {};
-  let currentStage: string = ScreeningStage.Prescreening;
+  for (let i = 0; i < enabled.length; i++) {
+    stages[enabled[i]!] = enabled[i + 1] ?? ScreeningStage.Completed;
+  }
 
-  if (config.cvSimilarity) {
-    stages[currentStage] = ScreeningStage.CvSimilarity;
-    currentStage = ScreeningStage.CvSimilarity;
-  }
-  if (config.personalizedAssessment) {
-    stages[currentStage] = ScreeningStage.Personalized;
-    currentStage = ScreeningStage.Personalized;
-  }
-  if (config.personalityEvaluation) {
-    stages[currentStage] = ScreeningStage.Personality;
-    currentStage = ScreeningStage.Personality;
-  }
-  stages[currentStage] = ScreeningStage.Completed;
-
-  return stages;
+  return { stages, entryStage: enabled[0] ?? ScreeningStage.Completed };
 };
 
 export const createAIConfig = async (
@@ -58,7 +61,7 @@ export const createAIConfig = async (
     throw new ConflictError("Configuration already existing with this name");
   }
 
-  const stages = createStages(payload);
+  const { stages } = createStages(payload);
 
   const config = aiConfigRepo().create({
     ...payload,
@@ -103,7 +106,7 @@ export const updateAIConfig = async (
     payload.name = name;
   }
 
-  const stages = createStages({ ...config, ...payload });
+  const { stages } = createStages({ ...config, ...payload });
 
   const updated = await aiConfigRepo().save({
     ...config,

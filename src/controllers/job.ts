@@ -70,3 +70,8 @@ export const apply = async (req: Request, res: Response) => {
   const result = await jobService.apply(req.user, { jobId: req.params["jobId"]! });
   sendSuccessResponse(res, "Application submitted", { application: result }, 201);
 };
+
+export const checkPrescreening = async (req: Request, res: Response) => {
+  const result = await jobService.checkPrescreeningAdvance(req.user.id, req.params["jobId"]!);
+  sendSuccessResponse(res, "Prescreening stage checked", { application: result });
+};

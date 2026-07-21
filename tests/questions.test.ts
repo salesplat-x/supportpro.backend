@@ -484,7 +484,7 @@ describe("POST /v1/questions/answer/personalized — ISSUE-004 and ISSUE-009", (
     await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
 
     const { user: talent, token: talentToken } = await createTalent({ prescreeningScore: 75 });
-    await createApplication(talent, job);
+    await createApplication(talent, job, { currentStage: ScreeningStage.Personalized });
 
     // Create 2 real questions for the job
     const q1 = await createQuestion(QuestionType.Personalized, { jobId: job.id });
@@ -631,7 +631,7 @@ describe("POST /v1/questions/answer/personality — evaluate personality type", 
     await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
 
     const { user: talent, token: talentToken } = await createTalent();
-    await createApplication(talent, job);
+    await createApplication(talent, job, { currentStage: ScreeningStage.Personality });
 
     const q = await createQuestion(QuestionType.Personality, { jobId: job.id });
 
