@@ -21,6 +21,10 @@ export interface AIConfigPayload {
   recruiterGuide?: string | null;
   uploadedQuestions?: string[] | null;
   personalityEvaluation?: boolean;
+  noOfEIQuestions?: number | null;
+  noOfSNQuestions?: number | null;
+  noOfTFQuestions?: number | null;
+  noOfJPQuestions?: number | null;
 }
 
 export interface StagesResult {
