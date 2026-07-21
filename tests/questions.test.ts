@@ -641,7 +641,7 @@ describe("POST /v1/questions/answer/personality — evaluate personality type", 
     expect(res.body.data.mbtiType).toBeDefined();
   });
 
-  it("Not exactly 4 answers → 400", async () => {
+  it("Answering fewer than all generated questions → 400", async () => {
     const { user: recruiter } = await createRecruiter();
     const role = await createRole();
     const job = await createJob(recruiter, role);
@@ -651,17 +651,60 @@ describe("POST /v1/questions/answer/personality — evaluate personality type", 
     const { user: talent, token: talentToken } = await createTalent();
     await createApplication(talent, job, { currentStage: ScreeningStage.Personality });
 
-    const q = await createQuestion(QuestionType.Personality, { jobId: job.id });
+    // Two questions generated for this job, but only one gets answered.
+    const [q1] = await Promise.all([
+      createQuestion(QuestionType.Personality, { jobId: job.id }, { criteria: "EI" }),
+      createQuestion(QuestionType.Personality, { jobId: job.id }, { criteria: "SN" }),
+    ]);
 
     const res = await request(app)
       .post("/v1/questions/answer/personality")
       .set("Authorization", `Bearer ${talentToken}`)
       .send({
         jobId: job.id,
-        answers: { [q.id]: "Answer" }, // only 1 answer, needs 4
+        answers: { [q1!.id]: "Answer" },
       });
 
     expect(res.status).toBe(400);
+    expect(res.body.error.message).toBe("You must answer exactly 2 questions");
+  });
+
+  it("Answers a non-default total (recruiter-configured counts) → 200", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const aiConfig = await createAIConfig(recruiter, {
+      personalityEvaluation: true,
+      stages: { personality: "completed" },
+    });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
+
+    const { user: talent, token: talentToken } = await createTalent({ prescreeningScore: 75 });
+    await createApplication(talent, job, {
+      stages: { personality: "completed" },
+      currentStage: ScreeningStage.Personality,
+    });
+
+    // 6 total questions generated across the 4 pairs — not the old default
+    // of 4 — proving the check no longer hardcodes a fixed total.
+    const questions = await Promise.all([
+      createQuestion(QuestionType.Personality, { jobId: job.id }, { criteria: "EI" }),
+      createQuestion(QuestionType.Personality, { jobId: job.id }, { criteria: "EI" }),
+      createQuestion(QuestionType.Personality, { jobId: job.id }, { criteria: "SN" }),
+      createQuestion(QuestionType.Personality, { jobId: job.id }, { criteria: "TF" }),
+      createQuestion(QuestionType.Personality, { jobId: job.id }, { criteria: "TF" }),
+      createQuestion(QuestionType.Personality, { jobId: job.id }, { criteria: "JP" }),
+    ]);
+
+    const answers = Object.fromEntries(questions.map((q) => [q!.id, "Answer"]));
+
+    const res = await request(app)
+      .post("/v1/questions/answer/personality")
+      .set("Authorization", `Bearer ${talentToken}`)
+      .send({ jobId: job.id, answers });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.mbtiType).toBeDefined();
   });
 
   it("Recruiter cannot submit personality answers → 403", async () => {

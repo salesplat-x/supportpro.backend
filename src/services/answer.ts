@@ -321,20 +321,25 @@ export const evaluatePersonalityType = async (
 
   const questionIds = Object.keys(answers);
 
-  if (questionIds.length !== 4) {
-    throw new ValidationError("You must answer exactly 4 questions");
+  // The expected total is however many personality questions were actually
+  // generated for this job (sum across all four dichotomy pairs, each
+  // independently configured) — not a fixed count.
+  const jobPersonalityQuestions = await questionRepo().find({
+    where: { jobId, type: QuestionType.Personality },
+  });
+
+  if (questionIds.length !== jobPersonalityQuestions.length) {
+    throw new ValidationError(
+      `You must answer exactly ${jobPersonalityQuestions.length} questions`
+    );
   }
 
-  const questions = await questionRepo()
-    .createQueryBuilder("q")
-    .whereInIds(questionIds)
-    .andWhere("q.job_id = :jobId", { jobId })
-    .andWhere("q.type = :type", { type: QuestionType.Personality })
-    .getMany();
-
-  if (questions.length !== questionIds.length) {
+  const questionsById = new Map(jobPersonalityQuestions.map((q) => [q.id, q]));
+  if (!questionIds.every((id) => questionsById.has(id))) {
     throw new ValidationError("One or more questions do not belong to job");
   }
+
+  const questions = questionIds.map((id) => questionsById.get(id)!);
 
   const questionsConstruct = questions.map((q) => ({
     question: q.question,
