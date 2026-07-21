@@ -56,7 +56,7 @@ export class Application {
   @Index()
   status!: ApplicationStatus;
 
-  @Column({ type: "enum", enum: ScreeningStage, default: ScreeningStage.Prescreening })
+  @Column({ type: "enum", enum: ScreeningStage, default: ScreeningStage.Personality })
   currentStage!: ScreeningStage;
 
   @Column({ type: "simple-array", nullable: true, default: null })

@@ -48,6 +48,12 @@ router.get(
   asyncHandler(job.topTalents)
 );
 router.patch("/cv-similarity/:jobId", validateAccess([UserRole.Talent]), asyncHandler(job.gradeCv));
+router.patch(
+  "/prescreening-check/:jobId",
+  validateAccess([UserRole.Talent]),
+  validate(applyValidator),
+  asyncHandler(job.checkPrescreening)
+);
 router.get(
   "/match/:_id",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),

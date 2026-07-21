@@ -172,8 +172,11 @@ export const generatePersonalizedQuestions = async (
   let application = await applicationRepo().findOne({
     where: { jobId, talentId },
   });
+  if (!application) {
+    throw new ValidationError("You must apply for this job before this stage is available");
+  }
 
-  if (application?.personalizedQuestions?.length) {
+  if (application.personalizedQuestions?.length) {
     const questions = await questionRepo()
       .createQueryBuilder("q")
       .whereInIds(application.personalizedQuestions)
@@ -222,27 +225,8 @@ export const generatePersonalizedQuestions = async (
   const savedQuestions = await questionRepo().save(questionEntities);
   const questionIds = savedQuestions.map((q) => q.id);
 
-  if (application) {
-    application.personalizedQuestions = questionIds;
-    application = await applicationRepo().save(application);
-  } else {
-    application = await applicationRepo().save(
-      applicationRepo().create({
-        jobId,
-        talentId,
-        recruiterId: aiConfig.recruiterId,
-        applicationType: "by application" as Application["applicationType"],
-        stages: aiConfig.stages,
-        personalizedQuestions: questionIds,
-      })
-    );
-    await jobRepo()
-      .createQueryBuilder()
-      .update(Job)
-      .set({ noOfApplicants: () => '"noOfApplicants" + 1' })
-      .where("id = :id", { id: jobId })
-      .execute();
-  }
+  application.personalizedQuestions = questionIds;
+  application = await applicationRepo().save(application);
 
   return { questions: savedQuestions, application };
 };

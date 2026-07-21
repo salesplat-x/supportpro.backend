@@ -12,6 +12,7 @@ import {
   PreScreeningProfileContext,
 } from "../utils/integrations/openai.js";
 import { getProfileCompletion } from "./user.js";
+import { advanceApplicationsAfterPrescreening } from "./applicationStage.js";
 import logger from "../utils/logger.js";
 
 const preScreeningRepo = () => AppDataSource.getRepository(PreScreening);
@@ -338,6 +339,9 @@ export const submitPreScreeningAnswers = async (
   // Update user's prescreeningScore
   if (user) {
     await userRepo().update(user.id, { prescreeningScore: totalScore });
+    // Advance every application currently parked at the Prescreening stage for this
+    // talent — Pre-Assessment is a single global test reused across all jobs.
+    await advanceApplicationsAfterPrescreening(user, totalScore);
   }
 
   return {

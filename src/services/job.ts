@@ -19,6 +19,8 @@ import {
 } from "../types/enums.js";
 import { createEmbedding } from "../utils/integrations/openai.js";
 import { convertSimilarityToPercentage, preprocessText, sortDirection } from "../utils/text.js";
+import { createStages } from "./aiConfig.js";
+import { canTakeAssessment, getAssessmentRetryDate, processNextStage } from "./applicationStage.js";
 
 const jobRepo = () => AppDataSource.getRepository(Job);
 
@@ -484,6 +486,14 @@ export const gradeCv = async (
     throw new ValidationError("You have to apply for this job before proceeding");
   }
 
+  if (application.currentStage !== ScreeningStage.CvSimilarity) {
+    throw new ValidationError("This stage is not currently active for this application");
+  }
+
+  if (!canTakeAssessment(application.assessmentRetryDate)) {
+    throw new AuthorizationError("Sorry, you cannot take this assessment at the moment");
+  }
+
   const aiConfig = job.aiConfig;
   if (!aiConfig) {
     throw new NotFoundError("AI configuration for job not found");
@@ -511,7 +521,6 @@ export const gradeCv = async (
 
   application.cvSimilarityScore = cvSimilarityScore;
 
-  const stages = aiConfig.stages ?? {};
   const minScore = aiConfig.minCvSimilarityScore ?? 0;
 
   if (cvSimilarityScore < minScore) {
@@ -519,26 +528,14 @@ export const gradeCv = async (
     application.status = ApplicationStatus.RetakeAssessment;
     application.assessmentRetryDate = getAssessmentRetryDate();
   } else {
-    // Process next stage
-    const nextStage = stages[ScreeningStage.CvSimilarity];
-    if (nextStage) {
-      application.currentStage = nextStage as Application["currentStage"];
-      if (nextStage === ScreeningStage.Completed) {
-        application.status = ApplicationStatus.Shortlisted;
-      } else {
-        application.status = ApplicationStatus.Pending;
-      }
+    const user = await userRepo().findOne({ where: { id: userId } });
+    if (user) {
+      application = await processNextStage(user, application, ScreeningStage.CvSimilarity);
     }
   }
 
   application = await applicationRepo().save(application);
   return { cvSimilarityScore, application };
-};
-
-const getAssessmentRetryDate = (days = 7): Date => {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d;
 };
 
 export interface JobApplicationsParams {
@@ -644,28 +641,17 @@ export const apply = async (user: User, payload: ApplyPayload): Promise<Applicat
     return existingApp;
   }
 
-  // Use explicit null/undefined check — score of 0 is a valid result and must not block application
-  if (user.prescreeningScore === null || user.prescreeningScore === undefined) {
-    throw new ValidationError(
-      "You have to take the prescreening test before you can apply for a job"
-    );
-  }
-
-  if (user.prescreeningScore < (aiConfig.minPrescreeningScore ?? 0)) {
-    throw new AuthorizationError("Sorry your prescreening score is too low to proceed");
-  }
-
-  const stages = aiConfig.stages ?? {};
-  // First stage after prescreening
-  const firstNextStage = stages[ScreeningStage.Prescreening] ?? ScreeningStage.Prescreening;
+  // Application is created immediately on apply, regardless of assessment completion —
+  // every stage (including Pre-Assessment) is completed progressively afterward.
+  const { stages, entryStage } = createStages(aiConfig);
 
   const application = applicationRepo().create({
     talentId: user.id,
     jobId,
     applicationType: ApplicationType.Application,
-    stages: aiConfig.stages,
+    stages,
     recruiterId: job.postedById,
-    currentStage: firstNextStage as Application["currentStage"],
+    currentStage: entryStage as Application["currentStage"],
     status: ApplicationStatus.Pending,
   });
 
@@ -680,4 +666,41 @@ export const apply = async (user: User, payload: ApplyPayload): Promise<Applicat
     .execute();
 
   return saved;
+};
+
+// Called when a talent lands on an application currently parked at the (global,
+// job-agnostic) Prescreening stage — mirrors the CV-similarity auto-trigger pattern.
+// Idempotent no-op if the application isn't at that stage yet, or the talent hasn't
+// completed the global Pre-Assessment yet.
+export const checkPrescreeningAdvance = async (
+  userId: string,
+  jobId: string
+): Promise<Application> => {
+  const application = await applicationRepo().findOne({ where: { jobId, talentId: userId } });
+  if (!application) {
+    throw new NotFoundError("Job application not found");
+  }
+
+  if (application.currentStage !== ScreeningStage.Prescreening) {
+    return application;
+  }
+
+  const user = await userRepo().findOne({ where: { id: userId } });
+  if (!user || user.prescreeningScore === null || user.prescreeningScore === undefined) {
+    return application;
+  }
+
+  const job = await jobRepo().findOne({ where: { id: jobId }, relations: { aiConfig: true } });
+  const minScore = job?.aiConfig?.minPrescreeningScore ?? 0;
+
+  let updated: Application;
+  if (user.prescreeningScore < minScore) {
+    application.status = ApplicationStatus.RetakeAssessment;
+    application.assessmentRetryDate = getAssessmentRetryDate();
+    updated = application;
+  } else {
+    updated = await processNextStage(user, application, ScreeningStage.Prescreening);
+  }
+
+  return applicationRepo().save(updated);
 };
