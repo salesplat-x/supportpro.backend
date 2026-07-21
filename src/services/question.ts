@@ -264,9 +264,14 @@ export const generatePersonalityQuestion = async (
   if (existingCount === 0) {
     const countField = DICHOTOMY_COUNT_FIELD[dichotomyPair];
     const configuredCount = countField
-      ? (jobForPersonality.aiConfig?.[countField] as number | undefined)
+      ? (jobForPersonality.aiConfig?.[countField] as number | null | undefined)
       : undefined;
-    count = configuredCount ?? 3;
+    if (configuredCount == null) {
+      throw new ValidationError(
+        `No question count configured for dichotomy pair "${dichotomyPair}"`
+      );
+    }
+    count = configuredCount;
   }
 
   const response = await AI.getPersonalityEvaluationQuestion(

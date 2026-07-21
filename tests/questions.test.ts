@@ -353,6 +353,24 @@ describe("POST /v1/questions/personality — generate personality question", () 
       .send({ jobId: "some-id", dichotomyPair: "XX" });
     expect(res.status).toBe(400);
   });
+
+  it("No question count configured for the dichotomy pair → 400", async () => {
+    const { user: recruiter, token: recruiterToken } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const aiConfig = await createAIConfig(recruiter, {
+      personalityEvaluation: true,
+      noOfEIQuestions: null,
+    });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
+
+    const res = await request(app)
+      .post("/v1/questions/personality")
+      .set("Authorization", `Bearer ${recruiterToken}`)
+      .send({ jobId: job.id, dichotomyPair: "EI" });
+
+    expect(res.status).toBe(400);
+  });
 });
 
 // ---------------------------------------------------------------------------

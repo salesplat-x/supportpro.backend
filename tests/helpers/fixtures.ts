@@ -150,6 +150,10 @@ export async function createAIConfig(
     personalizedAssessment: true,
     noPersonalizedQuestions: 2,
     personalityEvaluation: true,
+    noOfEIQuestions: 3,
+    noOfSNQuestions: 3,
+    noOfTFQuestions: 3,
+    noOfJPQuestions: 3,
     stages: {
       prescreening: "cv_similarity",
       cv_similarity: "personalized",

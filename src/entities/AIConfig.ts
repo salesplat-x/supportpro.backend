@@ -62,17 +62,17 @@ export class AIConfig {
   @Column({ default: true })
   personalityEvaluation!: boolean;
 
-  @Column({ type: "int", default: 3 })
-  noOfEIQuestions!: number;
+  @Column({ type: "int", nullable: true, default: null })
+  noOfEIQuestions!: number | null;
 
-  @Column({ type: "int", default: 3 })
-  noOfSNQuestions!: number;
+  @Column({ type: "int", nullable: true, default: null })
+  noOfSNQuestions!: number | null;
 
-  @Column({ type: "int", default: 3 })
-  noOfTFQuestions!: number;
+  @Column({ type: "int", nullable: true, default: null })
+  noOfTFQuestions!: number | null;
 
-  @Column({ type: "int", default: 3 })
-  noOfJPQuestions!: number;
+  @Column({ type: "int", nullable: true, default: null })
+  noOfJPQuestions!: number | null;
 
   @Column({ type: "jsonb", nullable: true, default: null })
   stages!: Record<string, string> | null;
