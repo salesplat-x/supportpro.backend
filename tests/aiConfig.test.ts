@@ -40,6 +40,7 @@ const baseConfigBody = {
   personalizedAssessment: true,
   noPersonalizedQuestions: 2,
   personalityEvaluation: true,
+  noOfEIQuestions: 3,
 };
 
 // ---------------------------------------------------------------------------
