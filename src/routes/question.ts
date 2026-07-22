@@ -62,5 +62,11 @@ router.post(
   asyncHandler(question.answerPersonalizedQuestions)
 );
 router.get("/:_id", validate(questionIdParamValidator), asyncHandler(question.fetch));
+router.delete(
+  "/:_id",
+  validateAccess([UserRole.Recruiter]),
+  validate(questionIdParamValidator),
+  asyncHandler(question.deleteQuestion)
+);
 
 export default (app: Router) => app.use("/questions", router);

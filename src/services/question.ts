@@ -140,6 +140,21 @@ export const fetchQuestion = async (questionId: string): Promise<Question> => {
   return question;
 };
 
+export const deleteQuestion = async (userId: string, questionId: string): Promise<void> => {
+  const question = await questionRepo().findOne({
+    where: { id: questionId },
+    relations: { job: true },
+  });
+  if (!question) {
+    throw new NotFoundError("Question not found");
+  }
+  if (!question.job || question.job.postedById !== userId) {
+    throw new AuthorizationError("You are not authorized to perform this action");
+  }
+
+  await questionRepo().remove(question);
+};
+
 export interface GeneratePersonalizedQuestionsPayload {
   jobId: string;
   talentId: string;
