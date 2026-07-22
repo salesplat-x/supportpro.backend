@@ -3,24 +3,37 @@ import { idParam } from "./shared.js";
 
 const blankToUndefined = (value: unknown) => (value === "" || value === null ? undefined : value);
 
-// Each MBTI dichotomy pair's question count has no default and no upper
-// cap (any positive integer) but becomes required once personalityEvaluation
-// is enabled, so requiredness is checked against the sibling field rather
-// than a static rule.
+const dichotomyPairFields = [
+  "noOfEIQuestions",
+  "noOfSNQuestions",
+  "noOfTFQuestions",
+  "noOfJPQuestions",
+] as const;
+
+// Each MBTI dichotomy pair's question count has no default and no upper cap
+// (any positive integer), and none of them is individually required — but
+// once personalityEvaluation is enabled, at least one of the four pairs must
+// have a question count set (see atLeastOneDichotomyPairValidator below).
 const personalityCountValidator = (field: string) =>
-  body(field)
-    .customSanitizer(blankToUndefined)
-    .custom((value, { req }) => {
-      const enabled =
-        req.body.personalityEvaluation === true || req.body.personalityEvaluation === "true";
-      if (enabled && (value === undefined || value === null)) {
-        throw new Error(`${field} is required when personalityEvaluation is enabled`);
-      }
-      return true;
-    })
-    .optional()
-    .isInt({ min: 1 })
-    .toInt();
+  body(field).customSanitizer(blankToUndefined).optional().isInt({ min: 1 }).toInt();
+
+const atLeastOneDichotomyPairValidator = body("personalityEvaluation").custom((_value, { req }) => {
+  const enabled =
+    req.body.personalityEvaluation === true || req.body.personalityEvaluation === "true";
+  if (!enabled) return true;
+
+  const hasAtLeastOne = dichotomyPairFields.some((field) => {
+    const value = blankToUndefined(req.body[field]);
+    return value !== undefined;
+  });
+
+  if (!hasAtLeastOne) {
+    throw new Error(
+      "At least one dichotomy pair (EI, SN, TF, JP) question count is required when personalityEvaluation is enabled"
+    );
+  }
+  return true;
+});
 
 export const createAIConfigValidator = [
   body("name").optional().trim(),
@@ -36,6 +49,7 @@ export const createAIConfigValidator = [
   personalityCountValidator("noOfSNQuestions"),
   personalityCountValidator("noOfTFQuestions"),
   personalityCountValidator("noOfJPQuestions"),
+  atLeastOneDichotomyPairValidator,
   body("uploadedQuestions").optional().isArray(),
   body("uploadedQuestions.*").optional().isString(),
   body("recruiterGuide").optional().isString(),
@@ -56,7 +70,9 @@ export const updateAIConfigValidator = [
   personalityCountValidator("noOfSNQuestions"),
   personalityCountValidator("noOfTFQuestions"),
   personalityCountValidator("noOfJPQuestions"),
-  body("uploadedQuestions").optional().isString(),
+  atLeastOneDichotomyPairValidator,
+  body("uploadedQuestions").optional().isArray(),
+  body("uploadedQuestions.*").optional().isString(),
   body("recruiterGuide").optional().isString(),
 ];
 
