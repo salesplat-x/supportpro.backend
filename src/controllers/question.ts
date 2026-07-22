@@ -45,3 +45,8 @@ export const evaluatePersonalityType = async (req: Request, res: Response) => {
   const result = await answerService.evaluatePersonalityType(req.user.id, req.body);
   sendSuccessResponse(res, "Personality evaluated", result);
 };
+
+export const deleteQuestion = async (req: Request, res: Response) => {
+  await questionService.deleteQuestion(req.user.id, req.params["_id"]!);
+  sendSuccessResponse(res, "Question deleted", {});
+};
