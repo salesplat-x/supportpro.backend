@@ -192,13 +192,6 @@ export const answerPersonalizedQuestions = async (
     throw new ValidationError("This stage is not currently active for this application");
   }
 
-  if (!canTakeAssessment(application.assessmentRetryDate)) {
-    const days = calculateTimeLeft(application.assessmentRetryDate!);
-    throw new AuthorizationError(
-      `Sorry, you cannot take this assessment at the moment, retry ${days}`
-    );
-  }
-
   const aiConfig = job.aiConfig;
   if (!aiConfig) {
     throw new NotFoundError("AI configuration for job not found");
@@ -247,17 +240,21 @@ export const answerPersonalizedQuestions = async (
   const scorePercent = Number(((totalScore / maxScore) * 100).toFixed(2));
 
   application.personalizedScore = scorePercent;
+  application.personalizedAttempts = (application.personalizedAttempts ?? 0) + 1;
 
   const minScore = aiConfig.minPrescreeningScore ?? 0;
-  if (scorePercent < minScore) {
-    application.currentStage = ScreeningStage.Personalized;
-    application.status = ApplicationStatus.RetakeAssessment;
-    application.assessmentRetryDate = getAssessmentRetryDate();
-  } else {
+  const MAX_ATTEMPTS = 2; // 1 initial + 1 retry
+  const passed = scorePercent >= minScore;
+  const attemptsExhausted = application.personalizedAttempts >= MAX_ATTEMPTS;
+
+  if (passed || attemptsExhausted) {
     const user = await userRepo().findOne({ where: { id: userId } });
     if (user) {
       application = await processNextStage(user, application, ScreeningStage.Personalized);
     }
+  } else {
+    application.currentStage = ScreeningStage.Personalized;
+    application.status = ApplicationStatus.RetakeAssessment;
   }
 
   application = await applicationRepo().save(application);
@@ -301,13 +298,6 @@ export const evaluatePersonalityType = async (
 
   if (application.currentStage !== ScreeningStage.Personality) {
     throw new ValidationError("This stage is not currently active for this application");
-  }
-
-  if (!canTakeAssessment(application.assessmentRetryDate)) {
-    const days = calculateTimeLeft(application.assessmentRetryDate!);
-    throw new AuthorizationError(
-      `Sorry, you cannot take this assessment at the moment, retry ${days}`
-    );
   }
 
   const aiConfig = job.aiConfig;
@@ -359,7 +349,6 @@ export const evaluatePersonalityType = async (
 
   await saveOrUpdateAnswer({ userId, jobId, questionType: QuestionType.Personality }, responses);
 
-  application.assessmentRetryDate = getAssessmentRetryDate();
   const user = await userRepo().findOne({ where: { id: userId } });
   if (user) {
     application = await processNextStage(user, application, ScreeningStage.Personality);

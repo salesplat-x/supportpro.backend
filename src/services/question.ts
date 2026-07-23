@@ -71,13 +71,6 @@ export const fetchQuestions = async (
       throw new NotFoundError("Application record not found");
     }
 
-    if (!canTakeAssessment(application.assessmentRetryDate)) {
-      const days = calculateTimeLeft(application.assessmentRetryDate!);
-      throw new AuthorizationError(
-        `Sorry, you cannot take this assessment at the moment, retry ${days}`
-      );
-    }
-
     const questionIds = application.personalizedQuestions ?? [];
     if (questionIds.length === 0) return [];
 

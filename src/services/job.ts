@@ -22,7 +22,7 @@ import {
 import { createEmbedding } from "../utils/integrations/openai.js";
 import { convertSimilarityToPercentage, preprocessText, sortDirection } from "../utils/text.js";
 import { createStages } from "./aiConfig.js";
-import { canTakeAssessment, getAssessmentRetryDate, processNextStage } from "./applicationStage.js";
+import { getAssessmentRetryDate, processNextStage } from "./applicationStage.js";
 
 const jobRepo = () => AppDataSource.getRepository(Job);
 
@@ -527,10 +527,6 @@ export const gradeCv = async (
     throw new ValidationError("This stage is not currently active for this application");
   }
 
-  if (!canTakeAssessment(application.assessmentRetryDate)) {
-    throw new AuthorizationError("Sorry, you cannot take this assessment at the moment");
-  }
-
   const aiConfig = job.aiConfig;
   if (!aiConfig) {
     throw new NotFoundError("AI configuration for job not found");
@@ -557,18 +553,21 @@ export const gradeCv = async (
   const cvSimilarityScore = convertSimilarityToPercentage(rawScore);
 
   application.cvSimilarityScore = cvSimilarityScore;
+  application.cvSimilarityAttempts = (application.cvSimilarityAttempts ?? 0) + 1;
 
   const minScore = aiConfig.minCvSimilarityScore ?? 0;
+  const MAX_ATTEMPTS = 2; // 1 initial + 1 retry
+  const passed = cvSimilarityScore >= minScore;
+  const attemptsExhausted = application.cvSimilarityAttempts >= MAX_ATTEMPTS;
 
-  if (cvSimilarityScore < minScore) {
-    application.currentStage = ScreeningStage.CvSimilarity;
-    application.status = ApplicationStatus.RetakeAssessment;
-    application.assessmentRetryDate = getAssessmentRetryDate();
-  } else {
+  if (passed || attemptsExhausted) {
     const user = await userRepo().findOne({ where: { id: userId } });
     if (user) {
       application = await processNextStage(user, application, ScreeningStage.CvSimilarity);
     }
+  } else {
+    application.currentStage = ScreeningStage.CvSimilarity;
+    application.status = ApplicationStatus.RetakeAssessment;
   }
 
   application = await applicationRepo().save(application);

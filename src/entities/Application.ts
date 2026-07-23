@@ -68,6 +68,12 @@ export class Application {
   @Column({ type: "float", nullable: true, default: null })
   cvSimilarityScore!: number | null;
 
+  @Column({ type: "int", default: 0 })
+  cvSimilarityAttempts!: number;
+
+  @Column({ type: "int", default: 0 })
+  personalizedAttempts!: number;
+
   @Column({ type: "float", nullable: true, default: null })
   rank!: number | null;
 
