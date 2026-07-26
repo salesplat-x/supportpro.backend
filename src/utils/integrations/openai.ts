@@ -308,6 +308,41 @@ export const assessCV = async (
   return completion.choices[0];
 };
 
+export interface MatchVerdictContext {
+  jobDescription: string;
+  recruiterGuide?: string;
+  cvSimilarityScore: number | null;
+  personalizedScore: number | null;
+  prescreeningScore: number | null;
+  mbtiType: string | null;
+}
+
+export const assessApplicationMatch = async (
+  context: MatchVerdictContext
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const system = `You are a senior hiring panel member giving a recruiter a second opinion.
+
+  You will receive a JSON object describing a candidate's scores across a hiring pipeline (CV match, personalized test, pre-screening, personality type) along with the job's description and, if provided, the recruiter's guide.
+
+  Weigh the scores holistically and classify the candidate as a "high", "medium", or "low" match for this role, then explain your reasoning in 2-4 sentences so the recruiter understands why. This is a decision aid — the recruiter makes the final call, not you.
+
+  Output JSON:
+  {
+    "verdict": "high" | "medium" | "low",
+    "reasoning": "<2-4 sentences explaining the verdict>"
+  }`;
+
+  const completion = await runCompletion({
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: JSON.stringify(context) },
+    ],
+    model: "gpt-4o",
+    response_format: { type: "json_object" },
+  });
+  return completion.choices[0];
+};
+
 export interface PreScreeningProfileContext {
   bio?: string;
   roles: string[];

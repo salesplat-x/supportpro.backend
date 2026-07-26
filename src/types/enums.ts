@@ -50,8 +50,15 @@ export enum ApplicationStatus {
   Pending = "pending",
   RetakeAssessment = "retake_assessment",
   NotProceeding = "not_proceeding",
+  AwaitingDecision = "awaiting_decision",
   Shortlisted = "shortlisted",
   Rejected = "rejected",
+}
+
+export enum MatchVerdict {
+  High = "high",
+  Medium = "medium",
+  Low = "low",
 }
 
 export enum ScreeningStage {

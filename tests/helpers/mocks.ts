@@ -94,6 +94,15 @@ export const openaiMocks = {
       content: JSON.stringify({ rank: 1, explanation: "Top candidate" }),
     },
   }),
+
+  assessApplicationMatch: jest.fn().mockResolvedValue({
+    message: {
+      content: JSON.stringify({
+        verdict: "high",
+        reasoning: "Strong CV match and consistent scores across the pipeline.",
+      }),
+    },
+  }),
 };
 
 export const paystackMocks = {
