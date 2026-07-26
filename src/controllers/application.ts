@@ -23,3 +23,8 @@ export const updateStatus = async (req: Request, res: Response) => {
   });
   sendSuccessResponse(res, "Application status updated", { application: result });
 };
+
+export const bulkUpdateStatus = async (req: Request, res: Response) => {
+  const result = await applicationService.bulkUpdateStatus(req.user.id, req.body);
+  sendSuccessResponse(res, "Application statuses updated", result);
+};
