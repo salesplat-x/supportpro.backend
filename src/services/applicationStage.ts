@@ -49,7 +49,10 @@ export const rankApplication = async (talent: User, application: Application): P
 // missing/unparsable LLM response) are logged and swallowed rather than surfaced
 // to the talent. Exported `async` (rather than void-returning) so tests can await
 // it directly instead of racing the fire-and-forget call.
-export const triggerMatchVerdict = async (talent: User, application: Application): Promise<void> => {
+export const triggerMatchVerdict = async (
+  talent: User,
+  application: Application
+): Promise<void> => {
   try {
     const job = await jobRepo().findOne({
       where: { id: application.jobId },

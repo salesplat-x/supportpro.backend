@@ -10,7 +10,13 @@ import {
   clearAllTables,
   testDataSource,
 } from "./helpers/db.js";
-import { createTalent, createRecruiter, createRole, createJob, createApplication } from "./helpers/fixtures.js";
+import {
+  createTalent,
+  createRecruiter,
+  createRole,
+  createJob,
+  createApplication,
+} from "./helpers/fixtures.js";
 import { Application } from "../src/entities/Application.js";
 import { ApplicationStatus, ScreeningStage, MatchVerdict } from "../src/types/enums.js";
 import { assessApplicationMatch } from "../src/utils/integrations/openai.js";
@@ -103,9 +109,9 @@ describe("processNextStage — reaching Completed no longer auto-shortlists", ()
     const job = await createJob(recruiter, role);
     const application = await createApplication(talent, job, { stages: {} });
 
-    await expect(processNextStage(talent, application, ScreeningStage.Prescreening)).rejects.toThrow(
-      "Next stage not found"
-    );
+    await expect(
+      processNextStage(talent, application, ScreeningStage.Prescreening)
+    ).rejects.toThrow("Next stage not found");
   });
 });
 

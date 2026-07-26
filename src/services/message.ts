@@ -1,3 +1,4 @@
+import { In } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { Message } from "../entities/Message.js";
 import { Conversation } from "../entities/Conversation.js";
@@ -136,9 +137,9 @@ export const acknowledge = async (
 
 export const broadcastMessage = async (
   senderId: string,
-  payload: { application: string; content: string }
+  payload: { application: string; content: string; talentIds?: string[] }
 ): Promise<{ content: string }> => {
-  const { application, content } = payload;
+  const { application, content, talentIds } = payload;
 
   const targetApplication = await applicationRepo().findOne({ where: { id: application } });
   if (!targetApplication) {
@@ -153,9 +154,12 @@ export const broadcastMessage = async (
     throw new NotFoundError("Sender not found");
   }
 
-  // Get all applications for the same job
+  // All applicants for the job, or — when the recruiter selected a subset via
+  // the bulk-actions UI — just those talents (item 5).
   const applications = await applicationRepo().find({
-    where: { jobId: targetApplication.jobId },
+    where: talentIds?.length
+      ? { jobId: targetApplication.jobId, talentId: In(talentIds) }
+      : { jobId: targetApplication.jobId },
     relations: { talent: true },
   });
 
@@ -204,6 +208,72 @@ export const getMessages = async (
   ]);
 
   return { messages, unReadCount };
+};
+
+export interface ChatSessionThread {
+  applicationId: string;
+  talentId: string;
+  talentName: string;
+  lastMessageAt: Date;
+  unreadCount: number;
+}
+
+export interface ChatSessionGroup {
+  jobId: string;
+  jobTitle: string;
+  threads: ChatSessionThread[];
+}
+
+// `Message` has no `jobId` column — only reachable via `message.application.jobId` —
+// so this walks the joined rows once (ordered newest-first) and groups them in JS
+// rather than attempting a raw SQL GROUP BY across three joined tables (item 8).
+export const getRecruiterChatSessions = async (
+  recruiterId: string
+): Promise<ChatSessionGroup[]> => {
+  const messages = await messageRepo()
+    .createQueryBuilder("message")
+    .innerJoinAndSelect("message.application", "application")
+    .innerJoinAndSelect("application.job", "job")
+    .innerJoinAndSelect("application.talent", "talent")
+    .where("application.recruiterId = :recruiterId", { recruiterId })
+    .andWhere("(message.senderId = :recruiterId OR message.recipientId = :recruiterId)", {
+      recruiterId,
+    })
+    .orderBy("message.createdAt", "DESC")
+    .getMany();
+
+  const groupsByJobId = new Map<string, ChatSessionGroup>();
+  const threadsByApplicationId = new Map<string, ChatSessionThread>();
+
+  for (const message of messages) {
+    const application = message.application;
+    if (!application?.job || !application.talent) continue;
+
+    let thread = threadsByApplicationId.get(application.id);
+    if (!thread) {
+      thread = {
+        applicationId: application.id,
+        talentId: application.talentId,
+        talentName: `${application.talent.firstName} ${application.talent.lastName}`.trim(),
+        lastMessageAt: message.createdAt,
+        unreadCount: 0,
+      };
+      threadsByApplicationId.set(application.id, thread);
+
+      let group = groupsByJobId.get(application.job.id);
+      if (!group) {
+        group = { jobId: application.job.id, jobTitle: application.job.jobBrief, threads: [] };
+        groupsByJobId.set(application.job.id, group);
+      }
+      group.threads.push(thread);
+    }
+
+    if (message.recipientId === recruiterId && !message.isRead) {
+      thread.unreadCount += 1;
+    }
+  }
+
+  return Array.from(groupsByJobId.values());
 };
 
 export const getMessage = async (userId: string, messageId: string): Promise<Message> => {

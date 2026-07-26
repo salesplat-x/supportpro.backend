@@ -350,7 +350,9 @@ describe("PATCH /v1/applications/status — bulk shortlist/reject (Recruiter onl
     expect(res.status).toBe(200);
     expect(res.body.data.updated).toBe(1);
 
-    const own = await testDataSource.getRepository(Application).findOne({ where: { id: ownApp.id } });
+    const own = await testDataSource
+      .getRepository(Application)
+      .findOne({ where: { id: ownApp.id } });
     const other = await testDataSource
       .getRepository(Application)
       .findOne({ where: { id: otherApp.id } });

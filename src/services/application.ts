@@ -130,7 +130,10 @@ export const updateStatus = async (
 // is the expected outcome, not an error condition.
 export const bulkUpdateStatus = async (
   userId: string,
-  payload: { applicationIds: string[]; status: ApplicationStatus.Rejected | ApplicationStatus.Shortlisted }
+  payload: {
+    applicationIds: string[];
+    status: ApplicationStatus.Rejected | ApplicationStatus.Shortlisted;
+  }
 ): Promise<{ updated: number }> => {
   const applications = await applicationRepo().find({
     where: { id: In(payload.applicationIds) },
