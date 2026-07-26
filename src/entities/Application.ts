@@ -8,7 +8,7 @@ import {
   UpdateDateColumn,
   Index,
 } from "typeorm";
-import { ApplicationType, ApplicationStatus, ScreeningStage } from "../types/enums.js";
+import { ApplicationType, ApplicationStatus, ScreeningStage, MatchVerdict } from "../types/enums.js";
 import type { Job } from "./Job.js";
 import type { User } from "./User.js";
 import type { Role } from "./Role.js";
@@ -85,6 +85,12 @@ export class Application {
 
   @Column({ type: "jsonb", nullable: true, default: null })
   stages!: Record<string, string> | null;
+
+  @Column({ type: "enum", enum: MatchVerdict, nullable: true, default: null })
+  matchVerdict!: MatchVerdict | null;
+
+  @Column({ type: "text", nullable: true, default: null })
+  matchVerdictReasoning!: string | null;
 
   @Column({ type: "timestamp", nullable: true, default: null })
   assessmentRetryDate!: Date | null;
