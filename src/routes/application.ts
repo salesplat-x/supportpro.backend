@@ -8,6 +8,7 @@ import {
   getApplicationsQueryValidator,
   applicationIdParamValidator,
   updateApplicationStatusValidator,
+  bulkUpdateApplicationStatusValidator,
 } from "../validators/application.js";
 
 const router = Router();
@@ -23,6 +24,12 @@ router.get(
   loginRequired,
   validate(applicationIdParamValidator),
   asyncHandler(application.getApplication)
+);
+router.patch(
+  "/status",
+  validateAccess([UserRole.Recruiter]),
+  validate(bulkUpdateApplicationStatusValidator),
+  asyncHandler(application.bulkUpdateStatus)
 );
 router.patch(
   "/:_id/status",

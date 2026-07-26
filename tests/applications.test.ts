@@ -3,6 +3,7 @@
  */
 
 import request from "supertest";
+import { In } from "typeorm";
 import { createApp } from "../src/app.js";
 import {
   startTestDatabase,
@@ -20,6 +21,7 @@ import {
 } from "./helpers/fixtures.js";
 import { Application } from "../src/entities/Application.js";
 import { Job } from "../src/entities/Job.js";
+import { Notification } from "../src/entities/Notification.js";
 import { ApplicationStatus, ScreeningStage } from "../src/types/enums.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
@@ -235,6 +237,44 @@ describe("PATCH /v1/applications/:_id/status — update status (Recruiter only)"
     expect(res.status).toBe(404);
   });
 
+  it("item 9: shortlisting sends the talent a congratulatory in-app notification", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const app_ = await createApplication(talent, job);
+
+    await request(app)
+      .patch(`/v1/applications/${app_.id}/status`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: ApplicationStatus.Shortlisted });
+
+    const notifications = await testDataSource
+      .getRepository(Notification)
+      .find({ where: { userId: talent.id } });
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]?.message).toContain("shortlisted");
+  });
+
+  it("item 9: rejecting sends the talent a reassuring in-app notification", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const app_ = await createApplication(talent, job);
+
+    await request(app)
+      .patch(`/v1/applications/${app_.id}/status`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: ApplicationStatus.Rejected });
+
+    const notifications = await testDataSource
+      .getRepository(Notification)
+      .find({ where: { userId: talent.id } });
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]?.message).toContain("dream job");
+  });
+
   it("ISSUE-006: service-level check allows talent (defence-in-depth gap documented)", async () => {
     // This test verifies that the route guard is the ONLY protection for talents.
     // The updateStatus service function itself allows talent (application.talentId === userId).
@@ -255,6 +295,105 @@ describe("PATCH /v1/applications/:_id/status — update status (Recruiter only)"
     // Service-level: talent CAN update because talentId === userId (ISSUE-006)
     expect(updated.status).toBe(ApplicationStatus.Shortlisted);
     // Fix: updateStatus should require userRole === Recruiter/Admin
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /v1/applications/status — bulk update (item 5)
+// ---------------------------------------------------------------------------
+
+describe("PATCH /v1/applications/status — bulk shortlist/reject (Recruiter only)", () => {
+  it("updates every selected application and notifies each talent", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { user: talentA } = await createTalent();
+    const { user: talentB } = await createTalent();
+    const appA = await createApplication(talentA, job);
+    const appB = await createApplication(talentB, job);
+
+    const res = await request(app)
+      .patch("/v1/applications/status")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ applicationIds: [appA.id, appB.id], status: ApplicationStatus.Shortlisted });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.updated).toBe(2);
+
+    const reloaded = await testDataSource
+      .getRepository(Application)
+      .find({ where: { id: In([appA.id, appB.id]) } });
+    expect(reloaded.every((a) => a.status === ApplicationStatus.Shortlisted)).toBe(true);
+
+    const notifications = await testDataSource.getRepository(Notification).find({
+      where: { userId: In([talentA.id, talentB.id]) },
+    });
+    expect(notifications).toHaveLength(2);
+  });
+
+  it("silently skips applications the caller doesn't own (partial success)", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const { user: otherRecruiter } = await createRecruiter();
+    const role = await createRole();
+    const ownJob = await createJob(recruiter, role);
+    const otherJob = await createJob(otherRecruiter, role);
+    const { user: talentA } = await createTalent();
+    const { user: talentB } = await createTalent();
+    const ownApp = await createApplication(talentA, ownJob);
+    const otherApp = await createApplication(talentB, otherJob);
+
+    const res = await request(app)
+      .patch("/v1/applications/status")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ applicationIds: [ownApp.id, otherApp.id], status: ApplicationStatus.Rejected });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.updated).toBe(1);
+
+    const own = await testDataSource.getRepository(Application).findOne({ where: { id: ownApp.id } });
+    const other = await testDataSource
+      .getRepository(Application)
+      .findOne({ where: { id: otherApp.id } });
+    expect(own?.status).toBe(ApplicationStatus.Rejected);
+    expect(other?.status).not.toBe(ApplicationStatus.Rejected);
+  });
+
+  it("404s when none of the applications are owned by the caller", async () => {
+    const { user: otherRecruiter } = await createRecruiter();
+    const { token } = await createRecruiter();
+    const role = await createRole();
+    const otherJob = await createJob(otherRecruiter, role);
+    const { user: talent } = await createTalent();
+    const otherApp = await createApplication(talent, otherJob);
+
+    const res = await request(app)
+      .patch("/v1/applications/status")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ applicationIds: [otherApp.id], status: ApplicationStatus.Rejected });
+
+    expect(res.status).toBe(404);
+  });
+
+  it("Talent cannot call the bulk endpoint → 403", async () => {
+    const { token: talentToken } = await createTalent();
+
+    const res = await request(app)
+      .patch("/v1/applications/status")
+      .set("Authorization", `Bearer ${talentToken}`)
+      .send({ applicationIds: ["some-id"], status: ApplicationStatus.Rejected });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("rejects an empty applicationIds array", async () => {
+    const { token } = await createRecruiter();
+
+    const res = await request(app)
+      .patch("/v1/applications/status")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ applicationIds: [], status: ApplicationStatus.Rejected });
+
+    expect(res.status).toBe(400);
   });
 });
 

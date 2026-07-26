@@ -30,3 +30,15 @@ export const updateApplicationStatusValidator = [
       `status must be one of: ${ApplicationStatus.Rejected}, ${ApplicationStatus.Shortlisted}`
     ),
 ];
+
+export const bulkUpdateApplicationStatusValidator = [
+  body("applicationIds")
+    .isArray({ min: 1 })
+    .withMessage("applicationIds must be a non-empty array"),
+  body("applicationIds.*").isString(),
+  body("status")
+    .isIn([ApplicationStatus.Rejected, ApplicationStatus.Shortlisted])
+    .withMessage(
+      `status must be one of: ${ApplicationStatus.Rejected}, ${ApplicationStatus.Shortlisted}`
+    ),
+];

@@ -1,7 +1,14 @@
+import { In } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { Application } from "../entities/Application.js";
+import { Notification } from "../entities/Notification.js";
 import { NotFoundError, AuthorizationError } from "../utils/errors";
 import { UserRole, ApplicationType, ApplicationStatus, ScreeningStage } from "../types/enums.js";
+import { createNotification } from "./notification.js";
+import { decisionNotificationMessage } from "./applicationNotifications.js";
+import logger from "../utils/logger.js";
+
+const notificationRepo = () => AppDataSource.getRepository(Notification);
 
 const applicationRepo = () => AppDataSource.getRepository(Application);
 
@@ -95,5 +102,59 @@ export const updateStatus = async (
   }
 
   application.status = payload.status;
-  return applicationRepo().save(application);
+  const saved = await applicationRepo().save(application);
+
+  if (
+    payload.status === ApplicationStatus.Rejected ||
+    payload.status === ApplicationStatus.Shortlisted
+  ) {
+    // A single-row insert with no external dependency — cheap enough to await
+    // directly (unlike the AI verdict/bulk fan-outs, which are fire-and-forget
+    // because they're slow or high-volume). A failure here must never fail the
+    // status update itself, so it's caught and logged rather than rethrown.
+    try {
+      await createNotification(application.talentId, decisionNotificationMessage(payload.status));
+    } catch (err) {
+      logger.error(
+        `Decision notification failed for application ${application.id}: ${(err as Error).message}`
+      );
+    }
+  }
+
+  return saved;
+};
+
+// Applications the caller doesn't own are silently skipped rather than failing
+// the whole batch — a recruiter selecting rows from their own job list can never
+// pass in someone else's application ID by mistake, so a partial-success result
+// is the expected outcome, not an error condition.
+export const bulkUpdateStatus = async (
+  userId: string,
+  payload: { applicationIds: string[]; status: ApplicationStatus.Rejected | ApplicationStatus.Shortlisted }
+): Promise<{ updated: number }> => {
+  const applications = await applicationRepo().find({
+    where: { id: In(payload.applicationIds) },
+    relations: { job: true },
+  });
+
+  const owned = applications.filter((application) => application.job.postedById === userId);
+  if (owned.length === 0) {
+    throw new NotFoundError("No applications found");
+  }
+
+  for (const application of owned) {
+    application.status = payload.status;
+  }
+  await applicationRepo().save(owned);
+
+  const message = decisionNotificationMessage(payload.status);
+  const notifications = owned.map((application) =>
+    notificationRepo().create({ userId: application.talentId, message })
+  );
+  const CHUNK = 500;
+  for (let i = 0; i < notifications.length; i += CHUNK) {
+    await notificationRepo().save(notifications.slice(i, i + CHUNK));
+  }
+
+  return { updated: owned.length };
 };
