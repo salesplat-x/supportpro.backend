@@ -10,6 +10,8 @@ export const sendMessageValidator = [
 export const broadcastMessageValidator = [
   body("application").notEmpty().withMessage("Application ID is required"),
   body("content").notEmpty().withMessage("Message content is required"),
+  body("talentIds").optional().isArray(),
+  body("talentIds.*").optional().isString(),
 ];
 
 export const acknowledgeMessageValidator = [

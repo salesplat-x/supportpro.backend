@@ -8,7 +8,12 @@ import {
   UpdateDateColumn,
   Index,
 } from "typeorm";
-import { ApplicationType, ApplicationStatus, ScreeningStage, MatchVerdict } from "../types/enums.js";
+import {
+  ApplicationType,
+  ApplicationStatus,
+  ScreeningStage,
+  MatchVerdict,
+} from "../types/enums.js";
 import type { Job } from "./Job.js";
 import type { User } from "./User.js";
 import type { Role } from "./Role.js";

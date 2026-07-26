@@ -29,3 +29,8 @@ export const getMessage = async (req: Request, res: Response) => {
   const result = await messageService.getMessage(req.user.id, req.params["id"]!);
   sendSuccessResponse(res, "Message fetched", { message: result });
 };
+
+export const getChatSessions = async (req: Request, res: Response) => {
+  const sessions = await messageService.getRecruiterChatSessions(req.user.id);
+  sendSuccessResponse(res, "Chat sessions fetched", { sessions });
+};
