@@ -9,7 +9,7 @@ import {
 import { User } from "../src/entities/User.js";
 import { JobStatus, UserRole } from "../src/types/enums.js";
 import { generateHashedPassword, signToken } from "../src/utils/crypto.js";
-import { createJob, createRole } from "./helpers/fixtures.js";
+import { createJob, createRole, createTalent, createApplication } from "./helpers/fixtures.js";
 
 jest.mock("../src/utils/integrations/openai.js", () => ({
   createEmbedding: jest.fn().mockResolvedValue([{ embedding: new Array(512).fill(0.1) }]),
@@ -250,5 +250,30 @@ describe("GET /v1/jobs/:_id anonymous access scoping", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.data.job.id).toBe(job.id);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /v1/jobs/applications/:jobId — item 6: the recruiter's "View Application"
+// link was built from a field the API never returns (`application.job`),
+// producing a `.../singleJobPost/undefined/<id>` URL. The real scalar `jobId`
+// column is always present — assert it's actually there.
+// ---------------------------------------------------------------------------
+describe("GET /v1/jobs/applications/:jobId — applicant list includes jobId", () => {
+  it("each returned application includes its jobId scalar", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { user: talent } = await createTalent();
+    await createApplication(talent, job);
+
+    const res = await request(app)
+      .get(`/v1/jobs/applications/${job.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const applications = res.body.data.applications;
+    expect(applications.length).toBeGreaterThan(0);
+    expect(applications.every((a: { jobId: string }) => a.jobId === job.id)).toBe(true);
   });
 });
