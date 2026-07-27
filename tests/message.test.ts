@@ -126,6 +126,32 @@ describe("POST /v1/messages/ — talents cannot send messages (item 8/10)", () =
   });
 });
 
+describe("GET /v1/messages/ — talent inbox", () => {
+  it("returns a message the recruiter sent, with a correct unread count (no 500)", async () => {
+    const { user: recruiter, token: recruiterToken } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { user: talent, token: talentToken } = await createTalent();
+    const application = await createApplication(talent, job, {
+      status: ApplicationStatus.Shortlisted,
+    });
+
+    await request(app)
+      .post("/v1/messages/")
+      .set("Authorization", `Bearer ${recruiterToken}`)
+      .send({ content: "You're shortlisted!", recipient: talent.id, application: application.id });
+
+    const res = await request(app)
+      .get("/v1/messages/")
+      .set("Authorization", `Bearer ${talentToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.messages).toHaveLength(1);
+    expect(res.body.data.messages[0].content).toBe("You're shortlisted!");
+    expect(res.body.data.unReadCount).toBe(1);
+  });
+});
+
 describe("GET /v1/messages/sessions — recruiter chat list grouped by job (item 8)", () => {
   it("groups threads by job and reports unread counts", async () => {
     const { user: recruiter, token } = await createRecruiter();

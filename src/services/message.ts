@@ -202,7 +202,7 @@ export const getMessages = async (
     qb.clone().orderBy("message.createdAt", order).skip(offset).take(limit).getMany(),
     qb
       .clone()
-      .andWhere("message.is_read = false")
+      .andWhere("message.isRead = false")
       .andWhere("message.recipient_id = :userId", { userId })
       .getCount(),
   ]);

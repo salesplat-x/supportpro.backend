@@ -23,9 +23,13 @@ async function run(): Promise<void> {
     relations: { talent: true },
   });
 
-  logger.info(`Verdict backfill: found ${applications.length} completed application(s) with no verdict`);
+  logger.info(
+    `Verdict backfill: found ${applications.length} completed application(s) with no verdict`
+  );
 
-  await Promise.all(applications.map((application) => triggerMatchVerdict(application.talent, application)));
+  await Promise.all(
+    applications.map((application) => triggerMatchVerdict(application.talent, application))
+  );
 
   const stillMissing = await applicationRepo.count({
     where: { currentStage: ScreeningStage.Completed, matchVerdict: IsNull() },
