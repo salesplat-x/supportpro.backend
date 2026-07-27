@@ -102,7 +102,7 @@ export const generatePersonalizedQuestions = async (
   ${jobDescription}
 
   Here is the talent's CV below,
-  ${cv}
+  ${cv.join("\n\n")}
 
   Here is the talent's bio below,
   ${bio}
