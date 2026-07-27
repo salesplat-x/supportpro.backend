@@ -221,7 +221,12 @@ export const generatePersonalizedQuestions = async (
     throw new ValidationError("Error with LLM");
   }
 
-  const questions: string[] = JSON.parse(response.message.content).questions;
+  let questions: string[];
+  try {
+    questions = JSON.parse(response.message.content).questions;
+  } catch {
+    throw new ValidationError("Error with LLM");
+  }
 
   const questionEntities = questions.map((q) =>
     questionRepo().create({
