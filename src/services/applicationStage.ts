@@ -4,7 +4,7 @@ import { AIConfig } from "../entities/AIConfig.js";
 import { Application } from "../entities/Application.js";
 import { Job } from "../entities/Job.js";
 import { User } from "../entities/User.js";
-import { ApplicationStatus, ScreeningStage } from "../types/enums.js";
+import { ApplicationStatus, ScreeningStage, MatchVerdict } from "../types/enums.js";
 import { ValidationError } from "../utils/errors";
 import { assessApplicationMatch } from "../utils/integrations/openai.js";
 import logger from "../utils/logger.js";
@@ -79,12 +79,23 @@ export const triggerMatchVerdict = async (
     }
 
     const parsed = JSON.parse(response.message.content) as {
-      verdict: Application["matchVerdict"];
+      verdict: string;
       reasoning: string;
     };
 
+    // The LLM is instructed to return exactly "high"/"medium"/"low", but nothing
+    // guarantees it does — an unvalidated write straight to this enum column was
+    // the actual reason verdicts silently never appeared: any casing/wording
+    // deviation ("High", etc.) failed the DB write, was swallowed by the catch
+    // below, and left matchVerdict null forever with no visible error.
+    const normalizedVerdict = parsed.verdict?.trim().toLowerCase();
+    const validVerdicts = Object.values(MatchVerdict) as string[];
+    if (!validVerdicts.includes(normalizedVerdict)) {
+      throw new ValidationError(`Unexpected verdict value from LLM: "${parsed.verdict}"`);
+    }
+
     await applicationRepo().update(application.id, {
-      matchVerdict: parsed.verdict,
+      matchVerdict: normalizedVerdict as MatchVerdict,
       matchVerdictReasoning: parsed.reasoning,
     });
   } catch (err) {
