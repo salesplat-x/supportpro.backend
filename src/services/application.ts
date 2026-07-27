@@ -164,7 +164,9 @@ export const regenerateVerdict = async (
     throw new NotFoundError("Application not found");
   }
   if (!refreshed.matchVerdict) {
-    throw new ValidationError("Could not generate a match verdict right now — please try again shortly");
+    throw new ValidationError(
+      "Could not generate a match verdict right now — please try again shortly"
+    );
   }
   return refreshed;
 };
