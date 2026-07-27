@@ -37,5 +37,11 @@ router.patch(
   validate(updateApplicationStatusValidator),
   asyncHandler(application.updateStatus)
 );
+router.post(
+  "/:_id/verdict",
+  validateAccess([UserRole.Recruiter]),
+  validate(applicationIdParamValidator),
+  asyncHandler(application.regenerateVerdict)
+);
 
 export default (app: Router) => app.use("/applications", router);
