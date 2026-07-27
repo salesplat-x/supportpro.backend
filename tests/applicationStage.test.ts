@@ -3,7 +3,11 @@
  * and the AI match-verdict trigger that runs alongside it.
  */
 
-import { processNextStage, triggerMatchVerdict } from "../src/services/applicationStage.js";
+import {
+  processNextStage,
+  triggerMatchVerdict,
+  rankApplication,
+} from "../src/services/applicationStage.js";
 import {
   startTestDatabase,
   stopTestDatabase,
@@ -112,6 +116,47 @@ describe("processNextStage — reaching Completed no longer auto-shortlists", ()
     await expect(
       processNextStage(talent, application, ScreeningStage.Prescreening)
     ).rejects.toThrow("Next stage not found");
+  });
+});
+
+describe("rankApplication — rank never exceeds the number of applicants who've finished", () => {
+  it("ranks two completed applicants 1 and 2, not 3 of 2", async () => {
+    const { user: talentA } = await createTalent();
+    const { user: talentB } = await createTalent();
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const appA = await createApplication(talentA, job);
+    const appB = await createApplication(talentB, job);
+    const applicationRepo = testDataSource.getRepository(Application);
+
+    await rankApplication(talentA, appA);
+    await applicationRepo.save(appA);
+    await rankApplication(talentB, appB);
+    await applicationRepo.save(appB);
+
+    expect(appA.rank).toBe(1);
+    expect(appB.rank).toBe(2);
+  });
+
+  it("does not count applications still mid-pipeline (no rank yet) toward the total", async () => {
+    const { user: finishedTalent } = await createTalent();
+    const { user: pendingTalentA } = await createTalent();
+    const { user: pendingTalentB } = await createTalent();
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const applicationRepo = testDataSource.getRepository(Application);
+
+    // Two talents have applied but not finished — they exist as rows with no rank.
+    await createApplication(pendingTalentA, job);
+    await createApplication(pendingTalentB, job);
+    const finishedApp = await createApplication(finishedTalent, job);
+
+    await rankApplication(finishedTalent, finishedApp);
+    await applicationRepo.save(finishedApp);
+
+    expect(finishedApp.rank).toBe(1);
   });
 });
 

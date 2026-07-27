@@ -1,3 +1,4 @@
+import { Not, IsNull } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { AIConfig } from "../entities/AIConfig.js";
 import { Application } from "../entities/Application.js";
@@ -36,9 +37,13 @@ export const rankApplication = async (talent: User, application: Application): P
 
   application.averageScore = averageScore;
 
+  // Only count applications that have *already* been ranked (i.e. already
+  // finished the pipeline) — counting every application for the job, as this
+  // used to, includes talents still mid-pipeline and inflates rank past the
+  // number of applicants who've actually completed (e.g. "rank 3 of 2").
   const newRank =
     (await applicationRepo().count({
-      where: { jobId: application.jobId },
+      where: { jobId: application.jobId, rank: Not(IsNull()) },
     })) + 1;
 
   application.rank = newRank;
