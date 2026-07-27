@@ -7,7 +7,6 @@ const getEnv = (): AppEnv => {
 
 const optionalEnvVars = {
   app_env: getEnv(),
-  openai_secret: process.env.OPENAI_API_KEY,
   cloudinary_name: process.env.CLOUDINARY_NAME,
   cloudinary_key: process.env.CLOUDINARY_KEY,
   cloudinary_secret: process.env.CLOUDINARY_SECRET,
@@ -20,6 +19,7 @@ const optionalEnvVars = {
 } as const;
 
 const requiredEnvVars = {
+  openai_secret: process.env.OPENAI_API_KEY,
   pg_host: process.env.PG_HOST,
   pg_port: process.env.PG_PORT,
   pg_db: process.env.PG_DB,
