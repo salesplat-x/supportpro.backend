@@ -121,7 +121,12 @@ export const answerPrescreening = async (
     throw new ValidationError("Error with LLM");
   }
 
-  const responseArray: IResponse[] = JSON.parse(response.message.content).responses;
+  let responseArray: IResponse[];
+  try {
+    responseArray = JSON.parse(response.message.content).responses;
+  } catch {
+    throw new ValidationError("Error with LLM");
+  }
 
   if (responseArray.length !== questionsConstruct.length) {
     throw new ValidationError("Length of response array doesn't match length of input array");
@@ -221,7 +226,12 @@ export const answerPersonalizedQuestions = async (
     throw new ValidationError("Error with LLM");
   }
 
-  const responseArray: IResponse[] = JSON.parse(response.message.content).responses;
+  let responseArray: IResponse[];
+  try {
+    responseArray = JSON.parse(response.message.content).responses;
+  } catch {
+    throw new ValidationError("Error with LLM");
+  }
 
   if (responseArray.length !== questionIds.length) {
     throw new ValidationError("Length of response array doesn't match length of input array");
