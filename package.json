@@ -23,6 +23,7 @@
     "docs:generate": "npx ts-node generate-swagger.ts",
     "cleanup:notifications": "npx ts-node src/scripts/cleanupNotifications.ts",
     "recompute:ranks": "npx ts-node src/scripts/recomputeApplicationRanks.ts",
+    "backfill:verdicts": "npx ts-node src/scripts/backfillMatchVerdicts.ts",
     "seed:admin": "TS_NODE_PROJECT=tsconfig.dev.json node -r dotenv/config ./node_modules/.bin/ts-node src/scripts/seedAdmin.ts",
     "migration:generate": "TS_NODE_PROJECT=tsconfig.dev.json node -r dotenv/config ./node_modules/.bin/typeorm-ts-node-commonjs migration:generate -d src/database/dataSource.ts",
     "migration:run": "TS_NODE_PROJECT=tsconfig.dev.json node -r dotenv/config ./node_modules/.bin/typeorm-ts-node-commonjs migration:run -d src/database/dataSource.ts",

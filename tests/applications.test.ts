@@ -33,6 +33,11 @@ jest.mock("../src/utils/integrations/email/emailService.js", () => ({
 
 jest.mock("../src/utils/integrations/openai.js", () => ({
   createEmbedding: jest.fn().mockResolvedValue([{ embedding: new Array(512).fill(0.1) }]),
+  assessApplicationMatch: jest.fn().mockResolvedValue({
+    message: {
+      content: JSON.stringify({ verdict: "high", reasoning: "Strong overall fit." }),
+    },
+  }),
 }));
 
 let app: ReturnType<typeof createApp>;
@@ -396,6 +401,85 @@ describe("PATCH /v1/applications/status — bulk shortlist/reject (Recruiter onl
       .send({ applicationIds: [], status: ApplicationStatus.Rejected });
 
     expect(res.status).toBe(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /v1/applications/:_id/verdict — manual AI match verdict regeneration
+// ---------------------------------------------------------------------------
+
+describe("POST /v1/applications/:_id/verdict — regenerate the AI match verdict", () => {
+  it("generates and returns a verdict for a completed application", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { user: talent } = await createTalent();
+    const app_ = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+    });
+
+    const res = await request(app)
+      .post(`/v1/applications/${app_.id}/verdict`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.application.matchVerdict).toBe("high");
+  });
+
+  it("404s for a non-existent application", async () => {
+    const { token } = await createRecruiter();
+
+    const res = await request(app)
+      .post("/v1/applications/00000000-0000-0000-0000-000000000000/verdict")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it("403s for a recruiter who doesn't own the job", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const { token: otherRecruiterToken } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { user: talent } = await createTalent();
+    const app_ = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+    });
+
+    const res = await request(app)
+      .post(`/v1/applications/${app_.id}/verdict`)
+      .set("Authorization", `Bearer ${otherRecruiterToken}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it("rejects an application that hasn't completed its pipeline yet", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { user: talent } = await createTalent();
+    const app_ = await createApplication(talent, job, {
+      currentStage: ScreeningStage.CvSimilarity,
+      status: ApplicationStatus.Pending,
+    });
+
+    const res = await request(app)
+      .post(`/v1/applications/${app_.id}/verdict`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(400);
+  });
+
+  it("Talent cannot call this endpoint → 403", async () => {
+    const { token: talentToken } = await createTalent();
+
+    const res = await request(app)
+      .post("/v1/applications/some-id/verdict")
+      .set("Authorization", `Bearer ${talentToken}`);
+
+    expect(res.status).toBe(403);
   });
 });
 
