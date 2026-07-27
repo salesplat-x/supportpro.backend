@@ -196,6 +196,54 @@ describe("triggerMatchVerdict — AI verdict is advisory and recruiter-facing on
     expect(mockAssessApplicationMatch).not.toHaveBeenCalled();
   });
 
+  it("normalizes a differently-cased verdict from the LLM instead of silently dropping it", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const application = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+    });
+
+    mockAssessApplicationMatch.mockResolvedValueOnce({
+      message: {
+        content: JSON.stringify({ verdict: "High", reasoning: "Looks like a great fit." }),
+      },
+    } as unknown as Awaited<ReturnType<typeof assessApplicationMatch>>);
+
+    await triggerMatchVerdict(talent, application);
+
+    const reloaded = await testDataSource.getRepository(Application).findOne({
+      where: { id: application.id },
+    });
+    expect(reloaded?.matchVerdict).toBe(MatchVerdict.High);
+  });
+
+  it("rejects a verdict value that isn't high/medium/low at all, rather than corrupting the row", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const application = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+    });
+
+    mockAssessApplicationMatch.mockResolvedValueOnce({
+      message: {
+        content: JSON.stringify({ verdict: "excellent", reasoning: "Not a real enum value." }),
+      },
+    } as unknown as Awaited<ReturnType<typeof assessApplicationMatch>>);
+
+    await expect(triggerMatchVerdict(talent, application)).resolves.toBeUndefined();
+
+    const reloaded = await testDataSource.getRepository(Application).findOne({
+      where: { id: application.id },
+    });
+    expect(reloaded?.matchVerdict).toBeNull();
+  });
+
   it("swallows an LLM failure instead of throwing", async () => {
     const { user: talent } = await createTalent();
     const { user: recruiter } = await createRecruiter();
