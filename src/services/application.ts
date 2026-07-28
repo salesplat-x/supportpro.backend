@@ -114,7 +114,10 @@ export const updateStatus = async (
     // because they're slow or high-volume). A failure here must never fail the
     // status update itself, so it's caught and logged rather than rethrown.
     try {
-      await createNotification(application.talentId, decisionNotificationMessage(payload.status));
+      await createNotification(
+        application.talentId,
+        decisionNotificationMessage(payload.status, application.job.jobBrief)
+      );
     } catch (err) {
       logger.error(
         `Decision notification failed for application ${application.id}: ${(err as Error).message}`
@@ -197,9 +200,11 @@ export const bulkUpdateStatus = async (
   }
   await applicationRepo().save(owned);
 
-  const message = decisionNotificationMessage(payload.status);
   const notifications = owned.map((application) =>
-    notificationRepo().create({ userId: application.talentId, message })
+    notificationRepo().create({
+      userId: application.talentId,
+      message: decisionNotificationMessage(payload.status, application.job.jobBrief),
+    })
   );
   const CHUNK = 500;
   for (let i = 0; i < notifications.length; i += CHUNK) {
