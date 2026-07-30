@@ -285,9 +285,7 @@ const scoreOneCv = async (
   });
   const isExactRepeat =
     !!existing &&
-    (coverLetterFile
-      ? existing.coverLetterText === coverLetterText
-      : existing.coverLetterText === null);
+    (coverLetterFile ? existing.coverLetterText === coverLetterText : existing.coverLetterText === null);
 
   if (existing && isExactRepeat) {
     return {
@@ -320,7 +318,7 @@ const scoreOneCv = async (
     coverLetterName,
     coverLetterText,
     coverLetterScore,
-    coverLetterInsights: coverLetterFile ? (assessment.coverLetterInsights ?? null) : null,
+    coverLetterInsights: coverLetterFile ? assessment.coverLetterInsights ?? null : null,
     evaluationScore,
   };
 };
@@ -361,8 +359,7 @@ export const scoutCvBatch = async (
     if (result.status === "fulfilled") {
       scored.push(result.value);
     } else {
-      const reason =
-        result.reason instanceof Error ? result.reason.message : "Unable to score this CV";
+      const reason = result.reason instanceof Error ? result.reason.message : "Unable to score this CV";
       failures[cvFiles[i]!.originalname] = reason;
     }
   });
@@ -381,9 +378,7 @@ export const scoutCvBatch = async (
     scoutRepo().create({ ...s, batchId, scoutJobId: payload.scoutJobId, recruiterId: userId })
   );
 
-  const saved = await AppDataSource.transaction((manager) =>
-    manager.getRepository(Scout).save(rows)
-  );
+  const saved = await AppDataSource.transaction((manager) => manager.getRepository(Scout).save(rows));
 
   return { batchId, scoutReports: saved };
 };
