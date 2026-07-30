@@ -1,5 +1,6 @@
 import { AppDataSource } from "../database/dataSource.js";
 import { ScoutJob } from "../entities/ScoutJob.js";
+import { Scout } from "../entities/Scout.js";
 import { Role } from "../entities/Role.js";
 import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
 import { createEmbedding } from "../utils/integrations/openai.js";
@@ -103,6 +104,23 @@ export const fetchJob = async (
     throw new AuthorizationError("You are not authorized to perform this action");
   }
   return scoutJob;
+};
+
+export const deleteJob = async (userId: string, scoutJobId: string): Promise<void> => {
+  const existingJob = await scoutJobRepo().findOne({ where: { id: scoutJobId } });
+  if (!existingJob) {
+    throw new NotFoundError("Job does not exist");
+  }
+  if (existingJob.postedById !== userId) {
+    throw new AuthorizationError("You are not authorized to perform this action");
+  }
+
+  // FK from scouts to scout_jobs is ON DELETE NO ACTION, so dependent Scout
+  // rows must be removed first, in one transaction, before the ScoutJob.
+  await AppDataSource.transaction(async (manager) => {
+    await manager.delete(Scout, { scoutJobId });
+    await manager.delete(ScoutJob, { id: scoutJobId });
+  });
 };
 
 export interface FetchScoutJobsParams {
