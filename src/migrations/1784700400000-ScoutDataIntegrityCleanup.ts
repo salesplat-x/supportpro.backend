@@ -20,8 +20,6 @@ export class ScoutDataIntegrityCleanup1784700400000 implements MigrationInterfac
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`DROP INDEX IF EXISTS "IDX_7cefee52a9cdfee609d15eb142"`);
     await queryRunner.query(`ALTER TABLE "scouts" DROP COLUMN IF EXISTS "cv_text_hash"`);
-    await queryRunner.query(
-      `ALTER TABLE "scouts" ADD COLUMN IF NOT EXISTS "batch_embedding" text`
-    );
+    await queryRunner.query(`ALTER TABLE "scouts" ADD COLUMN IF NOT EXISTS "batch_embedding" text`);
   }
 }
