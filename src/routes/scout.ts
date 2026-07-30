@@ -48,6 +48,12 @@ router.get(
   validate(scoutJobIdParamValidator),
   asyncHandler(scoutJob.fetch)
 );
+router.delete(
+  "/jobs/:_id",
+  validateAccess([UserRole.Recruiter]),
+  validate(scoutJobIdParamValidator),
+  asyncHandler(scoutJob.remove)
+);
 router.get(
   "/jobs/:id/scouts",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),

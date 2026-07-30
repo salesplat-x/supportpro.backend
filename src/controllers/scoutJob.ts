@@ -25,6 +25,11 @@ export const fetch = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Scout job fetched", { scoutJob: result });
 };
 
+export const remove = async (req: Request, res: Response) => {
+  await scoutJobService.deleteJob(req.user.id, req.params["_id"]!);
+  sendSuccessResponse(res, "Scout job deleted", {});
+};
+
 export const list = async (req: Request, res: Response) => {
   const result = await scoutJobService.fetchJobs({
     userId: req.user.id,
