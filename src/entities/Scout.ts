@@ -61,15 +61,10 @@ export class Scout {
   @JoinColumn({ name: "scout_job_id" })
   scoutJob!: ScoutJob | null;
 
-  // pgvector embedding stored as text in pgvector format: [0.1,0.2,...]
-  @Column({
-    type: "text",
-    nullable: true,
-    default: null,
-    name: "batch_embedding",
-    select: false,
-  })
-  batchEmbedding!: string | null;
+  // SHA-256 hash of cvText — lets a repeat upload of the same CV skip re-scoring.
+  @Column({ type: "varchar", nullable: true, default: null, name: "cv_text_hash" })
+  @Index()
+  cvTextHash!: string | null;
 
   @CreateDateColumn()
   createdAt!: Date;

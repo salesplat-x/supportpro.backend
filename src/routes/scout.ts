@@ -9,18 +9,27 @@ import { UserRole } from "../types/enums.js";
 import {
   scoutTalentsValidator,
   scoutBatchIdParamValidator,
-  validateCvAndCoverLetter,
-  validateCv,
+  scoutJobScoutsParamValidator,
+  scoutCvBatchValidator,
+  validateScoutCvBatchFiles,
+  MAX_BATCH_SIZE,
 } from "../validators/scout.js";
 import {
   createScoutJobValidator,
   updateScoutJobValidator,
   scoutJobIdParamValidator,
+  scoutJobsListQueryValidator,
 } from "../validators/scoutJob.js";
 
 const router = Router();
 
 // Scout job routes
+router.get(
+  "/jobs",
+  validateAccess([UserRole.Recruiter]),
+  validate(scoutJobsListQueryValidator),
+  asyncHandler(scoutJob.list)
+);
 router.post(
   "/jobs/",
   validateAccess([UserRole.Recruiter]),
@@ -35,9 +44,15 @@ router.put(
 );
 router.get(
   "/jobs/:_id",
-  validateAccess([UserRole.Recruiter]),
+  validateAccess([UserRole.Recruiter, UserRole.Admin]),
   validate(scoutJobIdParamValidator),
   asyncHandler(scoutJob.fetch)
+);
+router.get(
+  "/jobs/:id/scouts",
+  validateAccess([UserRole.Recruiter, UserRole.Admin]),
+  validate(scoutJobScoutsParamValidator),
+  asyncHandler(scout.fetchScoutReportsByJob)
 );
 
 // Scout talent routes
@@ -60,21 +75,15 @@ router.get(
   asyncHandler(scout.fetchScoutReport)
 );
 router.post(
-  "/cv-and-cover-letter",
+  "/cv-batch",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
   memoryUpload.fields([
-    { name: "cv", maxCount: 1 },
-    { name: "coverLetter", maxCount: 1 },
+    { name: "cv", maxCount: MAX_BATCH_SIZE },
+    { name: "coverLetter", maxCount: MAX_BATCH_SIZE },
   ]),
-  validateCvAndCoverLetter,
-  asyncHandler(scout.scoutCvAndCl)
-);
-router.post(
-  "/cv",
-  validateAccess([UserRole.Recruiter, UserRole.Admin]),
-  memoryUpload.single("cv"),
-  validateCv,
-  asyncHandler(scout.scoutCv)
+  validate(scoutCvBatchValidator),
+  validateScoutCvBatchFiles,
+  asyncHandler(scout.scoutCvBatch)
 );
 
 export default (app: Router) => app.use("/scout", router);

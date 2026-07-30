@@ -1,10 +1,15 @@
 import { Request, Response } from "express";
 import * as scoutService from "../services/scout.js";
 import { sendSuccessResponse } from "../utils/response.js";
+import { UserRole } from "../types/enums.js";
+
+const isAdmin = (req: Request) => req.user.userRole === UserRole.Admin;
 
 export const scoutTalents = async (req: Request, res: Response) => {
   const result = await scoutService.scoutTalents({
     scoutJobId: req.params["scoutJobId"]!,
+    userId: req.user.id,
+    isAdmin: isAdmin(req),
     roleId: req.query["roleId"] as string | undefined,
     experience: req.query["experience"] as string | undefined,
     workMode: req.query["workMode"] as string | undefined,
@@ -18,29 +23,38 @@ export const scoutTalents = async (req: Request, res: Response) => {
 };
 
 export const fetchScoutReports = async (req: Request, res: Response) => {
-  const result = await scoutService.fetchScoutReports(req.params["id"]);
+  const result = await scoutService.fetchScoutReports({
+    batchId: req.params["id"],
+    userId: req.user.id,
+    isAdmin: isAdmin(req),
+    limit: req.query["limit"] as string | undefined,
+    offset: req.query["offset"] as string | undefined,
+  });
+  sendSuccessResponse(res, "Scout reports fetched", { scoutReports: result });
+};
+
+export const fetchScoutReportsByJob = async (req: Request, res: Response) => {
+  const result = await scoutService.fetchScoutReports({
+    scoutJobId: req.params["id"],
+    userId: req.user.id,
+    isAdmin: isAdmin(req),
+    limit: req.query["limit"] as string | undefined,
+    offset: req.query["offset"] as string | undefined,
+  });
   sendSuccessResponse(res, "Scout reports fetched", { scoutReports: result });
 };
 
 export const fetchScoutReport = async (req: Request, res: Response) => {
-  const result = await scoutService.fetchScoutReport(req.params["id"]!);
+  const result = await scoutService.fetchScoutReport(req.params["id"]!, req.user.id, isAdmin(req));
   sendSuccessResponse(res, "Scout report fetched", { scoutReport: result });
 };
 
-export const scoutCvAndCl = async (req: Request, res: Response) => {
-  const result = await scoutService.scoutCvAndCl(req.user.id, {
+export const scoutCvBatch = async (req: Request, res: Response) => {
+  const files = req.files as Record<string, Express.Multer.File[]>;
+  const result = await scoutService.scoutCvBatch(req.user.id, {
     scoutJobId: req.body.scoutJobId,
-    batchId: req.body.batchId,
-    files: req.files as Record<string, Express.Multer.File[]>,
+    cvFiles: files["cv"]!,
+    coverLetterFiles: files["coverLetter"],
   });
-  sendSuccessResponse(res, "CV and cover letter assessed", result);
-};
-
-export const scoutCv = async (req: Request, res: Response) => {
-  const result = await scoutService.scoutCv(req.user.id, {
-    scoutJobId: req.body.scoutJobId,
-    batchId: req.body.batchId,
-    file: req.file as Express.Multer.File,
-  });
-  sendSuccessResponse(res, "CV assessed", result);
+  sendSuccessResponse(res, "CV batch scored", result);
 };
