@@ -83,6 +83,37 @@ describe("GET /v1/prescreening/ — get or generate prescreening", () => {
     expect(Array.isArray(res.body.data.preScreening.questions)).toBe(true);
   });
 
+  it("Brand-new talent's first request returns a generating stub, not a false-empty assessment → 200", async () => {
+    // Regression guard: a brand-new talent with no PreScreening row yet must
+    // get `generating: true` with an empty questions array (generation is
+    // fire-and-forget), never a "questions: []" response that looks final.
+    const role = await createRole();
+    const { token } = await createCompleteTalent(role);
+
+    const res = await request(app).get("/v1/prescreening/").set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.preScreening.generating).toBe(true);
+    expect(res.body.data.preScreening.questions).toEqual([]);
+  });
+
+  it("Polling after the generating stub eventually returns real questions → 200", async () => {
+    const role = await createRole();
+    const { token } = await createCompleteTalent(role);
+
+    const first = await request(app).get("/v1/prescreening/").set("Authorization", `Bearer ${token}`);
+    expect(first.body.data.preScreening.generating).toBe(true);
+
+    let last = first;
+    for (let attempt = 0; attempt < 20 && last.body.data.preScreening.generating; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      last = await request(app).get("/v1/prescreening/").set("Authorization", `Bearer ${token}`);
+    }
+
+    expect(last.body.data.preScreening.generating).toBeFalsy();
+    expect(last.body.data.preScreening.questions.length).toBeGreaterThan(0);
+  });
+
   it("Returns existing assessment if already generated", async () => {
     const role = await createRole();
     const { user, token } = await createCompleteTalent(role);
