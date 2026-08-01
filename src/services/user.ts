@@ -88,6 +88,7 @@ export interface UpdateUserPayload {
   minSalary?: number;
   maxSalary?: number;
   currency?: string;
+  compensationPeriod?: string;
   workType?: string[];
 }
 
@@ -117,6 +118,8 @@ export const updateUser = async (userId: string, payload: UpdateUserPayload): Pr
   if (payload.minSalary !== undefined) update.minSalary = payload.minSalary;
   if (payload.maxSalary !== undefined) update.maxSalary = payload.maxSalary;
   if (payload.currency !== undefined) update.currency = payload.currency as User["currency"];
+  if (payload.compensationPeriod !== undefined)
+    update.compensationPeriod = payload.compensationPeriod as User["compensationPeriod"];
   if (payload.workType !== undefined) update.workType = payload.workType;
 
   // Profile image
@@ -163,6 +166,7 @@ export interface EditProfilePayload {
   minSalary?: number;
   maxSalary?: number;
   currency?: string;
+  compensationPeriod?: string;
   workType?: string[];
 }
 
@@ -189,6 +193,8 @@ export const editProfile = async (
   if (payload.minSalary !== undefined) update.minSalary = payload.minSalary;
   if (payload.maxSalary !== undefined) update.maxSalary = payload.maxSalary;
   if (payload.currency !== undefined) update.currency = payload.currency as User["currency"];
+  if (payload.compensationPeriod !== undefined)
+    update.compensationPeriod = payload.compensationPeriod as User["compensationPeriod"];
   if (payload.workType !== undefined) update.workType = payload.workType;
 
   let roleDidChange = false;

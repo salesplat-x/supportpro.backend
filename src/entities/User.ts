@@ -10,7 +10,7 @@ import {
   UpdateDateColumn,
   Index,
 } from "typeorm";
-import { UserRole, Currency } from "../types/enums.js";
+import { UserRole, Currency, CompensationPeriod } from "../types/enums.js";
 import type { Organization } from "./Organization.js";
 import type { Role } from "./Role.js";
 import type { PreScreening } from "./PreScreening.js";
@@ -117,6 +117,14 @@ export class User {
 
   @Column({ type: "float", nullable: true, default: null })
   minSalary!: number | null;
+
+  @Column({
+    type: "enum",
+    enum: CompensationPeriod,
+    nullable: true,
+    default: CompensationPeriod.Yearly,
+  })
+  compensationPeriod!: CompensationPeriod | null;
 
   @Column({ type: "float", nullable: true, default: null })
   prescreeningScore!: number | null;

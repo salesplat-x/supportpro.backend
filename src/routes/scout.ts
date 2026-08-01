@@ -7,7 +7,7 @@ import { validate } from "../middleware/validate.js";
 import { memoryUpload } from "../middleware/multer.js";
 import { UserRole } from "../types/enums.js";
 import {
-  scoutTalentsValidator,
+  searchTalentsValidator,
   scoutBatchIdParamValidator,
   scoutJobScoutsParamValidator,
   scoutCvBatchValidator,
@@ -61,12 +61,13 @@ router.get(
   asyncHandler(scout.fetchScoutReportsByJob)
 );
 
-// Scout talent routes
+// Talent Search routes — a plain filtered directory search, not scoped to
+// any job/scout-job.
 router.get(
-  "/:scoutJobId/talents",
+  "/talents",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
-  validate(scoutTalentsValidator),
-  asyncHandler(scout.scoutTalents)
+  validate(searchTalentsValidator),
+  asyncHandler(scout.searchTalents)
 );
 router.get(
   "/batch/:id",

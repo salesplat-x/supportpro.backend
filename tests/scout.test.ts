@@ -10,7 +10,13 @@ import { User } from "../src/entities/User.js";
 import { Scout } from "../src/entities/Scout.js";
 import { UserRole } from "../src/types/enums.js";
 import { generateHashedPassword, signToken } from "../src/utils/crypto.js";
-import { createRole, createScoutJob, createScout } from "./helpers/fixtures.js";
+import {
+  createRole,
+  createScoutJob,
+  createScout,
+  createTalent,
+  createCompleteTalent,
+} from "./helpers/fixtures.js";
 
 jest.mock("../src/utils/integrations/openai.js", () => ({
   createEmbedding: jest.fn().mockResolvedValue([{ embedding: new Array(512).fill(0.1) }]),
@@ -147,16 +153,55 @@ describe("Scout ownership checks", () => {
     expect(res.body.data.scoutReports).toEqual([]);
   });
 
-  it("GET /v1/scout/:scoutJobId/talents — 403 for a scout job owned by a different recruiter", async () => {
-    const owner = await createRecruiter();
-    const other = await createRecruiter();
-    const scoutJob = await createScoutJob(owner.user);
+});
+
+describe("GET /v1/scout/talents — standalone Talent Search (not job-scoped)", () => {
+  it("returns matched talents without requiring any scout job context", async () => {
+    const { token } = await createRecruiter();
+    const { user: talent } = await createCompleteTalent(await createRole());
+    await testDataSource.getRepository(User).update(talent.id, { prescreeningScore: 80 });
 
     const res = await request(app)
-      .get(`/v1/scout/${scoutJob.id}/talents`)
-      .set("Authorization", `Bearer ${other.token}`);
+      .get("/v1/scout/talents")
+      .set("Authorization", `Bearer ${token}`);
 
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data.talents)).toBe(true);
+    expect(res.body.data.talents.some((t: { id: string }) => t.id === talent.id)).toBe(true);
+  });
+
+  it("filters by role", async () => {
+    const { token } = await createRecruiter();
+    const role = await createRole();
+    const otherRole = await createRole();
+    const { user: matchingTalent } = await createCompleteTalent(role);
+    await testDataSource
+      .getRepository(User)
+      .update(matchingTalent.id, { prescreeningScore: 80 });
+    const { user: otherTalent } = await createCompleteTalent(otherRole);
+    await testDataSource.getRepository(User).update(otherTalent.id, { prescreeningScore: 80 });
+
+    const res = await request(app)
+      .get(`/v1/scout/talents?roleId=${role.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const ids = res.body.data.talents.map((t: { id: string }) => t.id);
+    expect(ids).toContain(matchingTalent.id);
+    expect(ids).not.toContain(otherTalent.id);
+  });
+
+  it("Talent cannot access → 403", async () => {
+    const { token } = await createTalent();
+    const res = await request(app)
+      .get("/v1/scout/talents")
+      .set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(403);
+  });
+
+  it("Unauthenticated → 401", async () => {
+    const res = await request(app).get("/v1/scout/talents");
+    expect(res.status).toBe(401);
   });
 });
 

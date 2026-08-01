@@ -5,11 +5,8 @@ import { UserRole } from "../types/enums.js";
 
 const isAdmin = (req: Request) => req.user.userRole === UserRole.Admin;
 
-export const scoutTalents = async (req: Request, res: Response) => {
-  const result = await scoutService.scoutTalents({
-    scoutJobId: req.params["scoutJobId"]!,
-    userId: req.user.id,
-    isAdmin: isAdmin(req),
+export const searchTalents = async (req: Request, res: Response) => {
+  const result = await scoutService.searchTalents({
     roleId: req.query["roleId"] as string | undefined,
     experience: req.query["experience"] as string | undefined,
     workMode: req.query["workMode"] as string | undefined,
@@ -19,7 +16,7 @@ export const scoutTalents = async (req: Request, res: Response) => {
     limit: req.query["limit"] ? Number(req.query["limit"]) : undefined,
     offset: req.query["offset"] ? Number(req.query["offset"]) : undefined,
   });
-  sendSuccessResponse(res, "Talents scouted", { talents: result });
+  sendSuccessResponse(res, "Talents found", { talents: result });
 };
 
 export const fetchScoutReports = async (req: Request, res: Response) => {

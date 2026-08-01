@@ -8,7 +8,7 @@ import {
 } from "./helpers/db.js";
 import { User } from "../src/entities/User.js";
 import { Role } from "../src/entities/Role.js";
-import { UserRole, Currency, WorkType } from "../src/types/enums.js";
+import { UserRole, Currency, WorkType, CompensationPeriod } from "../src/types/enums.js";
 import { generateHashedPassword, signToken } from "../src/utils/crypto.js";
 import { createTalent, createRole } from "./helpers/fixtures.js";
 
@@ -97,7 +97,7 @@ describe("PATCH /v1/user/me", () => {
     expect(res.body.data.user.firstName).toBe("Updated");
   });
 
-  it("persists a full profile payload (roleIds, location, experience, currency, workType, salary)", async () => {
+  it("persists a full profile payload (roleIds, location, experience, currency, workType, salary, compensationPeriod)", async () => {
     const { token, user } = await createTalent();
     const role = await createRole();
 
@@ -111,6 +111,7 @@ describe("PATCH /v1/user/me", () => {
       workType: [WorkType.Remote],
       minSalary: 50000,
       maxSalary: 100000,
+      compensationPeriod: CompensationPeriod.Monthly,
     };
 
     const patchRes = await request(app)
@@ -133,6 +134,7 @@ describe("PATCH /v1/user/me", () => {
     expect(dbUser?.workType).toEqual([WorkType.Remote]);
     expect(dbUser?.minSalary).toBe(50000);
     expect(dbUser?.maxSalary).toBe(100000);
+    expect(dbUser?.compensationPeriod).toBe(CompensationPeriod.Monthly);
 
     const getRes = await request(app).get("/v1/user/me").set("Authorization", `Bearer ${token}`);
     expect(getRes.body.data.user.locationCity).toBe("Lagos");
@@ -141,6 +143,7 @@ describe("PATCH /v1/user/me", () => {
     expect(getRes.body.data.user.workType).toEqual([WorkType.Remote]);
     expect(getRes.body.data.user.minSalary).toBe(50000);
     expect(getRes.body.data.user.maxSalary).toBe(100000);
+    expect(getRes.body.data.user.compensationPeriod).toBe(CompensationPeriod.Monthly);
   });
 
   it("rejects an invalid currency with a 400 field validation error", async () => {
@@ -150,6 +153,17 @@ describe("PATCH /v1/user/me", () => {
       .patch("/v1/user/me")
       .set("Authorization", `Bearer ${token}`)
       .send({ currency: "NOT_A_CURRENCY" });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects an invalid compensationPeriod with a 400 field validation error", async () => {
+    const { token } = await createTalent();
+
+    const res = await request(app)
+      .patch("/v1/user/me")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ compensationPeriod: "weekly" });
 
     expect(res.status).toBe(400);
   });

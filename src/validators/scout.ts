@@ -11,8 +11,7 @@ const ALLOWED_DOC_MIMETYPES = [
 
 export const MAX_BATCH_SIZE = 15;
 
-export const scoutTalentsValidator = [
-  param("scoutJobId").isUUID().withMessage("Scout job ID must be a valid UUID"),
+export const searchTalentsValidator = [
   query("roleId").optional().isUUID().withMessage("roleId must be a valid UUID"),
   query("experience")
     .optional()

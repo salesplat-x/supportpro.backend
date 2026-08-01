@@ -4,7 +4,7 @@ import { AppDataSource } from "../database/dataSource.js";
 import { Scout, ScoutJob, User, Role } from "../entities";
 import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
 import { UserRole } from "../types/enums.js";
-import { extractText, preprocessText, convertSimilarityToPercentage } from "../utils/text.js";
+import { extractText, preprocessText } from "../utils/text.js";
 import * as AI from "../utils/integrations/openai.js";
 import { v4 as uuidv4 } from "uuid";
 
@@ -18,10 +18,7 @@ const userRepo = () => AppDataSource.getRepository(User);
 
 const roleRepo = () => AppDataSource.getRepository(Role);
 
-export interface ScoutTalentsParams {
-  scoutJobId: string;
-  userId: string;
-  isAdmin: boolean;
+export interface SearchTalentsParams {
   roleId?: string;
   experience?: string;
   country?: string;
@@ -75,17 +72,11 @@ export const fetchScoutReport = async (
   return scout;
 };
 
-export const scoutTalents = async (
-  payload: ScoutTalentsParams
-): Promise<Array<User & { similarity: number | null }>> => {
-  const scoutJob = await scoutJobRepo().findOne({ where: { id: payload.scoutJobId } });
-  if (!scoutJob) {
-    throw new NotFoundError("Scout job not found");
-  }
-  if (!payload.isAdmin && scoutJob.postedById !== payload.userId) {
-    throw new AuthorizationError("You are not authorized to perform this action");
-  }
-
+// A plain filtered directory search across the whole talent database — not
+// scoped to any job/scout-job, so there's no job description to compute a
+// CV-similarity percentage against (unlike the job-scoped topTalents/scoutCvBatch
+// flows, which do have one).
+export const searchTalents = async (payload: SearchTalentsParams): Promise<User[]> => {
   const qb = userRepo()
     .createQueryBuilder("user")
     .leftJoinAndSelect("user.userRoles", "userRoles")
@@ -123,49 +114,7 @@ export const scoutTalents = async (
   const limit = Math.min(Number(payload.limit) || 50, MAX_PAGE_SIZE);
   const offset = Number(payload.offset) || 0;
 
-  const users = await qb
-    .orderBy("user.prescreeningScore", "DESC")
-    .skip(offset)
-    .take(limit)
-    .getMany();
-
-  const talentIds = users.map((u) => u.id);
-
-  // Get CV similarity scores from pgvector
-  const res: Array<{ user_id: string; similarity: number }> =
-    talentIds.length > 0
-      ? await AppDataSource.query(
-          `
-        WITH jd_cte AS (
-          SELECT job_embedding::vector FROM scout_jobs WHERE id = $1
-        ),
-        similarity_cte AS (
-          SELECT
-            te.user_id,
-            ABS((SELECT job_embedding::vector FROM jd_cte) <=> te.cv_embedding::vector) AS similarity
-          FROM talent_embeddings te
-          WHERE te.user_id = ANY($2)
-        )
-        SELECT user_id, similarity
-        FROM (
-          SELECT user_id, similarity,
-            ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY similarity DESC) AS rn
-          FROM similarity_cte
-        ) ranked
-        WHERE rn = 1
-        `,
-          [payload.scoutJobId, talentIds]
-        )
-      : [];
-
-  const resMap = new Map(
-    res.map((item) => [item.user_id, convertSimilarityToPercentage(item.similarity)])
-  );
-
-  return users.map((u) => ({
-    ...u,
-    similarity: resMap.get(u.id) ?? null,
-  }));
+  return qb.orderBy("user.prescreeningScore", "DESC").skip(offset).take(limit).getMany();
 };
 
 // ---------------------------------------------------------------------------
