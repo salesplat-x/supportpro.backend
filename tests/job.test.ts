@@ -9,13 +9,40 @@ import {
 import { User } from "../src/entities/User.js";
 import { JobStatus, UserRole } from "../src/types/enums.js";
 import { generateHashedPassword, signToken } from "../src/utils/crypto.js";
-import { createJob, createRole, createTalent, createApplication } from "./helpers/fixtures.js";
+import {
+  createJob,
+  createRole,
+  createTalent,
+  createApplication,
+  createAIConfig,
+} from "./helpers/fixtures.js";
+import { AIConfig } from "../src/entities/AIConfig.js";
+import { TalentEmbedding } from "../src/entities/TalentEmbedding.js";
+import { Job } from "../src/entities/Job.js";
 
 jest.mock("../src/utils/integrations/openai.js", () => ({
   createEmbedding: jest.fn().mockResolvedValue([{ embedding: new Array(512).fill(0.1) }]),
   generatePersonalizedQuestions: jest
     .fn()
     .mockResolvedValue({ message: { content: JSON.stringify({ questions: ["Q1", "Q2"] }) } }),
+  generateJobContent: jest.fn().mockResolvedValue({
+    message: {
+      content: JSON.stringify({
+        jobBrief: "About the Role: ...\nResponsibilities: ...\nBenefits: ...",
+        requirements: "Qualifications: ...\nNice to Have: ...",
+        skills: ["TypeScript", "Node.js"],
+        goals: ["Ship the new API", "Mentor junior engineers"],
+      }),
+    },
+  }),
+  assessTalentFit: jest.fn().mockResolvedValue({
+    message: {
+      content: JSON.stringify({
+        strengths: ["Five years of relevant backend experience per the CV."],
+        weaknesses: ["No mention of the specific cloud provider used here."],
+      }),
+    },
+  }),
 }));
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
@@ -132,6 +159,98 @@ describe("POST /v1/jobs/", () => {
       });
 
     expect(res.status).toBe(403);
+  });
+});
+
+describe("POST /v1/jobs/generate — AI-generated job content", () => {
+  it("Recruiter generates job content → 200 with jobBrief, requirements, skills, goals", async () => {
+    const { token } = await createRecruiter();
+
+    const res = await request(app)
+      .post("/v1/jobs/generate")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ role: "Software Engineer", experienceLevel: "4-6 years", keywords: ["React"] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.content.jobBrief).toContain("About the Role");
+    expect(res.body.data.content.requirements).toContain("Qualifications");
+    expect(res.body.data.content.skills).toEqual(["TypeScript", "Node.js"]);
+    expect(res.body.data.content.goals).toEqual(["Ship the new API", "Mentor junior engineers"]);
+  });
+
+  it("Missing role → 400", async () => {
+    const { token } = await createRecruiter();
+
+    const res = await request(app)
+      .post("/v1/jobs/generate")
+      .set("Authorization", `Bearer ${token}`)
+      .send({});
+
+    expect(res.status).toBe(400);
+  });
+
+  it("Talent cannot access → 403", async () => {
+    const talent = testDataSource.getRepository(User).create({
+      email: "talent-generate@example.com",
+      password: await generateHashedPassword("Password1!"),
+      firstName: "Jane",
+      lastName: "Doe",
+      userRole: UserRole.Talent,
+      emailVerified: true,
+      active: true,
+      tokenVersion: 0,
+      roleChangeCount: 0,
+    });
+    const savedTalent = await testDataSource.getRepository(User).save(talent);
+    const talentToken = signToken(savedTalent);
+
+    const res = await request(app)
+      .post("/v1/jobs/generate")
+      .set("Authorization", `Bearer ${talentToken}`)
+      .send({ role: "Software Engineer" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("Unauthenticated → 401", async () => {
+    const res = await request(app).post("/v1/jobs/generate").send({ role: "Software Engineer" });
+    expect(res.status).toBe(401);
+  });
+});
+
+describe("GET /v1/jobs/talents/:jobId — top talents enriched with fit evidence", () => {
+  it("returns matched talents with LLM-generated strengths/weaknesses", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role, {
+      jobEmbedding: `[${new Array(512).fill(0.1).join(",")}]`,
+    });
+    const aiConfig = await createAIConfig(recruiter);
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
+
+    const { user: talent } = await createTalent();
+    await testDataSource.getRepository(TalentEmbedding).save(
+      testDataSource.getRepository(TalentEmbedding).create({
+        userId: talent.id,
+        cvText: "Five years of backend engineering experience.",
+        cvEmbedding: `[${new Array(512).fill(0.1).join(",")}]`,
+        generatedAt: new Date(),
+      })
+    );
+
+    const res = await request(app)
+      .get(`/v1/jobs/talents/${job.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const matched = res.body.data.talents.find((t: { id: string }) => t.id === talent.id);
+    expect(matched).toBeDefined();
+    expect(matched.strengths).toEqual([
+      "Five years of relevant backend experience per the CV.",
+    ]);
+    expect(matched.weaknesses).toEqual([
+      "No mention of the specific cloud provider used here.",
+    ]);
   });
 });
 

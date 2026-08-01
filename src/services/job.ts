@@ -19,7 +19,12 @@ import {
   ScreeningStage,
   CompensationPeriod,
 } from "../types/enums.js";
-import { createEmbedding } from "../utils/integrations/openai.js";
+import {
+  createEmbedding,
+  generateJobContent as generateJobContentAI,
+  assessTalentFit,
+} from "../utils/integrations/openai.js";
+import { TalentEmbedding } from "../entities/TalentEmbedding.js";
 import { convertSimilarityToPercentage, preprocessText, sortDirection } from "../utils/text.js";
 import { createStages } from "./aiConfig.js";
 import { getAssessmentRetryDate, processNextStage } from "./applicationStage.js";
@@ -37,6 +42,8 @@ const applicationRepo = () => AppDataSource.getRepository(Application);
 const userRepo = () => AppDataSource.getRepository(User);
 
 const notificationRepo = () => AppDataSource.getRepository(Notification);
+
+const talentEmbeddingRepo = () => AppDataSource.getRepository(TalentEmbedding);
 
 export interface CreateJobPayload {
   role?: string;
@@ -146,6 +153,35 @@ export const createJob = async (userId: string, payload: CreateJobPayload): Prom
     .execute();
 
   return saved;
+};
+
+export interface GenerateJobContentPayload {
+  role: string;
+  experienceLevel?: string;
+  keywords?: string[];
+}
+
+export interface GeneratedJobContent {
+  jobBrief: string;
+  requirements: string;
+  skills: string[];
+  goals: string[];
+}
+
+export const generateJobContent = async (
+  payload: GenerateJobContentPayload
+): Promise<GeneratedJobContent> => {
+  const response = await generateJobContentAI(payload);
+  if (!response || !response.message.content) {
+    throw new ValidationError("Error with LLM");
+  }
+  const content = JSON.parse(response.message.content);
+  return {
+    jobBrief: content.jobBrief ?? "",
+    requirements: content.requirements ?? "",
+    skills: Array.isArray(content.skills) ? content.skills : [],
+    goals: Array.isArray(content.goals) ? content.goals : [],
+  };
 };
 
 export const updateJob = async (
@@ -372,11 +408,16 @@ export const matchJob = async (
   return qb.orderBy("user.prescreeningScore", "DESC").getMany();
 };
 
+export interface TalentWithFitEvidence extends User {
+  strengths?: string[];
+  weaknesses?: string[];
+}
+
 export const topTalents = async (
   userId: string,
   userRole: UserRole,
   payload: TopTalentsParams
-): Promise<{ talents: User[]; newApplicants: number }> => {
+): Promise<{ talents: TalentWithFitEvidence[]; newApplicants: number }> => {
   const { jobId } = payload;
 
   const job = await jobRepo().findOne({
@@ -488,7 +529,7 @@ export const topTalents = async (
   }
 
   // Fetch user details for matched talents
-  const talents =
+  const talents: TalentWithFitEvidence[] =
     talentIds.length > 0
       ? await userRepo()
           .createQueryBuilder("user")
@@ -497,7 +538,51 @@ export const topTalents = async (
           .getMany()
       : [];
 
+  await enrichTalentsWithFitEvidence(job.jobBrief, talents);
+
   return { talents, newApplicants };
+};
+
+// Bounded to the top-N list already returned by topTalents (never the full
+// candidate pool) so cost/latency stay in check. Best-effort: a failure for
+// one candidate must never block the others or the overall response.
+const enrichTalentsWithFitEvidence = async (
+  jobDescription: string,
+  talents: TalentWithFitEvidence[]
+): Promise<void> => {
+  if (talents.length === 0) return;
+
+  const talentIds = talents.map((t) => t.id);
+  const cvChunks = await talentEmbeddingRepo().find({
+    where: { userId: In(talentIds) },
+    select: { userId: true, cvText: true },
+  });
+  const cvTextByUserId = new Map<string, string>();
+  for (const chunk of cvChunks) {
+    const existing = cvTextByUserId.get(chunk.userId) ?? "";
+    cvTextByUserId.set(chunk.userId, existing ? `${existing}\n\n${chunk.cvText ?? ""}` : chunk.cvText ?? "");
+  }
+
+  await Promise.all(
+    talents.map(async (talent) => {
+      const cvText = cvTextByUserId.get(talent.id);
+      if (!cvText) return;
+      try {
+        const response = await assessTalentFit({ jobDescription, cvText });
+        if (!response?.message.content) return;
+        const parsed = JSON.parse(response.message.content) as {
+          strengths?: string[];
+          weaknesses?: string[];
+        };
+        talent.strengths = Array.isArray(parsed.strengths) ? parsed.strengths : undefined;
+        talent.weaknesses = Array.isArray(parsed.weaknesses) ? parsed.weaknesses : undefined;
+      } catch (err) {
+        logger.error(
+          `Talent fit evidence generation failed for talent ${talent.id}: ${(err as Error).message}`
+        );
+      }
+    })
+  );
 };
 
 export const gradeCv = async (

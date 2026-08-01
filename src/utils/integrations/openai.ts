@@ -308,6 +308,39 @@ export const assessCV = async (
   return completion.choices[0];
 };
 
+export interface TalentFitContext {
+  jobDescription: string;
+  cvText: string;
+}
+
+// Lightweight evidence pass for sourcing lists (top-N cosine-similarity
+// matches) — deliberately separate from assessCV/assessCVandCoverLetter,
+// which back the CV-upload scoring flow's own "insights" prose and must not
+// change shape.
+export const assessTalentFit = async (
+  context: TalentFitContext
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const system = `You are a technical recruiter sourcing candidates for a role.
+
+  You will receive a job description and a candidate's CV text. Provide a brief, evidence-based assessment of this candidate's fit for the role, citing specific details from the CV.
+
+  Output JSON:
+  {
+    "strengths": ["<specific strength, citing evidence from the CV>", "..."],
+    "weaknesses": ["<specific gap or concern relative to the job description, citing evidence>", "..."]
+  }`;
+
+  const completion = await runCompletion({
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: JSON.stringify(context) },
+    ],
+    model: "gpt-4o-mini",
+    response_format: { type: "json_object" },
+  });
+  return completion.choices[0];
+};
+
 export interface MatchVerdictContext {
   jobDescription: string;
   recruiterGuide?: string;
@@ -315,6 +348,9 @@ export interface MatchVerdictContext {
   personalizedScore: number | null;
   prescreeningScore: number | null;
   mbtiType: string | null;
+  cvText?: string;
+  personalizedQuestionsAndAnswers?: Array<{ question: string; answer: string }>;
+  personalityQuestionsAndAnswers?: Array<{ question: string; answer: string; dichotomy?: string }>;
 }
 
 export const assessApplicationMatch = async (
@@ -322,15 +358,21 @@ export const assessApplicationMatch = async (
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
   const system = `You are a senior hiring panel member giving a recruiter a second opinion.
 
-  You will receive a JSON object describing a candidate's scores across a hiring pipeline (CV match, personalized test, pre-screening, personality type) along with the job's description and, if provided, the recruiter's guide.
+  You will receive a JSON object describing a candidate's scores across a hiring pipeline (CV match, personalized test, pre-screening, personality type), the candidate's CV text, their personalized-question and personality-question answers, the job's description and, if provided, the recruiter's guide.
 
-  Weigh the scores holistically and classify the candidate as a "high", "medium", or "low" match for this role, then explain your reasoning in 2-4 sentences so the recruiter understands why. This is a decision aid — the recruiter makes the final call, not you.
+  Weigh all of this evidence holistically and classify the candidate as a "high", "medium", or "low" match for this role. This is a decision aid — the recruiter makes the final call, not you.
 
   Output JSON:
   {
     "verdict": "high" | "medium" | "low",
-    "reasoning": "<2-4 sentences explaining the verdict>"
-  }`;
+    "reasoning": "<2-4 sentences explaining the verdict>",
+    "strengths": ["<specific strength, citing evidence from the CV/answers/scores>", "..."],
+    "weaknesses": ["<specific weakness or gap, citing evidence>", "..."],
+    "risks": ["<specific risk of hiring this candidate, citing evidence>", "..."],
+    "recommendation": "hire" | "interview_further" | "no_hire"
+  }
+
+  Each strength, weakness, and risk must reference concrete evidence from the candidate's profile (CV content, specific answers, or specific scores) rather than generic statements. Provide at least one strength and, unless the candidate is an outstanding match, at least one weakness or risk.`;
 
   const completion = await runCompletion({
     messages: [
@@ -402,6 +444,42 @@ Location: ${context.location ? `${context.location.city ?? ""} ${context.locatio
 
 CV Content:
 ${context.cvContent}`;
+
+  const completion = await runCompletion({
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: userPrompt },
+    ],
+    model: "gpt-4o",
+    response_format: { type: "json_object" },
+  });
+  return completion.choices[0];
+};
+
+export interface GenerateJobContentContext {
+  role: string;
+  experienceLevel?: string;
+  keywords?: string[];
+}
+
+export const generateJobContent = async (
+  context: GenerateJobContentContext
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const system = `You are an expert technical recruiter and copywriter. Generate compelling, well-structured job posting content for the given role.
+
+Output a JSON object in this exact format:
+{
+  "jobBrief": "<a well-structured job description under 600 words, written in plain text with clear section headers such as 'About the Role:', 'Responsibilities:', and 'Benefits:'>",
+  "requirements": "<a well-structured requirements section, written in plain text with clear section headers such as 'Qualifications:' and 'Nice to Have:'>",
+  "skills": ["<skill1>", "<skill2>", "..."],
+  "goals": ["<goal1>", "<goal2>", "..."]
+}
+
+Do not use markdown symbols (no "#", "*", "-") — use plain text with line breaks and the section headers described above.`;
+
+  const userPrompt = `Role: ${context.role}
+Experience Level: ${context.experienceLevel ?? "Not specified"}
+Key skills/keywords to emphasize: ${context.keywords?.length ? context.keywords.join(", ") : "Not specified"}`;
 
   const completion = await runCompletion({
     messages: [
