@@ -5,7 +5,7 @@ import { Notification } from "../entities/Notification.js";
 import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
 import { UserRole, ApplicationType, ApplicationStatus, ScreeningStage } from "../types/enums.js";
 import { createNotification } from "./notification.js";
-import { decisionNotificationMessage } from "./applicationNotifications.js";
+import { decisionNotificationMessage, decisionNotificationTitle } from "./applicationNotifications.js";
 import { triggerMatchVerdict } from "./applicationStage.js";
 import logger from "../utils/logger.js";
 
@@ -91,7 +91,7 @@ export const updateStatus = async (
 ): Promise<Application> => {
   const application = await applicationRepo().findOne({
     where: { id: payload.id },
-    relations: { job: true, talent: true },
+    relations: { job: { role: true }, talent: true },
   });
 
   if (!application) {
@@ -114,9 +114,11 @@ export const updateStatus = async (
     // because they're slow or high-volume). A failure here must never fail the
     // status update itself, so it's caught and logged rather than rethrown.
     try {
+      const jobTitle = application.job.role?.name;
       await createNotification(
         application.talentId,
-        decisionNotificationMessage(payload.status, application.job.jobBrief)
+        decisionNotificationMessage(payload.status, jobTitle),
+        decisionNotificationTitle(payload.status, jobTitle)
       );
     } catch (err) {
       logger.error(
@@ -187,7 +189,7 @@ export const bulkUpdateStatus = async (
 ): Promise<{ updated: number }> => {
   const applications = await applicationRepo().find({
     where: { id: In(payload.applicationIds) },
-    relations: { job: true },
+    relations: { job: { role: true } },
   });
 
   const owned = applications.filter((application) => application.job.postedById === userId);
@@ -200,12 +202,14 @@ export const bulkUpdateStatus = async (
   }
   await applicationRepo().save(owned);
 
-  const notifications = owned.map((application) =>
-    notificationRepo().create({
+  const notifications = owned.map((application) => {
+    const jobTitle = application.job.role?.name;
+    return notificationRepo().create({
       userId: application.talentId,
-      message: decisionNotificationMessage(payload.status, application.job.jobBrief),
-    })
-  );
+      message: decisionNotificationMessage(payload.status, jobTitle),
+      title: decisionNotificationTitle(payload.status, jobTitle),
+    });
+  });
   const CHUNK = 500;
   for (let i = 0; i < notifications.length; i += CHUNK) {
     await notificationRepo().save(notifications.slice(i, i + CHUNK));

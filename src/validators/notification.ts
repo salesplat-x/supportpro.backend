@@ -3,6 +3,7 @@ import { body, param } from "express-validator";
 export const createNotificationValidator = [
   body("message").notEmpty().withMessage("Notification message is required"),
   body("userId").optional().isString(),
+  body("title").optional().isString(),
 ];
 
 export const notificationIdParamValidator = [
