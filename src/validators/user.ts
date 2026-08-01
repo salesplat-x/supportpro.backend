@@ -4,6 +4,7 @@ import {
   ExperienceLevel,
   WorkType,
   Currency,
+  CompensationPeriod,
   ApplicationType,
   ApplicationStatus,
 } from "../types/enums.js";
@@ -40,6 +41,12 @@ export const profileFieldRules = [
       }
       return true;
     }),
+  body("compensationPeriod")
+    .optional()
+    .isIn(Object.values(CompensationPeriod))
+    .withMessage(
+      `compensationPeriod must be one of: ${Object.values(CompensationPeriod).join(", ")}`
+    ),
   body("roleIds").optional().isArray(),
   body("roleIds.*").optional().isUUID().withMessage("roleIds must be valid UUIDs"),
 ];
