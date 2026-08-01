@@ -9,6 +9,13 @@ import {
   CompensationPeriod,
 } from "../types/enums.js";
 
+export const generateJobContentValidator = [
+  body("role").notEmpty().trim().withMessage("Role is required"),
+  body("experienceLevel").optional().isString(),
+  body("keywords").optional().isArray(),
+  body("keywords.*").optional().isString(),
+];
+
 export const createJobValidator = [
   body("role").notEmpty().trim().withMessage("Role is required"),
   body("aiConfig").optional().isString(),

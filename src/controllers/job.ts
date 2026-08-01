@@ -8,6 +8,11 @@ export const create = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Job created", { job: result }, 201);
 };
 
+export const generateContent = async (req: Request, res: Response) => {
+  const result = await jobService.generateJobContent(req.body);
+  sendSuccessResponse(res, "Job content generated", { content: result });
+};
+
 export const update = async (req: Request, res: Response) => {
   const result = await jobService.updateJob(req.user.id, req.user.userRole, {
     id: req.params["_id"]!,

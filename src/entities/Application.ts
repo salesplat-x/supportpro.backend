@@ -13,6 +13,7 @@ import {
   ApplicationStatus,
   ScreeningStage,
   MatchVerdict,
+  MatchRecommendation,
 } from "../types/enums.js";
 import type { Job } from "./Job.js";
 import type { User } from "./User.js";
@@ -96,6 +97,18 @@ export class Application {
 
   @Column({ type: "text", nullable: true, default: null })
   matchVerdictReasoning!: string | null;
+
+  @Column({ type: "enum", enum: MatchRecommendation, nullable: true, default: null })
+  matchRecommendation!: MatchRecommendation | null;
+
+  @Column({ type: "jsonb", nullable: true, default: null })
+  matchStrengths!: string[] | null;
+
+  @Column({ type: "jsonb", nullable: true, default: null })
+  matchWeaknesses!: string[] | null;
+
+  @Column({ type: "jsonb", nullable: true, default: null })
+  matchRisks!: string[] | null;
 
   @Column({ type: "timestamp", nullable: true, default: null })
   assessmentRetryDate!: Date | null;

@@ -12,10 +12,17 @@ import {
   matchJobValidator,
   applyValidator,
   jobApplicationsQueryValidator,
+  generateJobContentValidator,
 } from "../validators/job.js";
 
 const router = Router();
 
+router.post(
+  "/generate",
+  validateAccess([UserRole.Recruiter]),
+  validate(generateJobContentValidator),
+  asyncHandler(job.generateContent)
+);
 router.post(
   "/",
   validateAccess([UserRole.Recruiter]),

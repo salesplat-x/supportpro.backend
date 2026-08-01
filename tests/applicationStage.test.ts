@@ -20,9 +20,18 @@ import {
   createRole,
   createJob,
   createApplication,
+  createQuestion,
 } from "./helpers/fixtures.js";
 import { Application } from "../src/entities/Application.js";
-import { ApplicationStatus, ScreeningStage, MatchVerdict } from "../src/types/enums.js";
+import { Answer } from "../src/entities/Answer.js";
+import { TalentEmbedding } from "../src/entities/TalentEmbedding.js";
+import {
+  ApplicationStatus,
+  ScreeningStage,
+  MatchVerdict,
+  MatchRecommendation,
+  QuestionType,
+} from "../src/types/enums.js";
 import { assessApplicationMatch } from "../src/utils/integrations/openai.js";
 
 jest.mock("../src/utils/integrations/openai.js", () => ({
@@ -32,6 +41,10 @@ jest.mock("../src/utils/integrations/openai.js", () => ({
       content: JSON.stringify({
         verdict: "high",
         reasoning: "Strong CV match and consistent scores across the pipeline.",
+        strengths: ["Five years of relevant TypeScript experience per the CV."],
+        weaknesses: ["No direct leadership experience mentioned."],
+        risks: ["May need ramp-up time on the specific stack used here."],
+        recommendation: "hire",
       }),
     },
   }),
@@ -161,7 +174,7 @@ describe("rankApplication — rank never exceeds the number of applicants who've
 });
 
 describe("triggerMatchVerdict — AI verdict is advisory and recruiter-facing only", () => {
-  it("persists the verdict/reasoning returned by the LLM onto the application", async () => {
+  it("persists the verdict/reasoning/evidence returned by the LLM onto the application", async () => {
     const { user: talent } = await createTalent();
     const { user: recruiter } = await createRecruiter();
     const role = await createRole();
@@ -180,6 +193,111 @@ describe("triggerMatchVerdict — AI verdict is advisory and recruiter-facing on
     });
     expect(reloaded?.matchVerdict).toBe(MatchVerdict.High);
     expect(reloaded?.matchVerdictReasoning).toContain("Strong CV match");
+    expect(reloaded?.matchRecommendation).toBe(MatchRecommendation.Hire);
+    expect(reloaded?.matchStrengths).toEqual([
+      "Five years of relevant TypeScript experience per the CV.",
+    ]);
+    expect(reloaded?.matchWeaknesses).toEqual(["No direct leadership experience mentioned."]);
+    expect(reloaded?.matchRisks).toEqual([
+      "May need ramp-up time on the specific stack used here.",
+    ]);
+  });
+
+  it("gathers CV text and personalized/personality Q&A into the LLM context", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const application = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+    });
+
+    await testDataSource.getRepository(TalentEmbedding).save(
+      testDataSource.getRepository(TalentEmbedding).create({
+        userId: talent.id,
+        cvText: "Five years of backend engineering experience.",
+        generatedAt: new Date(),
+      })
+    );
+
+    const personalizedQuestion = await createQuestion(QuestionType.Personalized, {
+      jobId: job.id,
+    });
+    await testDataSource.getRepository(Answer).save(
+      testDataSource.getRepository(Answer).create({
+        userId: talent.id,
+        jobId: job.id,
+        questionType: QuestionType.Personalized,
+        responses: [{ questionId: personalizedQuestion.id, answer: "I shipped X at my last job." }],
+      })
+    );
+
+    const personalityQuestion = await createQuestion(
+      QuestionType.Personality,
+      { jobId: job.id },
+      { criteria: "EI" }
+    );
+    await testDataSource.getRepository(Answer).save(
+      testDataSource.getRepository(Answer).create({
+        userId: talent.id,
+        jobId: job.id,
+        questionType: QuestionType.Personality,
+        responses: [
+          { questionId: personalityQuestion.id, answer: "I recharge alone.", dichotomyPreference: "I" },
+        ],
+      })
+    );
+
+    await triggerMatchVerdict(talent, application);
+
+    expect(mockAssessApplicationMatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cvText: "Five years of backend engineering experience.",
+        personalizedQuestionsAndAnswers: [
+          expect.objectContaining({
+            question: personalizedQuestion.question,
+            answer: "I shipped X at my last job.",
+          }),
+        ],
+        personalityQuestionsAndAnswers: [
+          expect.objectContaining({
+            question: personalityQuestion.question,
+            answer: "I recharge alone.",
+            dichotomy: "EI",
+          }),
+        ],
+      })
+    );
+  });
+
+  it("rejects a recommendation value that isn't hire/interview_further/no_hire, without dropping the rest of the update", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const application = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+    });
+
+    mockAssessApplicationMatch.mockResolvedValueOnce({
+      message: {
+        content: JSON.stringify({
+          verdict: "high",
+          reasoning: "Solid candidate overall.",
+          recommendation: "definitely_hire",
+        }),
+      },
+    } as unknown as Awaited<ReturnType<typeof assessApplicationMatch>>);
+
+    await triggerMatchVerdict(talent, application);
+
+    const reloaded = await testDataSource.getRepository(Application).findOne({
+      where: { id: application.id },
+    });
+    expect(reloaded?.matchVerdict).toBe(MatchVerdict.High);
+    expect(reloaded?.matchRecommendation).toBeNull();
   });
 
   it("does not throw when the job can't be found (defensive no-op)", async () => {

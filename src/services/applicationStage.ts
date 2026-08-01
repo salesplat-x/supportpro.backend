@@ -4,7 +4,16 @@ import { AIConfig } from "../entities/AIConfig.js";
 import { Application } from "../entities/Application.js";
 import { Job } from "../entities/Job.js";
 import { User } from "../entities/User.js";
-import { ApplicationStatus, ScreeningStage, MatchVerdict } from "../types/enums.js";
+import { Answer } from "../entities/Answer.js";
+import { Question } from "../entities/Question.js";
+import { TalentEmbedding } from "../entities/TalentEmbedding.js";
+import {
+  ApplicationStatus,
+  ScreeningStage,
+  MatchVerdict,
+  MatchRecommendation,
+  QuestionType,
+} from "../types/enums.js";
 import { ValidationError } from "../utils/errors";
 import { assessApplicationMatch } from "../utils/integrations/openai.js";
 import logger from "../utils/logger.js";
@@ -12,6 +21,35 @@ import logger from "../utils/logger.js";
 const applicationRepo = () => AppDataSource.getRepository(Application);
 
 const jobRepo = () => AppDataSource.getRepository(Job);
+
+const answerRepo = () => AppDataSource.getRepository(Answer);
+
+const questionRepo = () => AppDataSource.getRepository(Question);
+
+const talentEmbeddingRepo = () => AppDataSource.getRepository(TalentEmbedding);
+
+// Joins an Answer row's responses back to their question text so the LLM gets
+// readable Q&A pairs instead of opaque question IDs.
+const buildQuestionAnswerPairs = async (
+  jobId: string,
+  userId: string,
+  questionType: QuestionType.Personalized | QuestionType.Personality
+): Promise<Array<{ question: string; answer: string; dichotomy?: string }>> => {
+  const answer = await answerRepo().findOne({ where: { userId, jobId, questionType } });
+  if (!answer || answer.responses.length === 0) return [];
+
+  const questions = await questionRepo().find({ where: { jobId, type: questionType } });
+  const questionsById = new Map(questions.map((q) => [q.id, q]));
+
+  return answer.responses.map((r) => {
+    const question = questionsById.get(r.questionId);
+    return {
+      question: question?.question ?? "Unknown question",
+      answer: r.answer,
+      ...(question?.criteria ? { dichotomy: question.criteria } : {}),
+    };
+  });
+};
 
 export const canTakeAssessment = (assessmentRetryDate: Date | null): boolean => {
   if (!assessmentRetryDate) return true;
@@ -66,6 +104,15 @@ export const triggerMatchVerdict = async (
     if (!job) return;
 
     const aiConfig = job.aiConfig as AIConfig | null;
+
+    const [cvChunks, personalizedQuestionsAndAnswers, personalityQuestionsAndAnswers] =
+      await Promise.all([
+        talentEmbeddingRepo().find({ where: { userId: talent.id }, select: { cvText: true } }),
+        buildQuestionAnswerPairs(application.jobId, talent.id, QuestionType.Personalized),
+        buildQuestionAnswerPairs(application.jobId, talent.id, QuestionType.Personality),
+      ]);
+    const cvText = cvChunks.map((c) => c.cvText ?? "").join("\n\n");
+
     const response = await assessApplicationMatch({
       jobDescription: job.jobBrief,
       recruiterGuide: aiConfig?.recruiterGuide ?? undefined,
@@ -73,6 +120,11 @@ export const triggerMatchVerdict = async (
       personalizedScore: application.personalizedScore,
       prescreeningScore: talent.prescreeningScore ?? null,
       mbtiType: application.mbtiType,
+      cvText: cvText || undefined,
+      personalizedQuestionsAndAnswers:
+        personalizedQuestionsAndAnswers.length > 0 ? personalizedQuestionsAndAnswers : undefined,
+      personalityQuestionsAndAnswers:
+        personalityQuestionsAndAnswers.length > 0 ? personalityQuestionsAndAnswers : undefined,
     });
     if (!response?.message.content) {
       throw new ValidationError("Error with LLM");
@@ -81,6 +133,10 @@ export const triggerMatchVerdict = async (
     const parsed = JSON.parse(response.message.content) as {
       verdict: string;
       reasoning: string;
+      strengths?: string[];
+      weaknesses?: string[];
+      risks?: string[];
+      recommendation?: string;
     };
 
     // The LLM is instructed to return exactly "high"/"medium"/"low", but nothing
@@ -94,9 +150,21 @@ export const triggerMatchVerdict = async (
       throw new ValidationError(`Unexpected verdict value from LLM: "${parsed.verdict}"`);
     }
 
+    // Same validate-before-write discipline as the verdict above — a stray
+    // casing/wording deviation here must not silently drop the whole update.
+    const normalizedRecommendation = parsed.recommendation?.trim().toLowerCase();
+    const validRecommendations = Object.values(MatchRecommendation) as string[];
+    const recommendation = validRecommendations.includes(normalizedRecommendation ?? "")
+      ? (normalizedRecommendation as MatchRecommendation)
+      : null;
+
     await applicationRepo().update(application.id, {
       matchVerdict: normalizedVerdict as MatchVerdict,
       matchVerdictReasoning: parsed.reasoning,
+      matchRecommendation: recommendation,
+      matchStrengths: Array.isArray(parsed.strengths) ? parsed.strengths : null,
+      matchWeaknesses: Array.isArray(parsed.weaknesses) ? parsed.weaknesses : null,
+      matchRisks: Array.isArray(parsed.risks) ? parsed.risks : null,
     });
   } catch (err) {
     logger.error(

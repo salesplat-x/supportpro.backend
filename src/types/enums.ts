@@ -61,6 +61,12 @@ export enum MatchVerdict {
   Low = "low",
 }
 
+export enum MatchRecommendation {
+  Hire = "hire",
+  InterviewFurther = "interview_further",
+  NoHire = "no_hire",
+}
+
 export enum ScreeningStage {
   Prescreening = "prescreening",
   CvSimilarity = "cv_similarity",
