@@ -242,10 +242,10 @@ describe("PATCH /v1/applications/:_id/status — update status (Recruiter only)"
     expect(res.status).toBe(404);
   });
 
-  it("item 9: shortlisting sends the talent a congratulatory in-app notification", async () => {
+  it("item 9: shortlisting sends the talent a congratulatory in-app notification with a concise title", async () => {
     const { user: talent } = await createTalent();
     const { user: recruiter, token } = await createRecruiter();
-    const role = await createRole();
+    const role = await createRole("Backend Developer");
     const job = await createJob(recruiter, role);
     const app_ = await createApplication(talent, job);
 
@@ -259,12 +259,17 @@ describe("PATCH /v1/applications/:_id/status — update status (Recruiter only)"
       .find({ where: { userId: talent.id } });
     expect(notifications).toHaveLength(1);
     expect(notifications[0]?.message).toContain("shortlisted");
+    expect(notifications[0]?.message).toContain("Backend Developer");
+    // The title must be the short job/role title, not the long jobBrief
+    // description — this was the actual reported bug.
+    expect(notifications[0]?.title).toBe("Shortlisted for Backend Developer");
+    expect(notifications[0]?.title).not.toContain(job.jobBrief);
   });
 
-  it("item 9: rejecting sends the talent a reassuring in-app notification", async () => {
+  it("item 9: rejecting sends the talent a reassuring in-app notification with a concise title", async () => {
     const { user: talent } = await createTalent();
     const { user: recruiter, token } = await createRecruiter();
-    const role = await createRole();
+    const role = await createRole("Backend Developer");
     const job = await createJob(recruiter, role);
     const app_ = await createApplication(talent, job);
 
@@ -278,6 +283,8 @@ describe("PATCH /v1/applications/:_id/status — update status (Recruiter only)"
       .find({ where: { userId: talent.id } });
     expect(notifications).toHaveLength(1);
     expect(notifications[0]?.message).toContain("dream job");
+    expect(notifications[0]?.title).toBe("Update on your Backend Developer application");
+    expect(notifications[0]?.title).not.toContain(job.jobBrief);
   });
 
   it("ISSUE-006: service-level check allows talent (defence-in-depth gap documented)", async () => {
@@ -310,7 +317,7 @@ describe("PATCH /v1/applications/:_id/status — update status (Recruiter only)"
 describe("PATCH /v1/applications/status — bulk shortlist/reject (Recruiter only)", () => {
   it("updates every selected application and notifies each talent", async () => {
     const { user: recruiter, token } = await createRecruiter();
-    const role = await createRole();
+    const role = await createRole("Backend Developer");
     const job = await createJob(recruiter, role);
     const { user: talentA } = await createTalent();
     const { user: talentB } = await createTalent();
@@ -334,6 +341,9 @@ describe("PATCH /v1/applications/status — bulk shortlist/reject (Recruiter onl
       where: { userId: In([talentA.id, talentB.id]) },
     });
     expect(notifications).toHaveLength(2);
+    expect(notifications.every((n) => n.title === "Shortlisted for Backend Developer")).toBe(
+      true
+    );
   });
 
   it("silently skips applications the caller doesn't own (partial success)", async () => {

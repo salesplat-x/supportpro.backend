@@ -5,7 +5,8 @@ import { sendSuccessResponse } from "../utils/response.js";
 export const create = async (req: Request, res: Response) => {
   const result = await notificationService.createNotification(
     req.user.id,
-    req.body.message ?? req.body
+    req.body.message ?? req.body,
+    req.body.title
   );
   sendSuccessResponse(res, "Notification created", { notification: result }, 201);
 };

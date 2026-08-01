@@ -23,6 +23,9 @@ export class Notification {
   @JoinColumn({ name: "user_id" })
   user!: User;
 
+  @Column({ type: "varchar", nullable: true })
+  title!: string | null;
+
   @Column({ type: "text" })
   message!: string;
 

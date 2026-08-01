@@ -62,17 +62,23 @@ describe("POST /v1/notifications/ — create notification", () => {
     expect(res.status).toBe(401);
   });
 
-  it("Missing message succeeds (no validate middleware on POST route → notification created without message)", async () => {
-    // NOTE: The createNotificationValidator exists but is NOT applied to POST /v1/notifications/
-    // This is a code quality gap — the validator is defined but not wired up.
-    // The actual behavior is 201 with null/empty message.
+  it("Missing message → 400", async () => {
     const { token } = await createTalent();
     const res = await request(app)
       .post("/v1/notifications/")
       .set("Authorization", `Bearer ${token}`)
       .send({});
-    // Documents the missing validate middleware gap
-    expect([201, 400]).toContain(res.status);
+    expect(res.status).toBe(400);
+  });
+
+  it("Creates notification with a title → 201", async () => {
+    const { token } = await createTalent();
+    const res = await request(app)
+      .post("/v1/notifications/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ message: "Hello World", title: "A short title" });
+    expect(res.status).toBe(201);
+    expect(res.body.data.notification.title).toBe("A short title");
   });
 });
 

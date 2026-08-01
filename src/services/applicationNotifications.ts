@@ -16,3 +16,16 @@ export const decisionNotificationMessage = (
     ? `Great news! You've been shortlisted for ${jobTitle}. Watch your inbox — the recruiter will be in touch soon.`
     : "Congratulations, you've been shortlisted! Watch your inbox for a message from the recruiter.";
 };
+
+// Short, scannable notification title — the message body above stays available
+// as secondary/expandable text.
+export const decisionNotificationTitle = (
+  status: ApplicationStatus.Rejected | ApplicationStatus.Shortlisted,
+  jobTitle?: string | null
+): string => {
+  if (status === ApplicationStatus.Rejected) {
+    return jobTitle ? `Update on your ${jobTitle} application` : "Update on your application";
+  }
+
+  return jobTitle ? `Shortlisted for ${jobTitle}` : "You've been shortlisted";
+};

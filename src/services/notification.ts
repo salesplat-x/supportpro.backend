@@ -15,9 +15,10 @@ export interface PagingParams {
 
 export const createNotification = async (
   userId: string,
-  message: string
+  message: string,
+  title?: string | null
 ): Promise<Notification> => {
-  const notification = notificationRepo().create({ userId, message });
+  const notification = notificationRepo().create({ userId, message, title: title ?? null });
   return notificationRepo().save(notification);
 };
 
