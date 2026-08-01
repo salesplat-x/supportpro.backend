@@ -50,4 +50,9 @@ export const generatePersonalityQuestionsValidator = [
   body("dichotomyPair")
     .isIn(DichotomyPair)
     .withMessage(`dichotomyPair must be one of: ${DichotomyPair.join(", ")}`),
+  body("count")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage("count must be a positive integer")
+    .toInt(),
 ];

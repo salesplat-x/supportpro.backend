@@ -247,6 +247,7 @@ export const generatePersonalizedQuestions = async (
 export interface GeneratePersonalityQuestionPayload {
   jobId: string;
   dichotomyPair: string;
+  count?: number;
 }
 
 const DICHOTOMY_COUNT_FIELD: Record<string, keyof AIConfig> = {
@@ -259,7 +260,7 @@ const DICHOTOMY_COUNT_FIELD: Record<string, keyof AIConfig> = {
 export const generatePersonalityQuestion = async (
   payload: GeneratePersonalityQuestionPayload
 ): Promise<Question[]> => {
-  const { jobId, dichotomyPair } = payload;
+  const { jobId, dichotomyPair, count: requestedCount } = payload;
 
   const jobForPersonality = await jobRepo().findOne({
     where: { id: jobId },
@@ -275,16 +276,20 @@ export const generatePersonalityQuestion = async (
 
   let count = 1;
   if (existingCount === 0) {
-    const countField = DICHOTOMY_COUNT_FIELD[dichotomyPair];
-    const configuredCount = countField
-      ? (jobForPersonality.aiConfig?.[countField] as number | null | undefined)
-      : undefined;
-    if (configuredCount == null) {
-      throw new ValidationError(
-        `No question count configured for dichotomy pair "${dichotomyPair}"`
-      );
+    if (requestedCount != null) {
+      count = requestedCount;
+    } else {
+      const countField = DICHOTOMY_COUNT_FIELD[dichotomyPair];
+      const configuredCount = countField
+        ? (jobForPersonality.aiConfig?.[countField] as number | null | undefined)
+        : undefined;
+      if (configuredCount == null) {
+        throw new ValidationError(
+          `No question count configured for dichotomy pair "${dichotomyPair}"`
+        );
+      }
+      count = configuredCount;
     }
-    count = configuredCount;
   }
 
   const response = await AI.getPersonalityEvaluationQuestion(

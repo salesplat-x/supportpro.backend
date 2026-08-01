@@ -336,6 +336,19 @@ describe("POST /v1/questions/personality — generate personality question", () 
     expect(res.status).toBe(200);
   });
 
+  it("Brand-new job with no persisted AIConfig, count sent in request → 200", async () => {
+    const { user: recruiter, token: recruiterToken } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+
+    const res = await request(app)
+      .post("/v1/questions/personality")
+      .set("Authorization", `Bearer ${recruiterToken}`)
+      .send({ jobId: job.id, dichotomyPair: "EI", count: 3 });
+
+    expect(res.status).toBe(200);
+  });
+
   it("Talent cannot access → 403", async () => {
     const { token } = await createTalent();
     const res = await request(app)
