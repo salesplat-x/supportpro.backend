@@ -244,7 +244,11 @@ describe("triggerMatchVerdict — AI verdict is advisory and recruiter-facing on
         jobId: job.id,
         questionType: QuestionType.Personality,
         responses: [
-          { questionId: personalityQuestion.id, answer: "I recharge alone.", dichotomyPreference: "I" },
+          {
+            questionId: personalityQuestion.id,
+            answer: "I recharge alone.",
+            dichotomyPreference: "I",
+          },
         ],
       })
     );

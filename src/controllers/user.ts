@@ -14,7 +14,8 @@ export const editProfile = async (req: Request, res: Response) => {
 
 export const me = async (req: Request, res: Response) => {
   const result = await userService.me(req.user.id);
-  sendSuccessResponse(res, "User fetched", { user: result });
+  const profileCompletion = userService.getProfileCompletion(result);
+  sendSuccessResponse(res, "User fetched", { user: { ...result, profileCompletion } });
 };
 
 export const viewProfiles = async (req: Request, res: Response) => {

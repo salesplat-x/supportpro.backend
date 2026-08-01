@@ -101,7 +101,9 @@ describe("GET /v1/prescreening/ — get or generate prescreening", () => {
     const role = await createRole();
     const { token } = await createCompleteTalent(role);
 
-    const first = await request(app).get("/v1/prescreening/").set("Authorization", `Bearer ${token}`);
+    const first = await request(app)
+      .get("/v1/prescreening/")
+      .set("Authorization", `Bearer ${token}`);
     expect(first.body.data.preScreening.generating).toBe(true);
 
     let last = first;

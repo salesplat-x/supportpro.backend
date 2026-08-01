@@ -341,9 +341,7 @@ describe("PATCH /v1/applications/status — bulk shortlist/reject (Recruiter onl
       where: { userId: In([talentA.id, talentB.id]) },
     });
     expect(notifications).toHaveLength(2);
-    expect(notifications.every((n) => n.title === "Shortlisted for Backend Developer")).toBe(
-      true
-    );
+    expect(notifications.every((n) => n.title === "Shortlisted for Backend Developer")).toBe(true);
   });
 
   it("silently skips applications the caller doesn't own (partial success)", async () => {
