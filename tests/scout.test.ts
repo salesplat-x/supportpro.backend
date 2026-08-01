@@ -152,7 +152,6 @@ describe("Scout ownership checks", () => {
     expect(res.status).toBe(200);
     expect(res.body.data.scoutReports).toEqual([]);
   });
-
 });
 
 describe("GET /v1/scout/talents — standalone Talent Search (not job-scoped)", () => {
@@ -161,9 +160,7 @@ describe("GET /v1/scout/talents — standalone Talent Search (not job-scoped)", 
     const { user: talent } = await createCompleteTalent(await createRole());
     await testDataSource.getRepository(User).update(talent.id, { prescreeningScore: 80 });
 
-    const res = await request(app)
-      .get("/v1/scout/talents")
-      .set("Authorization", `Bearer ${token}`);
+    const res = await request(app).get("/v1/scout/talents").set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.data.talents)).toBe(true);
@@ -175,9 +172,7 @@ describe("GET /v1/scout/talents — standalone Talent Search (not job-scoped)", 
     const role = await createRole();
     const otherRole = await createRole();
     const { user: matchingTalent } = await createCompleteTalent(role);
-    await testDataSource
-      .getRepository(User)
-      .update(matchingTalent.id, { prescreeningScore: 80 });
+    await testDataSource.getRepository(User).update(matchingTalent.id, { prescreeningScore: 80 });
     const { user: otherTalent } = await createCompleteTalent(otherRole);
     await testDataSource.getRepository(User).update(otherTalent.id, { prescreeningScore: 80 });
 
@@ -193,9 +188,7 @@ describe("GET /v1/scout/talents — standalone Talent Search (not job-scoped)", 
 
   it("Talent cannot access → 403", async () => {
     const { token } = await createTalent();
-    const res = await request(app)
-      .get("/v1/scout/talents")
-      .set("Authorization", `Bearer ${token}`);
+    const res = await request(app).get("/v1/scout/talents").set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(403);
   });
 

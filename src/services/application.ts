@@ -5,7 +5,10 @@ import { Notification } from "../entities/Notification.js";
 import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
 import { UserRole, ApplicationType, ApplicationStatus, ScreeningStage } from "../types/enums.js";
 import { createNotification } from "./notification.js";
-import { decisionNotificationMessage, decisionNotificationTitle } from "./applicationNotifications.js";
+import {
+  decisionNotificationMessage,
+  decisionNotificationTitle,
+} from "./applicationNotifications.js";
 import { triggerMatchVerdict } from "./applicationStage.js";
 import logger from "../utils/logger.js";
 

@@ -560,7 +560,10 @@ const enrichTalentsWithFitEvidence = async (
   const cvTextByUserId = new Map<string, string>();
   for (const chunk of cvChunks) {
     const existing = cvTextByUserId.get(chunk.userId) ?? "";
-    cvTextByUserId.set(chunk.userId, existing ? `${existing}\n\n${chunk.cvText ?? ""}` : chunk.cvText ?? "");
+    cvTextByUserId.set(
+      chunk.userId,
+      existing ? `${existing}\n\n${chunk.cvText ?? ""}` : (chunk.cvText ?? "")
+    );
   }
 
   await Promise.all(

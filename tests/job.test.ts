@@ -245,12 +245,8 @@ describe("GET /v1/jobs/talents/:jobId — top talents enriched with fit evidence
     expect(res.status).toBe(200);
     const matched = res.body.data.talents.find((t: { id: string }) => t.id === talent.id);
     expect(matched).toBeDefined();
-    expect(matched.strengths).toEqual([
-      "Five years of relevant backend experience per the CV.",
-    ]);
-    expect(matched.weaknesses).toEqual([
-      "No mention of the specific cloud provider used here.",
-    ]);
+    expect(matched.strengths).toEqual(["Five years of relevant backend experience per the CV."]);
+    expect(matched.weaknesses).toEqual(["No mention of the specific cloud provider used here."]);
   });
 });
 
