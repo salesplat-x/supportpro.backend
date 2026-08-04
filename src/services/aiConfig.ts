@@ -1,12 +1,15 @@
+import { In } from "typeorm";
+import type { EntityManager } from "typeorm";
+
 import { AppDataSource } from "../database/dataSource.js";
 import { AIConfig } from "../entities/AIConfig.js";
+import { Answer } from "../entities/Answer.js";
+import { Application } from "../entities/Application.js";
 import { Job } from "../entities/Job.js";
-import { NotFoundError, ConflictError, AuthorizationError } from "../utils/errors";
-import { UserRole, ScreeningStage } from "../types/enums.js";
+import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
+import { UserRole, ScreeningStage, QuestionType } from "../types/enums.js";
 
 const aiConfigRepo = () => AppDataSource.getRepository(AIConfig);
-
-const jobRepo = () => AppDataSource.getRepository(Job);
 
 export interface AIConfigPayload {
   name?: string | null;
@@ -15,7 +18,6 @@ export interface AIConfigPayload {
   minPrescreeningScore?: number | null;
   cvSimilarity?: boolean;
   minCvSimilarityScore?: number | null;
-  noOfCvSimilarCandidates?: number | null;
   personalizedAssessment?: boolean;
   noPersonalizedQuestions?: number;
   recruiterGuide?: string | null;
@@ -52,36 +54,73 @@ export const createStages = (config: AIConfigPayload): StagesResult => {
   return { stages, entryStage: enabled[0] ?? ScreeningStage.Completed };
 };
 
+// Recomputes the pipeline for applications on jobs linked to `configId` that
+// haven't engaged with the AI screening at all yet — no recorded score, MBTI
+// result, or submitted Answer for either the personality or personalized
+// question sets. Applications with any recorded progress are left untouched
+// so an edit mid-way through a talent's screening can't yank the ground out
+// from under them.
+export const resyncUntouchedApplications = async (
+  manager: EntityManager,
+  configId: string,
+  stages: Record<string, string>,
+  entryStage: ScreeningStage
+): Promise<void> => {
+  const jobs = await manager.find(Job, { where: { aiConfigId: configId }, select: { id: true } });
+  if (jobs.length === 0) return;
+  const jobIds = jobs.map((j) => j.id);
+
+  const applications = await manager.find(Application, { where: { jobId: In(jobIds) } });
+  const candidates = applications.filter(
+    (app) =>
+      app.personalizedScore === null && app.cvSimilarityScore === null && app.mbtiType === null
+  );
+  if (candidates.length === 0) return;
+
+  const talentIds = [...new Set(candidates.map((a) => a.talentId))];
+  const answers = await manager.find(Answer, {
+    where: {
+      userId: In(talentIds),
+      jobId: In(jobIds),
+      questionType: In([QuestionType.Personalized, QuestionType.Personality]),
+    },
+    select: { userId: true, jobId: true },
+  });
+  const answeredKeys = new Set(answers.map((a) => `${a.userId}:${a.jobId}`));
+
+  const untouched = candidates.filter((app) => !answeredKeys.has(`${app.talentId}:${app.jobId}`));
+  if (untouched.length === 0) return;
+
+  const toSave = untouched.map((app) => ({
+    ...app,
+    stages,
+    currentStage: entryStage as Application["currentStage"],
+  }));
+  await manager.save(Application, toSave);
+};
+
 export const createAIConfig = async (
   userId: string,
   payload: AIConfigPayload
 ): Promise<AIConfig> => {
-  const name = payload.name ? payload.name.toLowerCase() : null;
-
-  const existing = await aiConfigRepo().findOne({
-    where: { recruiterId: userId, name: name ?? undefined },
-  });
-  if (existing) {
-    throw new ConflictError("Configuration already existing with this name");
+  if (!payload.jobId) {
+    throw new ValidationError("jobId is required");
   }
 
-  const { stages } = createStages(payload);
+  // Pre-screening is a mandatory stage — never trust a client-supplied value.
+  const normalizedPayload: AIConfigPayload = { ...payload, prescreeningAssessment: true };
+  const { stages } = createStages(normalizedPayload);
 
-  const config = aiConfigRepo().create({
-    ...payload,
-    name,
-    recruiterId: userId,
-    stages,
+  return AppDataSource.transaction(async (manager) => {
+    const config = manager.create(AIConfig, {
+      ...normalizedPayload,
+      recruiterId: userId,
+      stages,
+    });
+    const saved = await manager.save(AIConfig, config);
+    await manager.update(Job, { id: payload.jobId }, { aiConfigId: saved.id });
+    return saved;
   });
-
-  const saved = await aiConfigRepo().save(config);
-
-  // Link job to aiConfig
-  if (payload.jobId) {
-    await jobRepo().update({ id: payload.jobId }, { aiConfigId: saved.id });
-  }
-
-  return saved;
 };
 
 export const updateAIConfig = async (
@@ -99,26 +138,15 @@ export const updateAIConfig = async (
     throw new AuthorizationError("You are not authorized to perform this action");
   }
 
-  if (payload.name) {
-    const name = payload.name.toLowerCase();
-    const existing = await aiConfigRepo().findOne({
-      where: { recruiterId: userId, name },
-    });
-    if (existing && existing.id !== config.id) {
-      throw new ConflictError("You already have a configuration with this name");
-    }
-    payload.name = name;
-  }
+  // Pre-screening is a mandatory stage — never trust a client-supplied value.
+  const normalizedPayload: AIConfigPayload = { ...payload, prescreeningAssessment: true };
+  const { stages, entryStage } = createStages({ ...config, ...normalizedPayload });
 
-  const { stages } = createStages({ ...config, ...payload });
-
-  const updated = await aiConfigRepo().save({
-    ...config,
-    ...payload,
-    stages,
+  return AppDataSource.transaction(async (manager) => {
+    const updated = await manager.save(AIConfig, { ...config, ...normalizedPayload, stages });
+    await resyncUntouchedApplications(manager, configId, stages, entryStage);
+    return updated;
   });
-
-  return updated;
 };
 
 export const allAIConfig = async (userId: string): Promise<AIConfig[]> => {

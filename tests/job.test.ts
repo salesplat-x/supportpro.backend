@@ -392,3 +392,50 @@ describe("GET /v1/jobs/applications/:jobId — applicant list includes jobId", (
     expect(applications.every((a: { jobId: string }) => a.jobId === job.id)).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// PATCH /v1/jobs/:_id — update job (Active status requires a linked AI config)
+// ---------------------------------------------------------------------------
+describe("PATCH /v1/jobs/:_id — update job", () => {
+  it("Activating a job with no aiConfigId → 400", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role, { status: JobStatus.Draft });
+
+    const res = await request(app)
+      .patch(`/v1/jobs/${job.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: "active" });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("Activating a job with an aiConfigId → 200", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role, { status: JobStatus.Draft });
+    const config = await createAIConfig(recruiter);
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: config.id });
+
+    const res = await request(app)
+      .patch(`/v1/jobs/${job.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: "active" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.job.status).toBe("active");
+  });
+
+  it("Non-status updates on a job with no aiConfigId still succeed", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role, { status: JobStatus.Draft });
+
+    const res = await request(app)
+      .patch(`/v1/jobs/${job.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ jobBrief: "Updated brief" });
+
+    expect(res.status).toBe(200);
+  });
+});
