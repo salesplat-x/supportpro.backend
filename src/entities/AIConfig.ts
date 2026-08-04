@@ -44,9 +44,6 @@ export class AIConfig {
   @Column({ type: "float", nullable: true, default: null })
   minCvSimilarityScore!: number | null;
 
-  @Column({ type: "int", nullable: true, default: null })
-  noOfCvSimilarCandidates!: number | null;
-
   @Column({ default: true })
   personalizedAssessment!: boolean;
 

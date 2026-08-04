@@ -2641,8 +2641,6 @@ paths:
                   type: boolean
                 minCvSimilarityScore:
                   type: number
-                noOfCvSimilarCandidates:
-                  type: number
                 personalizedAssessment:
                   type: boolean
                 noPersonalizedQuestions:
@@ -2731,8 +2729,6 @@ paths:
                 cvSimilarity:
                   type: boolean
                 minCvSimilarityScore:
-                  type: number
-                noOfCvSimilarCandidates:
                   type: number
                 personalizedAssessment:
                   type: boolean
