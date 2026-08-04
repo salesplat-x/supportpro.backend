@@ -203,6 +203,14 @@ export const updateJob = async (
     throw new AuthorizationError("You are not authorized to perform this action");
   }
 
+  if (update.status === JobStatus.Active) {
+    const nextAiConfigId =
+      update.aiConfigId !== undefined ? update.aiConfigId : existingJob.aiConfigId;
+    if (!nextAiConfigId) {
+      throw new ValidationError("This job cannot be activated until an AI configuration is added");
+    }
+  }
+
   if (update.role) {
     const existingRole = await roleRepo().findOne({ where: { id: update.role } });
     if (!existingRole) {

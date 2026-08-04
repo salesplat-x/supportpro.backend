@@ -36,12 +36,16 @@ const atLeastOneDichotomyPairValidator = body("personalityEvaluation").custom((_
 });
 
 export const createAIConfigValidator = [
+  body("jobId").notEmpty().withMessage("jobId is required"),
   body("name").optional().trim(),
-  body("prescreeningAssessment").isBoolean().withMessage("prescreeningAssessment must be boolean"),
-  body("minPrescreeningScore").optional().isFloat({ min: 0 }).toFloat(),
+  // prescreeningAssessment is always on server-side, regardless of what's sent here.
+  body("prescreeningAssessment").optional().isBoolean(),
+  body("minPrescreeningScore")
+    .isFloat({ min: 0 })
+    .withMessage("minPrescreeningScore is required")
+    .toFloat(),
   body("cvSimilarity").isBoolean().withMessage("cvSimilarity must be boolean"),
   body("minCvSimilarityScore").optional().isFloat({ min: 0 }).toFloat(),
-  body("noOfCvSimilarCandidates").optional().isInt({ min: 1, max: 20 }).toInt(),
   body("personalizedAssessment").isBoolean().withMessage("personalizedAssessment must be boolean"),
   body("noPersonalizedQuestions").optional().isInt({ min: 1, max: 20 }).toInt(),
   body("personalityEvaluation").isBoolean().withMessage("personalityEvaluation must be boolean"),
@@ -62,7 +66,6 @@ export const updateAIConfigValidator = [
   body("minPrescreeningScore").optional().isFloat({ min: 0 }).toFloat(),
   body("cvSimilarity").optional().isBoolean(),
   body("minCvSimilarityScore").optional().isFloat({ min: 0 }).toFloat(),
-  body("noOfCvSimilarCandidates").optional().isInt({ min: 1, max: 20 }).toInt(),
   body("personalizedAssessment").optional().isBoolean(),
   body("noPersonalizedQuestions").optional().isInt({ min: 1, max: 20 }).toInt(),
   body("personalityEvaluation").optional().isBoolean(),

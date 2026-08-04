@@ -496,6 +496,19 @@ describe("POST /v1/applications/:_id/verdict — regenerate the AI match verdict
 // ---------------------------------------------------------------------------
 
 describe("PATCH /v1/jobs/applications/:jobId — apply for job", () => {
+  it("Applying to a job with no aiConfigId → 404", async () => {
+    const { token: talentToken } = await createTalent();
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+
+    const res = await request(app)
+      .patch(`/v1/jobs/applications/${job.id}`)
+      .set("Authorization", `Bearer ${talentToken}`)
+      .send({});
+    expect(res.status).toBe(404);
+  });
+
   it("Talent with passing prescreening score applies successfully → 201", async () => {
     const { token: talentToken } = await createTalent({ prescreeningScore: 75 });
     const { user: recruiter } = await createRecruiter();
