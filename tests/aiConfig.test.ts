@@ -5,7 +5,12 @@
 
 import request from "supertest";
 import { createApp } from "../src/app.js";
-import { startTestDatabase, stopTestDatabase, clearAllTables, testDataSource } from "./helpers/db.js";
+import {
+  startTestDatabase,
+  stopTestDatabase,
+  clearAllTables,
+  testDataSource,
+} from "./helpers/db.js";
 import {
   createTalent,
   createRecruiter,
@@ -413,7 +418,11 @@ describe("PATCH /v1/ai-config/:_id — resync untouched applications", () => {
     const res = await request(app)
       .patch(`/v1/ai-config/${config.id}`)
       .set("Authorization", `Bearer ${recruiterToken}`)
-      .send({ personalityEvaluation: false, personalizedAssessment: true, noPersonalizedQuestions: 2 });
+      .send({
+        personalityEvaluation: false,
+        personalizedAssessment: true,
+        noPersonalizedQuestions: 2,
+      });
     expect(res.status).toBe(200);
 
     const updatedApplication = await testDataSource
@@ -448,7 +457,11 @@ describe("PATCH /v1/ai-config/:_id — resync untouched applications", () => {
     const res = await request(app)
       .patch(`/v1/ai-config/${config.id}`)
       .set("Authorization", `Bearer ${recruiterToken}`)
-      .send({ personalityEvaluation: false, personalizedAssessment: true, noPersonalizedQuestions: 2 });
+      .send({
+        personalityEvaluation: false,
+        personalizedAssessment: true,
+        noPersonalizedQuestions: 2,
+      });
     expect(res.status).toBe(200);
 
     const untouched = await testDataSource
@@ -508,7 +521,11 @@ describe("PATCH /v1/ai-config/:_id — resync untouched applications", () => {
     const res = await request(app)
       .patch(`/v1/ai-config/${config.id}`)
       .set("Authorization", `Bearer ${recruiterToken}`)
-      .send({ personalityEvaluation: false, personalizedAssessment: true, noPersonalizedQuestions: 2 });
+      .send({
+        personalityEvaluation: false,
+        personalizedAssessment: true,
+        noPersonalizedQuestions: 2,
+      });
     expect(res.status).toBe(200);
 
     const untouched = await testDataSource
@@ -548,7 +565,11 @@ describe("PATCH /v1/ai-config/:_id — resync untouched applications", () => {
     const res = await request(app)
       .patch(`/v1/ai-config/${configA.id}`)
       .set("Authorization", `Bearer ${recruiterToken}`)
-      .send({ personalityEvaluation: false, personalizedAssessment: true, noPersonalizedQuestions: 2 });
+      .send({
+        personalityEvaluation: false,
+        personalizedAssessment: true,
+        noPersonalizedQuestions: 2,
+      });
     expect(res.status).toBe(200);
 
     const untouchedB = await testDataSource

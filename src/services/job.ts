@@ -449,7 +449,7 @@ export const topTalents = async (
     throw new ValidationError("This feature was not configured for this job");
   }
 
-  const limit = payload.limit ?? aiConfig.noOfCvSimilarCandidates ?? 20;
+  const limit = payload.limit ?? 20;
   const percentage = payload.percentage ?? aiConfig.minCvSimilarityScore ?? 50;
   const strictness = (100 - percentage) / 100;
 

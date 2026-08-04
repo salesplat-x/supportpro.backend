@@ -36,7 +36,7 @@ export function createApp(): Application {
   app.use(httpLogger);
   app.use(generalLimiter);
 
-  app.get("/", (_req, res) => sendSuccessResponse(res, "Welcome to SupportPro Backend"));
+  app.get("/", (_req, res) => sendSuccessResponse(res, "Welcome to Auxhr Backend"));
   app.get(
     "/health",
     asyncHandler(async (_req, res) => {

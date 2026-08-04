@@ -146,7 +146,6 @@ export async function createAIConfig(
     minPrescreeningScore: 60,
     cvSimilarity: true,
     minCvSimilarityScore: 50,
-    noOfCvSimilarCandidates: 10,
     personalizedAssessment: true,
     noPersonalizedQuestions: 2,
     personalityEvaluation: true,

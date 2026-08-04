@@ -31,7 +31,7 @@ class EmailService {
   async sendWelcome(user: UserLike): Promise<void> {
     const template = user.userRole === UserRole.Recruiter ? "welcomeRecruiter" : "welcome";
     const html = renderTemplate(template, { firstName: user.firstName });
-    await this.sendEmail({ to: user.email, subject: "Welcome to AuxHR", html });
+    await this.sendEmail({ to: user.email, subject: "Welcome to Auxhr", html });
   }
 
   async sendPasswordReset(user: UserLike, otp: string): Promise<void> {
