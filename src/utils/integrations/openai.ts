@@ -3,6 +3,11 @@ import env from "../../config/env.js";
 import { withRetry } from "../retry.js";
 import { createLimiter } from "../concurrencyLimiter.js";
 
+// API key is loaded from process.env.OPENAI_API_KEY via config/env.ts
+// (`env.openai_secret`). dotenv loads `.env` in app.ts (`import "dotenv/config"`).
+// Personality / personalized questions are persisted in the `questions` table
+// after a successful generation — reopening AI Config fetches those rows and
+// does not call OpenAI again.
 const openai = new OpenAI({ apiKey: env.openai_secret });
 
 // Single choke point for all OpenAI calls: caps concurrency so bursts (batch CV
@@ -86,31 +91,33 @@ export const generatePersonalizedQuestions = async (
   questionNo: number,
   recruiterGuide: string
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
-  const system = `
-  You are an automated system for generating personalized questions tailor made for job applicants/talents in order to get a wholesome idea of job applicants.
-  You will be given the job description,the talent's bio, the talent's CV and the recruiter's guide use them to generate ${questionNo} tailor-made personalized questions to ask the talent,
+  const system = `You are an expert hiring interviewer writing personalized screening questions for one candidate.
 
-  Your output should be a JSON array of the Questions. For example
-  '{
-    "questions":[
-      "Tell me about your work at SalesPlat",
-      "You said you were laid off at your previous job, was that due to a performance deficit?"
-    ]
-  }'`;
-  const prompt = `
-  Here is the job description below,
-  ${jobDescription}
+Rules:
+- Generate exactly ${questionNo} distinct questions.
+- Ground every question in concrete details from the CV, bio, job description, or recruiter guide. Do not invent employers, skills, dates, or achievements that are not present in the provided materials.
+- Prefer probing questions about claimed experience, impact, trade-offs, and gaps relative to the role.
+- Prioritize the recruiter guide when it conflicts with generic interview practice.
+- Do not ask generic icebreakers, illegal/discriminatory questions, or yes/no questions unless they clearly unlock a deeper follow-up.
+- Each question must be meaningfully different in focus.
 
-  Here is the talent's CV below,
-  ${cv.join("\n\n")}
+Output JSON only:
+{
+  "questions": ["<question 1>", "<question 2>"]
+}`;
+  const prompt = `Job description:
+${jobDescription}
 
-  Here is the talent's bio below,
-  ${bio}
+Talent CV:
+${cv.join("\n\n")}
 
-  Here is the recruiter's guide below.
-  ${recruiterGuide}
-  Make sure the generated personalized questions lays emphasis on the recruiter's guide especially, also factor in the talent's cv and bio
-`;
+Talent bio:
+${bio || "Not provided"}
+
+Recruiter guide:
+${recruiterGuide || "Not provided"}
+
+Generate ${questionNo} personalized interview question(s).`;
   const completion = await runCompletion({
     messages: [
       { role: "system", content: system },
@@ -172,26 +179,42 @@ export const gradePersonalizedAnswers = async (
   return completion.choices[0];
 };
 
+const DICHOTOMY_LABELS: Record<string, [string, string]> = {
+  EI: ["Extraversion (E)", "Introversion (I)"],
+  SN: ["Sensing (S)", "Intuition (N)"],
+  TF: ["Thinking (T)", "Feeling (F)"],
+  JP: ["Judging (J)", "Perceiving (P)"],
+};
+
 export const getPersonalityEvaluationQuestion = async (
   jobDescription: string,
   dichotomyPair: string,
   count = 1
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
-  const system = `
-  You are an automated system for generating questions to determine the personality type of a job applicant based on the MBTI model.
-  You will be provided with the job description and the MBTI dichotomy pair,
-  use them to generate tailor-made questions to assess the applicant's personality trait in the given dichotomy pair.
-  `;
-  const prompt = `
-  Job Description below: ${jobDescription},
-  Dichotomy Pair: ${dichotomyPair}
-  Generate ${count} distinct question${count > 1 ? "s" : ""} to determine if a person is more inclined towards ${dichotomyPair[0]} or ${dichotomyPair[1]} in the MBTI personality assessment.
-  ${count > 1 ? "Each question must be meaningfully different from the others — do not repeat wording or intent." : ""}
-  Your output should be a JSON object with an array of questions. For example:
-  {
-    "questions": ["...", "..."]
-  }
-`;
+  const pair = DICHOTOMY_LABELS[dichotomyPair] ?? [
+    dichotomyPair[0] ?? "A",
+    dichotomyPair[1] ?? "B",
+  ];
+  const system = `You are an organizational psychologist designing workplace MBTI-style screening questions.
+
+Rules:
+- Generate exactly ${count} open-ended question${count > 1 ? "s" : ""} for the ${dichotomyPair} dichotomy (${pair[0]} vs ${pair[1]}).
+- Situate questions in realistic workplace scenarios relevant to the job description.
+- Each question must elicit behavioral evidence of preference toward one pole of the dichotomy, without being leading or moralizing.
+- Do not mention MBTI, dichotomy letters, or the trait names in the question text.
+- Do not invent company-specific facts that are not in the job description.
+- Questions must be distinct in scenario and intent — no paraphrases.
+- Keep each question to 1–3 sentences, clear enough for a candidate to answer in a short paragraph.
+
+Output JSON only:
+{
+  "questions": ["<question text>", "..."]
+}`;
+  const prompt = `Job description:
+${jobDescription}
+
+Dichotomy pair: ${dichotomyPair} (${pair[0]} vs ${pair[1]})
+Generate ${count} workplace question${count > 1 ? "s" : ""} that distinguish ${pair[0]} from ${pair[1]}.`;
   const completion = await runCompletion({
     messages: [
       { role: "system", content: system },
@@ -358,21 +381,27 @@ export const assessApplicationMatch = async (
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
   const system = `You are a senior hiring panel member giving a recruiter a second opinion.
 
-  You will receive a JSON object describing a candidate's scores across a hiring pipeline (CV match, personalized test, pre-screening, personality type), the candidate's CV text, their personalized-question and personality-question answers, the job's description and, if provided, the recruiter's guide.
+You will receive a JSON object with pipeline scores, optional CV text, optional Q&A answers, the job description, and an optional recruiter guide.
 
-  Weigh all of this evidence holistically and classify the candidate as a "high", "medium", or "low" match for this role. This is a decision aid — the recruiter makes the final call, not you.
+Critical anti-hallucination rules:
+- Use ONLY information present in the provided JSON. Never invent employers, skills, education, metrics, or answers.
+- If CV text or answers are missing, say so explicitly and base the assessment only on available scores/fields.
+- Do not assume soft skills, culture fit, or experience that are not evidenced in the input.
+- Cite concrete evidence (score values, CV phrases, or quoted answer fragments) in every strength, weakness, and risk.
 
-  Output JSON:
-  {
-    "verdict": "high" | "medium" | "low",
-    "reasoning": "<2-4 sentences explaining the verdict>",
-    "strengths": ["<specific strength, citing evidence from the CV/answers/scores>", "..."],
-    "weaknesses": ["<specific weakness or gap, citing evidence>", "..."],
-    "risks": ["<specific risk of hiring this candidate, citing evidence>", "..."],
-    "recommendation": "hire" | "interview_further" | "no_hire"
-  }
+Weigh available evidence holistically and classify the candidate as a "high", "medium", or "low" match. This is advisory — the recruiter decides.
 
-  Each strength, weakness, and risk must reference concrete evidence from the candidate's profile (CV content, specific answers, or specific scores) rather than generic statements. Provide at least one strength and, unless the candidate is an outstanding match, at least one weakness or risk.`;
+Output JSON:
+{
+  "verdict": "high" | "medium" | "low",
+  "reasoning": "<2-4 sentences explaining the verdict from available evidence only>",
+  "strengths": ["<specific strength with cited evidence>", "..."],
+  "weaknesses": ["<specific weakness or gap with cited evidence>", "..."],
+  "risks": ["<specific hiring risk with cited evidence>", "..."],
+  "recommendation": "hire" | "interview_further" | "no_hire"
+}
+
+Provide at least one strength when any positive evidence exists. Provide at least one weakness or risk unless the match is outstanding on all available evidence.`;
 
   const completion = await runCompletion({
     messages: [

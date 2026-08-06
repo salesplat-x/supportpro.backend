@@ -282,10 +282,39 @@ export interface EvaluatePersonalityPayload {
   answers: Record<string, string>;
 }
 
+/** True when personality is the active stage, or was already passed without an MBTI result. */
+const canSubmitPersonalityStage = (
+  stages: Record<string, string>,
+  currentStage: string
+): boolean => {
+  if (currentStage === ScreeningStage.Personality) return true;
+
+  const values = new Set(Object.values(stages));
+  const entry = Object.keys(stages).find((key) => !values.has(key));
+  if (!entry) return false;
+
+  let cursor: string | undefined = entry;
+  let seenPersonality = false;
+  while (cursor && cursor !== ScreeningStage.Completed) {
+    if (cursor === ScreeningStage.Personality) {
+      seenPersonality = true;
+    }
+    if (cursor === currentStage) {
+      return seenPersonality;
+    }
+    cursor = stages[cursor];
+  }
+
+  return (
+    currentStage === ScreeningStage.Completed &&
+    Object.prototype.hasOwnProperty.call(stages, ScreeningStage.Personality)
+  );
+};
+
 export const evaluatePersonalityType = async (
   userId: string,
   payload: EvaluatePersonalityPayload
-): Promise<{ application: Application; mbtiType: string }> => {
+): Promise<{ application: Application; mbtiType: string; score: string }> => {
   const { answers, jobId } = payload;
 
   const job = await jobRepo().findOne({
@@ -306,8 +335,10 @@ export const evaluatePersonalityType = async (
     throw new NotFoundError("Job application not found");
   }
 
-  if (application.currentStage !== ScreeningStage.Personality) {
-    throw new ValidationError("This stage is not currently active for this application");
+  const stages = (application.stages ?? {}) as Record<string, string>;
+
+  if (application.mbtiType) {
+    throw new ValidationError("Personality test already completed for this application");
   }
 
   const aiConfig = job.aiConfig;
@@ -317,6 +348,27 @@ export const evaluatePersonalityType = async (
 
   if (!aiConfig.personalityEvaluation) {
     throw new ValidationError("This feature was not configured for this job");
+  }
+
+  const appHasPersonalityStage = Object.prototype.hasOwnProperty.call(
+    stages,
+    ScreeningStage.Personality
+  );
+  const configHasPersonalityStage = Object.prototype.hasOwnProperty.call(
+    aiConfig.stages ?? {},
+    ScreeningStage.Personality
+  );
+
+  // Allow when:
+  // 1) personality is the current stage, or already passed without an MBTI result, or
+  // 2) personality was attached to the job after this application was created
+  //    (present on AI config stages but missing from the application pipeline).
+  const allowed =
+    canSubmitPersonalityStage(stages, application.currentStage) ||
+    (!appHasPersonalityStage && configHasPersonalityStage);
+
+  if (!allowed) {
+    throw new ValidationError("This stage is not currently active for this application");
   }
 
   const questionIds = Object.keys(answers);
@@ -356,15 +408,18 @@ export const evaluatePersonalityType = async (
   }
 
   const { mbtiType, responses } = JSON.parse(response.message.content);
+  if (!mbtiType || typeof mbtiType !== "string") {
+    throw new ValidationError("OpenAI returned an invalid personality evaluation");
+  }
 
   await saveOrUpdateAnswer({ userId, jobId, questionType: QuestionType.Personality }, responses);
 
   const user = await userRepo().findOne({ where: { id: userId } });
-  if (user) {
+  if (user && application.currentStage === ScreeningStage.Personality) {
     application = await processNextStage(user, application, ScreeningStage.Personality);
   }
   application.mbtiType = mbtiType;
   application = await applicationRepo().save(application);
 
-  return { application, mbtiType };
+  return { application, mbtiType, score: mbtiType };
 };

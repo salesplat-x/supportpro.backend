@@ -720,6 +720,57 @@ describe("POST /v1/questions/answer/personality — evaluate personality type", 
     expect(res.body.data.mbtiType).toBeDefined();
   });
 
+  it("Talent can submit personality after stage was skipped (catch-up) → 200", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const aiConfig = await createAIConfig(recruiter, {
+      personalityEvaluation: true,
+      stages: {
+        personality: "personalized",
+        personalized: "completed",
+      },
+    });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
+
+    const { user: talent, token: talentToken } = await createTalent({
+      prescreeningScore: 75,
+    });
+    // Application already past personality without an MBTI result (e.g. invitation skip).
+    await createApplication(talent, job, {
+      stages: {
+        personality: "personalized",
+        personalized: "completed",
+      },
+      currentStage: ScreeningStage.Completed,
+      mbtiType: null,
+    });
+
+    const [q1, q2, q3, q4] = await Promise.all([
+      createQuestion(QuestionType.Personality, { jobId: job.id }, { criteria: "EI" }),
+      createQuestion(QuestionType.Personality, { jobId: job.id }, { criteria: "SN" }),
+      createQuestion(QuestionType.Personality, { jobId: job.id }, { criteria: "TF" }),
+      createQuestion(QuestionType.Personality, { jobId: job.id }, { criteria: "JP" }),
+    ]);
+
+    const res = await request(app)
+      .post("/v1/questions/answer/personality")
+      .set("Authorization", `Bearer ${talentToken}`)
+      .send({
+        jobId: job.id,
+        answers: {
+          [q1!.id]: "Introvert",
+          [q2!.id]: "Sensing",
+          [q3!.id]: "Thinking",
+          [q4!.id]: "Judging",
+        },
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.mbtiType).toBeDefined();
+    expect(res.body.data.score).toBe(res.body.data.mbtiType);
+  });
+
   it("Recruiter cannot submit personality answers → 403", async () => {
     const { token } = await createRecruiter();
     const res = await request(app)
