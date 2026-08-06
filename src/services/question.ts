@@ -218,14 +218,19 @@ export const generatePersonalizedQuestions = async (
     aiConfig.recruiterGuide ?? ""
   );
   if (!response || !response.message.content) {
-    throw new ValidationError("Error with LLM");
+    throw new ValidationError(
+      "Failed to generate personalized questions from OpenAI. Check OPENAI_API_KEY and try again."
+    );
   }
 
   let questions: string[];
   try {
     questions = JSON.parse(response.message.content).questions;
   } catch {
-    throw new ValidationError("Error with LLM");
+    throw new ValidationError("OpenAI returned an invalid personalized question response");
+  }
+  if (!Array.isArray(questions) || questions.length === 0) {
+    throw new ValidationError("OpenAI returned no personalized questions");
   }
 
   const questionEntities = questions.map((q) =>
@@ -298,9 +303,19 @@ export const generatePersonalityQuestion = async (
     count
   );
   if (!response || !response.message.content) {
-    throw new ValidationError("Error with LLM");
+    throw new ValidationError(
+      "Failed to generate personality questions from OpenAI. Check OPENAI_API_KEY and try again."
+    );
   }
-  const questionTexts: string[] = JSON.parse(response.message.content).questions;
+  let questionTexts: string[];
+  try {
+    questionTexts = JSON.parse(response.message.content).questions;
+  } catch {
+    throw new ValidationError("OpenAI returned an invalid personality question response");
+  }
+  if (!Array.isArray(questionTexts) || questionTexts.length === 0) {
+    throw new ValidationError("OpenAI returned no personality questions");
+  }
 
   const questionEntities = questionTexts.map((text) =>
     questionRepo().create({

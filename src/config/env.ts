@@ -19,6 +19,8 @@ const optionalEnvVars = {
 } as const;
 
 const requiredEnvVars = {
+  // Used by utils/integrations/openai.ts for all LLM calls (personality /
+  // personalized question generation, grading, AI Match, etc.).
   openai_secret: process.env.OPENAI_API_KEY,
   pg_host: process.env.PG_HOST,
   pg_port: process.env.PG_PORT,
