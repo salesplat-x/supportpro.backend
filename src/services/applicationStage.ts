@@ -2,6 +2,7 @@ import { Not, IsNull } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { AIConfig } from "../entities/AIConfig.js";
 import { Application } from "../entities/Application.js";
+import { AiRecommendation } from "../entities/AiRecommendation.js";
 import { Job } from "../entities/Job.js";
 import { User } from "../entities/User.js";
 import { Answer } from "../entities/Answer.js";
@@ -19,6 +20,8 @@ import { assessApplicationMatch } from "../utils/integrations/openai.js";
 import logger from "../utils/logger.js";
 
 const applicationRepo = () => AppDataSource.getRepository(Application);
+
+const aiRecommendationRepo = () => AppDataSource.getRepository(AiRecommendation);
 
 const jobRepo = () => AppDataSource.getRepository(Job);
 
@@ -48,6 +51,43 @@ const buildQuestionAnswerPairs = async (
       answer: r.answer,
       ...(question?.criteria ? { dichotomy: question.criteria } : {}),
     };
+  });
+};
+
+const persistRecommendation = async (
+  applicationId: string,
+  payload: {
+    verdict: MatchVerdict;
+    reasoning: string;
+    recommendation: MatchRecommendation | null;
+    strengths: string[] | null;
+    weaknesses: string[] | null;
+    risks: string[] | null;
+  }
+): Promise<void> => {
+  const existing = await aiRecommendationRepo().findOne({ where: { applicationId } });
+  if (existing) {
+    await aiRecommendationRepo().save({
+      ...existing,
+      ...payload,
+    });
+  } else {
+    await aiRecommendationRepo().save(
+      aiRecommendationRepo().create({
+        applicationId,
+        ...payload,
+      })
+    );
+  }
+
+  // Keep denormalized columns on applications in sync for existing API consumers.
+  await applicationRepo().update(applicationId, {
+    matchVerdict: payload.verdict,
+    matchVerdictReasoning: payload.reasoning,
+    matchRecommendation: payload.recommendation,
+    matchStrengths: payload.strengths,
+    matchWeaknesses: payload.weaknesses,
+    matchRisks: payload.risks,
   });
 };
 
@@ -87,16 +127,59 @@ export const rankApplication = async (talent: User, application: Application): P
   application.rank = newRank;
 };
 
+export interface TriggerMatchVerdictOptions {
+  /** When true, call OpenAI even if a recommendation already exists (recruiter regenerate). */
+  force?: boolean;
+}
+
 // Advisory only — never blocks the actual stage transition. Callers fire this
 // without awaiting it so it doesn't delay the response; failures (including a
 // missing/unparsable LLM response) are logged and swallowed rather than surfaced
 // to the talent. Exported `async` (rather than void-returning) so tests can await
 // it directly instead of racing the fire-and-forget call.
+//
+// Recommendations are persisted in `ai_recommendations` and generated once.
+// Opening the AI Match panel / applicant table reads the stored row — it does
+// not recompute. Only an explicit regenerate (force: true) calls OpenAI again.
 export const triggerMatchVerdict = async (
   talent: User,
-  application: Application
+  application: Application,
+  options: TriggerMatchVerdictOptions = {}
 ): Promise<void> => {
   try {
+    const existingRecommendation = await aiRecommendationRepo().findOne({
+      where: { applicationId: application.id },
+    });
+
+    if (existingRecommendation && !options.force) {
+      // Already generated — sync application columns if they were cleared, then exit.
+      if (!application.matchVerdict) {
+        await applicationRepo().update(application.id, {
+          matchVerdict: existingRecommendation.verdict,
+          matchVerdictReasoning: existingRecommendation.reasoning,
+          matchRecommendation: existingRecommendation.recommendation,
+          matchStrengths: existingRecommendation.strengths,
+          matchWeaknesses: existingRecommendation.weaknesses,
+          matchRisks: existingRecommendation.risks,
+        });
+      }
+      return;
+    }
+
+    // Legacy rows that have match columns but no ai_recommendations row yet —
+    // promote without calling OpenAI again.
+    if (!options.force && application.matchVerdict) {
+      await persistRecommendation(application.id, {
+        verdict: application.matchVerdict,
+        reasoning: application.matchVerdictReasoning ?? "",
+        recommendation: application.matchRecommendation,
+        strengths: application.matchStrengths,
+        weaknesses: application.matchWeaknesses,
+        risks: application.matchRisks,
+      });
+      return;
+    }
+
     const job = await jobRepo().findOne({
       where: { id: application.jobId },
       relations: { aiConfig: true },
@@ -158,13 +241,13 @@ export const triggerMatchVerdict = async (
       ? (normalizedRecommendation as MatchRecommendation)
       : null;
 
-    await applicationRepo().update(application.id, {
-      matchVerdict: normalizedVerdict as MatchVerdict,
-      matchVerdictReasoning: parsed.reasoning,
-      matchRecommendation: recommendation,
-      matchStrengths: Array.isArray(parsed.strengths) ? parsed.strengths : null,
-      matchWeaknesses: Array.isArray(parsed.weaknesses) ? parsed.weaknesses : null,
-      matchRisks: Array.isArray(parsed.risks) ? parsed.risks : null,
+    await persistRecommendation(application.id, {
+      verdict: normalizedVerdict as MatchVerdict,
+      reasoning: parsed.reasoning,
+      recommendation,
+      strengths: Array.isArray(parsed.strengths) ? parsed.strengths : null,
+      weaknesses: Array.isArray(parsed.weaknesses) ? parsed.weaknesses : null,
+      risks: Array.isArray(parsed.risks) ? parsed.risks : null,
     });
   } catch (err) {
     logger.error(

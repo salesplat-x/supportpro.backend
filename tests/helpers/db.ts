@@ -20,6 +20,7 @@ import { ScoutJob } from "../../src/entities/ScoutJob.js";
 import { Scout } from "../../src/entities/Scout.js";
 import { TalentEmbedding } from "../../src/entities/TalentEmbedding.js";
 import { ErrorLog } from "../../src/entities/ErrorLog.js";
+import { AiRecommendation } from "../../src/entities/AiRecommendation.js";
 
 let container: StartedPostgreSqlContainer;
 export let testDataSource: DataSource;
@@ -44,6 +45,7 @@ const ALL_ENTITIES = [
   Scout,
   TalentEmbedding,
   ErrorLog,
+  AiRecommendation,
 ];
 
 export async function startTestDatabase(): Promise<void> {

@@ -161,7 +161,7 @@ export const regenerateVerdict = async (
     );
   }
 
-  await triggerMatchVerdict(application.talent, application);
+  await triggerMatchVerdict(application.talent, application, { force: true });
 
   // triggerMatchVerdict swallows its own errors (by design — the automatic,
   // fire-and-forget call site must never let a verdict failure bubble up to the
