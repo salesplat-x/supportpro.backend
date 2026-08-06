@@ -1,7 +1,7 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 RUN apk add --no-cache python3 make g++
-COPY package*.json ./
+COPY package*.json .npmrc ./
 RUN npm ci
 COPY tsconfig.json ./
 COPY src ./src
