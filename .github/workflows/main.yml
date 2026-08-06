@@ -25,45 +25,47 @@ jobs:
           tags: salesplat/supportpro-backend:latest
 
   deploy:
-    needs: build-and-push # Waits for the Docker build to finish successfully first
+    needs: build-and-push
     runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH to Droplet
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.DIGITAL_OCEAN_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            set -e
+            set -euo pipefail
 
             cd ~/app-stack
 
-            # 1. Pull the absolute latest image that GitHub just built
+            echo "==> Pulling latest image"
             docker pull salesplat/supportpro-backend:latest
 
-            # 2. Run pending migrations as an explicit, one-off step — before
-            #    the running app container is touched. Keeps migration
-            #    execution out of application startup.
+            # Gate the cutover: migrations must succeed while the old container
+            # is still serving. If this fails, we abort and leave production alone.
+            echo "==> Running migrations (must succeed before server restart)"
             docker run --rm \
               --network app-network \
               --env-file .env \
+              --entrypoint node \
               salesplat/supportpro-backend:latest \
-              node dist/scripts/migrate.js
+              dist/scripts/migrate.js
 
-            # 2b. Seed the admin account. No-ops if an admin already exists,
-            #     so it's safe to run on every deploy, not just the first.
+            echo "==> Seeding admin (no-op if already present)"
             docker run --rm \
               --network app-network \
               --env-file .env \
+              --entrypoint node \
               salesplat/supportpro-backend:latest \
-              node dist/scripts/seedAdmin.js
+              dist/scripts/seedAdmin.js
 
-            # 3. Safely stop and clear the old container instance
+            echo "==> Replacing running server"
             docker stop supportpro-backend || true
             docker rm supportpro-backend || true
 
-            # 4. Fire up the fresh container attached to your internal database network
+            # Entrypoint runs migrations again before listen (idempotent safety net
+            # for restarts / manual runs). Deploy already gated above.
             docker run -d \
               --name supportpro-backend \
               --network app-network \
@@ -71,3 +73,5 @@ jobs:
               --env-file .env \
               --restart always \
               salesplat/supportpro-backend:latest
+
+            echo "==> Deploy complete"
