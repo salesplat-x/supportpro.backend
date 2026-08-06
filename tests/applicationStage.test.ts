@@ -23,6 +23,7 @@ import {
   createQuestion,
 } from "./helpers/fixtures.js";
 import { Application } from "../src/entities/Application.js";
+import { AiRecommendation } from "../src/entities/AiRecommendation.js";
 import { Answer } from "../src/entities/Answer.js";
 import { TalentEmbedding } from "../src/entities/TalentEmbedding.js";
 import {
@@ -201,6 +202,74 @@ describe("triggerMatchVerdict — AI verdict is advisory and recruiter-facing on
     expect(reloaded?.matchRisks).toEqual([
       "May need ramp-up time on the specific stack used here.",
     ]);
+
+    const stored = await testDataSource.getRepository(AiRecommendation).findOne({
+      where: { applicationId: application.id },
+    });
+    expect(stored?.verdict).toBe(MatchVerdict.High);
+    expect(stored?.reasoning).toContain("Strong CV match");
+  });
+
+  it("does not recompute when an ai_recommendations row already exists", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const application = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+      matchVerdict: MatchVerdict.Medium,
+      matchVerdictReasoning: "Cached recommendation",
+    });
+    await testDataSource.getRepository(AiRecommendation).save(
+      testDataSource.getRepository(AiRecommendation).create({
+        applicationId: application.id,
+        verdict: MatchVerdict.Medium,
+        reasoning: "Cached recommendation",
+        recommendation: MatchRecommendation.InterviewFurther,
+        strengths: null,
+        weaknesses: null,
+        risks: null,
+      })
+    );
+
+    mockAssessApplicationMatch.mockClear();
+    await triggerMatchVerdict(talent, application);
+
+    expect(mockAssessApplicationMatch).not.toHaveBeenCalled();
+  });
+
+  it("force regenerate calls OpenAI even when a recommendation already exists", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const application = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+      matchVerdict: MatchVerdict.Low,
+      matchVerdictReasoning: "Old reasoning",
+    });
+    await testDataSource.getRepository(AiRecommendation).save(
+      testDataSource.getRepository(AiRecommendation).create({
+        applicationId: application.id,
+        verdict: MatchVerdict.Low,
+        reasoning: "Old reasoning",
+        recommendation: MatchRecommendation.NoHire,
+        strengths: null,
+        weaknesses: null,
+        risks: null,
+      })
+    );
+
+    mockAssessApplicationMatch.mockClear();
+    await triggerMatchVerdict(talent, application, { force: true });
+
+    expect(mockAssessApplicationMatch).toHaveBeenCalledTimes(1);
+    const stored = await testDataSource.getRepository(AiRecommendation).findOne({
+      where: { applicationId: application.id },
+    });
+    expect(stored?.verdict).toBe(MatchVerdict.High);
   });
 
   it("gathers CV text and personalized/personality Q&A into the LLM context", async () => {

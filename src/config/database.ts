@@ -20,6 +20,7 @@ import { ScoutJob } from "../entities/ScoutJob.js";
 import { Scout } from "../entities/Scout.js";
 import { TalentEmbedding } from "../entities/TalentEmbedding.js";
 import { ErrorLog } from "../entities/ErrorLog.js";
+import { AiRecommendation } from "../entities/AiRecommendation.js";
 
 const databaseConfig: DataSourceOptions = {
   type: "postgres",
@@ -48,6 +49,7 @@ const databaseConfig: DataSourceOptions = {
     Scout,
     TalentEmbedding,
     ErrorLog,
+    AiRecommendation,
   ],
   migrations: [path.join(__dirname, "../migrations/*.{js,ts}")],
   synchronize: false,

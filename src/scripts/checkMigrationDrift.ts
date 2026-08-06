@@ -23,6 +23,7 @@ import { ScoutJob } from "../entities/ScoutJob.js";
 import { Scout } from "../entities/Scout.js";
 import { TalentEmbedding } from "../entities/TalentEmbedding.js";
 import { ErrorLog } from "../entities/ErrorLog.js";
+import { AiRecommendation } from "../entities/AiRecommendation.js";
 
 const ALL_ENTITIES = [
   User,
@@ -44,6 +45,7 @@ const ALL_ENTITIES = [
   Scout,
   TalentEmbedding,
   ErrorLog,
+  AiRecommendation,
 ];
 
 async function run(): Promise<void> {
