@@ -489,8 +489,7 @@ function extractRoutesFromFile(filepath: string): ExtractResult {
           if (
             callee.object.type === "MemberExpression" &&
             callee.object.object.name === "multerUploads" &&
-            (callee.object.property.name === "memoryUpload" ||
-              callee.object.property.name === "diskUpload")
+            callee.object.property.name === "memoryUpload"
           ) {
             if (
               callee.property.name === "single" &&

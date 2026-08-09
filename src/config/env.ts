@@ -7,9 +7,6 @@ const getEnv = (): AppEnv => {
 
 const optionalEnvVars = {
   app_env: getEnv(),
-  cloudinary_name: process.env.CLOUDINARY_NAME,
-  cloudinary_key: process.env.CLOUDINARY_KEY,
-  cloudinary_secret: process.env.CLOUDINARY_SECRET,
   paystackSecretKey: process.env.PAYSTACK_SECRET_KEY,
   paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY,
   whitelisted_ips: process.env.PAYSTACK_WHITELISTED_IPS,

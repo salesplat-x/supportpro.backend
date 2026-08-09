@@ -16,8 +16,8 @@ function buildUser(overrides: Partial<User> = {}): User {
     tokenVersion: 0,
     roleChangeCount: 0,
     bio: null,
-    cvUrl: null,
-    cvPublicId: null,
+    cvFileName: null,
+    cvText: null,
     cvUploadedAt: null,
     workType: null,
     locationCity: null,
@@ -50,7 +50,8 @@ describe("getProfileCompletion", () => {
   it("returns 100% for a fully filled profile", () => {
     const user = buildUser({
       bio: "Experienced developer",
-      cvUrl: "https://res.cloudinary.com/cv.pdf",
+      cvFileName: "jane-doe.pdf",
+      cvUploadedAt: new Date(),
       workType: ["remote"],
       locationCountry: "Nigeria",
       experience: "4-6 years",
@@ -64,14 +65,18 @@ describe("getProfileCompletion", () => {
   });
 
   it("canProceedToPlatform requires CV and at least one role", () => {
-    const withCvOnly = buildUser({ cvUrl: "https://example.com/cv.pdf" });
+    const withCvOnly = buildUser({
+      cvFileName: "cv.pdf",
+      cvUploadedAt: new Date(),
+    });
     expect(getProfileCompletion(withCvOnly).canProceedToPlatform).toBe(false);
 
     const withRoleOnly = buildUser({ userRoles: [buildRole("engineer")] });
     expect(getProfileCompletion(withRoleOnly).canProceedToPlatform).toBe(false);
 
     const withBoth = buildUser({
-      cvUrl: "https://example.com/cv.pdf",
+      cvFileName: "cv.pdf",
+      cvUploadedAt: new Date(),
       userRoles: [buildRole("engineer")],
     });
     expect(getProfileCompletion(withBoth).canProceedToPlatform).toBe(true);

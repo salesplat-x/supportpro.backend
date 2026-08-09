@@ -7,9 +7,8 @@ import { AIConfig } from "../entities/AIConfig.js";
 import { Application } from "../entities/Application.js";
 import { User } from "../entities/User.js";
 import { Notification } from "../entities/Notification.js";
-import { Question } from "../entities/Question.js";
-import { Answer } from "../entities/Answer.js";
 import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
+import { purgeJobCascade } from "./cascadeDelete.js";
 import {
   UserRole,
   JobStatus,
@@ -262,13 +261,9 @@ export const deleteJob = async (userId: string, jobId: string): Promise<void> =>
     throw new AuthorizationError("You are not authorized to perform this action");
   }
 
-  // FKs from answers/applications/questions to jobs are ON DELETE NO ACTION,
-  // so dependent rows must be removed first, in one transaction, before the job.
+  // Full cascade (messages → applications → answers/questions → job + unused AI config).
   await AppDataSource.transaction(async (manager) => {
-    await manager.delete(Answer, { jobId });
-    await manager.delete(Application, { jobId });
-    await manager.delete(Question, { jobId });
-    await manager.delete(Job, { id: jobId });
+    await purgeJobCascade(manager, jobId);
   });
 };
 

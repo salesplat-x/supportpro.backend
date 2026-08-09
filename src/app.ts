@@ -3,7 +3,6 @@ import "dotenv/config";
 import express, { Application } from "express";
 import cors from "cors";
 import helmet from "helmet";
-import path from "path";
 import env from "./config/env.js";
 import logger, { httpLogger } from "./utils/logger.js";
 import { generalLimiter } from "./middleware/rateLimiter.js";
@@ -50,8 +49,6 @@ export function createApp(): Application {
       }
     })
   );
-  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
-
   swaggerDocs(app, env.port);
 
   app.use("/v1", v1Router);

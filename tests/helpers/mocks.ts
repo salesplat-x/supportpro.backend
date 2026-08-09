@@ -185,22 +185,6 @@ export const paystackMocks = {
   hasRunningSubscription: jest.fn().mockResolvedValue(false),
 };
 
-export const cloudinaryMocks = {
-  uploadBuffer: jest.fn().mockResolvedValue({
-    url: "https://res.cloudinary.com/test/image.jpg",
-    publicId: "test/image",
-  }),
-
-  replaceAsset: jest.fn().mockResolvedValue({
-    url: "https://res.cloudinary.com/test/cv.pdf",
-    publicId: "test/cv",
-  }),
-
-  destroyAsset: jest.fn().mockResolvedValue(undefined),
-
-  extractPublicIdFromUrl: jest.fn().mockReturnValue("test/image"),
-};
-
 export const emailMocks = {
   default: jest.fn().mockImplementation(() => ({
     sendWelcome: jest.fn().mockResolvedValue(undefined),

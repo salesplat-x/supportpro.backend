@@ -17,9 +17,9 @@ import planRoutes from "./plan.js";
 import subscriptionRoutes from "./subscription.js";
 import scoutRoutes from "./scout.js";
 import recruiterRoutes from "./recruiter.js";
-import uploadRoutes from "./upload.js";
 import errorLogRoutes from "./errorLog.js";
 import prescreeningRoutes from "./prescreening.js";
+import adminRoutes from "./admin.js";
 
 const v1Router = Router();
 
@@ -41,8 +41,8 @@ planRoutes(v1Router);
 subscriptionRoutes(v1Router);
 scoutRoutes(v1Router);
 recruiterRoutes(v1Router);
-uploadRoutes(v1Router);
 errorLogRoutes(v1Router);
 prescreeningRoutes(v1Router);
+adminRoutes(v1Router);
 
 export default v1Router;
