@@ -179,7 +179,10 @@ export const requireCompletedProfile: RequestHandler = asyncHandler(
       next();
       return;
     }
-    const canProceed = !!(req.user.cvUrl && req.user.userRoles?.length);
+    const canProceed = !!(
+      (req.user.cvUploadedAt || req.user.cvFileName) &&
+      req.user.userRoles?.length
+    );
     if (!canProceed) {
       res.status(403).json({
         success: false,

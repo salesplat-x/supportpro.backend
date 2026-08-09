@@ -43,12 +43,6 @@ export class User {
   @Column({ type: "varchar", nullable: true, default: null })
   middleName!: string | null;
 
-  @Column({ type: "varchar", nullable: true, default: null })
-  profileImageUrl!: string | null;
-
-  @Column({ type: "varchar", nullable: true, default: null })
-  profileImagePublicId!: string | null;
-
   @Column({ type: "enum", enum: UserRole, default: UserRole.Talent })
   userRole!: UserRole;
 
@@ -85,11 +79,13 @@ export class User {
   @Column({ type: "text", nullable: true, default: null })
   bio!: string | null;
 
+  /** Original uploaded file name (e.g. jane-doe-cv.pdf). */
   @Column({ type: "varchar", nullable: true, default: null })
-  cvUrl!: string | null;
+  cvFileName!: string | null;
 
-  @Column({ type: "varchar", nullable: true, default: null })
-  cvPublicId!: string | null;
+  /** Full extracted CV text used for AI and on-demand PDF regeneration. */
+  @Column({ type: "text", nullable: true, default: null, select: false })
+  cvText!: string | null;
 
   @Column({ type: "timestamp", nullable: true, default: null })
   cvUploadedAt!: Date | null;

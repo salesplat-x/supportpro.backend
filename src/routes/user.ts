@@ -15,13 +15,6 @@ import {
 
 const router = Router();
 
-router.post(
-  "/me/image",
-  loginRequired,
-  memoryUpload.single("image"),
-  asyncHandler(user.uploadProfileImage)
-);
-// General profile-field updates; cv accepted as a URL string only.
 router.patch("/me", loginRequired, validate(updateUserValidator), asyncHandler(user.updateUser));
 // Distinct from /me: accepts a multipart cv file upload (parsed by extraction/embedding
 // pipeline), so it stays separate rather than merging into /me.
@@ -38,6 +31,12 @@ router.get(
   validateAccess([UserRole.Admin, UserRole.Recruiter]),
   validate(userProfilesQueryValidator),
   asyncHandler(user.viewProfiles)
+);
+router.get(
+  "/profile/:_id/cv",
+  validateAccess([UserRole.Admin, UserRole.Recruiter]),
+  validate(userIdParamValidator),
+  asyncHandler(user.downloadTalentCv)
 );
 router.get(
   "/profile/:_id",

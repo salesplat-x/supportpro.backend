@@ -56,8 +56,6 @@ export const updateUserValidator = [
   body("lastName").optional().trim(),
   body("middleName").optional().trim(),
   phoneRule("phone"),
-  body("picture").optional().isURL().withMessage("Picture must be a valid URL"),
-  body("cv").optional().isURL().withMessage("CV must be a valid URL"),
   body("country").optional().trim(),
   ...profileFieldRules,
 ];

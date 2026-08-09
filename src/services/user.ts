@@ -4,11 +4,9 @@ import { Application, Role, TalentEmbedding, User } from "../entities";
 import { NotFoundError, ValidationError } from "../utils/errors";
 import logger from "../utils/logger.js";
 import { UserRole, ApplicationStatus, ApplicationType } from "../types/enums.js";
-import { replaceAsset, extractPublicIdFromUrl } from "../utils/integrations/cloudinary.js";
+import { generateCvPdf } from "../utils/cvPdf.js";
 import { extractText, overlapChunkText, preprocessText, sortDirection } from "../utils/text.js";
 import { createEmbedding } from "../utils/integrations/openai.js";
-
-const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 // mammoth (used by extractText) only supports .docx, not legacy binary .doc —
 // keep this in sync with what extractText can actually parse.
@@ -17,15 +15,10 @@ const ALLOWED_CV_TYPES = [
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
 
-const CV_EXT_BY_MIME: Record<string, string> = {
-  "application/pdf": "pdf",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
-};
-
-const CLOUDINARY_FOLDERS = {
-  images: "salesplate/images",
-  cv: "salesplate/cv",
-} as const;
+/** Talent has an uploaded CV when extraction was persisted. */
+export const hasUploadedCv = (
+  user: Pick<User, "cvUploadedAt" | "cvFileName" | "cvText">
+): boolean => !!(user.cvUploadedAt || user.cvFileName || user.cvText);
 
 const ROLE_CHANGE_LIMIT = 3;
 
@@ -44,7 +37,7 @@ export const getProfileCompletion = (
 } => {
   const fields = [
     !!user.bio,
-    !!user.cvUrl,
+    hasUploadedCv(user),
     !!user.workType?.length,
     !!user.locationCountry,
     !!user.experience,
@@ -54,7 +47,7 @@ export const getProfileCompletion = (
   const completed = fields.filter(Boolean).length;
   const percentage = Math.round((completed / fields.length) * 100);
   const isProfileComplete = percentage === 100;
-  const canProceedToPlatform = !!(user.cvUrl && user.userRoles?.length);
+  const canProceedToPlatform = !!(hasUploadedCv(user) && user.userRoles?.length);
   return { percentage, isProfileComplete, canProceedToPlatform };
 };
 
@@ -77,8 +70,6 @@ export interface UpdateUserPayload {
   lastName?: string;
   phone?: string;
   country?: string;
-  picture?: string;
-  cv?: string;
   bio?: string;
   roleIds?: string[];
   locationCity?: string;
@@ -121,21 +112,6 @@ export const updateUser = async (userId: string, payload: UpdateUserPayload): Pr
   if (payload.compensationPeriod !== undefined)
     update.compensationPeriod = payload.compensationPeriod as User["compensationPeriod"];
   if (payload.workType !== undefined) update.workType = payload.workType;
-
-  // Profile image
-  if (payload.picture) {
-    const newPublicId = extractPublicIdFromUrl(payload.picture);
-    update.profileImageUrl = payload.picture;
-    update.profileImagePublicId = newPublicId ?? null;
-  }
-
-  // CV URL update (without file — e.g. when cv is passed as a URL)
-  if (payload.cv) {
-    const newCvPublicId = extractPublicIdFromUrl(payload.cv);
-    update.cvUrl = payload.cv;
-    update.cvPublicId = newCvPublicId ?? null;
-    update.cvUploadedAt = new Date();
-  }
 
   // Role changes
   if (payload.roleIds !== undefined) {
@@ -221,22 +197,11 @@ export const editProfile = async (
     }
 
     let text: string;
-    let asset: Awaited<ReturnType<typeof replaceAsset>>;
     try {
       text = await extractText(file.buffer, file.mimetype);
-      if (!text) {
+      if (!text?.trim()) {
         throw new ValidationError("Unable to extract text from CV");
       }
-
-      asset = await replaceAsset(existingUser.cvPublicId ?? undefined, file.buffer, {
-        folder: CLOUDINARY_FOLDERS.cv,
-        publicId: `${userId}-cv`,
-        mimetype: file.mimetype,
-        format: CV_EXT_BY_MIME[file.mimetype],
-        // CVs are non-image documents — Cloudinary stores them as "raw", and
-        // its destroy API (unlike upload) rejects "auto".
-        resourceType: "raw",
-      });
     } catch (err) {
       if (err instanceof ValidationError) throw err;
       const message = err instanceof Error ? err.message : String(err);
@@ -248,8 +213,9 @@ export const editProfile = async (
 
     const processedText = overlapChunkText(preprocessText(text));
 
-    update.cvUrl = asset.url;
-    update.cvPublicId = asset.publicId;
+    // Persist extracted content + original file name; file binary is discarded.
+    update.cvText = text.trim();
+    update.cvFileName = file.originalname || "cv.pdf";
     update.cvUploadedAt = new Date();
 
     // Generate embedding asynchronously — not needed for the response, takes 5–20s.
@@ -344,6 +310,43 @@ export const viewProfile = async (targetUserId: string): Promise<User> => {
   return user;
 };
 
+export const getTalentCvPdf = async (
+  talentId: string
+): Promise<{ buffer: Buffer; fileName: string }> => {
+  const user = await userRepo()
+    .createQueryBuilder("user")
+    .addSelect("user.cvText")
+    .where("user.id = :talentId", { talentId })
+    .getOne();
+
+  if (!user || user.userRole !== UserRole.Talent) {
+    throw new NotFoundError("Talent not found");
+  }
+  if (!user.cvText?.trim()) {
+    throw new NotFoundError("CV not available for this talent");
+  }
+
+  const location = [user.locationCity, user.locationState, user.locationCountry]
+    .filter(Boolean)
+    .join(", ");
+
+  const buffer = await generateCvPdf({
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: user.email,
+    phone: user.phone,
+    location: location || null,
+    fileName: user.cvFileName,
+    cvText: user.cvText,
+  });
+
+  const baseName = (user.cvFileName || `${user.firstName}-${user.lastName}-cv`)
+    .replace(/\.[^.]+$/, "")
+    .replace(/[^\w.-]+/g, "-");
+
+  return { buffer, fileName: `${baseName || "cv"}.pdf` };
+};
+
 export interface FetchProfilesParams {
   roleId?: string;
   experience?: string;
@@ -427,36 +430,4 @@ export const userApplications = async (
   const order = sortDirection(payload.sort ?? "desc");
 
   return qb.orderBy("application.createdAt", order).skip(offset).take(limit).getMany();
-};
-
-export const uploadProfileImage = async (
-  userId: string,
-  file?: Express.Multer.File
-): Promise<User> => {
-  if (!file) {
-    throw new ValidationError("No file uploaded");
-  }
-  if (!ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
-    throw new ValidationError("Unsupported image type");
-  }
-
-  const existingUser = await userRepo().findOne({ where: { id: userId } });
-  if (!existingUser) {
-    throw new NotFoundError("Authenticated user no longer exists");
-  }
-
-  const asset = await replaceAsset(existingUser.profileImagePublicId ?? undefined, file.buffer, {
-    folder: CLOUDINARY_FOLDERS.images,
-    publicId: `${userId}-image`,
-    mimetype: file.mimetype,
-    resourceType: "image",
-  });
-
-  const updated = await userRepo().save({
-    ...existingUser,
-    profileImageUrl: asset.url,
-    profileImagePublicId: asset.publicId,
-  });
-
-  return updated;
 };

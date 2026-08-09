@@ -172,8 +172,6 @@ paths:
                   type: string
                 middleName:
                   type: string
-                picture:
-                  type: string
                 phone:
                   type: string
       security:
@@ -326,54 +324,6 @@ paths:
             application/json:
               schema:
                 type: object
-      security:
-        - bearerAuth: []
-  /uploads/:
-    post:
-      summary: ""
-      tags:
-        - uploads
-      parameters: []
-      responses:
-        "200":
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: object
-      requestBody:
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-      security:
-        - bearerAuth: []
-  /uploads/local:
-    post:
-      summary: ""
-      tags:
-        - uploads
-      parameters: []
-      responses:
-        "200":
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: object
-      requestBody:
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
       security:
         - bearerAuth: []
   /subscriptions/enable/{id}:

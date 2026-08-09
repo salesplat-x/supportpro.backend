@@ -27,9 +27,6 @@ export class TalentEmbedding {
   @JoinColumn({ name: "user_id" })
   user!: User;
 
-  @Column({ type: "varchar", nullable: true, default: null, name: "cv_public_id" })
-  cvPublicId!: string | null;
-
   @Column({ type: "text", nullable: true, default: null, name: "cv_text" })
   cvText!: string | null;
 

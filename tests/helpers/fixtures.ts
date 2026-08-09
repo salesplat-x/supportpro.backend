@@ -85,8 +85,9 @@ export async function createCompleteTalent(
   const repo = testDataSource.getRepository(User);
   let user = await baseUser({
     userRole: UserRole.Talent,
-    cvUrl: "https://res.cloudinary.com/test/cv.pdf",
-    cvPublicId: "test/cv",
+    cvFileName: "test-cv.pdf",
+    cvText: "Experienced developer resume content",
+    cvUploadedAt: new Date(),
     bio: "Experienced developer",
     locationCity: "Lagos",
     locationState: "Lagos",

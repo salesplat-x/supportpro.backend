@@ -146,7 +146,11 @@ describe("GET /v1/prescreening/ — get or generate prescreening", () => {
 
   it("Talent without complete profile → 404 (auto-generation blocked)", async () => {
     const { createTalent } = await import("./helpers/fixtures.js");
-    const { token: poorToken } = await createTalent({ cvUrl: null });
+    const { token: poorToken } = await createTalent({
+      cvFileName: null,
+      cvText: null,
+      cvUploadedAt: null,
+    });
 
     const res = await request(app)
       .get("/v1/prescreening/")

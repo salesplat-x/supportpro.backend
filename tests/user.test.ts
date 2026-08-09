@@ -10,23 +10,21 @@ import { User } from "../src/entities/User.js";
 import { Role } from "../src/entities/Role.js";
 import { UserRole, Currency, WorkType, CompensationPeriod } from "../src/types/enums.js";
 import { generateHashedPassword, signToken } from "../src/utils/crypto.js";
-import { createTalent, createRole } from "./helpers/fixtures.js";
-
-jest.mock("../src/utils/integrations/cloudinary.js", () => ({
-  uploadBuffer: jest.fn().mockResolvedValue({
-    url: "https://res.cloudinary.com/test/image.jpg",
-    publicId: "test/image",
-  }),
-  replaceAsset: jest
-    .fn()
-    .mockResolvedValue({ url: "https://res.cloudinary.com/test/new.jpg", publicId: "test/new" }),
-  destroyAsset: jest.fn().mockResolvedValue(undefined),
-  extractPublicIdFromUrl: jest.fn().mockReturnValue("test/image"),
-}));
+import { createTalent, createRecruiter, createRole } from "./helpers/fixtures.js";
 
 jest.mock("../src/utils/integrations/openai.js", () => ({
   createEmbedding: jest.fn().mockResolvedValue([{ embedding: new Array(512).fill(0.1) }]),
 }));
+
+jest.mock("../src/utils/text.js", () => {
+  const actual = jest.requireActual("../src/utils/text.js");
+  return {
+    ...actual,
+    extractText: jest
+      .fn()
+      .mockResolvedValue("Jane Doe\nSoftware engineer with 5 years experience."),
+  };
+});
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
   __esModule: true,
@@ -224,13 +222,81 @@ describe("PATCH /v1/user/profile", () => {
 
     expect(res.status).toBe(400);
   });
+
+  it("stores extracted CV text and file name", async () => {
+    const { token, user } = await createTalent();
+
+    const res = await request(app)
+      .patch("/v1/user/profile")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("cv", Buffer.from("%PDF-1.4 fake"), "jane-doe-cv.pdf");
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.user.cvFileName).toBe("jane-doe-cv.pdf");
+    expect(res.body.data.user.cvUploadedAt).toBeTruthy();
+    expect(res.body.data.user.cvText).toBeUndefined();
+
+    const dbUser = await testDataSource
+      .getRepository(User)
+      .createQueryBuilder("user")
+      .addSelect("user.cvText")
+      .where("user.id = :id", { id: user.id })
+      .getOne();
+
+    expect(dbUser?.cvText).toContain("Software engineer");
+    expect(dbUser?.cvFileName).toBe("jane-doe-cv.pdf");
+  });
+});
+
+describe("GET /v1/user/profile/:_id/cv", () => {
+  it("returns a regenerated PDF for recruiters", async () => {
+    const { user: talent } = await createTalent({
+      firstName: "Ada",
+      lastName: "Lovelace",
+      cvFileName: "ada-cv.pdf",
+      cvText: "Ada Lovelace\nPioneer of computing.",
+      cvUploadedAt: new Date(),
+    });
+    const { token: recruiterToken } = await createRecruiter();
+
+    const res = await request(app)
+      .get(`/v1/user/profile/${talent.id}/cv`)
+      .set("Authorization", `Bearer ${recruiterToken}`)
+      .buffer(true)
+      .parse((incoming, callback) => {
+        const chunks: Buffer[] = [];
+        incoming.on("data", (chunk: Buffer) => chunks.push(chunk));
+        incoming.on("end", () => callback(null, Buffer.concat(chunks)));
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toMatch(/application\/pdf/);
+    expect(Buffer.isBuffer(res.body)).toBe(true);
+    expect((res.body as Buffer).length).toBeGreaterThan(100);
+    expect((res.body as Buffer).subarray(0, 4).toString()).toBe("%PDF");
+  });
+
+  it("rejects talent callers", async () => {
+    const { user: talent, token: talentToken } = await createTalent({
+      cvFileName: "cv.pdf",
+      cvText: "Some resume text",
+      cvUploadedAt: new Date(),
+    });
+
+    const res = await request(app)
+      .get(`/v1/user/profile/${talent.id}/cv`)
+      .set("Authorization", `Bearer ${talentToken}`);
+
+    expect(res.status).toBe(403);
+  });
 });
 
 describe("Profile completion", () => {
   it("profile fields are nullable and start empty", async () => {
     const { user } = await createTalentWithToken();
     expect(user.bio).toBeNull();
-    expect(user.cvUrl).toBeNull();
+    expect(user.cvFileName).toBeNull();
+    expect(user.cvUploadedAt).toBeNull();
     expect(user.experience).toBeNull();
   });
 

@@ -1,0 +1,168 @@
+import { EntityManager, In } from "typeorm";
+import {
+  AIConfig,
+  Answer,
+  Application,
+  Conversation,
+  ErrorLog,
+  Job,
+  Message,
+  Notification,
+  Payment,
+  PreScreening,
+  Question,
+  Subscription,
+  TalentEmbedding,
+  User,
+} from "../entities";
+import { NotFoundError, ValidationError } from "../utils/errors";
+import { UserRole } from "../types/enums.js";
+
+/**
+ * Null conversation.last_message_id for any message that is about to be deleted,
+ * then delete those messages. Required because messages → conversations is NO ACTION.
+ */
+async function deleteMessagesAndDetachConversations(
+  manager: EntityManager,
+  messageIds: string[]
+): Promise<void> {
+  if (messageIds.length === 0) return;
+
+  await manager
+    .createQueryBuilder()
+    .update(Conversation)
+    .set({ lastMessageId: null })
+    .where("last_message_id IN (:...messageIds)", { messageIds })
+    .execute();
+
+  await manager.delete(Message, { id: In(messageIds) });
+}
+
+async function collectMessageIds(
+  manager: EntityManager,
+  where: { applicationIds?: string[]; userId?: string }
+): Promise<string[]> {
+  const qb = manager.createQueryBuilder(Message, "message").select("message.id", "id");
+
+  const conditions: string[] = [];
+  const params: Record<string, unknown> = {};
+
+  if (where.applicationIds?.length) {
+    conditions.push("message.application_id IN (:...applicationIds)");
+    params.applicationIds = where.applicationIds;
+  }
+  if (where.userId) {
+    conditions.push("(message.sender_id = :userId OR message.recipient_id = :userId)");
+    params.userId = where.userId;
+  }
+
+  if (conditions.length === 0) return [];
+
+  qb.where(conditions.join(" OR "), params);
+  const rows = await qb.getRawMany<{ id: string }>();
+  return rows.map((r) => r.id);
+}
+
+/**
+ * Fully remove a job and every dependent row that would otherwise block deletion
+ * (messages → applications → answers/questions → job; orphan AI config when unused).
+ * Job.job_embedding lives on the job row and is removed with it.
+ */
+export async function purgeJobCascade(manager: EntityManager, jobId: string): Promise<void> {
+  const job = await manager.findOne(Job, { where: { id: jobId } });
+  if (!job) {
+    throw new NotFoundError("Job does not exist");
+  }
+
+  const applications = await manager.find(Application, {
+    where: { jobId },
+    select: { id: true },
+  });
+  const applicationIds = applications.map((a) => a.id);
+
+  const messageIds = await collectMessageIds(manager, { applicationIds });
+  await deleteMessagesAndDetachConversations(manager, messageIds);
+
+  // ai_recommendations cascade via FK when applications are deleted
+  await manager.delete(Answer, { jobId });
+  if (applicationIds.length > 0) {
+    await manager.delete(Application, { jobId });
+  }
+  await manager.delete(Question, { jobId });
+
+  const aiConfigId = job.aiConfigId;
+  await manager.delete(Job, { id: jobId });
+
+  if (aiConfigId) {
+    const stillUsed = await manager.count(Job, { where: { aiConfigId } });
+    if (stillUsed === 0) {
+      await manager.delete(AIConfig, { id: aiConfigId });
+    }
+  }
+}
+
+/**
+ * Fully remove a talent user and every associated record:
+ * messages, applications (+ AI match rows), answers, notifications, payments,
+ * subscriptions, embeddings, pre-screenings, conversation membership, error-log links.
+ * There is no external object storage for CVs anymore (cvText on the user row).
+ */
+export async function purgeTalentCascade(manager: EntityManager, userId: string): Promise<void> {
+  const user = await manager.findOne(User, { where: { id: userId } });
+  if (!user) {
+    throw new NotFoundError("Talent not found");
+  }
+  if (user.userRole !== UserRole.Talent) {
+    throw new ValidationError("Only talent accounts can be deleted from this endpoint");
+  }
+
+  const applications = await manager.find(Application, {
+    where: { talentId: userId },
+    select: { id: true },
+  });
+  const applicationIds = applications.map((a) => a.id);
+
+  const messageIds = await collectMessageIds(manager, {
+    applicationIds,
+    userId,
+  });
+  await deleteMessagesAndDetachConversations(manager, messageIds);
+
+  if (applicationIds.length > 0) {
+    await manager.delete(Application, { talentId: userId });
+  }
+
+  await manager.delete(Answer, { userId });
+  await manager.delete(Notification, { userId });
+  await manager.delete(Payment, { userId });
+  await manager.delete(Subscription, { userId });
+  await manager.delete(TalentEmbedding, { userId });
+
+  // Break circular FK: users.active_prescreening_id ↔ pre_screenings.user_id
+  await manager.update(User, { id: userId }, { activePreScreeningId: null });
+  await manager.delete(PreScreening, { userId });
+
+  // Soft PII unlink on non-FK error logs
+  await manager.update(ErrorLog, { userId }, { userId: null });
+
+  const participantRows: Array<{ conversation_id: string }> = await manager.query(
+    `SELECT conversation_id FROM conversation_participants WHERE user_id = $1`,
+    [userId]
+  );
+  await manager.query(`DELETE FROM conversation_participants WHERE user_id = $1`, [userId]);
+
+  for (const row of participantRows) {
+    const remaining: Array<{ c: string }> = await manager.query(
+      `SELECT COUNT(*)::text AS c FROM conversation_participants WHERE conversation_id = $1`,
+      [row.conversation_id]
+    );
+    if (Number(remaining[0]?.c ?? 0) === 0) {
+      await manager.update(Conversation, { id: row.conversation_id }, { lastMessageId: null });
+      await manager.delete(Message, { conversationId: row.conversation_id });
+      await manager.delete(Conversation, { id: row.conversation_id });
+    }
+  }
+
+  await manager.query(`DELETE FROM user_roles WHERE user_id = $1`, [userId]);
+  await manager.delete(User, { id: userId });
+}
