@@ -163,4 +163,77 @@ describe("Admin talents & jobs", () => {
     ).toBeNull();
     expect(await testDataSource.getRepository(Answer).count({ where: { jobId: job.id } })).toBe(0);
   });
+
+  it("lists recruiters for admin and rejects talents", async () => {
+    const { token: adminToken } = await createAdmin();
+    const { token: talentToken } = await createTalent();
+    await createRecruiter({
+      firstName: "Sam",
+      lastName: "Hiring",
+      email: "sam.hiring@example.com",
+    });
+
+    const denied = await request(app)
+      .get("/v1/admin/recruiters")
+      .set("Authorization", `Bearer ${talentToken}`);
+    expect(denied.status).toBe(403);
+
+    const res = await request(app)
+      .get("/v1/admin/recruiters")
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data.total).toBe(1);
+    expect(res.body.data.users[0].firstName).toBe("Sam");
+  });
+
+  it("permanently deletes a recruiter and related records", async () => {
+    const { token: adminToken } = await createAdmin();
+    const { user: recruiter } = await createRecruiter({
+      firstName: "Pat",
+      lastName: "Recruiter",
+      email: "pat.recruiter@example.com",
+    });
+    const role = await createRole("frontend-engineer");
+    const job = await createJob(recruiter, role, { jobBrief: "Ship UI" });
+    const { user: talent } = await createTalent();
+    const application = await createApplication(talent, job);
+    const { message } = await createConversationWithMessage(talent, recruiter);
+    await testDataSource
+      .getRepository(Message)
+      .update({ id: message.id }, { applicationId: application.id });
+
+    const res = await request(app)
+      .delete(`/v1/admin/recruiters/${recruiter.id}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(
+      await testDataSource.getRepository(User).findOne({ where: { id: recruiter.id } })
+    ).toBeNull();
+    expect(await testDataSource.getRepository(Job).findOne({ where: { id: job.id } })).toBeNull();
+    expect(
+      await testDataSource.getRepository(Application).findOne({ where: { id: application.id } })
+    ).toBeNull();
+    expect(
+      await testDataSource.getRepository(Message).findOne({ where: { id: message.id } })
+    ).toBeNull();
+    // Talent account must remain
+    expect(
+      await testDataSource.getRepository(User).findOne({ where: { id: talent.id } })
+    ).not.toBeNull();
+  });
+
+  it("rejects deleting a talent via the recruiters endpoint", async () => {
+    const { token: adminToken } = await createAdmin();
+    const { user: talent } = await createTalent();
+
+    const res = await request(app)
+      .delete(`/v1/admin/recruiters/${talent.id}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(400);
+    expect(
+      await testDataSource.getRepository(User).findOne({ where: { id: talent.id } })
+    ).not.toBeNull();
+  });
 });

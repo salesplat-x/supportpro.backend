@@ -12,6 +12,11 @@ export const adminTalentsQueryValidator = [
   query("roleId").optional().isUUID().withMessage("roleId must be a valid UUID"),
 ];
 
+export const adminRecruitersQueryValidator = [
+  ...paginationRules,
+  query("search").optional().trim().isLength({ max: 200 }),
+];
+
 export const adminJobsQueryValidator = [
   ...paginationRules,
   query("search").optional().trim().isLength({ max: 200 }),

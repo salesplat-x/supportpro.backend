@@ -11,6 +11,8 @@ import {
   Payment,
   PreScreening,
   Question,
+  Scout,
+  ScoutJob,
   Subscription,
   TalentEmbedding,
   User,
@@ -143,6 +145,88 @@ export async function purgeTalentCascade(manager: EntityManager, userId: string)
   await manager.delete(PreScreening, { userId });
 
   // Soft PII unlink on non-FK error logs
+  await manager.update(ErrorLog, { userId }, { userId: null });
+
+  const participantRows: Array<{ conversation_id: string }> = await manager.query(
+    `SELECT conversation_id FROM conversation_participants WHERE user_id = $1`,
+    [userId]
+  );
+  await manager.query(`DELETE FROM conversation_participants WHERE user_id = $1`, [userId]);
+
+  for (const row of participantRows) {
+    const remaining: Array<{ c: string }> = await manager.query(
+      `SELECT COUNT(*)::text AS c FROM conversation_participants WHERE conversation_id = $1`,
+      [row.conversation_id]
+    );
+    if (Number(remaining[0]?.c ?? 0) === 0) {
+      await manager.update(Conversation, { id: row.conversation_id }, { lastMessageId: null });
+      await manager.delete(Message, { conversationId: row.conversation_id });
+      await manager.delete(Conversation, { id: row.conversation_id });
+    }
+  }
+
+  await manager.query(`DELETE FROM user_roles WHERE user_id = $1`, [userId]);
+  await manager.delete(User, { id: userId });
+}
+
+/**
+ * Fully remove a recruiter and every associated record: jobs they posted
+ * (via purgeJobCascade), scout jobs/scouts, remaining applications, AI configs,
+ * messages, notifications, payments, subscriptions, conversation membership.
+ * Organization rows are left intact (shared / not owned solely by the recruiter).
+ */
+export async function purgeRecruiterCascade(manager: EntityManager, userId: string): Promise<void> {
+  const user = await manager.findOne(User, { where: { id: userId } });
+  if (!user) {
+    throw new NotFoundError("Recruiter not found");
+  }
+  if (user.userRole !== UserRole.Recruiter) {
+    throw new ValidationError("Only recruiter accounts can be deleted from this endpoint");
+  }
+
+  const jobs = await manager.find(Job, {
+    where: { postedById: userId },
+    select: { id: true },
+  });
+  for (const job of jobs) {
+    await purgeJobCascade(manager, job.id);
+  }
+
+  const scoutJobs = await manager.find(ScoutJob, {
+    where: { postedById: userId },
+    select: { id: true },
+  });
+  const scoutJobIds = scoutJobs.map((sj) => sj.id);
+
+  if (scoutJobIds.length > 0) {
+    await manager.delete(Scout, { scoutJobId: In(scoutJobIds) });
+  }
+  await manager.delete(Scout, { recruiterId: userId });
+  if (scoutJobIds.length > 0) {
+    await manager.delete(ScoutJob, { postedById: userId });
+  }
+
+  const remainingApplications = await manager.find(Application, {
+    where: { recruiterId: userId },
+    select: { id: true },
+  });
+  const remainingApplicationIds = remainingApplications.map((a) => a.id);
+
+  const messageIds = await collectMessageIds(manager, {
+    applicationIds: remainingApplicationIds,
+    userId,
+  });
+  await deleteMessagesAndDetachConversations(manager, messageIds);
+
+  if (remainingApplicationIds.length > 0) {
+    await manager.delete(Application, { recruiterId: userId });
+  }
+
+  await manager.delete(AIConfig, { recruiterId: userId });
+  await manager.delete(Notification, { userId });
+  await manager.delete(Payment, { userId });
+  await manager.delete(Subscription, { userId });
+
   await manager.update(ErrorLog, { userId }, { userId: null });
 
   const participantRows: Array<{ conversation_id: string }> = await manager.query(
