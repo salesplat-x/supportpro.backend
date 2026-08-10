@@ -7,6 +7,7 @@ import { UserRole } from "../types/enums.js";
 import {
   adminIdParamValidator,
   adminJobsQueryValidator,
+  adminRecruitersQueryValidator,
   adminTalentsQueryValidator,
 } from "../validators/admin.js";
 
@@ -23,6 +24,19 @@ router.delete(
   validateAccess([UserRole.Admin]),
   validate(adminIdParamValidator),
   asyncHandler(admin.deleteTalent)
+);
+
+router.get(
+  "/recruiters",
+  validateAccess([UserRole.Admin]),
+  validate(adminRecruitersQueryValidator),
+  asyncHandler(admin.listRecruiters)
+);
+router.delete(
+  "/recruiters/:_id",
+  validateAccess([UserRole.Admin]),
+  validate(adminIdParamValidator),
+  asyncHandler(admin.deleteRecruiter)
 );
 
 router.get(

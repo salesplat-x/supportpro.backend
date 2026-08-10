@@ -3,7 +3,7 @@ import { Job, User } from "../entities";
 import { ValidationError } from "../utils/errors";
 import { JobStatus, UserRole } from "../types/enums.js";
 import { sortDirection } from "../utils/text.js";
-import { purgeJobCascade, purgeTalentCascade } from "./cascadeDelete.js";
+import { purgeJobCascade, purgeRecruiterCascade, purgeTalentCascade } from "./cascadeDelete.js";
 
 const userRepo = () => AppDataSource.getRepository(User);
 const jobRepo = () => AppDataSource.getRepository(Job);
@@ -56,6 +56,41 @@ export const listTalents = async (
 export const deleteTalent = async (talentId: string): Promise<void> => {
   await AppDataSource.transaction(async (manager) => {
     await purgeTalentCascade(manager, talentId);
+  });
+};
+
+export const listRecruiters = async (
+  params: AdminListParams
+): Promise<{ users: User[]; total: number }> => {
+  const limit = Math.min(Number(params.limit) || 50, 200);
+  const offset = Number(params.offset) || 0;
+  const order = sortDirection(params.sort ?? "desc");
+
+  const qb = userRepo()
+    .createQueryBuilder("user")
+    .leftJoinAndSelect("user.organization", "organization")
+    .where("user.userRole = :role", { role: UserRole.Recruiter });
+
+  if (params.search?.trim()) {
+    const term = `%${params.search.trim().toLowerCase()}%`;
+    qb.andWhere(
+      "(LOWER(user.firstName) LIKE :term OR LOWER(user.lastName) LIKE :term OR LOWER(user.email) LIKE :term OR LOWER(organization.name) LIKE :term)",
+      { term }
+    );
+  }
+
+  const [users, total] = await qb
+    .orderBy("user.createdAt", order)
+    .skip(offset)
+    .take(limit)
+    .getManyAndCount();
+
+  return { users, total };
+};
+
+export const deleteRecruiter = async (recruiterId: string): Promise<void> => {
+  await AppDataSource.transaction(async (manager) => {
+    await purgeRecruiterCascade(manager, recruiterId);
   });
 };
 

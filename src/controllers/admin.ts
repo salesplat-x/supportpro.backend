@@ -12,6 +12,16 @@ export const deleteTalent = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Talent permanently deleted");
 };
 
+export const listRecruiters = async (req: Request, res: Response) => {
+  const result = await adminService.listRecruiters(req.query as Record<string, string>);
+  sendSuccessResponse(res, "Recruiters fetched", result);
+};
+
+export const deleteRecruiter = async (req: Request, res: Response) => {
+  await adminService.deleteRecruiter(req.params["_id"]!);
+  sendSuccessResponse(res, "Recruiter permanently deleted");
+};
+
 export const listJobs = async (req: Request, res: Response) => {
   const result = await adminService.listJobs(req.query as Record<string, string>);
   sendSuccessResponse(res, "Jobs fetched", result);
