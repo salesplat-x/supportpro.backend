@@ -1,8 +1,11 @@
 import { AppDataSource } from "../database/dataSource.js";
 import { Organization } from "../entities/Organization.js";
-import { ConflictError, ValidationError } from "../utils/errors";
+import { User } from "../entities/User.js";
+import { OrganizationStatus } from "../types/enums.js";
+import { AuthorizationError, ConflictError, NotFoundError, ValidationError } from "../utils/errors";
 
 const orgRepo = () => AppDataSource.getRepository(Organization);
+const userRepo = () => AppDataSource.getRepository(User);
 
 const validateEmail = (email: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
@@ -18,7 +21,10 @@ export interface OrganizationPayload {
   twitter?: string | null;
 }
 
-export const createOrganization = async (payload: OrganizationPayload): Promise<Organization> => {
+export const createOrganization = async (
+  ownerId: string,
+  payload: OrganizationPayload
+): Promise<Organization> => {
   if (!payload.email) {
     throw new ValidationError("Email is required");
   }
@@ -39,6 +45,37 @@ export const createOrganization = async (payload: OrganizationPayload): Promise<
     }
   }
 
-  const org = orgRepo().create({ ...payload, email });
-  return orgRepo().save(org);
+  const org = orgRepo().create({
+    ...payload,
+    email,
+    ownerId,
+    status: OrganizationStatus.Pending,
+  });
+  const saved = await orgRepo().save(org);
+
+  // Creating a company switches the recruiter onto it.
+  await userRepo().update({ id: ownerId }, { activeOrganizationId: saved.id });
+
+  return saved;
+};
+
+export const listMyOrganizations = async (ownerId: string): Promise<Organization[]> => {
+  return orgRepo().find({ where: { ownerId }, order: { createdAt: "DESC" } });
+};
+
+export const switchOrganization = async (
+  userId: string,
+  organizationId: string
+): Promise<Organization> => {
+  const org = await orgRepo().findOne({ where: { id: organizationId } });
+  if (!org) {
+    throw new NotFoundError("Organization not found");
+  }
+  if (org.ownerId !== userId) {
+    throw new AuthorizationError("You can only switch to a company you created");
+  }
+
+  await userRepo().update({ id: userId }, { activeOrganizationId: org.id });
+
+  return org;
 };

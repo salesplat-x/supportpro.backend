@@ -3,6 +3,16 @@ import * as organizationService from "../services/organization.js";
 import { sendSuccessResponse } from "../utils/response.js";
 
 export const registerOrganization = async (req: Request, res: Response) => {
-  const result = await organizationService.createOrganization(req.body);
+  const result = await organizationService.createOrganization(req.user.id, req.body);
   sendSuccessResponse(res, "Organization registered", { organization: result }, 201);
+};
+
+export const listMyOrganizations = async (req: Request, res: Response) => {
+  const result = await organizationService.listMyOrganizations(req.user.id);
+  sendSuccessResponse(res, "Organizations fetched", { organizations: result });
+};
+
+export const switchOrganization = async (req: Request, res: Response) => {
+  const result = await organizationService.switchOrganization(req.user.id, req.params["_id"]!);
+  sendSuccessResponse(res, "Active company switched", { organization: result });
 };
