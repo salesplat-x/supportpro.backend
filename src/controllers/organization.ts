@@ -16,3 +16,17 @@ export const switchOrganization = async (req: Request, res: Response) => {
   const result = await organizationService.switchOrganization(req.user.id, req.params["_id"]!);
   sendSuccessResponse(res, "Active company switched", { organization: result });
 };
+
+export const updateOrganization = async (req: Request, res: Response) => {
+  const result = await organizationService.updateOrganization(
+    req.user.id,
+    req.params["_id"]!,
+    req.body
+  );
+  sendSuccessResponse(res, "Company updated", { organization: result });
+};
+
+export const deleteOrganization = async (req: Request, res: Response) => {
+  await organizationService.deleteOrganization(req.user.id, req.params["_id"]!);
+  sendSuccessResponse(res, "Company deleted", {});
+};
