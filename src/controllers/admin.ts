@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import * as adminService from "../services/admin.js";
+import { OrganizationStatus } from "../types/enums.js";
 import { sendSuccessResponse } from "../utils/response.js";
 
 export const listTalents = async (req: Request, res: Response) => {
@@ -30,4 +31,27 @@ export const listJobs = async (req: Request, res: Response) => {
 export const deleteJob = async (req: Request, res: Response) => {
   await adminService.deleteJobAsAdmin(req.params["_id"]!);
   sendSuccessResponse(res, "Job permanently deleted");
+};
+
+export const listOrganizations = async (req: Request, res: Response) => {
+  const result = await adminService.listOrganizations(req.query as Record<string, string>);
+  sendSuccessResponse(res, "Organizations fetched", result);
+};
+
+export const verifyOrganization = async (req: Request, res: Response) => {
+  const result = await adminService.updateOrganizationStatus(
+    req.params["_id"]!,
+    req.user.id,
+    OrganizationStatus.Verified
+  );
+  sendSuccessResponse(res, "Organization verified", { organization: result });
+};
+
+export const rejectOrganization = async (req: Request, res: Response) => {
+  const result = await adminService.updateOrganizationStatus(
+    req.params["_id"]!,
+    req.user.id,
+    OrganizationStatus.Rejected
+  );
+  sendSuccessResponse(res, "Organization rejected", { organization: result });
 };

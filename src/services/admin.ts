@@ -1,12 +1,13 @@
 import { AppDataSource } from "../database/dataSource.js";
-import { Job, User } from "../entities";
-import { ValidationError } from "../utils/errors";
-import { JobStatus, UserRole } from "../types/enums.js";
+import { Job, Organization, User } from "../entities";
+import { NotFoundError, ValidationError } from "../utils/errors";
+import { JobStatus, OrganizationStatus, UserRole } from "../types/enums.js";
 import { sortDirection } from "../utils/text.js";
 import { purgeJobCascade, purgeRecruiterCascade, purgeTalentCascade } from "./cascadeDelete.js";
 
 const userRepo = () => AppDataSource.getRepository(User);
 const jobRepo = () => AppDataSource.getRepository(Job);
+const orgRepo = () => AppDataSource.getRepository(Organization);
 
 export interface AdminListParams {
   search?: string;
@@ -68,13 +69,12 @@ export const listRecruiters = async (
 
   const qb = userRepo()
     .createQueryBuilder("user")
-    .leftJoinAndSelect("user.organization", "organization")
     .where("user.userRole = :role", { role: UserRole.Recruiter });
 
   if (params.search?.trim()) {
     const term = `%${params.search.trim().toLowerCase()}%`;
     qb.andWhere(
-      "(LOWER(user.firstName) LIKE :term OR LOWER(user.lastName) LIKE :term OR LOWER(user.email) LIKE :term OR LOWER(organization.name) LIKE :term)",
+      "(LOWER(user.firstName) LIKE :term OR LOWER(user.lastName) LIKE :term OR LOWER(user.email) LIKE :term)",
       { term }
     );
   }
@@ -136,4 +136,53 @@ export const deleteJobAsAdmin = async (jobId: string): Promise<void> => {
   await AppDataSource.transaction(async (manager) => {
     await purgeJobCascade(manager, jobId);
   });
+};
+
+export const listOrganizations = async (
+  params: AdminListParams
+): Promise<{ organizations: Organization[]; total: number }> => {
+  const limit = Math.min(Number(params.limit) || 50, 200);
+  const offset = Number(params.offset) || 0;
+  const order = sortDirection(params.sort ?? "desc");
+
+  const qb = orgRepo().createQueryBuilder("organization").leftJoinAndSelect("organization.owner", "owner");
+
+  if (params.search?.trim()) {
+    const term = `%${params.search.trim().toLowerCase()}%`;
+    qb.andWhere(
+      "(LOWER(organization.name) LIKE :term OR LOWER(organization.email) LIKE :term OR LOWER(organization.website) LIKE :term OR LOWER(owner.email) LIKE :term)",
+      { term }
+    );
+  }
+  if (params.status) {
+    if (!Object.values(OrganizationStatus).includes(params.status as OrganizationStatus)) {
+      throw new ValidationError("Invalid organization status filter");
+    }
+    qb.andWhere("organization.status = :status", { status: params.status });
+  }
+
+  const [organizations, total] = await qb
+    .orderBy("organization.createdAt", order)
+    .skip(offset)
+    .take(limit)
+    .getManyAndCount();
+
+  return { organizations, total };
+};
+
+export const updateOrganizationStatus = async (
+  organizationId: string,
+  adminId: string,
+  status: OrganizationStatus.Verified | OrganizationStatus.Rejected
+): Promise<Organization> => {
+  const org = await orgRepo().findOne({ where: { id: organizationId } });
+  if (!org) {
+    throw new NotFoundError("Organization not found");
+  }
+
+  org.status = status;
+  org.verifiedAt = new Date();
+  org.verifiedById = adminId;
+
+  return orgRepo().save(org);
 };

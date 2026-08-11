@@ -7,6 +7,7 @@ import { UserRole } from "../types/enums.js";
 import {
   adminIdParamValidator,
   adminJobsQueryValidator,
+  adminOrganizationsQueryValidator,
   adminRecruitersQueryValidator,
   adminTalentsQueryValidator,
 } from "../validators/admin.js";
@@ -50,6 +51,25 @@ router.delete(
   validateAccess([UserRole.Admin]),
   validate(adminIdParamValidator),
   asyncHandler(admin.deleteJob)
+);
+
+router.get(
+  "/organizations",
+  validateAccess([UserRole.Admin]),
+  validate(adminOrganizationsQueryValidator),
+  asyncHandler(admin.listOrganizations)
+);
+router.patch(
+  "/organizations/:_id/verify",
+  validateAccess([UserRole.Admin]),
+  validate(adminIdParamValidator),
+  asyncHandler(admin.verifyOrganization)
+);
+router.patch(
+  "/organizations/:_id/reject",
+  validateAccess([UserRole.Admin]),
+  validate(adminIdParamValidator),
+  asyncHandler(admin.rejectOrganization)
 );
 
 export default (app: Router) => app.use("/admin", router);

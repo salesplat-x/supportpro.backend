@@ -1,5 +1,5 @@
 import { query } from "express-validator";
-import { ExperienceLevel, JobStatus } from "../types/enums.js";
+import { ExperienceLevel, JobStatus, OrganizationStatus } from "../types/enums.js";
 import { idParam, paginationRules } from "./shared.js";
 
 export const adminTalentsQueryValidator = [
@@ -28,3 +28,12 @@ export const adminJobsQueryValidator = [
 ];
 
 export const adminIdParamValidator = [idParam("_id")];
+
+export const adminOrganizationsQueryValidator = [
+  ...paginationRules,
+  query("search").optional().trim().isLength({ max: 200 }),
+  query("status")
+    .optional()
+    .isIn(Object.values(OrganizationStatus))
+    .withMessage(`status must be one of: ${Object.values(OrganizationStatus).join(", ")}`),
+];
