@@ -280,7 +280,8 @@ export const fetchAllJobs = async (
   const qb = jobRepo()
     .createQueryBuilder("job")
     .leftJoinAndSelect("job.role", "role")
-    .leftJoinAndSelect("job.postedBy", "postedBy");
+    .leftJoinAndSelect("job.postedBy", "postedBy")
+    .leftJoinAndSelect("job.organization", "organization");
 
   if (payload.roleId) {
     const role = await roleRepo().findOne({ where: { id: payload.roleId } });
@@ -363,7 +364,7 @@ export const fetchJob = async (
 ): Promise<Job & { hasApplied?: boolean }> => {
   const job = await jobRepo().findOne({
     where: { id: jobId },
-    relations: { role: true, postedBy: true, aiConfig: true },
+    relations: { role: true, postedBy: true, aiConfig: true, organization: true },
   });
   if (!job) {
     throw new NotFoundError("Job not found");
