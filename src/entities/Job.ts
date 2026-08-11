@@ -12,6 +12,7 @@ import { CompensationPeriod, JobStatus } from "../types/enums.js";
 import type { Role } from "./Role.js";
 import type { User } from "./User.js";
 import type { AIConfig } from "./AIConfig.js";
+import type { Organization } from "./Organization.js";
 
 @Entity("jobs")
 @Index(["status", "roleId"])
@@ -32,6 +33,13 @@ export class Job {
   @ManyToOne("User", { eager: false })
   @JoinColumn({ name: "posted_by_id" })
   postedBy!: User;
+
+  @Column({ type: "uuid", nullable: true, default: null, name: "organization_id" })
+  organizationId!: string | null;
+
+  @ManyToOne("Organization", { nullable: true, eager: false })
+  @JoinColumn({ name: "organization_id" })
+  organization!: Organization | null;
 
   @Column({ type: "uuid", nullable: true, default: null, name: "ai_config_id" })
   aiConfigId!: string | null;
