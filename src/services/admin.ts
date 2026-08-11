@@ -145,7 +145,9 @@ export const listOrganizations = async (
   const offset = Number(params.offset) || 0;
   const order = sortDirection(params.sort ?? "desc");
 
-  const qb = orgRepo().createQueryBuilder("organization").leftJoinAndSelect("organization.owner", "owner");
+  const qb = orgRepo()
+    .createQueryBuilder("organization")
+    .leftJoinAndSelect("organization.owner", "owner");
 
   if (params.search?.trim()) {
     const term = `%${params.search.trim().toLowerCase()}%`;

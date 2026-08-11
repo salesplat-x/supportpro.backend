@@ -285,7 +285,10 @@ export async function createPreScreening(
   return saved;
 }
 
+// Mirrors services/organization.ts createOrganization: the owner is
+// switched onto the new company as their active one.
 export async function createOrganization(
+  owner: User,
   overrides: Partial<Organization> = {}
 ): Promise<Organization> {
   const repo = testDataSource.getRepository(Organization);
@@ -295,9 +298,12 @@ export async function createOrganization(
     phone: `+234${Math.floor(7000000000 + Math.random() * 999999999)}`,
     address: "123 Test Street",
     industry: "Technology",
+    ownerId: owner.id,
     ...overrides,
   });
-  return repo.save(org);
+  const saved = await repo.save(org);
+  await testDataSource.getRepository(User).update(owner.id, { activeOrganizationId: saved.id });
+  return saved;
 }
 
 export async function createScoutJob(

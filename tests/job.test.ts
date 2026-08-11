@@ -19,6 +19,7 @@ import {
 import { AIConfig } from "../src/entities/AIConfig.js";
 import { TalentEmbedding } from "../src/entities/TalentEmbedding.js";
 import { Job } from "../src/entities/Job.js";
+import { Organization } from "../src/entities/Organization.js";
 
 jest.mock("../src/utils/integrations/openai.js", () => ({
   createEmbedding: jest.fn().mockResolvedValue([{ embedding: new Array(512).fill(0.1) }]),
@@ -54,9 +55,15 @@ jest.mock("../src/utils/integrations/email/emailService.js", () => ({
 
 let app: ReturnType<typeof createApp>;
 
-async function createRecruiter(): Promise<{ user: User; token: string }> {
+// Job creation requires the recruiter to have an active company (see
+// services/job.ts createJob), so this helper creates one and switches the
+// recruiter onto it — mirroring what POST /organizations does for real.
+async function createRecruiter(
+  opts: { withActiveCompany?: boolean } = {}
+): Promise<{ user: User; token: string }> {
+  const withActiveCompany = opts.withActiveCompany ?? true;
   const user = testDataSource.getRepository(User).create({
-    email: "recruiter@example.com",
+    email: `recruiter_${Date.now()}_${Math.random()}@example.com`,
     password: await generateHashedPassword("Password1!"),
     firstName: "Bob",
     lastName: "Smith",
@@ -66,7 +73,20 @@ async function createRecruiter(): Promise<{ user: User; token: string }> {
     tokenVersion: 0,
     roleChangeCount: 0,
   });
-  const saved = await testDataSource.getRepository(User).save(user);
+  let saved = await testDataSource.getRepository(User).save(user);
+
+  if (withActiveCompany) {
+    const org = await testDataSource.getRepository(Organization).save(
+      testDataSource.getRepository(Organization).create({
+        name: "Test Company",
+        email: `company_${Date.now()}_${Math.random()}@example.com`,
+        ownerId: saved.id,
+      })
+    );
+    await testDataSource.getRepository(User).update(saved.id, { activeOrganizationId: org.id });
+    saved = { ...saved, activeOrganizationId: org.id };
+  }
+
   return { user: saved, token: signToken(saved) };
 }
 
@@ -159,6 +179,47 @@ describe("POST /v1/jobs/", () => {
       });
 
     expect(res.status).toBe(403);
+  });
+
+  it("rejects job creation when the recruiter has no active company", async () => {
+    const { token } = await createRecruiter({ withActiveCompany: false });
+
+    const res = await request(app)
+      .post("/v1/jobs/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        role: "software-engineer",
+        jobBrief: "Looking for a great engineer",
+        experienceLevel: "4-6 years",
+        maxSalary: 100000,
+        minSalary: 50000,
+        compensationPeriod: "yearly",
+        locationCountry: "Nigeria",
+        workMode: ["remote"],
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("stamps the created job with the recruiter's active company", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+
+    const res = await request(app)
+      .post("/v1/jobs/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        role: "software-engineer",
+        jobBrief: "Looking for a great engineer",
+        experienceLevel: "4-6 years",
+        maxSalary: 100000,
+        minSalary: 50000,
+        compensationPeriod: "yearly",
+        locationCountry: "Nigeria",
+        workMode: ["remote"],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.job.organizationId).toBe(recruiter.activeOrganizationId);
   });
 });
 

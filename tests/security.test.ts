@@ -161,6 +161,15 @@ describe("Role enforcement — Talent blocked from Recruiter-only routes", () =>
     const res = await request(app).get("/v1/user/profile/").set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(403);
   });
+
+  it("Talent cannot create organization → 403", async () => {
+    const { token } = await createTalent();
+    const res = await request(app)
+      .post("/v1/organizations/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Org", email: "org@test.com" });
+    expect(res.status).toBe(403);
+  });
 });
 
 describe("Role enforcement — Recruiter blocked from Admin-only routes", () => {
@@ -173,21 +182,23 @@ describe("Role enforcement — Recruiter blocked from Admin-only routes", () => 
     expect(res.status).toBe(403);
   });
 
-  it("Recruiter cannot create organization → 403", async () => {
-    const { token } = await createRecruiter();
-    const res = await request(app)
-      .post("/v1/organizations/")
-      .set("Authorization", `Bearer ${token}`)
-      .send({ name: "Org", email: "org@test.com" });
-    expect(res.status).toBe(403);
-  });
-
   it("Recruiter cannot create a plan → 403", async () => {
     const { token } = await createRecruiter();
     const res = await request(app)
       .post("/v1/plans/")
       .set("Authorization", `Bearer ${token}`)
       .send({ name: "Basic", amount: 5000, interval: "monthly" });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("Role enforcement — Admin blocked from Recruiter-only routes", () => {
+  it("Admin cannot create organization (recruiter-only) → 403", async () => {
+    const { token } = await createAdmin();
+    const res = await request(app)
+      .post("/v1/organizations/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Org", email: "org@test.com" });
     expect(res.status).toBe(403);
   });
 });

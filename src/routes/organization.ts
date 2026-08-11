@@ -4,7 +4,10 @@ import { asyncHandler } from "../middleware/asyncHandler.js";
 import { validateAccess } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { UserRole } from "../types/enums.js";
-import { createOrganizationValidator, switchOrganizationValidator } from "../validators/organization.js";
+import {
+  createOrganizationValidator,
+  switchOrganizationValidator,
+} from "../validators/organization.js";
 
 const router = Router();
 
