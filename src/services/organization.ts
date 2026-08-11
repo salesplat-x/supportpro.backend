@@ -59,6 +59,19 @@ export const createOrganization = async (
     }
   }
 
+  if (payload.website) {
+    const nameAndWebsiteExists = await orgRepo()
+      .createQueryBuilder("organization")
+      .where("LOWER(organization.name) = :name", { name: payload.name.trim().toLowerCase() })
+      .andWhere("LOWER(organization.website) = :website", {
+        website: payload.website.trim().toLowerCase(),
+      })
+      .getOne();
+    if (nameAndWebsiteExists) {
+      throw new ConflictError("A company with this name and website already exists");
+    }
+  }
+
   const org = orgRepo().create({
     ...payload,
     email,
