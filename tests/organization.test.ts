@@ -101,6 +101,26 @@ describe("POST /v1/organizations/ — create organization (Recruiter only)", () 
     expect(res.status).toBe(400);
   });
 
+  it("Missing both website and LinkedIn → 400", async () => {
+    const { token } = await createRecruiter();
+    const { website: _website, ...bodyWithoutWebsite } = validOrgBody;
+    const res = await request(app)
+      .post("/v1/organizations/")
+      .set("Authorization", `Bearer ${token}`)
+      .send(bodyWithoutWebsite);
+    expect(res.status).toBe(400);
+  });
+
+  it("LinkedIn provided without a website → 201", async () => {
+    const { token } = await createRecruiter();
+    const { website: _website, ...bodyWithoutWebsite } = validOrgBody;
+    const res = await request(app)
+      .post("/v1/organizations/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ ...bodyWithoutWebsite, linkedin: "https://linkedin.com/company/techcorp" });
+    expect(res.status).toBe(201);
+  });
+
   it("Second company created by the same recruiter switches their active company", async () => {
     const { token } = await createRecruiter();
     const first = await request(app)

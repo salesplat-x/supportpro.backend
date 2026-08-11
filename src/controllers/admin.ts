@@ -38,6 +38,11 @@ export const listOrganizations = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Organizations fetched", result);
 };
 
+export const getOrganization = async (req: Request, res: Response) => {
+  const result = await adminService.getOrganization(req.params["_id"]!);
+  sendSuccessResponse(res, "Organization fetched", { organization: result });
+};
+
 export const verifyOrganization = async (req: Request, res: Response) => {
   const result = await adminService.updateOrganizationStatus(
     req.params["_id"]!,

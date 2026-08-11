@@ -59,6 +59,12 @@ router.get(
   validate(adminOrganizationsQueryValidator),
   asyncHandler(admin.listOrganizations)
 );
+router.get(
+  "/organizations/:_id",
+  validateAccess([UserRole.Admin]),
+  validate(adminIdParamValidator),
+  asyncHandler(admin.getOrganization)
+);
 router.patch(
   "/organizations/:_id/verify",
   validateAccess([UserRole.Admin]),

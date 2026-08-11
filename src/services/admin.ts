@@ -172,6 +172,17 @@ export const listOrganizations = async (
   return { organizations, total };
 };
 
+export const getOrganization = async (organizationId: string): Promise<Organization> => {
+  const org = await orgRepo().findOne({
+    where: { id: organizationId },
+    relations: { owner: true, verifiedBy: true },
+  });
+  if (!org) {
+    throw new NotFoundError("Organization not found");
+  }
+  return org;
+};
+
 export const updateOrganizationStatus = async (
   organizationId: string,
   adminId: string,
