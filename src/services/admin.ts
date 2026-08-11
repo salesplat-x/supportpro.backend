@@ -104,12 +104,13 @@ export const listJobs = async (
   const qb = jobRepo()
     .createQueryBuilder("job")
     .leftJoinAndSelect("job.role", "role")
-    .leftJoinAndSelect("job.postedBy", "postedBy");
+    .leftJoinAndSelect("job.postedBy", "postedBy")
+    .leftJoinAndSelect("job.organization", "organization");
 
   if (params.search?.trim()) {
     const term = `%${params.search.trim().toLowerCase()}%`;
     qb.andWhere(
-      "(LOWER(job.jobBrief) LIKE :term OR LOWER(role.name) LIKE :term OR LOWER(postedBy.email) LIKE :term OR LOWER(postedBy.firstName) LIKE :term OR LOWER(postedBy.lastName) LIKE :term)",
+      "(LOWER(job.jobBrief) LIKE :term OR LOWER(role.name) LIKE :term OR LOWER(organization.name) LIKE :term OR LOWER(postedBy.email) LIKE :term OR LOWER(postedBy.firstName) LIKE :term OR LOWER(postedBy.lastName) LIKE :term)",
       { term }
     );
   }
