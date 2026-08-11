@@ -1,5 +1,7 @@
 import { body } from "express-validator";
-import { phoneRule } from "./shared.js";
+import { idParam, phoneRule } from "./shared.js";
+
+export const switchOrganizationValidator = [idParam("_id")];
 
 export const createOrganizationValidator = [
   body("email").isEmail().normalizeEmail().withMessage("Valid email is required"),
