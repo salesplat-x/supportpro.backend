@@ -8,6 +8,7 @@ import {
   Job,
   Message,
   Notification,
+  Organization,
   Payment,
   PreScreening,
   Question,
@@ -172,8 +173,8 @@ export async function purgeTalentCascade(manager: EntityManager, userId: string)
 /**
  * Fully remove a recruiter and every associated record: jobs they posted
  * (via purgeJobCascade), scout jobs/scouts, remaining applications, AI configs,
- * messages, notifications, payments, subscriptions, conversation membership.
- * Organization rows are left intact (shared / not owned solely by the recruiter).
+ * messages, notifications, payments, subscriptions, conversation membership,
+ * and the companies they own (a company has exactly one owning recruiter).
  */
 export async function purgeRecruiterCascade(manager: EntityManager, userId: string): Promise<void> {
   const user = await manager.findOne(User, { where: { id: userId } });
@@ -191,6 +192,12 @@ export async function purgeRecruiterCascade(manager: EntityManager, userId: stri
   for (const job of jobs) {
     await purgeJobCascade(manager, job.id);
   }
+
+  // Break the user -> organization FK (their own active company) before
+  // deleting the organizations they own, since organizations.owner_id also
+  // points back at this user.
+  await manager.update(User, { id: userId }, { activeOrganizationId: null });
+  await manager.delete(Organization, { ownerId: userId });
 
   const scoutJobs = await manager.find(ScoutJob, {
     where: { postedById: userId },

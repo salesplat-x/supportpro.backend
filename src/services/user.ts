@@ -288,7 +288,7 @@ export const saveTalentEmbedding = async (
 export const me = async (userId: string): Promise<User> => {
   const user = await userRepo().findOne({
     where: { id: userId },
-    relations: { userRoles: true, organization: true },
+    relations: { userRoles: true, activeOrganization: true },
   });
   if (!user) {
     throw new NotFoundError("Authenticated user no longer exists");
