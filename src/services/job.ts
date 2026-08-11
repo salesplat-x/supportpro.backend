@@ -94,6 +94,12 @@ export interface MatchJobParams {
 }
 
 export const createJob = async (userId: string, payload: CreateJobPayload): Promise<Job> => {
+  const user = await userRepo().findOne({ where: { id: userId } });
+  if (!user?.activeOrganizationId) {
+    throw new ValidationError("Create or switch to a company before posting a job");
+  }
+  const organizationId = user.activeOrganizationId;
+
   let roleId: string;
 
   if (payload.role) {
@@ -137,6 +143,7 @@ export const createJob = async (userId: string, payload: CreateJobPayload): Prom
     ...jobData,
     roleId,
     postedById: userId,
+    organizationId,
     aiConfigId: payload.aiConfigId ?? null,
   });
 
