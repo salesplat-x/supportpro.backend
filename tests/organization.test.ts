@@ -129,6 +129,45 @@ describe("POST /v1/organizations/ — create organization (Recruiter only)", () 
     expect(res.status).toBe(201);
   });
 
+  it("Same name and website as an existing company → 409", async () => {
+    const { token: firstToken } = await createRecruiter();
+    const first = await request(app)
+      .post("/v1/organizations/")
+      .set("Authorization", `Bearer ${firstToken}`)
+      .send(validOrgBody);
+    expect(first.status).toBe(201);
+
+    const { token: secondToken } = await createRecruiter();
+    const res = await request(app)
+      .post("/v1/organizations/")
+      .set("Authorization", `Bearer ${secondToken}`)
+      .send({ ...validOrgBody, email: "other@techcorp.com", phone: "+2348011112222" });
+
+    expect(res.status).toBe(409);
+  });
+
+  it("Same name but different website → 201 (name alone may repeat)", async () => {
+    const { token: firstToken } = await createRecruiter();
+    const first = await request(app)
+      .post("/v1/organizations/")
+      .set("Authorization", `Bearer ${firstToken}`)
+      .send(validOrgBody);
+    expect(first.status).toBe(201);
+
+    const { token: secondToken } = await createRecruiter();
+    const res = await request(app)
+      .post("/v1/organizations/")
+      .set("Authorization", `Bearer ${secondToken}`)
+      .send({
+        ...validOrgBody,
+        email: "other@techcorp.com",
+        phone: "+2348011112222",
+        website: "https://techcorp.io",
+      });
+
+    expect(res.status).toBe(201);
+  });
+
   it("Second company created by the same recruiter switches their active company", async () => {
     const { token } = await createRecruiter();
     const first = await request(app)
