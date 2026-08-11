@@ -49,6 +49,9 @@ export class Organization {
   @Column({ type: "varchar", nullable: true, default: null })
   twitter!: string | null;
 
+  @Column({ type: "varchar", nullable: true, default: null, name: "logo_url" })
+  logoUrl!: string | null;
+
   @Column({ type: "enum", enum: OrganizationStatus, default: OrganizationStatus.Pending })
   status!: OrganizationStatus;
 

@@ -105,6 +105,37 @@ export async function purgeJobCascade(manager: EntityManager, jobId: string): Pr
 }
 
 /**
+ * Fully remove a company and every job posted under it (each job taking its own
+ * applications, answers, questions and messages with it via purgeJobCascade).
+ * Any recruiter currently working on this company is detached first, since
+ * users.active_organization_id points back at the row being deleted.
+ */
+export async function purgeOrganizationCascade(
+  manager: EntityManager,
+  organizationId: string
+): Promise<void> {
+  const organization = await manager.findOne(Organization, { where: { id: organizationId } });
+  if (!organization) {
+    throw new NotFoundError("Company does not exist");
+  }
+
+  const jobs = await manager.find(Job, {
+    where: { organizationId },
+    select: { id: true },
+  });
+  for (const job of jobs) {
+    await purgeJobCascade(manager, job.id);
+  }
+
+  await manager.update(
+    User,
+    { activeOrganizationId: organizationId },
+    { activeOrganizationId: null }
+  );
+  await manager.delete(Organization, { id: organizationId });
+}
+
+/**
  * Fully remove a talent user and every associated record:
  * messages, applications (+ AI match rows), answers, notifications, payments,
  * subscriptions, embeddings, pre-screenings, conversation membership, error-log links.

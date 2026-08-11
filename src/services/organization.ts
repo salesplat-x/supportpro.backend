@@ -3,6 +3,7 @@ import { Organization } from "../entities/Organization.js";
 import { User } from "../entities/User.js";
 import { OrganizationStatus } from "../types/enums.js";
 import { AuthorizationError, ConflictError, NotFoundError, ValidationError } from "../utils/errors";
+import { purgeOrganizationCascade } from "./cascadeDelete.js";
 
 const orgRepo = () => AppDataSource.getRepository(Organization);
 const userRepo = () => AppDataSource.getRepository(User);
@@ -19,6 +20,19 @@ export interface OrganizationPayload {
   facebook?: string | null;
   linkedin?: string | null;
   twitter?: string | null;
+  logoUrl?: string | null;
+}
+
+// Email and website are deliberately absent — they are immutable after creation.
+export interface UpdateOrganizationPayload {
+  name?: string;
+  phone?: string | null;
+  address?: string | null;
+  industry?: string | null;
+  facebook?: string | null;
+  linkedin?: string | null;
+  twitter?: string | null;
+  logoUrl?: string | null;
 }
 
 export const createOrganization = async (
@@ -78,4 +92,59 @@ export const switchOrganization = async (
   await userRepo().update({ id: userId }, { activeOrganizationId: org.id });
 
   return org;
+};
+
+const assertOwnership = async (ownerId: string, organizationId: string): Promise<Organization> => {
+  const org = await orgRepo().findOne({ where: { id: organizationId } });
+  if (!org) {
+    throw new NotFoundError("Company not found");
+  }
+  if (org.ownerId !== ownerId) {
+    throw new AuthorizationError("You can only manage a company you created");
+  }
+  return org;
+};
+
+export const updateOrganization = async (
+  ownerId: string,
+  organizationId: string,
+  payload: UpdateOrganizationPayload
+): Promise<Organization> => {
+  const org = await assertOwnership(ownerId, organizationId);
+
+  // Belt-and-braces against a client sending them anyway: the validator does not
+  // whitelist email/website, but nothing stops them arriving in the body.
+  const {
+    email: _email,
+    website: _website,
+    ...allowed
+  } = payload as UpdateOrganizationPayload & { email?: string; website?: string };
+
+  const updates = Object.fromEntries(
+    Object.entries(allowed).filter(([, value]) => value !== undefined)
+  ) as UpdateOrganizationPayload;
+
+  if (Object.keys(updates).length === 0) {
+    return org;
+  }
+
+  if (updates.phone) {
+    const phoneOwner = await orgRepo().findOne({ where: { phone: updates.phone } });
+    if (phoneOwner && phoneOwner.id !== org.id) {
+      throw new ConflictError("Another company is already registered with this phone number");
+    }
+  }
+
+  return orgRepo().save({ ...org, ...updates });
+};
+
+export const deleteOrganization = async (
+  ownerId: string,
+  organizationId: string
+): Promise<void> => {
+  await assertOwnership(ownerId, organizationId);
+
+  await AppDataSource.transaction(async (manager) => {
+    await purgeOrganizationCascade(manager, organizationId);
+  });
 };

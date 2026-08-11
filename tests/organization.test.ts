@@ -4,12 +4,20 @@
 
 import request from "supertest";
 import { createApp } from "../src/app.js";
-import { startTestDatabase, stopTestDatabase, clearAllTables } from "./helpers/db.js";
+import {
+  startTestDatabase,
+  stopTestDatabase,
+  clearAllTables,
+  testDataSource,
+} from "./helpers/db.js";
+import { Job, User } from "../src/entities";
 import {
   createTalent,
   createRecruiter,
   createAdmin,
   createOrganization,
+  createRole,
+  createJob,
 } from "./helpers/fixtures.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
@@ -241,5 +249,121 @@ describe("Admin organization verification", () => {
       .patch(`/v1/admin/organizations/${org.id}/verify`)
       .set("Authorization", `Bearer ${token}`);
     expect(verify.status).toBe(403);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /v1/organizations/:id — update organization (owner only)
+// ---------------------------------------------------------------------------
+
+describe("PATCH /v1/organizations/:id — update organization", () => {
+  it("Owner updates editable fields → 200", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter, { name: "Old Name" });
+
+    const res = await request(app)
+      .patch(`/v1/organizations/${org.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        name: "New Name",
+        industry: "Fintech",
+        logoUrl: "https://cdn.example.com/logo.png",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.organization.name).toBe("New Name");
+    expect(res.body.data.organization.industry).toBe("Fintech");
+    expect(res.body.data.organization.logoUrl).toBe("https://cdn.example.com/logo.png");
+  });
+
+  it("Email and website are ignored even when sent → unchanged", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter, {
+      email: "locked@example.com",
+      website: "https://locked.example.com",
+    });
+
+    const res = await request(app)
+      .patch(`/v1/organizations/${org.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        name: "Renamed",
+        email: "hacker@example.com",
+        website: "https://hacker.example.com",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.organization.name).toBe("Renamed");
+    expect(res.body.data.organization.email).toBe("locked@example.com");
+    expect(res.body.data.organization.website).toBe("https://locked.example.com");
+  });
+
+  it("Rejects an invalid logo URL → 400", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+
+    const res = await request(app)
+      .patch(`/v1/organizations/${org.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ logoUrl: "not-a-url" });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("Non-owner recruiter cannot update → 403", async () => {
+    const { user: owner } = await createRecruiter();
+    const { token: otherToken } = await createRecruiter();
+    const org = await createOrganization(owner);
+
+    const res = await request(app)
+      .patch(`/v1/organizations/${org.id}`)
+      .set("Authorization", `Bearer ${otherToken}`)
+      .send({ name: "Hijacked" });
+
+    expect(res.status).toBe(403);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /v1/organizations/:id — delete organization (owner only, cascades)
+// ---------------------------------------------------------------------------
+
+describe("DELETE /v1/organizations/:id — delete organization", () => {
+  it("Owner deletes company → 200, jobs cascade, active company cleared", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+    const role = await createRole();
+    await createJob(recruiter, role, { organizationId: org.id });
+
+    const res = await request(app)
+      .delete(`/v1/organizations/${org.id}`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(200);
+
+    const list = await request(app)
+      .get("/v1/organizations/me")
+      .set("Authorization", `Bearer ${token}`);
+    expect(list.body.data.organizations).toHaveLength(0);
+
+    const remainingJobs = await testDataSource
+      .getRepository(Job)
+      .count({ where: { organizationId: org.id } });
+    expect(remainingJobs).toBe(0);
+
+    const refreshed = await testDataSource
+      .getRepository(User)
+      .findOne({ where: { id: recruiter.id } });
+    expect(refreshed?.activeOrganizationId).toBeNull();
+  });
+
+  it("Non-owner recruiter cannot delete → 403", async () => {
+    const { user: owner } = await createRecruiter();
+    const { token: otherToken } = await createRecruiter();
+    const org = await createOrganization(owner);
+
+    const res = await request(app)
+      .delete(`/v1/organizations/${org.id}`)
+      .set("Authorization", `Bearer ${otherToken}`);
+    expect(res.status).toBe(403);
   });
 });

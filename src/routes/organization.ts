@@ -6,7 +6,9 @@ import { validate } from "../middleware/validate.js";
 import { UserRole } from "../types/enums.js";
 import {
   createOrganizationValidator,
+  deleteOrganizationValidator,
   switchOrganizationValidator,
+  updateOrganizationValidator,
 } from "../validators/organization.js";
 
 const router = Router();
@@ -29,6 +31,20 @@ router.patch(
   validateAccess([UserRole.Recruiter]),
   validate(switchOrganizationValidator),
   asyncHandler(organization.switchOrganization)
+);
+
+router.patch(
+  "/:_id",
+  validateAccess([UserRole.Recruiter]),
+  validate(updateOrganizationValidator),
+  asyncHandler(organization.updateOrganization)
+);
+
+router.delete(
+  "/:_id",
+  validateAccess([UserRole.Recruiter]),
+  validate(deleteOrganizationValidator),
+  asyncHandler(organization.deleteOrganization)
 );
 
 export default (app: Router) => app.use("/organizations", router);
