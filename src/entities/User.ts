@@ -52,12 +52,12 @@ export class User {
   @Column({ type: "varchar", nullable: true, default: null })
   country!: string | null;
 
-  @Column({ type: "uuid", nullable: true, default: null, name: "organization_id" })
-  organizationId!: string | null;
+  @Column({ type: "uuid", nullable: true, default: null, name: "active_organization_id" })
+  activeOrganizationId!: string | null;
 
   @ManyToOne("Organization", { nullable: true, eager: false })
-  @JoinColumn({ name: "organization_id" })
-  organization!: Organization | null;
+  @JoinColumn({ name: "active_organization_id" })
+  activeOrganization!: Organization | null;
 
   @Column({ type: "boolean", default: true })
   emailVerified!: boolean;

@@ -114,3 +114,9 @@ export enum ErrorLogLevel {
   Info = "info",
   Debug = "debug",
 }
+
+export enum OrganizationStatus {
+  Pending = "pending",
+  Verified = "verified",
+  Rejected = "rejected",
+}
