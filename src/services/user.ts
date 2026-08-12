@@ -1,7 +1,7 @@
 import { In } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { Application, Role, TalentEmbedding, User } from "../entities";
-import { NotFoundError, ValidationError } from "../utils/errors";
+import { NotFoundError, ValidationError, AuthorizationError } from "../utils/errors";
 import logger from "../utils/logger.js";
 import { UserRole, ApplicationStatus, ApplicationType } from "../types/enums.js";
 import { generateCvPdf } from "../utils/cvPdf.js";
@@ -296,7 +296,9 @@ export const me = async (userId: string): Promise<User> => {
   return user;
 };
 
-export const viewProfile = async (targetUserId: string): Promise<User> => {
+export const viewProfile = async (
+  targetUserId: string
+): Promise<User & { hasEmbedding: boolean }> => {
   const user = await userRepo().findOne({
     where: { id: targetUserId },
     relations: { userRoles: true },
@@ -307,7 +309,35 @@ export const viewProfile = async (targetUserId: string): Promise<User> => {
   if (user.userRole !== UserRole.Talent) {
     throw new NotFoundError("User not a talent");
   }
-  return user;
+  const hasEmbedding = await AppDataSource.getRepository(TalentEmbedding).exists({
+    where: { userId: targetUserId },
+  });
+  return { ...user, hasEmbedding };
+};
+
+/** Recruiter-triggered manual CV re-embed — only allowed for a talent the recruiter has an application with. */
+export const reprocessCv = async (recruiterId: string, talentId: string): Promise<void> => {
+  const owns = await applicationRepo().exists({ where: { talentId, recruiterId } });
+  if (!owns) {
+    throw new AuthorizationError("You are not authorized to perform this action");
+  }
+
+  const user = await userRepo()
+    .createQueryBuilder("user")
+    .addSelect("user.cvText")
+    .where("user.id = :talentId", { talentId })
+    .getOne();
+
+  if (!user || user.userRole !== UserRole.Talent) {
+    throw new NotFoundError("Talent not found");
+  }
+  if (!user.cvText?.trim()) {
+    throw new ValidationError("No CV text is stored for this talent");
+  }
+
+  const chunks = overlapChunkText(preprocessText(user.cvText));
+  const embeddings = await createEmbedding(chunks);
+  await saveTalentEmbedding(talentId, chunks, embeddings);
 };
 
 export const getTalentCvPdf = async (

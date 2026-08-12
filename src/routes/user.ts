@@ -38,6 +38,12 @@ router.get(
   validate(userIdParamValidator),
   asyncHandler(user.downloadTalentCv)
 );
+router.post(
+  "/profile/:_id/reprocess-cv",
+  validateAccess([UserRole.Recruiter]),
+  validate(userIdParamValidator),
+  asyncHandler(user.reprocessCv)
+);
 router.get(
   "/profile/:_id",
   validateAccess([UserRole.Admin, UserRole.Recruiter]),

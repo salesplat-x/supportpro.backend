@@ -8,6 +8,9 @@ import {
 } from "./helpers/db.js";
 import { User } from "../src/entities/User.js";
 import { Scout } from "../src/entities/Scout.js";
+import { Job } from "../src/entities/Job.js";
+import { TalentEmbedding } from "../src/entities/TalentEmbedding.js";
+import { Application } from "../src/entities/Application.js";
 import { UserRole } from "../src/types/enums.js";
 import { generateHashedPassword, signToken } from "../src/utils/crypto.js";
 import {
@@ -16,6 +19,8 @@ import {
   createScout,
   createTalent,
   createCompleteTalent,
+  createJob,
+  createAIConfig,
 } from "./helpers/fixtures.js";
 
 jest.mock("../src/utils/integrations/openai.js", () => ({
@@ -30,6 +35,14 @@ jest.mock("../src/utils/integrations/openai.js", () => ({
         cvInsights: "Solid candidate",
         coverLetterScore: 70,
         coverLetterInsights: "Decent letter",
+      }),
+    },
+  }),
+  assessTalentFit: jest.fn().mockResolvedValue({
+    message: {
+      content: JSON.stringify({
+        strengths: ["Five years of relevant backend experience per the CV."],
+        weaknesses: ["No mention of the specific cloud provider used here."],
       }),
     },
   }),
@@ -196,9 +209,57 @@ describe("GET /v1/scout/talents — standalone Talent Search (not job-scoped)", 
     const res = await request(app).get("/v1/scout/talents");
     expect(res.status).toBe(401);
   });
+
+  it("with a jobId, ranks by CV-embedding fit and includes strengths/weaknesses instead of plain filtering", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role, {
+      jobEmbedding: `[${new Array(512).fill(0.1).join(",")}]`,
+    });
+    const aiConfig = await createAIConfig(recruiter);
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
+
+    const { user: talent } = await createTalent();
+    await testDataSource.getRepository(TalentEmbedding).save(
+      testDataSource.getRepository(TalentEmbedding).create({
+        userId: talent.id,
+        cvText: "Five years of backend engineering experience.",
+        cvEmbedding: `[${new Array(512).fill(0.1).join(",")}]`,
+        generatedAt: new Date(),
+      })
+    );
+
+    const res = await request(app)
+      .get(`/v1/scout/talents?jobId=${job.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const matched = res.body.data.talents.find((t: { id: string }) => t.id === talent.id);
+    expect(matched).toBeDefined();
+    expect(matched.strengths).toEqual(["Five years of relevant backend experience per the CV."]);
+
+    // No Application should have been created as a side effect of a plain search.
+    const applications = await testDataSource
+      .getRepository(Application)
+      .find({ where: { jobId: job.id } });
+    expect(applications).toHaveLength(0);
+  });
+
+  it("403s a jobId search against a job owned by a different recruiter", async () => {
+    const owner = await createRecruiter();
+    const other = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(owner.user, role);
+
+    const res = await request(app)
+      .get(`/v1/scout/talents?jobId=${job.id}`)
+      .set("Authorization", `Bearer ${other.token}`);
+
+    expect(res.status).toBe(403);
+  });
 });
 
-describe("POST /v1/scout/cv-batch — atomic batch scoring", () => {
+describe("POST /v1/scout/cv-batch — partial-success batch scoring", () => {
   it("persists all rows together, tagged with one batchId, when every file scores successfully", async () => {
     const { token, user } = await createRecruiter();
     const scoutJob = await createScoutJob(user);
@@ -221,7 +282,7 @@ describe("POST /v1/scout/cv-batch — atomic batch scoring", () => {
     expect(persisted).toHaveLength(2);
   });
 
-  it("persists nothing when one file in the batch cannot be scored", async () => {
+  it("persists the files that scored fine and reports the rest as failures, instead of losing everything", async () => {
     const { token, user } = await createRecruiter();
     const scoutJob = await createScoutJob(user);
 
@@ -239,8 +300,36 @@ describe("POST /v1/scout/cv-batch — atomic batch scoring", () => {
       .attach("cv", Buffer.from("good resume"), "good.pdf")
       .attach("cv", Buffer.from(""), "corrupt.pdf");
 
-    expect(res.status).toBe(400);
-    expect(res.body.error.fields).toHaveProperty(["corrupt.pdf"]);
+    expect(res.status).toBe(200);
+    expect(res.body.data.scoutReports).toHaveLength(1);
+    expect(res.body.data.scoutReports[0].cvName).toBe("good");
+    expect(res.body.data.failures).toHaveProperty(["corrupt.pdf"]);
+
+    const persisted = await testDataSource
+      .getRepository(Scout)
+      .find({ where: { scoutJobId: scoutJob.id } });
+    expect(persisted).toHaveLength(1);
+  });
+
+  it("returns an empty scoutReports array (no failures key) when every file fails", async () => {
+    const { token, user } = await createRecruiter();
+    const scoutJob = await createScoutJob(user);
+
+    const textExtractor = jest.requireMock("../src/utils/text.js") as {
+      extractText: jest.Mock;
+    };
+    textExtractor.extractText.mockResolvedValueOnce("").mockResolvedValueOnce("");
+
+    const res = await request(app)
+      .post("/v1/scout/cv-batch")
+      .set("Authorization", `Bearer ${token}`)
+      .field("scoutJobId", scoutJob.id)
+      .attach("cv", Buffer.from(""), "corrupt1.pdf")
+      .attach("cv", Buffer.from(""), "corrupt2.pdf");
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.scoutReports).toHaveLength(0);
+    expect(Object.keys(res.body.data.failures)).toHaveLength(2);
 
     const persisted = await testDataSource
       .getRepository(Scout)
@@ -289,6 +378,127 @@ describe("POST /v1/scout/cv-batch — atomic batch scoring", () => {
       .field("scoutJobId", scoutJob.id)
       .attach("cv", Buffer.from("resume"), "resume.pdf");
 
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("POST /v1/scout/:scoutId/add-to-pipeline — manual link (phase 1)", () => {
+  it("creates a real Application for the talent matched by email", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const aiConfig = await createAIConfig(recruiter);
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
+    const scoutJob = await createScoutJob(recruiter);
+    const scoutRow = await createScout(recruiter, scoutJob);
+    const { user: talent } = await createTalent({ email: "candidate@example.com" });
+
+    const res = await request(app)
+      .post(`/v1/scout/${scoutRow.id}/add-to-pipeline`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ jobId: job.id, talentEmail: "candidate@example.com" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.application.talentId).toBe(talent.id);
+    expect(res.body.data.application.jobId).toBe(job.id);
+    expect(res.body.data.application.applicationType).toBe("by invitation");
+
+    const persisted = await testDataSource
+      .getRepository(Application)
+      .findOne({ where: { jobId: job.id, talentId: talent.id } });
+    expect(persisted).toBeDefined();
+    // No score merged in — that's left to the normal pipeline.
+    expect(persisted?.cvSimilarityScore).toBeNull();
+  });
+
+  it("is idempotent — calling it twice returns the same application", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const aiConfig = await createAIConfig(recruiter);
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
+    const scoutJob = await createScoutJob(recruiter);
+    const scoutRow = await createScout(recruiter, scoutJob);
+    await createTalent({ email: "candidate@example.com" });
+
+    await request(app)
+      .post(`/v1/scout/${scoutRow.id}/add-to-pipeline`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ jobId: job.id, talentEmail: "candidate@example.com" });
+    const res2 = await request(app)
+      .post(`/v1/scout/${scoutRow.id}/add-to-pipeline`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ jobId: job.id, talentEmail: "candidate@example.com" });
+
+    expect(res2.status).toBe(200);
+    const count = await testDataSource.getRepository(Application).count({
+      where: { jobId: job.id },
+    });
+    expect(count).toBe(1);
+  });
+
+  it("404s with a clear message when no talent account exists for that email (documented limitation)", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const aiConfig = await createAIConfig(recruiter);
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
+    const scoutJob = await createScoutJob(recruiter);
+    const scoutRow = await createScout(recruiter, scoutJob);
+
+    const res = await request(app)
+      .post(`/v1/scout/${scoutRow.id}/add-to-pipeline`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ jobId: job.id, talentEmail: "nobody@example.com" });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error.message).toMatch(/no talent account found/i);
+  });
+
+  it("403s when the scout row belongs to a different recruiter", async () => {
+    const owner = await createRecruiter();
+    const other = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(other.user, role);
+    const aiConfig = await createAIConfig(other.user);
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
+    const scoutJob = await createScoutJob(owner.user);
+    const scoutRow = await createScout(owner.user, scoutJob);
+    await createTalent({ email: "candidate@example.com" });
+
+    const res = await request(app)
+      .post(`/v1/scout/${scoutRow.id}/add-to-pipeline`)
+      .set("Authorization", `Bearer ${other.token}`)
+      .send({ jobId: job.id, talentEmail: "candidate@example.com" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("403s when the job belongs to a different recruiter than the scout row", async () => {
+    const recruiter = await createRecruiter();
+    const otherRecruiter = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(otherRecruiter.user, role);
+    const aiConfig = await createAIConfig(otherRecruiter.user);
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
+    const scoutJob = await createScoutJob(recruiter.user);
+    const scoutRow = await createScout(recruiter.user, scoutJob);
+    await createTalent({ email: "candidate@example.com" });
+
+    const res = await request(app)
+      .post(`/v1/scout/${scoutRow.id}/add-to-pipeline`)
+      .set("Authorization", `Bearer ${recruiter.token}`)
+      .send({ jobId: job.id, talentEmail: "candidate@example.com" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("Talent cannot access → 403", async () => {
+    const { token } = await createTalent();
+    const res = await request(app)
+      .post("/v1/scout/00000000-0000-0000-0000-000000000000/add-to-pipeline")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ jobId: "00000000-0000-0000-0000-000000000000", talentEmail: "a@b.com" });
     expect(res.status).toBe(403);
   });
 });

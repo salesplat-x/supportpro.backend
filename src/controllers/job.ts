@@ -74,7 +74,12 @@ export const applications = async (req: Request, res: Response) => {
     jobId: req.params["jobId"]!,
     ...(req.query as Record<string, string | number>),
   });
-  sendSuccessResponse(res, "Applications fetched", { applications: result });
+  sendSuccessResponse(res, "Applications fetched", result);
+};
+
+export const retryVerdicts = async (req: Request, res: Response) => {
+  const result = await jobService.retryMissingVerdicts(req.user.id, req.params["jobId"]!);
+  sendSuccessResponse(res, "Retried missing AI matches", result);
 };
 
 export const apply = async (req: Request, res: Response) => {

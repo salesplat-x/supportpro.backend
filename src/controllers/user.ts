@@ -43,6 +43,11 @@ export const downloadTalentCv = async (req: Request, res: Response) => {
   res.send(buffer);
 };
 
+export const reprocessCv = async (req: Request, res: Response) => {
+  await userService.reprocessCv(req.user.id, req.params["_id"]!);
+  sendSuccessResponse(res, "CV re-analyzed", {});
+};
+
 export const applications = async (req: Request, res: Response) => {
   const result = await userService.userApplications(
     req.user.id,

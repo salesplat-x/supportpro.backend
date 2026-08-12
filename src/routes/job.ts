@@ -79,6 +79,11 @@ router.get(
   validate(jobApplicationsQueryValidator),
   asyncHandler(job.applications)
 );
+router.post(
+  "/:jobId/retry-verdicts",
+  validateAccess([UserRole.Recruiter]),
+  asyncHandler(job.retryVerdicts)
+);
 router.get("/:_id", optionalAuth, validate(matchJobValidator), asyncHandler(job.fetch));
 
 export default (app: Router) => app.use("/jobs", router);

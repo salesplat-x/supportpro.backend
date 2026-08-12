@@ -366,6 +366,9 @@ export const assessTalentFit = async (
 
 export interface MatchVerdictContext {
   jobDescription: string;
+  skills?: string[];
+  requirements?: string | null;
+  goals?: string[];
   recruiterGuide?: string;
   cvSimilarityScore: number | null;
   personalizedScore: number | null;
@@ -381,13 +384,17 @@ export const assessApplicationMatch = async (
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
   const system = `You are a senior hiring panel member giving a recruiter a second opinion.
 
-You will receive a JSON object with pipeline scores, optional CV text, optional Q&A answers, the job description, and an optional recruiter guide.
+You will receive a JSON object with pipeline scores, optional CV text, optional Q&A answers, the job description, an optional list of required skills, optional requirements text, optional job goals, and an optional recruiter guide.
 
 Critical anti-hallucination rules:
 - Use ONLY information present in the provided JSON. Never invent employers, skills, education, metrics, or answers.
 - If CV text or answers are missing, say so explicitly and base the assessment only on available scores/fields.
 - Do not assume soft skills, culture fit, or experience that are not evidenced in the input.
 - Cite concrete evidence (score values, CV phrases, or quoted answer fragments) in every strength, weakness, and risk.
+
+When skills or requirements are provided, judge fit primarily against them rather than the general job description — for each strength or weakness tied to a required skill, name which skill is evidenced or missing.
+
+Personality/MBTI evidence (mbtiType, personalityQuestionsAndAnswers), when present, is secondary — only factor it into the verdict or cite it as a strength/weakness/risk if the recruiter guide explicitly asks you to weigh culture or personality fit. Otherwise mention it only as brief supplementary color, never as grounds for the verdict.
 
 Weigh available evidence holistically and classify the candidate as a "high", "medium", or "low" match. This is advisory — the recruiter decides.
 

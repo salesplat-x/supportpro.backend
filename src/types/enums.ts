@@ -61,6 +61,12 @@ export enum MatchVerdict {
   Low = "low",
 }
 
+export enum MatchVerdictStatus {
+  Pending = "pending",
+  Succeeded = "succeeded",
+  Failed = "failed",
+}
+
 export enum MatchRecommendation {
   Hire = "hire",
   InterviewFurther = "interview_further",

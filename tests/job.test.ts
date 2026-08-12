@@ -20,6 +20,8 @@ import { AIConfig } from "../src/entities/AIConfig.js";
 import { TalentEmbedding } from "../src/entities/TalentEmbedding.js";
 import { Job } from "../src/entities/Job.js";
 import { Organization } from "../src/entities/Organization.js";
+import { AiRecommendation } from "../src/entities/AiRecommendation.js";
+import { MatchVerdict, MatchRecommendation } from "../src/types/enums.js";
 
 jest.mock("../src/utils/integrations/openai.js", () => ({
   createEmbedding: jest.fn().mockResolvedValue([{ embedding: new Array(512).fill(0.1) }]),
@@ -451,6 +453,38 @@ describe("GET /v1/jobs/applications/:jobId — applicant list includes jobId", (
     const applications = res.body.data.applications;
     expect(applications.length).toBeGreaterThan(0);
     expect(applications.every((a: { jobId: string }) => a.jobId === job.id)).toBe(true);
+  });
+
+  it("shows the ai_recommendations verdict even when Application.matchVerdict drifted out of sync", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { user: talent } = await createTalent();
+    // Simulates a row that drifted: an AiRecommendation exists but the
+    // denormalized Application column was never (or no longer) populated.
+    const application = await createApplication(talent, job, { matchVerdict: null });
+    await testDataSource.getRepository(AiRecommendation).save(
+      testDataSource.getRepository(AiRecommendation).create({
+        applicationId: application.id,
+        verdict: MatchVerdict.High,
+        reasoning: "Strong fit despite the drifted column.",
+        recommendation: MatchRecommendation.Hire,
+        strengths: ["Great CV match"],
+        weaknesses: null,
+        risks: null,
+      })
+    );
+
+    const res = await request(app)
+      .get(`/v1/jobs/applications/${job.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const returned = res.body.data.applications.find(
+      (a: { id: string }) => a.id === application.id
+    );
+    expect(returned.matchVerdict).toBe(MatchVerdict.High);
+    expect(returned.matchVerdictReasoning).toBe("Strong fit despite the drifted column.");
   });
 });
 

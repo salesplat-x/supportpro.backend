@@ -1,4 +1,4 @@
-import { In } from "typeorm";
+import { In, IsNull, Not } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import logger from "../utils/logger.js";
 import { Job } from "../entities/Job.js";
@@ -7,6 +7,7 @@ import { AIConfig } from "../entities/AIConfig.js";
 import { Application } from "../entities/Application.js";
 import { User } from "../entities/User.js";
 import { Notification } from "../entities/Notification.js";
+import { Scout } from "../entities/Scout.js";
 import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
 import { purgeJobCascade } from "./cascadeDelete.js";
 import {
@@ -26,7 +27,13 @@ import {
 import { TalentEmbedding } from "../entities/TalentEmbedding.js";
 import { convertSimilarityToPercentage, preprocessText, sortDirection } from "../utils/text.js";
 import { createStages } from "./aiConfig.js";
-import { getAssessmentRetryDate, processNextStage } from "./applicationStage.js";
+import {
+  getAssessmentRetryDate,
+  processNextStage,
+  loadRecommendationsByApplicationIds,
+  overlayVerdictFromRecommendation,
+  triggerMatchVerdict,
+} from "./applicationStage.js";
 
 const jobRepo = () => AppDataSource.getRepository(Job);
 
@@ -43,6 +50,8 @@ const userRepo = () => AppDataSource.getRepository(User);
 const notificationRepo = () => AppDataSource.getRepository(Notification);
 
 const talentEmbeddingRepo = () => AppDataSource.getRepository(TalentEmbedding);
+
+const scoutRepo = () => AppDataSource.getRepository(Scout);
 
 export interface CreateJobPayload {
   role?: string;
@@ -424,6 +433,39 @@ export interface TalentWithFitEvidence extends User {
   weaknesses?: string[];
 }
 
+// Ranks talents by pgvector cosine-distance between their CV embedding and this
+// job's embedding. Read-only — callers decide what (if anything) to do with the
+// result; this must never be the thing that creates/mutates Application rows.
+export const rankTalentIdsByJobEmbedding = (
+  jobId: string,
+  strictness: number,
+  limit: number
+): Promise<Array<{ user_id: string; similarity: number }>> =>
+  AppDataSource.query(
+    `
+    WITH jd_cte AS (
+      SELECT job_embedding::vector FROM jobs WHERE id = $1
+    ),
+    similarity_cte AS (
+      SELECT
+        te.user_id,
+        te.cv_text,
+        ABS((SELECT job_embedding::vector FROM jd_cte) <=> te.cv_embedding::vector) AS similarity
+      FROM talent_embeddings te
+    )
+    SELECT user_id, similarity
+    FROM (
+      SELECT user_id, similarity,
+        ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY similarity DESC) AS rn
+      FROM similarity_cte
+    ) ranked
+    WHERE rn = 1 AND similarity <= $2
+    ORDER BY similarity
+    LIMIT $3
+    `,
+    [jobId, strictness, limit]
+  );
+
 export const topTalents = async (
   userId: string,
   userRole: UserRole,
@@ -456,31 +498,7 @@ export const topTalents = async (
   const percentage = payload.percentage ?? aiConfig.minCvSimilarityScore ?? 50;
   const strictness = (100 - percentage) / 100;
 
-  // Get top CV embeddings via pgvector
-  const res: Array<{ user_id: string; similarity: number }> = await AppDataSource.query(
-    `
-    WITH jd_cte AS (
-      SELECT job_embedding::vector FROM jobs WHERE id = $1
-    ),
-    similarity_cte AS (
-      SELECT
-        te.user_id,
-        te.cv_text,
-        ABS((SELECT job_embedding::vector FROM jd_cte) <=> te.cv_embedding::vector) AS similarity
-      FROM talent_embeddings te
-    )
-    SELECT user_id, similarity
-    FROM (
-      SELECT user_id, similarity,
-        ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY similarity DESC) AS rn
-      FROM similarity_cte
-    ) ranked
-    WHERE rn = 1 AND similarity <= $2
-    ORDER BY similarity
-    LIMIT $3
-    `,
-    [jobId, strictness, limit]
-  );
+  const res = await rankTalentIdsByJobEmbedding(jobId, strictness, limit);
 
   const talentIds = res.map((r) => r.user_id);
 
@@ -554,10 +572,10 @@ export const topTalents = async (
   return { talents, newApplicants };
 };
 
-// Bounded to the top-N list already returned by topTalents (never the full
-// candidate pool) so cost/latency stay in check. Best-effort: a failure for
-// one candidate must never block the others or the overall response.
-const enrichTalentsWithFitEvidence = async (
+// Bounded to the top-N list already returned by topTalents/searchTalents (never
+// the full candidate pool) so cost/latency stay in check. Best-effort: a failure
+// for one candidate must never block the others or the overall response.
+export const enrichTalentsWithFitEvidence = async (
   jobDescription: string,
   talents: TalentWithFitEvidence[]
 ): Promise<void> => {
@@ -662,7 +680,12 @@ export const gradeCv = async (
   if (passed || attemptsExhausted) {
     const user = await userRepo().findOne({ where: { id: userId } });
     if (user) {
-      application = await processNextStage(user, application, ScreeningStage.CvSimilarity);
+      application = await processNextStage(
+        user,
+        application,
+        ScreeningStage.CvSimilarity,
+        aiConfig
+      );
     }
   } else {
     application.currentStage = ScreeningStage.CvSimilarity;
@@ -685,13 +708,18 @@ export interface JobApplicationsParams {
   limit?: number | string;
 }
 
+export interface JobApplicationsResult {
+  applications: Application[];
+  aiConfig: { minCvSimilarityScore: number | null; minPrescreeningScore: number | null } | null;
+}
+
 export const jobApplications = async (
   userId: string,
   payload: JobApplicationsParams
-): Promise<Application[]> => {
+): Promise<JobApplicationsResult> => {
   const { jobId } = payload;
 
-  const job = await jobRepo().findOne({ where: { id: jobId } });
+  const job = await jobRepo().findOne({ where: { id: jobId }, relations: { aiConfig: true } });
   if (!job) {
     throw new NotFoundError("Job not found");
   }
@@ -737,13 +765,67 @@ export const jobApplications = async (
   const offset = Number(payload.offset) || 0;
   const limit = Math.min(Number(payload.limit) || 50, MAX_PAGE_SIZE);
 
-  return qb
+  const applications = await qb
     .orderBy("application.cvSimilarityScore", "DESC")
     .addOrderBy("application.personalizedScore", "DESC")
     .addOrderBy("application.createdAt", "DESC")
     .skip(offset)
     .take(limit)
     .getMany();
+
+  const recommendations = await loadRecommendationsByApplicationIds(applications.map((a) => a.id));
+  return {
+    applications: applications.map((application) =>
+      overlayVerdictFromRecommendation(application, recommendations.get(application.id))
+    ),
+    aiConfig: job.aiConfig
+      ? {
+          minCvSimilarityScore: job.aiConfig.minCvSimilarityScore,
+          minPrescreeningScore: job.aiConfig.minPrescreeningScore,
+        }
+      : null,
+  };
+};
+
+export interface RetryVerdictsResult {
+  attempted: number;
+  succeeded: number;
+  failed: number;
+}
+
+export const retryMissingVerdicts = async (
+  userId: string,
+  jobId: string
+): Promise<RetryVerdictsResult> => {
+  const job = await jobRepo().findOne({ where: { id: jobId } });
+  if (!job) {
+    throw new NotFoundError("Job not found");
+  }
+  if (job.postedById !== userId) {
+    throw new AuthorizationError("You are not authorized to perform this action");
+  }
+
+  const applications = await applicationRepo().find({
+    where: { jobId, currentStage: ScreeningStage.Completed, matchVerdict: IsNull() },
+    relations: { talent: true },
+  });
+
+  await Promise.all(
+    applications.map((application) =>
+      triggerMatchVerdict(application.talent, application, { force: true })
+    )
+  );
+
+  const ids = applications.map((a) => a.id);
+  const succeeded = ids.length
+    ? await applicationRepo().count({ where: { id: In(ids), matchVerdict: Not(IsNull()) } })
+    : 0;
+
+  return {
+    attempted: applications.length,
+    succeeded,
+    failed: applications.length - succeeded,
+  };
 };
 
 export interface ApplyPayload {
@@ -803,6 +885,98 @@ export const apply = async (user: User, payload: ApplyPayload): Promise<Applicat
   return saved;
 };
 
+export interface AddScoutToJobPipelinePayload {
+  scoutId: string;
+  jobId: string;
+  talentEmail: string;
+}
+
+// Phase 1, manual link: Scout has no extracted candidate identity (cvName is
+// just the filename) and ScoutJob is scoped to a Role, not a specific Job
+// posting, so there's no way to auto-resolve either "which job" or "which
+// talent account". The recruiter supplies both explicitly — no CV-email
+// extraction, no silently-created accounts. If no talent account exists yet
+// for the given email, that's surfaced directly rather than worked around.
+//
+// Deliberately does not copy scout.evaluationScore/insights onto the
+// Application — that's a differently-computed score than cvSimilarityScore,
+// and writing into matchVerdictReasoning directly would recreate the exact
+// ai_recommendations/Application drift this codebase already had to fix
+// elsewhere. The normal pipeline computes everything once the talent
+// proceeds; Scout's job here is just sourcing the invite.
+export const addScoutToJobPipeline = async (
+  userId: string,
+  payload: AddScoutToJobPipelinePayload
+): Promise<Application> => {
+  const { scoutId, jobId, talentEmail } = payload;
+
+  const scout = await scoutRepo().findOne({ where: { id: scoutId } });
+  if (!scout) {
+    throw new NotFoundError("Scout report not found");
+  }
+  if (scout.recruiterId !== userId) {
+    throw new AuthorizationError("You are not authorized to perform this action");
+  }
+
+  const job = await jobRepo().findOne({
+    where: { id: jobId },
+    relations: { aiConfig: true },
+  });
+  if (!job) {
+    throw new NotFoundError("Job not found");
+  }
+  if (job.postedById !== userId) {
+    throw new AuthorizationError("You are not authorized to perform this action");
+  }
+  if (job.status !== JobStatus.Active) {
+    throw new ValidationError(`Applications for this job is currently ${job.status}`);
+  }
+
+  const aiConfig = job.aiConfig;
+  if (!aiConfig) {
+    throw new NotFoundError("AI configuration for job not found");
+  }
+
+  const talent = await userRepo().findOne({
+    where: { email: talentEmail.trim().toLowerCase(), userRole: UserRole.Talent },
+  });
+  if (!talent) {
+    throw new NotFoundError(
+      "No talent account found with that email — ask them to create a profile first"
+    );
+  }
+
+  const existingApp = await applicationRepo().findOne({
+    where: { jobId, talentId: talent.id },
+  });
+  if (existingApp) {
+    return existingApp;
+  }
+
+  const { stages, entryStage } = createStages(aiConfig);
+
+  const application = applicationRepo().create({
+    talentId: talent.id,
+    jobId,
+    applicationType: ApplicationType.Invitation,
+    stages,
+    recruiterId: job.postedById,
+    currentStage: entryStage as Application["currentStage"],
+    status: ApplicationStatus.Pending,
+  });
+
+  const saved = await applicationRepo().save(application);
+
+  await jobRepo()
+    .createQueryBuilder()
+    .update(Job)
+    .set({ noOfApplicants: () => '"noOfApplicants" + 1' })
+    .where("id = :id", { id: jobId })
+    .execute();
+
+  return saved;
+};
+
 // Called when a talent lands on an application currently parked at the (global,
 // job-agnostic) Prescreening stage — mirrors the CV-similarity auto-trigger pattern.
 // Idempotent no-op if the application isn't at that stage yet, or the talent hasn't
@@ -834,7 +1008,12 @@ export const checkPrescreeningAdvance = async (
     application.assessmentRetryDate = getAssessmentRetryDate();
     updated = application;
   } else {
-    updated = await processNextStage(user, application, ScreeningStage.Prescreening);
+    updated = await processNextStage(
+      user,
+      application,
+      ScreeningStage.Prescreening,
+      job?.aiConfig ?? null
+    );
   }
 
   return applicationRepo().save(updated);

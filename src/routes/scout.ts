@@ -12,6 +12,7 @@ import {
   scoutJobScoutsParamValidator,
   scoutCvBatchValidator,
   validateScoutCvBatchFiles,
+  addScoutToPipelineValidator,
   MAX_BATCH_SIZE,
 } from "../validators/scout.js";
 import {
@@ -91,6 +92,12 @@ router.post(
   validate(scoutCvBatchValidator),
   validateScoutCvBatchFiles,
   asyncHandler(scout.scoutCvBatch)
+);
+router.post(
+  "/:scoutId/add-to-pipeline",
+  validateAccess([UserRole.Recruiter]),
+  validate(addScoutToPipelineValidator),
+  asyncHandler(scout.addScoutToPipeline)
 );
 
 export default (app: Router) => app.use("/scout", router);

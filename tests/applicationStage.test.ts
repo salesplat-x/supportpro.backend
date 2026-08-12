@@ -7,6 +7,9 @@ import {
   processNextStage,
   triggerMatchVerdict,
   rankApplication,
+  loadApplicationWithMatch,
+  loadRecommendationsByApplicationIds,
+  overlayVerdictFromRecommendation,
 } from "../src/services/applicationStage.js";
 import {
   startTestDatabase,
@@ -21,6 +24,7 @@ import {
   createJob,
   createApplication,
   createQuestion,
+  createAIConfig,
 } from "./helpers/fixtures.js";
 import { Application } from "../src/entities/Application.js";
 import { AiRecommendation } from "../src/entities/AiRecommendation.js";
@@ -30,6 +34,7 @@ import {
   ApplicationStatus,
   ScreeningStage,
   MatchVerdict,
+  MatchVerdictStatus,
   MatchRecommendation,
   QuestionType,
 } from "../src/types/enums.js";
@@ -174,6 +179,65 @@ describe("rankApplication — rank never exceeds the number of applicants who've
   });
 });
 
+describe("rankApplication — averageScore only reflects stages the job actually ran", () => {
+  it("excludes a disabled stage's score from the average", async () => {
+    const { user: talent } = await createTalent({ prescreeningScore: 90 });
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const aiConfig = await createAIConfig(recruiter, {
+      cvSimilarity: false,
+      personalizedAssessment: true,
+      prescreeningAssessment: true,
+    });
+    const application = await createApplication(talent, job, {
+      cvSimilarityScore: 40, // stale/irrelevant — cvSimilarity is disabled for this job
+      personalizedScore: 80,
+    });
+
+    await rankApplication(talent, application, aiConfig);
+
+    // Average of personalizedScore (80) and prescreeningScore (90) only — the
+    // disabled cvSimilarityScore (40) must not drag it down.
+    expect(application.averageScore).toBe(85);
+  });
+
+  it("sets averageScore to null, not 0, when no enabled stage produced a score", async () => {
+    const { user: talent } = await createTalent({ prescreeningScore: null });
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const aiConfig = await createAIConfig(recruiter, {
+      cvSimilarity: false,
+      personalizedAssessment: false,
+      prescreeningAssessment: true,
+    });
+    const application = await createApplication(talent, job, {
+      cvSimilarityScore: 40,
+      personalizedScore: 80,
+    });
+
+    await rankApplication(talent, application, aiConfig);
+
+    expect(application.averageScore).toBeNull();
+  });
+
+  it("falls back to including every present score when no aiConfig is passed (backward compatible)", async () => {
+    const { user: talent } = await createTalent({ prescreeningScore: 90 });
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const application = await createApplication(talent, job, {
+      cvSimilarityScore: 40,
+      personalizedScore: 80,
+    });
+
+    await rankApplication(talent, application);
+
+    expect(application.averageScore).toBe(70);
+  });
+});
+
 describe("triggerMatchVerdict — AI verdict is advisory and recruiter-facing only", () => {
   it("persists the verdict/reasoning/evidence returned by the LLM onto the application", async () => {
     const { user: talent } = await createTalent();
@@ -193,6 +257,7 @@ describe("triggerMatchVerdict — AI verdict is advisory and recruiter-facing on
       where: { id: application.id },
     });
     expect(reloaded?.matchVerdict).toBe(MatchVerdict.High);
+    expect(reloaded?.matchVerdictStatus).toBe(MatchVerdictStatus.Succeeded);
     expect(reloaded?.matchVerdictReasoning).toContain("Strong CV match");
     expect(reloaded?.matchRecommendation).toBe(MatchRecommendation.Hire);
     expect(reloaded?.matchStrengths).toEqual([
@@ -373,18 +438,25 @@ describe("triggerMatchVerdict — AI verdict is advisory and recruiter-facing on
     expect(reloaded?.matchRecommendation).toBeNull();
   });
 
-  it("does not throw when the job can't be found (defensive no-op)", async () => {
+  it("does not throw when the job can't be found (defensive no-op), and marks the verdict failed so the row can't get stuck", async () => {
     const { user: talent } = await createTalent();
-    const application = Object.assign(new Application(), {
-      id: "00000000-0000-0000-0000-000000000000",
-      jobId: "00000000-0000-0000-0000-000000000000",
-      cvSimilarityScore: null,
-      personalizedScore: null,
-      mbtiType: null,
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const application = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
     });
+    // Point at a job id that doesn't exist to force the defensive branch.
+    application.jobId = "00000000-0000-0000-0000-000000000000";
 
     await expect(triggerMatchVerdict(talent, application)).resolves.toBeUndefined();
     expect(mockAssessApplicationMatch).not.toHaveBeenCalled();
+
+    const reloaded = await testDataSource.getRepository(Application).findOne({
+      where: { id: application.id },
+    });
+    expect(reloaded?.matchVerdictStatus).toBe(MatchVerdictStatus.Failed);
   });
 
   it("normalizes a differently-cased verdict from the LLM instead of silently dropping it", async () => {
@@ -455,5 +527,214 @@ describe("triggerMatchVerdict — AI verdict is advisory and recruiter-facing on
       where: { id: application.id },
     });
     expect(reloaded?.matchVerdict).toBeNull();
+    expect(reloaded?.matchVerdictStatus).toBe(MatchVerdictStatus.Failed);
+  });
+
+  it("includes the job's skills, requirements, and goals in the LLM context", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role, {
+      skills: ["TypeScript", "PostgreSQL"],
+      requirements: "5+ years of backend experience",
+      goals: ["Ship the payments migration"],
+    });
+    const application = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+    });
+
+    await triggerMatchVerdict(talent, application);
+
+    expect(mockAssessApplicationMatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skills: ["TypeScript", "PostgreSQL"],
+        requirements: "5+ years of backend experience",
+        goals: ["Ship the payments migration"],
+      })
+    );
+  });
+
+  it("excludes personality Q&A and mbtiType from the LLM context when personalityEvaluation is disabled", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const aiConfig = await createAIConfig(recruiter, { personalityEvaluation: false });
+    const job = await createJob(recruiter, role, { aiConfigId: aiConfig.id });
+    const application = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+      mbtiType: "INTJ",
+    });
+
+    const personalityQuestion = await createQuestion(
+      QuestionType.Personality,
+      { jobId: job.id },
+      { criteria: "EI" }
+    );
+    await testDataSource.getRepository(Answer).save(
+      testDataSource.getRepository(Answer).create({
+        userId: talent.id,
+        jobId: job.id,
+        questionType: QuestionType.Personality,
+        responses: [
+          {
+            questionId: personalityQuestion.id,
+            answer: "I recharge alone.",
+            dichotomyPreference: "I",
+          },
+        ],
+      })
+    );
+
+    await triggerMatchVerdict(talent, application);
+
+    expect(mockAssessApplicationMatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mbtiType: null,
+        personalityQuestionsAndAnswers: undefined,
+      })
+    );
+  });
+
+  it("still includes personality Q&A and mbtiType when personalityEvaluation is enabled", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const aiConfig = await createAIConfig(recruiter, { personalityEvaluation: true });
+    const job = await createJob(recruiter, role, { aiConfigId: aiConfig.id });
+    const application = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+      mbtiType: "INTJ",
+    });
+
+    const personalityQuestion = await createQuestion(
+      QuestionType.Personality,
+      { jobId: job.id },
+      { criteria: "EI" }
+    );
+    await testDataSource.getRepository(Answer).save(
+      testDataSource.getRepository(Answer).create({
+        userId: talent.id,
+        jobId: job.id,
+        questionType: QuestionType.Personality,
+        responses: [
+          {
+            questionId: personalityQuestion.id,
+            answer: "I recharge alone.",
+            dichotomyPreference: "I",
+          },
+        ],
+      })
+    );
+
+    await triggerMatchVerdict(talent, application);
+
+    expect(mockAssessApplicationMatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mbtiType: "INTJ",
+        personalityQuestionsAndAnswers: [
+          expect.objectContaining({
+            question: personalityQuestion.question,
+            answer: "I recharge alone.",
+          }),
+        ],
+      })
+    );
+  });
+});
+
+describe("verdict overlay helpers — ai_recommendations is the source of truth on read", () => {
+  it("overlayVerdictFromRecommendation is a no-op when there's no recommendation", () => {
+    const application = { matchVerdict: null } as unknown as Application;
+    const result = overlayVerdictFromRecommendation(application, null);
+    expect(result.matchVerdict).toBeNull();
+  });
+
+  it("loadApplicationWithMatch repairs a drifted row (recommendation exists, matchVerdict is null)", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const application = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      matchVerdict: null,
+    });
+    await testDataSource.getRepository(AiRecommendation).save(
+      testDataSource.getRepository(AiRecommendation).create({
+        applicationId: application.id,
+        verdict: MatchVerdict.High,
+        reasoning: "Repaired from ai_recommendations.",
+        recommendation: MatchRecommendation.Hire,
+        strengths: null,
+        weaknesses: null,
+        risks: null,
+      })
+    );
+
+    const loaded = await loadApplicationWithMatch(application.id);
+
+    expect(loaded?.matchVerdict).toBe(MatchVerdict.High);
+    expect(loaded?.matchVerdictStatus).toBe(MatchVerdictStatus.Succeeded);
+    expect(loaded?.matchVerdictReasoning).toBe("Repaired from ai_recommendations.");
+  });
+
+  it("loadApplicationWithMatch returns null for a non-existent application", async () => {
+    await expect(
+      loadApplicationWithMatch("00000000-0000-0000-0000-000000000000")
+    ).resolves.toBeNull();
+  });
+
+  it("loadRecommendationsByApplicationIds batches lookups into a map keyed by applicationId", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const application = await createApplication(talent, job, { matchVerdict: null });
+    await testDataSource.getRepository(AiRecommendation).save(
+      testDataSource.getRepository(AiRecommendation).create({
+        applicationId: application.id,
+        verdict: MatchVerdict.Low,
+        reasoning: "Batched lookup.",
+        recommendation: null,
+        strengths: null,
+        weaknesses: null,
+        risks: null,
+      })
+    );
+
+    const map = await loadRecommendationsByApplicationIds([application.id]);
+
+    expect(map.get(application.id)?.verdict).toBe(MatchVerdict.Low);
+  });
+
+  it("loadRecommendationsByApplicationIds returns an empty map for an empty input, without querying", async () => {
+    const map = await loadRecommendationsByApplicationIds([]);
+    expect(map.size).toBe(0);
+  });
+
+  it("persistRecommendation writes both tables atomically (transaction)", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const application = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+    });
+
+    await triggerMatchVerdict(talent, application);
+
+    const [applicationRow, recommendationRow] = await Promise.all([
+      testDataSource.getRepository(Application).findOne({ where: { id: application.id } }),
+      testDataSource
+        .getRepository(AiRecommendation)
+        .findOne({ where: { applicationId: application.id } }),
+    ]);
+
+    // Both rows exist and agree — this is what the transaction guarantees.
+    expect(applicationRow?.matchVerdict).toBe(recommendationRow?.verdict);
+    expect(applicationRow?.matchVerdictReasoning).toBe(recommendationRow?.reasoning);
   });
 });

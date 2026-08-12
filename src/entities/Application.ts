@@ -13,6 +13,7 @@ import {
   ApplicationStatus,
   ScreeningStage,
   MatchVerdict,
+  MatchVerdictStatus,
   MatchRecommendation,
 } from "../types/enums.js";
 import type { Job } from "./Job.js";
@@ -94,6 +95,9 @@ export class Application {
 
   @Column({ type: "enum", enum: MatchVerdict, nullable: true, default: null })
   matchVerdict!: MatchVerdict | null;
+
+  @Column({ type: "enum", enum: MatchVerdictStatus, nullable: true, default: null })
+  matchVerdictStatus!: MatchVerdictStatus | null;
 
   @Column({ type: "text", nullable: true, default: null })
   matchVerdictReasoning!: string | null;
