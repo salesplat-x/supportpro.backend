@@ -1,0 +1,57 @@
+#!/usr/bin/env sh
+
+# Block pushes that introduce empty commits (zero diff vs parent).
+# Git keeps "commits that start empty" across rebases by default, so a stale
+# empty cherry-pick (e.g. already-merged Node 22 lockfile upgrade) reappears
+# on every rebase unless --no-keep-empty is used. Catch them at push time.
+
+remote="$1"
+url="$2"
+
+z40=0000000000000000000000000000000000000000
+empty_commits=""
+
+while read -r local_ref local_sha remote_ref remote_sha
+do
+  if [ "$local_sha" = "$z40" ]; then
+    continue
+  fi
+
+  if [ "$remote_sha" = "$z40" ]; then
+    # New branch: check commits not already on main/dev
+    if git rev-parse --verify origin/main >/dev/null 2>&1; then
+      range="origin/main..$local_sha"
+    else
+      range="$local_sha"
+    fi
+  else
+    range="$remote_sha..$local_sha"
+  fi
+
+  for commit in $(git rev-list "$range" 2>/dev/null); do
+    parents=$(git rev-list --parents -n 1 "$commit")
+    set -- $parents
+    sha=$1
+    shift
+    # Skip merges (2+ parents)
+    if [ "$#" -ne 1 ]; then
+      continue
+    fi
+    parent=$1
+    if git diff-tree --quiet "$parent" "$sha"; then
+      subject=$(git log -1 --format='%s' "$sha")
+      empty_commits="${empty_commits}  ${sha} ${subject}\n"
+    fi
+  done
+done
+
+if [ -n "$empty_commits" ]; then
+  printf '%s\n' "pre-push: refusing to push empty commit(s):"
+  printf "%b" "$empty_commits"
+  printf '%s\n' ""
+  printf '%s\n' "Drop them, then rebase with: git rebase --no-keep-empty origin/main"
+  printf '%s\n' "Example: git rebase --onto origin/main <empty-commit-sha>"
+  exit 1
+fi
+
+exit 0

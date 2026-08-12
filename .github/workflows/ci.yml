@@ -94,3 +94,26 @@ jobs:
 
       - name: Lint commit messages
         uses: wagoid/commitlint-github-action@v6
+
+      - name: Reject empty commits
+        run: |
+          set -euo pipefail
+          RANGE="origin/${{ github.base_ref }}...HEAD"
+          empty="$(
+            git rev-list --no-merges "$RANGE" |
+            while read -r sha; do
+              parent="$(git rev-parse "${sha}^" 2>/dev/null || true)"
+              [ -n "$parent" ] || continue
+              if git diff-tree --quiet "$parent" "$sha"; then
+                printf '%s %s\n' "$sha" "$(git log -1 --format='%s' "$sha")"
+              fi
+            done
+          )"
+          if [ -n "$empty" ]; then
+            echo "Empty commit(s) in this PR (zero diff vs parent):"
+            echo "$empty"
+            echo
+            echo "These survive rebases by default and pollute every subsequent PR."
+            echo "Drop them with: git rebase --no-keep-empty origin/${{ github.base_ref }}"
+            exit 1
+          fi
