@@ -18,6 +18,7 @@ import {
   createJob,
   createAIConfig,
   createApplication,
+  createOrganization,
 } from "./helpers/fixtures.js";
 import { Application } from "../src/entities/Application.js";
 import { Job } from "../src/entities/Job.js";
@@ -242,7 +243,7 @@ describe("PATCH /v1/applications/:_id/status — update status (Recruiter only)"
     expect(res.status).toBe(404);
   });
 
-  it("item 9: shortlisting sends the talent a congratulatory in-app notification with a concise title", async () => {
+  it("item 9: shortlisting sends the talent a title-only in-app notification, no message body", async () => {
     const { user: talent } = await createTalent();
     const { user: recruiter, token } = await createRecruiter();
     const role = await createRole("Backend Developer");
@@ -258,15 +259,38 @@ describe("PATCH /v1/applications/:_id/status — update status (Recruiter only)"
       .getRepository(Notification)
       .find({ where: { userId: talent.id } });
     expect(notifications).toHaveLength(1);
-    expect(notifications[0]?.message).toContain("shortlisted");
-    expect(notifications[0]?.message).toContain("Backend Developer");
     // The title must be the short job/role title, not the long jobBrief
     // description — this was the actual reported bug.
-    expect(notifications[0]?.title).toBe("Shortlisted for Backend Developer");
+    expect(notifications[0]?.title).toBe(
+      "Congratulations, you've been shortlisted for Backend Developer"
+    );
     expect(notifications[0]?.title).not.toContain(job.jobBrief);
+    // Title-only: no separate "long story" message body underneath.
+    expect(notifications[0]?.message).toBe(notifications[0]?.title);
   });
 
-  it("item 9: rejecting sends the talent a reassuring in-app notification with a concise title", async () => {
+  it("item 9: shortlisting includes the company name in the title when the job has one", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter, token } = await createRecruiter();
+    const organization = await createOrganization(recruiter, { name: "TechCorp" });
+    const role = await createRole("Backend Developer");
+    const job = await createJob(recruiter, role, { organizationId: organization.id });
+    const app_ = await createApplication(talent, job);
+
+    await request(app)
+      .patch(`/v1/applications/${app_.id}/status`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: ApplicationStatus.Shortlisted });
+
+    const notifications = await testDataSource
+      .getRepository(Notification)
+      .find({ where: { userId: talent.id } });
+    expect(notifications[0]?.title).toBe(
+      "Congratulations, you've been shortlisted for Backend Developer at TechCorp"
+    );
+  });
+
+  it("item 9: rejecting sends the talent a title-only in-app notification, no message body", async () => {
     const { user: talent } = await createTalent();
     const { user: recruiter, token } = await createRecruiter();
     const role = await createRole("Backend Developer");
@@ -282,9 +306,9 @@ describe("PATCH /v1/applications/:_id/status — update status (Recruiter only)"
       .getRepository(Notification)
       .find({ where: { userId: talent.id } });
     expect(notifications).toHaveLength(1);
-    expect(notifications[0]?.message).toContain("dream job");
-    expect(notifications[0]?.title).toBe("Update on your Backend Developer application");
+    expect(notifications[0]?.title).toBe("You were not shortlisted for Backend Developer");
     expect(notifications[0]?.title).not.toContain(job.jobBrief);
+    expect(notifications[0]?.message).toBe(notifications[0]?.title);
   });
 
   it("ISSUE-006: service-level check allows talent (defence-in-depth gap documented)", async () => {
@@ -341,7 +365,12 @@ describe("PATCH /v1/applications/status — bulk shortlist/reject (Recruiter onl
       where: { userId: In([talentA.id, talentB.id]) },
     });
     expect(notifications).toHaveLength(2);
-    expect(notifications.every((n) => n.title === "Shortlisted for Backend Developer")).toBe(true);
+    expect(
+      notifications.every(
+        (n) => n.title === "Congratulations, you've been shortlisted for Backend Developer"
+      )
+    ).toBe(true);
+    expect(notifications.every((n) => n.message === n.title)).toBe(true);
   });
 
   it("silently skips applications the caller doesn't own (partial success)", async () => {

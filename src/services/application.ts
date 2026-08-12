@@ -5,10 +5,7 @@ import { Notification } from "../entities/Notification.js";
 import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
 import { UserRole, ApplicationType, ApplicationStatus, ScreeningStage } from "../types/enums.js";
 import { createNotification } from "./notification.js";
-import {
-  decisionNotificationMessage,
-  decisionNotificationTitle,
-} from "./applicationNotifications.js";
+import { decisionNotificationTitle } from "./applicationNotifications.js";
 import { triggerMatchVerdict } from "./applicationStage.js";
 import logger from "../utils/logger.js";
 
@@ -94,7 +91,7 @@ export const updateStatus = async (
 ): Promise<Application> => {
   const application = await applicationRepo().findOne({
     where: { id: payload.id },
-    relations: { job: { role: true }, talent: true },
+    relations: { job: { role: true, organization: true }, talent: true },
   });
 
   if (!application) {
@@ -118,11 +115,9 @@ export const updateStatus = async (
     // status update itself, so it's caught and logged rather than rethrown.
     try {
       const jobTitle = application.job.role?.name;
-      await createNotification(
-        application.talentId,
-        decisionNotificationMessage(payload.status, jobTitle),
-        decisionNotificationTitle(payload.status, jobTitle)
-      );
+      const companyName = application.job.organization?.name;
+      const title = decisionNotificationTitle(payload.status, jobTitle, companyName);
+      await createNotification(application.talentId, title, title);
     } catch (err) {
       logger.error(
         `Decision notification failed for application ${application.id}: ${(err as Error).message}`
@@ -192,7 +187,7 @@ export const bulkUpdateStatus = async (
 ): Promise<{ updated: number }> => {
   const applications = await applicationRepo().find({
     where: { id: In(payload.applicationIds) },
-    relations: { job: { role: true } },
+    relations: { job: { role: true, organization: true } },
   });
 
   const owned = applications.filter((application) => application.job.postedById === userId);
@@ -207,10 +202,12 @@ export const bulkUpdateStatus = async (
 
   const notifications = owned.map((application) => {
     const jobTitle = application.job.role?.name;
+    const companyName = application.job.organization?.name;
+    const title = decisionNotificationTitle(payload.status, jobTitle, companyName);
     return notificationRepo().create({
       userId: application.talentId,
-      message: decisionNotificationMessage(payload.status, jobTitle),
-      title: decisionNotificationTitle(payload.status, jobTitle),
+      message: title,
+      title,
     });
   });
   const CHUNK = 500;
