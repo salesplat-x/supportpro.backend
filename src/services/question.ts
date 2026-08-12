@@ -262,6 +262,39 @@ const DICHOTOMY_COUNT_FIELD: Record<string, keyof AIConfig> = {
   JP: "noOfJPQuestions",
 };
 
+const generateDichotomyQuestions = async (
+  job: Job,
+  dichotomyPair: string,
+  count: number
+): Promise<Question[]> => {
+  const response = await AI.getPersonalityEvaluationQuestion(job.jobBrief, dichotomyPair, count);
+  if (!response || !response.message.content) {
+    throw new ValidationError(
+      "Failed to generate personality questions from OpenAI. Check OPENAI_API_KEY and try again."
+    );
+  }
+  let questionTexts: string[];
+  try {
+    questionTexts = JSON.parse(response.message.content).questions;
+  } catch {
+    throw new ValidationError("OpenAI returned an invalid personality question response");
+  }
+  if (!Array.isArray(questionTexts) || questionTexts.length === 0) {
+    throw new ValidationError("OpenAI returned no personality questions");
+  }
+
+  const questionEntities = questionTexts.map((text) =>
+    questionRepo().create({
+      type: QuestionType.Personality,
+      question: text,
+      jobId: job.id,
+      criteria: dichotomyPair,
+    })
+  );
+
+  return questionRepo().save(questionEntities);
+};
+
 export const generatePersonalityQuestion = async (
   payload: GeneratePersonalityQuestionPayload
 ): Promise<Question[]> => {
@@ -297,34 +330,38 @@ export const generatePersonalityQuestion = async (
     }
   }
 
-  const response = await AI.getPersonalityEvaluationQuestion(
-    jobForPersonality.jobBrief,
-    dichotomyPair,
-    count
-  );
-  if (!response || !response.message.content) {
-    throw new ValidationError(
-      "Failed to generate personality questions from OpenAI. Check OPENAI_API_KEY and try again."
-    );
+  return generateDichotomyQuestions(jobForPersonality, dichotomyPair, count);
+};
+
+const DICHOTOMY_PAIRS = ["EI", "SN", "TF", "JP"] as const;
+
+// Talent-safe counterpart to generatePersonalityQuestion: that endpoint is
+// Recruiter-only and always generates one *more* question when any already
+// exist, so it can't be called by a stuck talent to self-recover. This is
+// truly idempotent — it only fills in pairs that have zero questions, never
+// adds to a pair that already has some — so it's safe for a talent to call
+// (including via automatic retry) without spamming duplicate questions.
+export const ensurePersonalityQuestions = async (jobId: string): Promise<Question[]> => {
+  const job = await jobRepo().findOne({ where: { id: jobId }, relations: { aiConfig: true } });
+  if (!job) {
+    throw new NotFoundError("Job not found");
   }
-  let questionTexts: string[];
-  try {
-    questionTexts = JSON.parse(response.message.content).questions;
-  } catch {
-    throw new ValidationError("OpenAI returned an invalid personality question response");
-  }
-  if (!Array.isArray(questionTexts) || questionTexts.length === 0) {
-    throw new ValidationError("OpenAI returned no personality questions");
+  if (!job.aiConfig?.personalityEvaluation) {
+    throw new ValidationError("This feature was not configured for this job");
   }
 
-  const questionEntities = questionTexts.map((text) =>
-    questionRepo().create({
-      type: QuestionType.Personality,
-      question: text,
-      jobId,
-      criteria: dichotomyPair,
-    })
-  );
+  for (const dichotomyPair of DICHOTOMY_PAIRS) {
+    const existingCount = await questionRepo().count({
+      where: { jobId, type: QuestionType.Personality, criteria: dichotomyPair },
+    });
+    if (existingCount > 0) continue;
 
-  return questionRepo().save(questionEntities);
+    const countField = DICHOTOMY_COUNT_FIELD[dichotomyPair]!;
+    const configuredCount = job.aiConfig[countField] as number | null | undefined;
+    if (configuredCount == null) continue;
+
+    await generateDichotomyQuestions(job, dichotomyPair, configuredCount);
+  }
+
+  return questionRepo().find({ where: { jobId, type: QuestionType.Personality } });
 };

@@ -21,6 +21,8 @@ export const searchTalentsValidator = [
   query("country").optional().isString(),
   query("state").optional().isString(),
   query("city").optional().isString(),
+  query("jobId").optional().isUUID().withMessage("jobId must be a valid UUID"),
+  query("percentage").optional().isFloat({ min: 0, max: 100 }).toFloat(),
   ...paginationRules,
 ];
 
@@ -36,6 +38,12 @@ export const scoutJobScoutsParamValidator = [
 
 export const scoutCvBatchValidator = [
   body("scoutJobId").isUUID().withMessage("Scout job ID must be a valid UUID"),
+];
+
+export const addScoutToPipelineValidator = [
+  param("scoutId").isUUID().withMessage("Scout ID must be a valid UUID"),
+  body("jobId").isUUID().withMessage("jobId must be a valid UUID"),
+  body("talentEmail").isEmail().withMessage("talentEmail must be a valid email address"),
 ];
 
 export const validateScoutCvBatchFiles = (req: Request, res: Response, next: NextFunction) => {

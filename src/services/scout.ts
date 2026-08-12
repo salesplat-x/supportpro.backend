@@ -1,12 +1,17 @@
 import crypto from "crypto";
 import { FindOptionsWhere } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
-import { Scout, ScoutJob, User, Role } from "../entities";
+import { Scout, ScoutJob, User, Role, Job } from "../entities";
 import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
 import { UserRole } from "../types/enums.js";
 import { extractText, preprocessText } from "../utils/text.js";
 import * as AI from "../utils/integrations/openai.js";
 import { v4 as uuidv4 } from "uuid";
+import {
+  rankTalentIdsByJobEmbedding,
+  enrichTalentsWithFitEvidence,
+  TalentWithFitEvidence,
+} from "./job.js";
 
 const scoutRepo = () => AppDataSource.getRepository(Scout);
 
@@ -18,6 +23,8 @@ const userRepo = () => AppDataSource.getRepository(User);
 
 const roleRepo = () => AppDataSource.getRepository(Role);
 
+const jobRepo = () => AppDataSource.getRepository(Job);
+
 export interface SearchTalentsParams {
   roleId?: string;
   experience?: string;
@@ -27,6 +34,9 @@ export interface SearchTalentsParams {
   workMode?: string;
   limit?: number | string;
   offset?: number | string;
+  /** When present, ranks results by CV-embedding fit to this job instead of plain filtering. */
+  jobId?: string;
+  percentage?: number;
 }
 
 export interface FetchScoutReportsParams {
@@ -75,8 +85,18 @@ export const fetchScoutReport = async (
 // A plain filtered directory search across the whole talent database — not
 // scoped to any job/scout-job, so there's no job description to compute a
 // CV-similarity percentage against (unlike the job-scoped topTalents/scoutCvBatch
-// flows, which do have one).
-export const searchTalents = async (payload: SearchTalentsParams): Promise<User[]> => {
+// flows, which do have one) — unless the caller passes a jobId, in which case
+// results are ranked by embedding fit to that job instead. Read-only either way:
+// unlike topTalents, this never creates/mutates Application rows.
+export const searchTalents = async (
+  userId: string,
+  userRole: UserRole,
+  payload: SearchTalentsParams
+): Promise<TalentWithFitEvidence[]> => {
+  if (payload.jobId) {
+    return searchTalentsByJobFit(userId, userRole, payload.jobId, payload);
+  }
+
   const qb = userRepo()
     .createQueryBuilder("user")
     .leftJoinAndSelect("user.userRoles", "userRoles")
@@ -115,6 +135,47 @@ export const searchTalents = async (payload: SearchTalentsParams): Promise<User[
   const offset = Number(payload.offset) || 0;
 
   return qb.orderBy("user.prescreeningScore", "DESC").skip(offset).take(limit).getMany();
+};
+
+const searchTalentsByJobFit = async (
+  userId: string,
+  userRole: UserRole,
+  jobId: string,
+  payload: SearchTalentsParams
+): Promise<TalentWithFitEvidence[]> => {
+  const job = await jobRepo().findOne({ where: { id: jobId }, relations: { aiConfig: true } });
+  if (!job) {
+    throw new NotFoundError("Job does not exist");
+  }
+  if (job.postedById !== userId && userRole !== UserRole.Admin) {
+    throw new AuthorizationError("You are not authorized to perform this action");
+  }
+
+  const limit = Math.min(Number(payload.limit) || 50, MAX_PAGE_SIZE);
+  const percentage = payload.percentage ?? job.aiConfig?.minCvSimilarityScore ?? 50;
+  const strictness = (100 - percentage) / 100;
+
+  const ranked = await rankTalentIdsByJobEmbedding(jobId, strictness, limit);
+  const talentIds = ranked.map((r) => r.user_id);
+  if (talentIds.length === 0) return [];
+
+  const talentsById = new Map(
+    (
+      await userRepo()
+        .createQueryBuilder("user")
+        .whereInIds(talentIds)
+        .leftJoinAndSelect("user.userRoles", "userRoles")
+        .getMany()
+    ).map((t) => [t.id, t as TalentWithFitEvidence])
+  );
+  // Preserve the similarity ranking — whereInIds doesn't guarantee row order.
+  const talents = ranked
+    .map((r) => talentsById.get(r.user_id))
+    .filter((t): t is TalentWithFitEvidence => t !== undefined);
+
+  await enrichTalentsWithFitEvidence(job.jobBrief, talents);
+
+  return talents;
 };
 
 // ---------------------------------------------------------------------------
@@ -283,7 +344,7 @@ export interface ScoutCvBatchPayload {
 export const scoutCvBatch = async (
   userId: string,
   payload: ScoutCvBatchPayload
-): Promise<{ batchId: string; scoutReports: Scout[] }> => {
+): Promise<{ batchId: string; scoutReports: Scout[]; failures?: Record<string, string> }> => {
   const job = await scoutJobRepo().findOne({ where: { id: payload.scoutJobId } });
   if (!job) {
     throw new NotFoundError("Job not found");
@@ -316,23 +377,23 @@ export const scoutCvBatch = async (
     }
   });
 
-  if (Object.keys(failures).length > 0) {
-    // Atomic: if any file in the batch couldn't be scored, nothing from this batch
-    // is persisted — the recruiter gets back exactly which file(s) failed and why,
-    // so they can remove/replace just those and resubmit.
-    throw new ValidationError(
-      `${Object.keys(failures).length} of ${cvFiles.length} CV(s) could not be scored — no results were saved for this batch`,
-      failures
-    );
-  }
-
+  // Every file that *did* score successfully is persisted regardless of whether
+  // others in the same batch failed — losing a good score because an unrelated
+  // file in the same upload failed would make per-file retry pointless (there'd
+  // be nothing left to keep). Failures are reported alongside so the caller can
+  // retry just those files.
   const rows = scored.map((s) =>
     scoutRepo().create({ ...s, batchId, scoutJobId: payload.scoutJobId, recruiterId: userId })
   );
 
-  const saved = await AppDataSource.transaction((manager) =>
-    manager.getRepository(Scout).save(rows)
-  );
+  const saved =
+    rows.length > 0
+      ? await AppDataSource.transaction((manager) => manager.getRepository(Scout).save(rows))
+      : [];
 
-  return { batchId, scoutReports: saved };
+  return {
+    batchId,
+    scoutReports: saved,
+    ...(Object.keys(failures).length > 0 ? { failures } : {}),
+  };
 };

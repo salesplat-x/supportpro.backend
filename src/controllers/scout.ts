@@ -1,12 +1,13 @@
 import { Request, Response } from "express";
 import * as scoutService from "../services/scout.js";
+import * as jobService from "../services/job.js";
 import { sendSuccessResponse } from "../utils/response.js";
 import { UserRole } from "../types/enums.js";
 
 const isAdmin = (req: Request) => req.user.userRole === UserRole.Admin;
 
 export const searchTalents = async (req: Request, res: Response) => {
-  const result = await scoutService.searchTalents({
+  const result = await scoutService.searchTalents(req.user.id, req.user.userRole, {
     roleId: req.query["roleId"] as string | undefined,
     experience: req.query["experience"] as string | undefined,
     workMode: req.query["workMode"] as string | undefined,
@@ -15,6 +16,8 @@ export const searchTalents = async (req: Request, res: Response) => {
     city: req.query["city"] as string | undefined,
     limit: req.query["limit"] ? Number(req.query["limit"]) : undefined,
     offset: req.query["offset"] ? Number(req.query["offset"]) : undefined,
+    jobId: req.query["jobId"] as string | undefined,
+    percentage: req.query["percentage"] ? Number(req.query["percentage"]) : undefined,
   });
   sendSuccessResponse(res, "Talents found", { talents: result });
 };
@@ -54,4 +57,13 @@ export const scoutCvBatch = async (req: Request, res: Response) => {
     coverLetterFiles: files["coverLetter"],
   });
   sendSuccessResponse(res, "CV batch scored", result);
+};
+
+export const addScoutToPipeline = async (req: Request, res: Response) => {
+  const result = await jobService.addScoutToJobPipeline(req.user.id, {
+    scoutId: req.params["scoutId"]!,
+    jobId: req.body.jobId,
+    talentEmail: req.body.talentEmail,
+  });
+  sendSuccessResponse(res, "Added to job pipeline", { application: result });
 };

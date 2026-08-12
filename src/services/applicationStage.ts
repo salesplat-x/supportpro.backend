@@ -1,4 +1,4 @@
-import { Not, IsNull } from "typeorm";
+import { Not, IsNull, In, type FindOptionsRelations } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { AIConfig } from "../entities/AIConfig.js";
 import { Application } from "../entities/Application.js";
@@ -12,6 +12,7 @@ import {
   ApplicationStatus,
   ScreeningStage,
   MatchVerdict,
+  MatchVerdictStatus,
   MatchRecommendation,
   QuestionType,
 } from "../types/enums.js";
@@ -65,30 +66,69 @@ const persistRecommendation = async (
     risks: string[] | null;
   }
 ): Promise<void> => {
-  const existing = await aiRecommendationRepo().findOne({ where: { applicationId } });
-  if (existing) {
-    await aiRecommendationRepo().save({
-      ...existing,
-      ...payload,
-    });
-  } else {
-    await aiRecommendationRepo().save(
-      aiRecommendationRepo().create({
-        applicationId,
-        ...payload,
-      })
-    );
-  }
+  // Both writes must land together — a partial write here is exactly what lets
+  // ai_recommendations and the denormalized Application columns drift apart.
+  await AppDataSource.transaction(async (manager) => {
+    const existing = await manager.findOne(AiRecommendation, { where: { applicationId } });
+    if (existing) {
+      await manager.save(AiRecommendation, { ...existing, ...payload });
+    } else {
+      await manager.save(
+        AiRecommendation,
+        manager.create(AiRecommendation, { applicationId, ...payload })
+      );
+    }
 
-  // Keep denormalized columns on applications in sync for existing API consumers.
-  await applicationRepo().update(applicationId, {
-    matchVerdict: payload.verdict,
-    matchVerdictReasoning: payload.reasoning,
-    matchRecommendation: payload.recommendation,
-    matchStrengths: payload.strengths,
-    matchWeaknesses: payload.weaknesses,
-    matchRisks: payload.risks,
+    // Keep denormalized columns on applications in sync for existing API consumers.
+    await manager.update(Application, applicationId, {
+      matchVerdict: payload.verdict,
+      matchVerdictStatus: MatchVerdictStatus.Succeeded,
+      matchVerdictReasoning: payload.reasoning,
+      matchRecommendation: payload.recommendation,
+      matchStrengths: payload.strengths,
+      matchWeaknesses: payload.weaknesses,
+      matchRisks: payload.risks,
+    });
   });
+};
+
+// ai_recommendations is the source of truth; these columns on Application are a
+// denormalized cache for existing consumers. Use these helpers on every read path
+// so a row that drifted (e.g. from a pre-transaction partial write) still shows
+// correct, consistent data instead of a stale/blank matchVerdict.
+export const overlayVerdictFromRecommendation = <T extends Application>(
+  application: T,
+  recommendation: AiRecommendation | null | undefined
+): T => {
+  if (!recommendation) return application;
+  application.matchVerdict = recommendation.verdict;
+  application.matchVerdictStatus = MatchVerdictStatus.Succeeded;
+  application.matchVerdictReasoning = recommendation.reasoning;
+  application.matchRecommendation = recommendation.recommendation;
+  application.matchStrengths = recommendation.strengths;
+  application.matchWeaknesses = recommendation.weaknesses;
+  application.matchRisks = recommendation.risks;
+  return application;
+};
+
+export const loadApplicationWithMatch = async (
+  applicationId: string,
+  relations: FindOptionsRelations<Application> = {}
+): Promise<Application | null> => {
+  const application = await applicationRepo().findOne({ where: { id: applicationId }, relations });
+  if (!application) return null;
+  const recommendation = await aiRecommendationRepo().findOne({ where: { applicationId } });
+  return overlayVerdictFromRecommendation(application, recommendation);
+};
+
+export const loadRecommendationsByApplicationIds = async (
+  applicationIds: string[]
+): Promise<Map<string, AiRecommendation>> => {
+  if (applicationIds.length === 0) return new Map();
+  const recommendations = await aiRecommendationRepo().find({
+    where: { applicationId: In(applicationIds) },
+  });
+  return new Map(recommendations.map((r) => [r.applicationId, r]));
 };
 
 export const canTakeAssessment = (assessmentRetryDate: Date | null): boolean => {
@@ -102,18 +142,35 @@ export const getAssessmentRetryDate = (days = 7): Date => {
   return d;
 };
 
-export const rankApplication = async (talent: User, application: Application): Promise<void> => {
+// `rank` is sequential completion order (the Nth applicant to finish the
+// pipeline), not a quality ranking — the AI match verdict is what represents
+// quality, and that's what the applicant table sorts by default. Don't
+// conflate the two: a low rank number just means they finished early.
+export const rankApplication = async (
+  talent: User,
+  application: Application,
+  aiConfig?: Pick<
+    AIConfig,
+    "cvSimilarity" | "personalizedAssessment" | "prescreeningAssessment"
+  > | null
+): Promise<void> => {
   const prescreeningScore = talent.prescreeningScore ?? undefined;
+  // Without an aiConfig to check against, fall back to including whatever
+  // scores are present (previous behavior) rather than guessing.
+  const includeCv = aiConfig ? aiConfig.cvSimilarity : true;
+  const includePersonalized = aiConfig ? aiConfig.personalizedAssessment : true;
+  const includePrescreening = aiConfig ? aiConfig.prescreeningAssessment : true;
+
   const scores = [
-    application.cvSimilarityScore,
-    application.personalizedScore,
-    prescreeningScore,
+    includeCv ? application.cvSimilarityScore : undefined,
+    includePersonalized ? application.personalizedScore : undefined,
+    includePrescreening ? prescreeningScore : undefined,
   ].filter((s): s is number => s !== null && s !== undefined);
 
-  const averageScore =
-    scores.length > 0 ? Number((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2)) : 0;
-
-  application.averageScore = averageScore;
+  application.averageScore =
+    scores.length > 0
+      ? Number((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2))
+      : null;
 
   // Only count applications that have *already* been ranked (i.e. already
   // finished the pipeline) — counting every application for the job, as this
@@ -184,25 +241,43 @@ export const triggerMatchVerdict = async (
       where: { id: application.jobId },
       relations: { aiConfig: true },
     });
-    if (!job) return;
+    if (!job) {
+      await applicationRepo().update(application.id, {
+        matchVerdictStatus: MatchVerdictStatus.Failed,
+      });
+      return;
+    }
 
     const aiConfig = job.aiConfig as AIConfig | null;
+    // A disabled personality stage must never influence the verdict, even if
+    // answers/mbtiType happen to exist (e.g. the stage was disabled after the
+    // talent already completed it).
+    const includePersonality = aiConfig ? aiConfig.personalityEvaluation : true;
 
     const [cvChunks, personalizedQuestionsAndAnswers, personalityQuestionsAndAnswers] =
       await Promise.all([
         talentEmbeddingRepo().find({ where: { userId: talent.id }, select: { cvText: true } }),
         buildQuestionAnswerPairs(application.jobId, talent.id, QuestionType.Personalized),
-        buildQuestionAnswerPairs(application.jobId, talent.id, QuestionType.Personality),
+        includePersonality
+          ? buildQuestionAnswerPairs(application.jobId, talent.id, QuestionType.Personality)
+          : Promise.resolve([]),
       ]);
     const cvText = cvChunks.map((c) => c.cvText ?? "").join("\n\n");
 
+    await applicationRepo().update(application.id, {
+      matchVerdictStatus: MatchVerdictStatus.Pending,
+    });
+
     const response = await assessApplicationMatch({
       jobDescription: job.jobBrief,
+      skills: job.skills ?? undefined,
+      requirements: job.requirements ?? undefined,
+      goals: job.goals ?? undefined,
       recruiterGuide: aiConfig?.recruiterGuide ?? undefined,
       cvSimilarityScore: application.cvSimilarityScore,
       personalizedScore: application.personalizedScore,
       prescreeningScore: talent.prescreeningScore ?? null,
-      mbtiType: application.mbtiType,
+      mbtiType: includePersonality ? application.mbtiType : null,
       cvText: cvText || undefined,
       personalizedQuestionsAndAnswers:
         personalizedQuestionsAndAnswers.length > 0 ? personalizedQuestionsAndAnswers : undefined,
@@ -253,13 +328,17 @@ export const triggerMatchVerdict = async (
     logger.error(
       `Match verdict generation failed for application ${application.id}: ${(err as Error).message}`
     );
+    await applicationRepo().update(application.id, {
+      matchVerdictStatus: MatchVerdictStatus.Failed,
+    });
   }
 };
 
 export const processNextStage = async (
   talent: User,
   application: Application,
-  stage: ScreeningStage
+  stage: ScreeningStage,
+  aiConfig?: AIConfig | null
 ): Promise<Application> => {
   const stages = application.stages ?? {};
   const nextStage = stages[stage];
@@ -271,8 +350,9 @@ export const processNextStage = async (
   application.currentStage = nextStage as Application["currentStage"];
 
   if (nextStage === ScreeningStage.Completed) {
-    await rankApplication(talent, application);
+    await rankApplication(talent, application, aiConfig);
     application.status = ApplicationStatus.AwaitingDecision;
+    application.matchVerdictStatus = MatchVerdictStatus.Pending;
     void triggerMatchVerdict(talent, application);
   } else {
     application.status = ApplicationStatus.Pending;
@@ -305,7 +385,12 @@ export const advanceApplicationsAfterPrescreening = async (
       application.assessmentRetryDate = getAssessmentRetryDate();
       updated = application;
     } else {
-      updated = await processNextStage(talent, application, ScreeningStage.Prescreening);
+      updated = await processNextStage(
+        talent,
+        application,
+        ScreeningStage.Prescreening,
+        job?.aiConfig ?? null
+      );
     }
     await applicationRepo().save(updated);
   }

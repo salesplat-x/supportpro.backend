@@ -56,3 +56,7 @@ export const generatePersonalityQuestionsValidator = [
     .withMessage("count must be a positive integer")
     .toInt(),
 ];
+
+export const ensurePersonalityQuestionsValidator = [
+  body("jobId").notEmpty().withMessage("jobId is required"),
+];

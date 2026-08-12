@@ -13,6 +13,7 @@ import {
   getQuestionsValidator,
   personalizedQuestionsValidator,
   generatePersonalityQuestionsValidator,
+  ensurePersonalityQuestionsValidator,
 } from "../validators/question.js";
 
 const router = Router();
@@ -41,6 +42,12 @@ router.post(
   validateAccess([UserRole.Recruiter]),
   validate(generatePersonalityQuestionsValidator),
   asyncHandler(question.generatePersonalityQuestion)
+);
+router.post(
+  "/personality/ensure",
+  validateAccess([UserRole.Recruiter, UserRole.Talent]),
+  validate(ensurePersonalityQuestionsValidator),
+  asyncHandler(question.ensurePersonalityQuestions)
 );
 router.post(
   "/answer/prescreening",

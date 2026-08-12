@@ -41,6 +41,11 @@ export const generatePersonalityQuestion = async (req: Request, res: Response) =
   sendSuccessResponse(res, "Personality question generated", { questions: result });
 };
 
+export const ensurePersonalityQuestions = async (req: Request, res: Response) => {
+  const result = await questionService.ensurePersonalityQuestions(req.body.jobId);
+  sendSuccessResponse(res, "Personality questions ready", { questions: result });
+};
+
 export const evaluatePersonalityType = async (req: Request, res: Response) => {
   const result = await answerService.evaluatePersonalityType(req.user.id, req.body);
   sendSuccessResponse(res, "Personality evaluated", result);

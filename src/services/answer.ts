@@ -260,7 +260,12 @@ export const answerPersonalizedQuestions = async (
   if (passed || attemptsExhausted) {
     const user = await userRepo().findOne({ where: { id: userId } });
     if (user) {
-      application = await processNextStage(user, application, ScreeningStage.Personalized);
+      application = await processNextStage(
+        user,
+        application,
+        ScreeningStage.Personalized,
+        aiConfig
+      );
     }
   } else {
     application.currentStage = ScreeningStage.Personalized;
@@ -416,7 +421,7 @@ export const evaluatePersonalityType = async (
 
   const user = await userRepo().findOne({ where: { id: userId } });
   if (user && application.currentStage === ScreeningStage.Personality) {
-    application = await processNextStage(user, application, ScreeningStage.Personality);
+    application = await processNextStage(user, application, ScreeningStage.Personality, aiConfig);
   }
   application.mbtiType = mbtiType;
   application = await applicationRepo().save(application);

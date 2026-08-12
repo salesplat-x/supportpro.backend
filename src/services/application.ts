@@ -6,7 +6,12 @@ import { NotFoundError, AuthorizationError, ValidationError } from "../utils/err
 import { UserRole, ApplicationType, ApplicationStatus, ScreeningStage } from "../types/enums.js";
 import { createNotification } from "./notification.js";
 import { decisionNotificationTitle } from "./applicationNotifications.js";
-import { triggerMatchVerdict } from "./applicationStage.js";
+import {
+  triggerMatchVerdict,
+  loadApplicationWithMatch,
+  loadRecommendationsByApplicationIds,
+  overlayVerdictFromRecommendation,
+} from "./applicationStage.js";
 import logger from "../utils/logger.js";
 
 const notificationRepo = () => AppDataSource.getRepository(Notification);
@@ -27,9 +32,10 @@ export const getApplication = async (
   userId: string,
   applicationId: string
 ): Promise<{ application: Application; count: number }> => {
-  const application = await applicationRepo().findOne({
-    where: { id: applicationId },
-    relations: { job: { postedBy: true }, talent: true, role: true },
+  const application = await loadApplicationWithMatch(applicationId, {
+    job: { postedBy: true },
+    talent: true,
+    role: true,
   });
 
   if (!application) {
@@ -82,7 +88,11 @@ export const getApplications = async (
     });
   }
 
-  return qb.skip(offset).take(limit).getMany();
+  const applications = await qb.skip(offset).take(limit).getMany();
+  const recommendations = await loadRecommendationsByApplicationIds(applications.map((a) => a.id));
+  return applications.map((application) =>
+    overlayVerdictFromRecommendation(application, recommendations.get(application.id))
+  );
 };
 
 export const updateStatus = async (
@@ -162,7 +172,7 @@ export const regenerateVerdict = async (
   // fire-and-forget call site must never let a verdict failure bubble up to the
   // talent). Here, the caller *is* waiting on a real result, so surface failure
   // by checking whether a verdict actually got persisted.
-  const refreshed = await applicationRepo().findOne({ where: { id: applicationId } });
+  const refreshed = await loadApplicationWithMatch(applicationId);
   if (!refreshed) {
     throw new NotFoundError("Application not found");
   }

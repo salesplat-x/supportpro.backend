@@ -23,7 +23,13 @@ import {
 import { Application } from "../src/entities/Application.js";
 import { Job } from "../src/entities/Job.js";
 import { Notification } from "../src/entities/Notification.js";
-import { ApplicationStatus, ScreeningStage } from "../src/types/enums.js";
+import { AiRecommendation } from "../src/entities/AiRecommendation.js";
+import {
+  ApplicationStatus,
+  ScreeningStage,
+  MatchVerdict,
+  MatchRecommendation,
+} from "../src/types/enums.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
   __esModule: true,
@@ -108,6 +114,35 @@ describe("GET /v1/applications/ — list applications", () => {
     const res = await request(app).get("/v1/applications/");
     expect(res.status).toBe(401);
   });
+
+  it("shows the ai_recommendations verdict even when Application.matchVerdict drifted out of sync", async () => {
+    const { user: recruiter, token: recruiterToken } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { user: talent } = await createTalent();
+    const app_ = await createApplication(talent, job, { matchVerdict: null });
+    await testDataSource.getRepository(AiRecommendation).save(
+      testDataSource.getRepository(AiRecommendation).create({
+        applicationId: app_.id,
+        verdict: MatchVerdict.Medium,
+        reasoning: "Drifted row repaired at read time.",
+        recommendation: MatchRecommendation.InterviewFurther,
+        strengths: null,
+        weaknesses: null,
+        risks: null,
+      })
+    );
+
+    const res = await request(app)
+      .get("/v1/applications/")
+      .set("Authorization", `Bearer ${recruiterToken}`);
+
+    expect(res.status).toBe(200);
+    const apps = res.body.data.applications ?? res.body.data ?? [];
+    const returned = apps.find((a: { id: string }) => a.id === app_.id);
+    expect(returned.matchVerdict).toBe(MatchVerdict.Medium);
+    expect(returned.matchVerdictReasoning).toBe("Drifted row repaired at read time.");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -175,6 +210,37 @@ describe("GET /v1/applications/:_id — single application", () => {
       .get("/v1/applications/00000000-0000-0000-0000-000000000000")
       .set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(404);
+  });
+
+  it("shows the ai_recommendations verdict even when Application.matchVerdict drifted out of sync", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { user: talent } = await createTalent();
+    // Simulates a row that drifted: an AiRecommendation exists but the
+    // denormalized Application column was never (or no longer) populated.
+    const app_ = await createApplication(talent, job, { matchVerdict: null });
+    await testDataSource.getRepository(AiRecommendation).save(
+      testDataSource.getRepository(AiRecommendation).create({
+        applicationId: app_.id,
+        verdict: MatchVerdict.High,
+        reasoning: "Strong fit despite the drifted column.",
+        recommendation: MatchRecommendation.Hire,
+        strengths: ["Great CV match"],
+        weaknesses: null,
+        risks: null,
+      })
+    );
+
+    const res = await request(app)
+      .get(`/v1/applications/${app_.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.application.matchVerdict).toBe(MatchVerdict.High);
+    expect(res.body.data.application.matchVerdictReasoning).toBe(
+      "Strong fit despite the drifted column."
+    );
   });
 });
 

@@ -25,6 +25,7 @@ import {
 import { TalentEmbedding } from "../src/entities/TalentEmbedding.js";
 import { Application } from "../src/entities/Application.js";
 import { Job } from "../src/entities/Job.js";
+import { Question } from "../src/entities/Question.js";
 import { ApplicationStatus, QuestionType, ScreeningStage } from "../src/types/enums.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
@@ -383,6 +384,75 @@ describe("POST /v1/questions/personality — generate personality question", () 
       .send({ jobId: job.id, dichotomyPair: "EI" });
 
     expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /v1/questions/personality/ensure — talent-safe idempotent generation", () => {
+  it("Talent can trigger generation (unlike POST /personality, which is recruiter-only) → 200", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const { token: talentToken } = await createTalent();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const aiConfig = await createAIConfig(recruiter, { personalityEvaluation: true });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
+
+    const res = await request(app)
+      .post("/v1/questions/personality/ensure")
+      .set("Authorization", `Bearer ${talentToken}`)
+      .send({ jobId: job.id });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.questions.length).toBeGreaterThan(0);
+  });
+
+  it("does not add more questions to a dichotomy pair that already has some (truly idempotent)", async () => {
+    const { user: recruiter, token: recruiterToken } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const aiConfig = await createAIConfig(recruiter, { personalityEvaluation: true });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
+
+    await createQuestion(QuestionType.Personality, { jobId: job.id }, { criteria: "EI" });
+
+    const before = await testDataSource
+      .getRepository(Question)
+      .count({ where: { jobId: job.id, type: QuestionType.Personality, criteria: "EI" } });
+    expect(before).toBe(1);
+
+    const res = await request(app)
+      .post("/v1/questions/personality/ensure")
+      .set("Authorization", `Bearer ${recruiterToken}`)
+      .send({ jobId: job.id });
+
+    expect(res.status).toBe(200);
+    const after = await testDataSource
+      .getRepository(Question)
+      .count({ where: { jobId: job.id, type: QuestionType.Personality, criteria: "EI" } });
+    expect(after).toBe(1);
+  });
+
+  it("rejects when personalityEvaluation is disabled for the job → 400", async () => {
+    const { user: recruiter, token: recruiterToken } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const aiConfig = await createAIConfig(recruiter, { personalityEvaluation: false });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
+
+    const res = await request(app)
+      .post("/v1/questions/personality/ensure")
+      .set("Authorization", `Bearer ${recruiterToken}`)
+      .send({ jobId: job.id });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("404s for a non-existent job", async () => {
+    const { token } = await createTalent();
+    const res = await request(app)
+      .post("/v1/questions/personality/ensure")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ jobId: "00000000-0000-0000-0000-000000000000" });
+    expect(res.status).toBe(404);
   });
 });
 
