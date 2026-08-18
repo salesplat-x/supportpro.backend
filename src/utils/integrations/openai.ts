@@ -281,13 +281,19 @@ export const assessCVandCoverLetter = async (
 
   For each of the CV and the cover letter, also provide brief explanatory insights (2-4 sentences) covering: the candidate's key strengths relative to the job description, any notable gaps or concerns, and the main reasoning behind the score.
 
+  Also extract the candidate's contact details from the CV text if present: full name, email address, phone number, and mailing/location address. Use null for any field not found — do not guess or fabricate values.
+
   Output: You should produce a JSON object with the following structure:
 
   {
     "cvScore": <cvPercentage>,
     "cvInsights": "<explanatory insights for the CV score>",
     "coverLetterScore": <coverLetterPercentage>,
-    "coverLetterInsights": "<explanatory insights for the cover letter score>"
+    "coverLetterInsights": "<explanatory insights for the cover letter score>",
+    "candidateName": "<candidate's full name as it appears on the CV, or null>",
+    "candidateEmail": "<candidate's email address, or null>",
+    "candidatePhone": "<candidate's phone number, or null>",
+    "candidateAddress": "<candidate's mailing/location address, or null>"
   }`;
   const completion = await runCompletion({
     messages: [
@@ -314,11 +320,17 @@ export const assessCV = async (
 
   Also provide brief explanatory insights (2-4 sentences) covering: the candidate's key strengths relative to the job description, any notable gaps or concerns, and the main reasoning behind the score.
 
+  Also extract the candidate's contact details from the CV text if present: full name, email address, phone number, and mailing/location address. Use null for any field not found — do not guess or fabricate values.
+
   Output: You should produce a JSON object with the following structure:
 
   {
     "cvScore": <cvPercentage>,
-    "insights": "<explanatory insights for the score>"
+    "insights": "<explanatory insights for the score>",
+    "candidateName": "<candidate's full name as it appears on the CV, or null>",
+    "candidateEmail": "<candidate's email address, or null>",
+    "candidatePhone": "<candidate's phone number, or null>",
+    "candidateAddress": "<candidate's mailing/location address, or null>"
   }`;
   const completion = await runCompletion({
     messages: [

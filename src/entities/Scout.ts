@@ -47,6 +47,18 @@ export class Scout {
   @Column({ type: "float", nullable: true, default: null })
   evaluationScore!: number | null;
 
+  @Column({ type: "varchar", nullable: true, default: null })
+  candidateName!: string | null;
+
+  @Column({ type: "varchar", nullable: true, default: null })
+  candidateEmail!: string | null;
+
+  @Column({ type: "varchar", nullable: true, default: null })
+  candidatePhone!: string | null;
+
+  @Column({ type: "varchar", nullable: true, default: null })
+  candidateAddress!: string | null;
+
   @Column({ type: "uuid", nullable: true, default: null, name: "recruiter_id" })
   recruiterId!: string | null;
 
