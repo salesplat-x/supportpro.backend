@@ -20,6 +20,7 @@ import recruiterRoutes from "./recruiter.js";
 import errorLogRoutes from "./errorLog.js";
 import prescreeningRoutes from "./prescreening.js";
 import adminRoutes from "./admin.js";
+import feedbackRoutes from "./feedback.js";
 
 const v1Router = Router();
 
@@ -44,5 +45,6 @@ recruiterRoutes(v1Router);
 errorLogRoutes(v1Router);
 prescreeningRoutes(v1Router);
 adminRoutes(v1Router);
+feedbackRoutes(v1Router);
 
 export default v1Router;
