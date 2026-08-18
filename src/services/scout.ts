@@ -191,6 +191,10 @@ interface AssessmentResult {
   cvInsights?: string;
   coverLetterScore?: number;
   coverLetterInsights?: string;
+  candidateName?: string | null;
+  candidateEmail?: string | null;
+  candidatePhone?: string | null;
+  candidateAddress?: string | null;
 }
 
 const MAX_ASSESSMENT_ATTEMPTS = 3;
@@ -258,6 +262,10 @@ interface ScoredCv {
   coverLetterScore: number | null;
   coverLetterInsights: string | null;
   evaluationScore: number;
+  candidateName: string | null;
+  candidateEmail: string | null;
+  candidatePhone: string | null;
+  candidateAddress: string | null;
 }
 
 const scoreOneCv = async (
@@ -311,6 +319,10 @@ const scoreOneCv = async (
       coverLetterScore: existing.coverLetterScore,
       coverLetterInsights: existing.coverLetterInsights,
       evaluationScore: existing.evaluationScore!,
+      candidateName: existing.candidateName,
+      candidateEmail: existing.candidateEmail,
+      candidatePhone: existing.candidatePhone,
+      candidateAddress: existing.candidateAddress,
     };
   }
 
@@ -332,6 +344,10 @@ const scoreOneCv = async (
     coverLetterScore,
     coverLetterInsights: coverLetterFile ? (assessment.coverLetterInsights ?? null) : null,
     evaluationScore,
+    candidateName: assessment.candidateName ?? null,
+    candidateEmail: assessment.candidateEmail ?? null,
+    candidatePhone: assessment.candidatePhone ?? null,
+    candidateAddress: assessment.candidateAddress ?? null,
   };
 };
 
