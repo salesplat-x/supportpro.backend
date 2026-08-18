@@ -18,3 +18,4 @@ export { Scout } from "./Scout.js";
 export { TalentEmbedding } from "./TalentEmbedding.js";
 export { ErrorLog } from "./ErrorLog.js";
 export { AiRecommendation } from "./AiRecommendation.js";
+export { Feedback } from "./Feedback.js";
