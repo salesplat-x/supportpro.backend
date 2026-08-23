@@ -156,7 +156,7 @@ export const rankApplication = async (
   > | null
 ): Promise<void> => {
   const prescreeningScore = isPrescreeningScoreValid(talent.prescreeningScoredAt)
-    ? talent.prescreeningScore ?? undefined
+    ? (talent.prescreeningScore ?? undefined)
     : undefined;
   // Without an aiConfig to check against, fall back to including whatever
   // scores are present (previous behavior) rather than guessing.
@@ -280,7 +280,7 @@ export const triggerMatchVerdict = async (
       cvSimilarityScore: application.cvSimilarityScore,
       personalizedScore: application.personalizedScore,
       prescreeningScore: isPrescreeningScoreValid(talent.prescreeningScoredAt)
-        ? talent.prescreeningScore ?? null
+        ? (talent.prescreeningScore ?? null)
         : null,
       mbtiType: includePersonality ? application.mbtiType : null,
       cvText: cvText || undefined,

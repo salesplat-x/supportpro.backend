@@ -378,12 +378,15 @@ export const evaluatePersonalityType = async (
 
   const questionIds = Object.keys(answers);
 
-  // The expected total is however many personality questions were actually
-  // generated for this job (sum across all four dichotomy pairs, each
-  // independently configured) — not a fixed count.
-  const jobPersonalityQuestions = await questionRepo().find({
-    where: { jobId, type: QuestionType.Personality },
-  });
+  // The expected set is the applicant's own sampled subset when one was
+  // assigned; applications that reached this stage before per-applicant
+  // sampling shipped fall back to the full job-level question set.
+  const jobPersonalityQuestions = application.personalityQuestions?.length
+    ? await questionRepo()
+        .createQueryBuilder("q")
+        .whereInIds(application.personalityQuestions)
+        .getMany()
+    : await questionRepo().find({ where: { jobId, type: QuestionType.Personality } });
 
   if (questionIds.length !== jobPersonalityQuestions.length) {
     throw new ValidationError(

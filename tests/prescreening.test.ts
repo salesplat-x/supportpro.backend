@@ -498,7 +498,9 @@ describe("POST /v1/prescreening/submit — sets prescreeningScoredAt", () => {
 
     expect(res.status).toBe(200);
 
-    const updatedUser = await testDataSource.getRepository(User).findOne({ where: { id: user.id } });
+    const updatedUser = await testDataSource
+      .getRepository(User)
+      .findOne({ where: { id: user.id } });
     expect(updatedUser!.prescreeningScoredAt).not.toBeNull();
     expect(new Date(updatedUser!.prescreeningScoredAt!).getTime()).toBeGreaterThanOrEqual(
       before.getTime() - 1000
