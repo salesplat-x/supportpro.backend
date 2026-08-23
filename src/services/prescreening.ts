@@ -15,6 +15,15 @@ import { getProfileCompletion } from "./user.js";
 import { advanceApplicationsAfterPrescreening } from "./applicationStage.js";
 import logger from "../utils/logger.js";
 
+export const PRESCREENING_SCORE_VALIDITY_DAYS = 90;
+
+export const isPrescreeningScoreValid = (scoredAt: Date | null): boolean => {
+  if (!scoredAt) return false;
+  const expiresAt = new Date(scoredAt);
+  expiresAt.setDate(expiresAt.getDate() + PRESCREENING_SCORE_VALIDITY_DAYS);
+  return new Date() < expiresAt;
+};
+
 const preScreeningRepo = () => AppDataSource.getRepository(PreScreening);
 
 const userRepo = () => AppDataSource.getRepository(User);
@@ -79,6 +88,8 @@ export const generatePreScreeningForUser = async (
   });
   const cvContent = talentEmbeddings.map((r) => r.cvText ?? "").join("\n\n");
 
+  const existingPreScreening = await preScreeningRepo().findOne({ where: { userId: user.id } });
+
   const context: PreScreeningProfileContext = {
     bio: user.bio ?? undefined,
     roles: roleValidation.names,
@@ -93,6 +104,10 @@ export const generatePreScreeningForUser = async (
         }
       : undefined,
     isRetake,
+    previousQuestions:
+      isRetake && existingPreScreening
+        ? existingPreScreening.questions.map((q) => q.question)
+        : undefined,
   };
 
   const MAX_GENERATION_ATTEMPTS = 3;
@@ -137,7 +152,7 @@ export const generatePreScreeningForUser = async (
   const attemptCount = isRetake ? existingAttemptCount + 1 : 1;
 
   // Upsert pre_screening record
-  let preScreening = await preScreeningRepo().findOne({ where: { userId: user.id } });
+  let preScreening = existingPreScreening;
 
   if (preScreening) {
     preScreening.questions = parsed.questions;
@@ -191,7 +206,12 @@ export const getActivePreScreening = async (
 
   const preScreening = await preScreeningRepo().findOne({ where: { userId } });
 
-  if (!preScreening) {
+  const scoreExpired =
+    !!preScreening &&
+    preScreening.status === PreScreeningStatus.Completed &&
+    !isPrescreeningScoreValid(user.prescreeningScoredAt);
+
+  if (!preScreening || scoreExpired) {
     const { isProfileComplete } = getProfileCompletion(user);
     if (!isProfileComplete) {
       throw new NotFoundError("No assessment found. Complete your profile to generate one.");
@@ -338,7 +358,10 @@ export const submitPreScreeningAnswers = async (
 
   // Update user's prescreeningScore
   if (user) {
-    await userRepo().update(user.id, { prescreeningScore: totalScore });
+    await userRepo().update(user.id, {
+      prescreeningScore: totalScore,
+      prescreeningScoredAt: new Date(),
+    });
     // Advance every application currently parked at the Prescreening stage for this
     // talent — Pre-Assessment is a single global test reused across all jobs.
     await advanceApplicationsAfterPrescreening(user, totalScore);

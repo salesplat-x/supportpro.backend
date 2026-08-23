@@ -34,6 +34,7 @@ import {
   overlayVerdictFromRecommendation,
   triggerMatchVerdict,
 } from "./applicationStage.js";
+import { isPrescreeningScoreValid } from "./prescreening.js";
 
 const jobRepo = () => AppDataSource.getRepository(Job);
 
@@ -995,7 +996,12 @@ export const checkPrescreeningAdvance = async (
   }
 
   const user = await userRepo().findOne({ where: { id: userId } });
-  if (!user || user.prescreeningScore === null || user.prescreeningScore === undefined) {
+  if (
+    !user ||
+    user.prescreeningScore === null ||
+    user.prescreeningScore === undefined ||
+    !isPrescreeningScoreValid(user.prescreeningScoredAt)
+  ) {
     return application;
   }
 

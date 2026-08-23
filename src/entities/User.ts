@@ -126,6 +126,9 @@ export class User {
   prescreeningScore!: number | null;
 
   @Column({ type: "timestamp", nullable: true, default: null })
+  prescreeningScoredAt!: Date | null;
+
+  @Column({ type: "timestamp", nullable: true, default: null })
   assessmentRetryDate!: Date | null;
 
   @Column({ type: "int", default: 0 })
