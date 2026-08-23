@@ -17,8 +17,13 @@ import {
   createPreScreening,
 } from "./helpers/fixtures.js";
 import { PreScreening } from "../src/entities/PreScreening.js";
+import { User } from "../src/entities/User.js";
 import { PreScreeningStatus } from "../src/types/enums.js";
 import { TalentEmbedding } from "../src/entities/TalentEmbedding.js";
+import {
+  isPrescreeningScoreValid,
+  PRESCREENING_SCORE_VALIDITY_DAYS,
+} from "../src/services/prescreening.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
   __esModule: true,
@@ -379,5 +384,125 @@ describe("POST /v1/prescreening/retake — request retake", () => {
       .post("/v1/prescreening/retake")
       .set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(403);
+  });
+
+  it("Retake generation includes the prior questions in the AI context", async () => {
+    const openai = await import("../src/utils/integrations/openai.js");
+    const role = await createRole();
+    const { user, token } = await createCompleteTalent(role);
+    await createPreScreening(user, [role.id], {
+      status: PreScreeningStatus.Completed,
+      attemptCount: 1,
+      maxAttempts: 2,
+    });
+
+    const res = await request(app)
+      .post("/v1/prescreening/retake")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(openai.generatePreScreeningAssessment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isRetake: true,
+        previousQuestions: ["Describe your experience"],
+      })
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isPrescreeningScoreValid — score expiry boundary behavior
+// ---------------------------------------------------------------------------
+
+describe("isPrescreeningScoreValid", () => {
+  it("null scoredAt is never valid", () => {
+    expect(isPrescreeningScoreValid(null)).toBe(false);
+  });
+
+  it("a score scored just now is valid", () => {
+    expect(isPrescreeningScoreValid(new Date())).toBe(true);
+  });
+
+  it("a score scored well within the validity window is valid", () => {
+    const scoredAt = new Date();
+    scoredAt.setDate(scoredAt.getDate() - (PRESCREENING_SCORE_VALIDITY_DAYS - 1));
+    expect(isPrescreeningScoreValid(scoredAt)).toBe(true);
+  });
+
+  it("a score scored past the validity window is expired", () => {
+    const scoredAt = new Date();
+    scoredAt.setDate(scoredAt.getDate() - (PRESCREENING_SCORE_VALIDITY_DAYS + 1));
+    expect(isPrescreeningScoreValid(scoredAt)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /v1/prescreening/ — stale score expiry regenerates the assessment
+// ---------------------------------------------------------------------------
+
+describe("GET /v1/prescreening/ — expired score triggers regeneration", () => {
+  it("Completed assessment with an expired score returns a generating stub, not the stale result", async () => {
+    const role = await createRole();
+    const { user, token } = await createCompleteTalent(role);
+    const expiredDate = new Date();
+    expiredDate.setDate(expiredDate.getDate() - (PRESCREENING_SCORE_VALIDITY_DAYS + 1));
+    await testDataSource
+      .getRepository(User)
+      .update(user.id, { prescreeningScore: 80, prescreeningScoredAt: expiredDate });
+    await createPreScreening(user, [role.id], { status: PreScreeningStatus.Completed, score: 80 });
+
+    const res = await request(app).get("/v1/prescreening/").set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.preScreening.generating).toBe(true);
+    expect(res.body.data.preScreening.questions).toEqual([]);
+  });
+
+  it("Completed assessment with a fresh score returns the existing result, not a regeneration", async () => {
+    const role = await createRole();
+    const { user, token } = await createCompleteTalent(role);
+    await testDataSource
+      .getRepository(User)
+      .update(user.id, { prescreeningScore: 80, prescreeningScoredAt: new Date() });
+    await createPreScreening(user, [role.id], { status: PreScreeningStatus.Completed, score: 80 });
+
+    const res = await request(app).get("/v1/prescreening/").set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.preScreening.generating).toBeFalsy();
+    expect(res.body.data.preScreening.status).toBe(PreScreeningStatus.Completed);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /v1/prescreening/submit — score expiry timestamp
+// ---------------------------------------------------------------------------
+
+describe("POST /v1/prescreening/submit — sets prescreeningScoredAt", () => {
+  it("Submitting answers stamps the user's prescreeningScoredAt", async () => {
+    const role = await createRole();
+    const { user, token } = await createCompleteTalent(role);
+    await createPreScreening(user, [role.id]);
+
+    const ps = await testDataSource
+      .getRepository(PreScreening)
+      .findOne({ where: { userId: user.id } });
+    const questions = ps!.questions as Array<{ questionId: string; options: string[] }>;
+    const answers = questions.map((q) => ({ questionId: q.questionId, selectedOption: 0 }));
+
+    const before = new Date();
+    const res = await request(app)
+      .post("/v1/prescreening/submit")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ answers });
+
+    expect(res.status).toBe(200);
+
+    const updatedUser = await testDataSource.getRepository(User).findOne({ where: { id: user.id } });
+    expect(updatedUser!.prescreeningScoredAt).not.toBeNull();
+    expect(new Date(updatedUser!.prescreeningScoredAt!).getTime()).toBeGreaterThanOrEqual(
+      before.getTime() - 1000
+    );
+    expect(isPrescreeningScoreValid(updatedUser!.prescreeningScoredAt)).toBe(true);
   });
 });

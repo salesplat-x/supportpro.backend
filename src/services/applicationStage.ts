@@ -18,6 +18,7 @@ import {
 } from "../types/enums.js";
 import { ValidationError } from "../utils/errors";
 import { assessApplicationMatch } from "../utils/integrations/openai.js";
+import { isPrescreeningScoreValid } from "./prescreening.js";
 import logger from "../utils/logger.js";
 
 const applicationRepo = () => AppDataSource.getRepository(Application);
@@ -154,7 +155,9 @@ export const rankApplication = async (
     "cvSimilarity" | "personalizedAssessment" | "prescreeningAssessment"
   > | null
 ): Promise<void> => {
-  const prescreeningScore = talent.prescreeningScore ?? undefined;
+  const prescreeningScore = isPrescreeningScoreValid(talent.prescreeningScoredAt)
+    ? talent.prescreeningScore ?? undefined
+    : undefined;
   // Without an aiConfig to check against, fall back to including whatever
   // scores are present (previous behavior) rather than guessing.
   const includeCv = aiConfig ? aiConfig.cvSimilarity : true;
@@ -276,7 +279,9 @@ export const triggerMatchVerdict = async (
       recruiterGuide: aiConfig?.recruiterGuide ?? undefined,
       cvSimilarityScore: application.cvSimilarityScore,
       personalizedScore: application.personalizedScore,
-      prescreeningScore: talent.prescreeningScore ?? null,
+      prescreeningScore: isPrescreeningScoreValid(talent.prescreeningScoredAt)
+        ? talent.prescreeningScore ?? null
+        : null,
       mbtiType: includePersonality ? application.mbtiType : null,
       cvText: cvText || undefined,
       personalizedQuestionsAndAnswers:

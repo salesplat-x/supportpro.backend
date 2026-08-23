@@ -181,7 +181,10 @@ describe("rankApplication — rank never exceeds the number of applicants who've
 
 describe("rankApplication — averageScore only reflects stages the job actually ran", () => {
   it("excludes a disabled stage's score from the average", async () => {
-    const { user: talent } = await createTalent({ prescreeningScore: 90 });
+    const { user: talent } = await createTalent({
+      prescreeningScore: 90,
+      prescreeningScoredAt: new Date(),
+    });
     const { user: recruiter } = await createRecruiter();
     const role = await createRole();
     const job = await createJob(recruiter, role);
@@ -223,7 +226,10 @@ describe("rankApplication — averageScore only reflects stages the job actually
   });
 
   it("falls back to including every present score when no aiConfig is passed (backward compatible)", async () => {
-    const { user: talent } = await createTalent({ prescreeningScore: 90 });
+    const { user: talent } = await createTalent({
+      prescreeningScore: 90,
+      prescreeningScoredAt: new Date(),
+    });
     const { user: recruiter } = await createRecruiter();
     const role = await createRole();
     const job = await createJob(recruiter, role);
@@ -235,6 +241,54 @@ describe("rankApplication — averageScore only reflects stages the job actually
     await rankApplication(talent, application);
 
     expect(application.averageScore).toBe(70);
+  });
+
+  it("excludes an expired prescreening score from the average", async () => {
+    const expiredDate = new Date();
+    expiredDate.setDate(expiredDate.getDate() - 91);
+    const { user: talent } = await createTalent({
+      prescreeningScore: 90,
+      prescreeningScoredAt: expiredDate,
+    });
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const aiConfig = await createAIConfig(recruiter, {
+      cvSimilarity: false,
+      personalizedAssessment: true,
+      prescreeningAssessment: true,
+    });
+    const application = await createApplication(talent, job, {
+      cvSimilarityScore: 40,
+      personalizedScore: 80,
+    });
+
+    await rankApplication(talent, application, aiConfig);
+
+    expect(application.averageScore).toBe(80);
+  });
+
+  it("treats a prescreening score with no scoredAt timestamp as expired", async () => {
+    const { user: talent } = await createTalent({
+      prescreeningScore: 90,
+      prescreeningScoredAt: null,
+    });
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const aiConfig = await createAIConfig(recruiter, {
+      cvSimilarity: false,
+      personalizedAssessment: true,
+      prescreeningAssessment: true,
+    });
+    const application = await createApplication(talent, job, {
+      cvSimilarityScore: 40,
+      personalizedScore: 80,
+    });
+
+    await rankApplication(talent, application, aiConfig);
+
+    expect(application.averageScore).toBe(80);
   });
 });
 
@@ -273,6 +327,50 @@ describe("triggerMatchVerdict — AI verdict is advisory and recruiter-facing on
     });
     expect(stored?.verdict).toBe(MatchVerdict.High);
     expect(stored?.reasoning).toContain("Strong CV match");
+  });
+
+  it("passes null prescreeningScore to the LLM when the stored score has expired", async () => {
+    const expiredDate = new Date();
+    expiredDate.setDate(expiredDate.getDate() - 91);
+    const { user: talent } = await createTalent({
+      prescreeningScore: 90,
+      prescreeningScoredAt: expiredDate,
+    });
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const application = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+      cvSimilarityScore: 90,
+    });
+
+    await triggerMatchVerdict(talent, application);
+
+    expect(mockAssessApplicationMatch).toHaveBeenCalledWith(
+      expect.objectContaining({ prescreeningScore: null })
+    );
+  });
+
+  it("passes the prescreeningScore to the LLM when the stored score is still fresh", async () => {
+    const { user: talent } = await createTalent({
+      prescreeningScore: 90,
+      prescreeningScoredAt: new Date(),
+    });
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const application = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+      cvSimilarityScore: 90,
+    });
+
+    await triggerMatchVerdict(talent, application);
+
+    expect(mockAssessApplicationMatch).toHaveBeenCalledWith(
+      expect.objectContaining({ prescreeningScore: 90 })
+    );
   });
 
   it("does not recompute when an ai_recommendations row already exists", async () => {

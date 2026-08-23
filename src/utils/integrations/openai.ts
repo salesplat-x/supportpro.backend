@@ -441,6 +441,7 @@ export interface PreScreeningProfileContext {
   workType?: string[];
   location?: { city?: string; state?: string; country?: string };
   isRetake?: boolean;
+  previousQuestions?: string[];
 }
 
 export interface PreScreeningScoringContext {
@@ -460,8 +461,12 @@ export interface PreScreeningScoringContext {
 export const generatePreScreeningAssessment = async (
   context: PreScreeningProfileContext
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const priorQuestionsList = context.previousQuestions?.length
+    ? `\n\nDo not repeat or closely rephrase any of these prior questions:\n${context.previousQuestions.map((q) => `- ${q}`).join("\n")}`
+    : "";
+
   const retakeInstruction = context.isRetake
-    ? `\n\nIMPORTANT: This is a RETAKE assessment. You MUST generate entirely different scenarios, different situations, different wording, and different answer structures from any prior assessment for this candidate.`
+    ? `\n\nIMPORTANT: This is a RETAKE assessment. You MUST generate entirely different scenarios, different situations, different wording, and different answer structures from any prior assessment for this candidate.${priorQuestionsList}`
     : "";
 
   const system = `You are a senior hiring panel and organizational psychologist with deep expertise in talent evaluation.
