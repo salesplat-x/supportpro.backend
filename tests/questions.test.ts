@@ -431,6 +431,49 @@ describe("POST /v1/questions/personality/ensure — talent-safe idempotent gener
     expect(after).toBe(1);
   });
 
+  it("generates a pool larger than the configured count for a dichotomy pair", async () => {
+    const { user: recruiter, token: recruiterToken } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const aiConfig = await createAIConfig(recruiter, {
+      personalityEvaluation: true,
+      noOfEIQuestions: 3,
+      noOfSNQuestions: null,
+      noOfTFQuestions: null,
+      noOfJPQuestions: null,
+    });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
+
+    const getPersonalityEvaluationQuestion = (
+      jest.requireMock("../src/utils/integrations/openai.js") as {
+        getPersonalityEvaluationQuestion: jest.Mock;
+      }
+    ).getPersonalityEvaluationQuestion;
+    getPersonalityEvaluationQuestion.mockImplementationOnce(
+      (_jobBrief: string, pair: string, count: number) =>
+        Promise.resolve({
+          message: {
+            content: JSON.stringify({
+              questions: Array.from({ length: count }, (_, i) => `${pair} question ${i}`),
+            }),
+          },
+        })
+    );
+
+    const res = await request(app)
+      .post("/v1/questions/personality/ensure")
+      .set("Authorization", `Bearer ${recruiterToken}`)
+      .send({ jobId: job.id });
+
+    expect(res.status).toBe(200);
+
+    const eiCount = await testDataSource
+      .getRepository(Question)
+      .count({ where: { jobId: job.id, type: QuestionType.Personality, criteria: "EI" } });
+    // configured count is 3; the pool must be generated larger (2x multiplier), not exactly 3.
+    expect(eiCount).toBe(6);
+  });
+
   it("rejects when personalityEvaluation is disabled for the job → 400", async () => {
     const { user: recruiter, token: recruiterToken } = await createRecruiter();
     const role = await createRole();
@@ -453,6 +496,129 @@ describe("POST /v1/questions/personality/ensure — talent-safe idempotent gener
       .set("Authorization", `Bearer ${token}`)
       .send({ jobId: "00000000-0000-0000-0000-000000000000" });
     expect(res.status).toBe(404);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /v1/questions/?questionType=personality — per-applicant random subset
+// ---------------------------------------------------------------------------
+
+describe("GET /v1/questions/?questionType=personality — per-applicant random subset", () => {
+  it("assigns a subset sized to the configured counts and caches it on a repeat call", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const aiConfig = await createAIConfig(recruiter, {
+      personalityEvaluation: true,
+      noOfEIQuestions: 1,
+      noOfSNQuestions: 1,
+      noOfTFQuestions: null,
+      noOfJPQuestions: null,
+    });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
+
+    const { user: talent, token: talentToken } = await createCompleteTalent(role);
+    await createApplication(talent, job, { recruiterId: recruiter.id });
+
+    const res1 = await request(app)
+      .get("/v1/questions/")
+      .set("Authorization", `Bearer ${talentToken}`)
+      .query({ questionType: "personality", jobId: job.id, limit: 200, offset: 0 });
+
+    expect(res1.status).toBe(200);
+    expect(res1.body.data.questions.length).toBe(2);
+
+    const application = await testDataSource
+      .getRepository(Application)
+      .findOne({ where: { jobId: job.id, talentId: talent.id } });
+    const assignedIds = [...(application?.personalityQuestions ?? [])].sort();
+    expect(assignedIds.length).toBe(2);
+
+    const res2 = await request(app)
+      .get("/v1/questions/")
+      .set("Authorization", `Bearer ${talentToken}`)
+      .query({ questionType: "personality", jobId: job.id, limit: 200, offset: 0 });
+
+    expect(res2.status).toBe(200);
+    const ids2 = (res2.body.data.questions as { id: string }[]).map((q) => q.id).sort();
+    expect(ids2).toEqual(assignedIds);
+
+    // Second call must not have re-sampled — the persisted assignment is unchanged.
+    const applicationAfter = await testDataSource
+      .getRepository(Application)
+      .findOne({ where: { jobId: job.id, talentId: talent.id } });
+    expect([...(applicationAfter?.personalityQuestions ?? [])].sort()).toEqual(assignedIds);
+  });
+
+  it("draws each applicant's subset only from the job's shared pool, respecting the configured count", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const aiConfig = await createAIConfig(recruiter, {
+      personalityEvaluation: true,
+      noOfEIQuestions: 1,
+      noOfSNQuestions: null,
+      noOfTFQuestions: null,
+      noOfJPQuestions: null,
+    });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
+
+    // A pre-existing shared pool of 4 EI questions — ensurePersonalityQuestions
+    // must leave it alone since it's already non-empty (idempotent fill-only).
+    const pool = await Promise.all(
+      Array.from({ length: 4 }, (_, i) =>
+        createQuestion(
+          QuestionType.Personality,
+          { jobId: job.id },
+          { criteria: "EI", question: `EI question ${i}` }
+        )
+      )
+    );
+    const poolIds = pool.map((q) => q!.id);
+
+    const { user: talentA, token: tokenA } = await createCompleteTalent(role);
+    await createApplication(talentA, job, { recruiterId: recruiter.id });
+    const { user: talentB, token: tokenB } = await createCompleteTalent(role);
+    await createApplication(talentB, job, { recruiterId: recruiter.id });
+
+    const resA = await request(app)
+      .get("/v1/questions/")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .query({ questionType: "personality", jobId: job.id, limit: 200, offset: 0 });
+    const resB = await request(app)
+      .get("/v1/questions/")
+      .set("Authorization", `Bearer ${tokenB}`)
+      .query({ questionType: "personality", jobId: job.id, limit: 200, offset: 0 });
+
+    expect(resA.status).toBe(200);
+    expect(resB.status).toBe(200);
+    expect(resA.body.data.questions.length).toBe(1);
+    expect(resB.body.data.questions.length).toBe(1);
+    expect(poolIds).toContain(resA.body.data.questions[0].id);
+    expect(poolIds).toContain(resB.body.data.questions[0].id);
+
+    // Pool itself must remain exactly 4 — no extra generation was triggered.
+    const finalPoolCount = await testDataSource
+      .getRepository(Question)
+      .count({ where: { jobId: job.id, type: QuestionType.Personality, criteria: "EI" } });
+    expect(finalPoolCount).toBe(4);
+  });
+
+  it("404s when the talent hasn't applied to the job", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const aiConfig = await createAIConfig(recruiter, { personalityEvaluation: true });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
+
+    const { token: talentToken } = await createCompleteTalent(role);
+
+    const res = await request(app)
+      .get("/v1/questions/")
+      .set("Authorization", `Bearer ${talentToken}`)
+      .query({ questionType: "personality", jobId: job.id, limit: 200, offset: 0 });
+
+    expect(res.status).toBe(400);
   });
 });
 
@@ -848,5 +1014,118 @@ describe("POST /v1/questions/answer/personality — evaluate personality type", 
       .set("Authorization", `Bearer ${token}`)
       .send({ jobId: "any", answers: {} });
     expect(res.status).toBe(403);
+  });
+
+  it("Accepts an applicant's own sampled subset even when the job pool has more questions → 200", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const aiConfig = await createAIConfig(recruiter, {
+      personalityEvaluation: true,
+      stages: { personality: "cv_similarity" },
+    });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
+
+    const { user: talent, token: talentToken } = await createTalent({ prescreeningScore: 75 });
+    const application = await createApplication(talent, job, {
+      stages: { personality: "cv_similarity" },
+      currentStage: ScreeningStage.Personality,
+    });
+
+    const [qEI, qSN, qTF, qJP] = await Promise.all([
+      createQuestion(QuestionType.Personality, { jobId: job.id }, { criteria: "EI" }),
+      createQuestion(QuestionType.Personality, { jobId: job.id }, { criteria: "SN" }),
+      createQuestion(QuestionType.Personality, { jobId: job.id }, { criteria: "TF" }),
+      createQuestion(QuestionType.Personality, { jobId: job.id }, { criteria: "JP" }),
+    ]);
+    // An extra pool question that exists for the job but wasn't assigned to this applicant.
+    await createQuestion(QuestionType.Personality, { jobId: job.id }, { criteria: "EI" });
+
+    await testDataSource.getRepository(Application).update(application.id, {
+      personalityQuestions: [qEI!.id, qSN!.id, qTF!.id, qJP!.id],
+    });
+
+    const res = await request(app)
+      .post("/v1/questions/answer/personality")
+      .set("Authorization", `Bearer ${talentToken}`)
+      .send({
+        jobId: job.id,
+        answers: {
+          [qEI!.id]: "Introvert",
+          [qSN!.id]: "Sensing",
+          [qTF!.id]: "Thinking",
+          [qJP!.id]: "Judging",
+        },
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.mbtiType).toBeDefined();
+  });
+
+  it("Rejects an answer set that doesn't match the applicant's assigned subset → 400", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const aiConfig = await createAIConfig(recruiter, { personalityEvaluation: true });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
+
+    const { user: talent, token: talentToken } = await createTalent();
+    const application = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Personality,
+    });
+
+    const [qA, qB, qOther] = await Promise.all([
+      createQuestion(QuestionType.Personality, { jobId: job.id }, { criteria: "EI" }),
+      createQuestion(QuestionType.Personality, { jobId: job.id }, { criteria: "SN" }),
+      createQuestion(QuestionType.Personality, { jobId: job.id }, { criteria: "TF" }),
+    ]);
+    await testDataSource
+      .getRepository(Application)
+      .update(application.id, { personalityQuestions: [qA!.id, qB!.id] });
+
+    const res = await request(app)
+      .post("/v1/questions/answer/personality")
+      .set("Authorization", `Bearer ${talentToken}`)
+      .send({
+        jobId: job.id,
+        answers: { [qA!.id]: "Answer", [qOther!.id]: "Answer" },
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toBe("One or more questions do not belong to job");
+  });
+
+  it("Falls back to the full job-level question set when personalityQuestions was never assigned → 200", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const aiConfig = await createAIConfig(recruiter, {
+      personalityEvaluation: true,
+      stages: { personality: "cv_similarity" },
+    });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
+
+    const { user: talent, token: talentToken } = await createTalent({ prescreeningScore: 75 });
+    const application = await createApplication(talent, job, {
+      stages: { personality: "cv_similarity" },
+      currentStage: ScreeningStage.Personality,
+    });
+    expect(application.personalityQuestions).toBeFalsy();
+
+    const [q1, q2] = await Promise.all([
+      createQuestion(QuestionType.Personality, { jobId: job.id }, { criteria: "EI" }),
+      createQuestion(QuestionType.Personality, { jobId: job.id }, { criteria: "SN" }),
+    ]);
+
+    const res = await request(app)
+      .post("/v1/questions/answer/personality")
+      .set("Authorization", `Bearer ${talentToken}`)
+      .send({
+        jobId: job.id,
+        answers: { [q1!.id]: "Answer", [q2!.id]: "Answer" },
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.mbtiType).toBeDefined();
   });
 });

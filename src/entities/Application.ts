@@ -69,6 +69,9 @@ export class Application {
   @Column({ type: "simple-array", nullable: true, default: null })
   personalizedQuestions!: string[] | null;
 
+  @Column({ type: "simple-array", nullable: true, default: null })
+  personalityQuestions!: string[] | null;
+
   @Column({ type: "float", nullable: true, default: null })
   personalizedScore!: number | null;
 

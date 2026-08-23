@@ -11,6 +11,7 @@ const jobRepo = () => AppDataSource.getRepository(Job);
 const applicationRepo = () => AppDataSource.getRepository(Application);
 
 const MAX_PAGE_SIZE = 100;
+const PERSONALITY_POOL_MULTIPLIER = 2;
 
 const canTakeAssessment = (assessmentRetryDate: Date | null): boolean => {
   if (!assessmentRetryDate) return true;
@@ -75,6 +76,11 @@ export const fetchQuestions = async (
     if (questionIds.length === 0) return [];
 
     return questionRepo().createQueryBuilder("q").whereInIds(questionIds).getMany();
+  }
+
+  // Personality questions: a per-applicant random subset of the job's shared pool
+  if (payload.jobId && payload.questionType === QuestionType.Personality) {
+    return getOrAssignPersonalityQuestionsForApplicant(payload.jobId, user.id);
   }
 
   // Prescreening questions require a complete profile and matching role
@@ -360,8 +366,65 @@ export const ensurePersonalityQuestions = async (jobId: string): Promise<Questio
     const configuredCount = job.aiConfig[countField] as number | null | undefined;
     if (configuredCount == null) continue;
 
-    await generateDichotomyQuestions(job, dichotomyPair, configuredCount);
+    await generateDichotomyQuestions(
+      job,
+      dichotomyPair,
+      configuredCount * PERSONALITY_POOL_MULTIPLIER
+    );
   }
 
   return questionRepo().find({ where: { jobId, type: QuestionType.Personality } });
+};
+
+const shuffle = <T>(items: T[]): T[] => {
+  const result = [...items];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const temp = result[i]!;
+    result[i] = result[j]!;
+    result[j] = temp;
+  }
+  return result;
+};
+
+export const getOrAssignPersonalityQuestionsForApplicant = async (
+  jobId: string,
+  talentId: string
+): Promise<Question[]> => {
+  const application = await applicationRepo().findOne({ where: { jobId, talentId } });
+  if (!application) {
+    throw new ValidationError("You must apply for this job before this stage is available");
+  }
+
+  if (application.personalityQuestions?.length) {
+    return questionRepo()
+      .createQueryBuilder("q")
+      .whereInIds(application.personalityQuestions)
+      .getMany();
+  }
+
+  await ensurePersonalityQuestions(jobId);
+
+  const job = await jobRepo().findOne({ where: { id: jobId }, relations: { aiConfig: true } });
+  if (!job) {
+    throw new NotFoundError("Job not found");
+  }
+
+  const selectedIds: string[] = [];
+  for (const dichotomyPair of DICHOTOMY_PAIRS) {
+    const countField = DICHOTOMY_COUNT_FIELD[dichotomyPair]!;
+    const configuredCount = job.aiConfig?.[countField] as number | null | undefined;
+    if (!configuredCount) continue;
+
+    const pool = await questionRepo().find({
+      where: { jobId, type: QuestionType.Personality, criteria: dichotomyPair },
+    });
+    const selected = shuffle(pool).slice(0, configuredCount);
+    selectedIds.push(...selected.map((q) => q.id));
+  }
+
+  application.personalityQuestions = selectedIds;
+  await applicationRepo().save(application);
+
+  return questionRepo().createQueryBuilder("q").whereInIds(selectedIds).getMany();
 };
