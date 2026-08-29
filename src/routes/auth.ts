@@ -12,6 +12,7 @@ import {
   changePasswordValidator,
   verifyEmailValidator,
   changeEmailValidator,
+  resendVerificationValidator,
 } from "../validators/auth.js";
 
 const router = Router();
@@ -52,6 +53,7 @@ router.post(
   "/resend-verification",
   loginRequired,
   verificationLimiter,
+  validate(resendVerificationValidator),
   asyncHandler(auth.resendVerification)
 );
 router.post(

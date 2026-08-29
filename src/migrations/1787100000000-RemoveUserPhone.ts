@@ -8,6 +8,8 @@ export class RemoveUserPhone1787100000000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "phone" character varying`);
+    await queryRunner.query(
+      `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "phone" character varying`
+    );
   }
 }

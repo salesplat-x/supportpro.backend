@@ -67,6 +67,59 @@ describe("POST /v1/auth/register — email verification", () => {
     expect(sendVerificationEmail).toHaveBeenCalledTimes(1);
     expect(sendWelcome).not.toHaveBeenCalled();
   });
+
+  it("forwards a valid redirectPath into the verification email link", async () => {
+    const res = await request(app).post("/v1/auth/register").send({
+      email: "verifyredirect@example.com",
+      firstName: "Ver",
+      lastName: "Ify",
+      password: PLAIN_PASSWORD,
+      redirectPath: "/apply/11111111-1111-1111-1111-111111111111",
+    });
+
+    expect(res.status).toBe(201);
+    expect(sendVerificationEmail).toHaveBeenCalledTimes(1);
+    expect(sendVerificationEmail.mock.calls[0][2]).toBe(
+      "/apply/11111111-1111-1111-1111-111111111111"
+    );
+  });
+
+  it.each([
+    "https://evil.com",
+    "//evil.com",
+    "/talentDashboard",
+    "javascript:alert(1)",
+    "/apply/../../etc/passwd",
+  ])("rejects an unsafe redirectPath (%s) → 400, no registration happens", async (redirectPath) => {
+    const res = await request(app).post("/v1/auth/register").send({
+      email: "verifyunsafe@example.com",
+      firstName: "Ver",
+      lastName: "Ify",
+      password: PLAIN_PASSWORD,
+      redirectPath,
+    });
+
+    expect(res.status).toBe(400);
+    expect(sendVerificationEmail).not.toHaveBeenCalled();
+
+    const user = await testDataSource
+      .getRepository(User)
+      .findOne({ where: { email: "verifyunsafe@example.com" } });
+    expect(user).toBeNull();
+  });
+
+  it("does not leak redirectPath onto the returned user object", async () => {
+    const res = await request(app).post("/v1/auth/register").send({
+      email: "verifynoleak@example.com",
+      firstName: "Ver",
+      lastName: "Ify",
+      password: PLAIN_PASSWORD,
+      redirectPath: "/apply/11111111-1111-1111-1111-111111111111",
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.user).not.toHaveProperty("redirectPath");
+  });
 });
 
 describe("POST /v1/auth/verify-email", () => {
@@ -84,7 +137,9 @@ describe("POST /v1/auth/verify-email", () => {
   });
 
   it("rejects an invalid token → 401", async () => {
-    const res = await request(app).post("/v1/auth/verify-email").send({ token: "not-a-real-token" });
+    const res = await request(app)
+      .post("/v1/auth/verify-email")
+      .send({ token: "not-a-real-token" });
     expect(res.status).toBe(401);
   });
 
@@ -142,6 +197,32 @@ describe("POST /v1/auth/resend-verification", () => {
   it("returns 401 without auth", async () => {
     const res = await request(app).post("/v1/auth/resend-verification");
     expect(res.status).toBe(401);
+  });
+
+  it("forwards a valid redirectPath into the resent verification email link", async () => {
+    const { token: authToken } = await createTalent({ emailVerifiedAt: null });
+
+    const res = await request(app)
+      .post("/v1/auth/resend-verification")
+      .set("Authorization", `Bearer ${authToken}`)
+      .send({ redirectPath: "/apply/22222222-2222-2222-2222-222222222222" });
+
+    expect(res.status).toBe(200);
+    expect(sendVerificationEmail.mock.calls[0][2]).toBe(
+      "/apply/22222222-2222-2222-2222-222222222222"
+    );
+  });
+
+  it("rejects an unsafe redirectPath → 400, no email sent", async () => {
+    const { token: authToken } = await createTalent({ emailVerifiedAt: null });
+
+    const res = await request(app)
+      .post("/v1/auth/resend-verification")
+      .set("Authorization", `Bearer ${authToken}`)
+      .send({ redirectPath: "https://evil.com" });
+
+    expect(res.status).toBe(400);
+    expect(sendVerificationEmail).not.toHaveBeenCalled();
   });
 });
 

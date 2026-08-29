@@ -4,7 +4,13 @@ import * as authService from "../services/auth.js";
 import { sendSuccessResponse } from "../utils/response.js";
 
 export const register = async (req: Request, res: Response) => {
-  const result = await authService.createUser(req.body, UserRole.Talent, req.ip ?? undefined);
+  const { redirectPath, ...payload } = req.body;
+  const result = await authService.createUser(
+    payload,
+    UserRole.Talent,
+    req.ip ?? undefined,
+    redirectPath
+  );
   sendSuccessResponse(
     res,
     "User Registered Successfully",
@@ -14,7 +20,13 @@ export const register = async (req: Request, res: Response) => {
 };
 
 export const registerRecruiter = async (req: Request, res: Response) => {
-  const result = await authService.createUser(req.body, UserRole.Recruiter, req.ip ?? undefined);
+  const { redirectPath, ...payload } = req.body;
+  const result = await authService.createUser(
+    payload,
+    UserRole.Recruiter,
+    req.ip ?? undefined,
+    redirectPath
+  );
   sendSuccessResponse(
     res,
     "User Registered Successfully",
@@ -54,7 +66,7 @@ export const verifyEmail = async (req: Request, res: Response) => {
 };
 
 export const resendVerification = async (req: Request, res: Response) => {
-  await authService.resendVerification(req.user.id, req.ip ?? undefined);
+  await authService.resendVerification(req.user.id, req.ip ?? undefined, req.body.redirectPath);
   sendSuccessResponse(res, "Verification email sent");
 };
 
