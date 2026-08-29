@@ -68,7 +68,6 @@ const rolesChanged = (existingRoles: Role[], incomingIds: string[]): boolean => 
 export interface UpdateUserPayload {
   firstName?: string;
   lastName?: string;
-  phone?: string;
   country?: string;
   bio?: string;
   roleIds?: string[];
@@ -97,7 +96,6 @@ export const updateUser = async (userId: string, payload: UpdateUserPayload): Pr
   // Basic user fields
   if (payload.firstName !== undefined) update.firstName = payload.firstName;
   if (payload.lastName !== undefined) update.lastName = payload.lastName;
-  if (payload.phone !== undefined) update.phone = payload.phone;
   if (payload.country !== undefined) update.country = payload.country;
 
   // Profile fields
@@ -364,7 +362,6 @@ export const getTalentCvPdf = async (
     firstName: user.firstName,
     lastName: user.lastName,
     email: user.email,
-    phone: user.phone,
     location: location || null,
     fileName: user.cvFileName,
     cvText: user.cvText,
