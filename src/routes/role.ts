@@ -2,7 +2,7 @@ import { Router } from "express";
 import * as role from "../controllers/role.js";
 import { validate } from "../middleware/validate.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
-import { validateAccess } from "../middleware/auth.js";
+import { validateAccess, requireVerifiedEmail } from "../middleware/auth.js";
 import { UserRole } from "../types/enums.js";
 import {
   createRoleValidator,
@@ -17,6 +17,7 @@ const router = Router();
 router.post(
   "/",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
+  requireVerifiedEmail,
   validate(createRoleValidator),
   asyncHandler(role.create)
 );
@@ -26,12 +27,14 @@ router.get("/:_id", validate(roleIdParamValidator), asyncHandler(role.fetch));
 router.patch(
   "/:_id",
   validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
   validate([...roleIdParamValidator, ...updateRoleValidator]),
   asyncHandler(role.update)
 );
 router.delete(
   "/:_id",
   validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
   validate(roleIdParamValidator),
   asyncHandler(role.remove)
 );

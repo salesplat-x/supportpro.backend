@@ -1,7 +1,7 @@
 import { Router } from "express";
 import * as organization from "../controllers/organization.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
-import { validateAccess } from "../middleware/auth.js";
+import { validateAccess, requireVerifiedEmail } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { UserRole } from "../types/enums.js";
 import {
@@ -16,6 +16,7 @@ const router = Router();
 router.post(
   "/",
   validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
   validate(createOrganizationValidator),
   asyncHandler(organization.registerOrganization)
 );
@@ -23,12 +24,14 @@ router.post(
 router.get(
   "/me",
   validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
   asyncHandler(organization.listMyOrganizations)
 );
 
 router.patch(
   "/:_id/switch",
   validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
   validate(switchOrganizationValidator),
   asyncHandler(organization.switchOrganization)
 );
@@ -36,6 +39,7 @@ router.patch(
 router.patch(
   "/:_id",
   validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
   validate(updateOrganizationValidator),
   asyncHandler(organization.updateOrganization)
 );
@@ -43,6 +47,7 @@ router.patch(
 router.delete(
   "/:_id",
   validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
   validate(deleteOrganizationValidator),
   asyncHandler(organization.deleteOrganization)
 );

@@ -211,3 +211,42 @@ describe("POST /v1/auth/change-email", () => {
   });
 });
 
+describe("requireVerifiedEmail gate on protected routes", () => {
+  it("blocks an unverified user with EMAIL_VERIFICATION_REQUIRED", async () => {
+    const { token: authToken } = await createTalent({ emailVerifiedAt: null });
+
+    const res = await request(app)
+      .get("/v1/notifications")
+      .set("Authorization", `Bearer ${authToken}`);
+
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe("EMAIL_VERIFICATION_REQUIRED");
+  });
+
+  it("allows a verified user through", async () => {
+    const { token: authToken } = await createTalent();
+
+    const res = await request(app)
+      .get("/v1/notifications")
+      .set("Authorization", `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+  });
+
+  it("still allows GET /v1/user/me while unverified", async () => {
+    const { token: authToken } = await createTalent({ emailVerifiedAt: null });
+
+    const res = await request(app).get("/v1/user/me").set("Authorization", `Bearer ${authToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data.user.emailVerifiedAt).toBeNull();
+  });
+
+  it("still allows logout while unverified", async () => {
+    const { token: authToken } = await createTalent({ emailVerifiedAt: null });
+
+    const res = await request(app)
+      .post("/v1/auth/logout")
+      .set("Authorization", `Bearer ${authToken}`);
+    expect(res.status).toBe(200);
+  });
+});

@@ -2,7 +2,7 @@ import { Router } from "express";
 import * as job from "../controllers/job.js";
 import { validate } from "../middleware/validate.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
-import { optionalAuth, validateAccess } from "../middleware/auth.js";
+import { optionalAuth, requireVerifiedEmail, validateAccess } from "../middleware/auth.js";
 import { UserRole } from "../types/enums.js";
 import {
   createJobValidator,
@@ -20,24 +20,28 @@ const router = Router();
 router.post(
   "/generate",
   validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
   validate(generateJobContentValidator),
   asyncHandler(job.generateContent)
 );
 router.post(
   "/",
   validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
   validate(createJobValidator),
   asyncHandler(job.create)
 );
 router.patch(
   "/:_id",
   validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
   validate(updateJobValidator),
   asyncHandler(job.update)
 );
 router.delete(
   "/:_id",
   validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
   validate(matchJobValidator),
   asyncHandler(job.remove)
 );
@@ -45,43 +49,55 @@ router.get("/", optionalAuth, validate(allJobsQueryValidator), asyncHandler(job.
 router.get(
   "/me",
   validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
   validate(allJobsQueryValidator),
   asyncHandler(job.jobsPosted)
 );
 router.get(
   "/talents/:jobId",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
+  requireVerifiedEmail,
   validate(topTalentsValidator),
   asyncHandler(job.topTalents)
 );
-router.patch("/cv-similarity/:jobId", validateAccess([UserRole.Talent]), asyncHandler(job.gradeCv));
+router.patch(
+  "/cv-similarity/:jobId",
+  validateAccess([UserRole.Talent]),
+  requireVerifiedEmail,
+  asyncHandler(job.gradeCv)
+);
 router.patch(
   "/prescreening-check/:jobId",
   validateAccess([UserRole.Talent]),
+  requireVerifiedEmail,
   validate(applyValidator),
   asyncHandler(job.checkPrescreening)
 );
 router.get(
   "/match/:_id",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
+  requireVerifiedEmail,
   validate(matchJobValidator),
   asyncHandler(job.matchJob)
 );
 router.patch(
   "/applications/:jobId",
   validateAccess([UserRole.Talent]),
+  requireVerifiedEmail,
   validate(applyValidator),
   asyncHandler(job.apply)
 );
 router.get(
   "/applications/:jobId",
   validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
   validate(jobApplicationsQueryValidator),
   asyncHandler(job.applications)
 );
 router.post(
   "/:jobId/retry-verdicts",
   validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
   asyncHandler(job.retryVerdicts)
 );
 router.get("/:_id", optionalAuth, validate(matchJobValidator), asyncHandler(job.fetch));
