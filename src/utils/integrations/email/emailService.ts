@@ -1,6 +1,6 @@
 import logger from "../../logger.js";
 import { UserRole } from "../../../types/enums.js";
-import BrevoProvider from "./providers/brevo.provider.js";
+import ResendProvider from "./providers/resend.provider.js";
 import { renderTemplate } from "./template.js";
 import type { EmailPayload, EmailProvider } from "./types.js";
 
@@ -16,7 +16,7 @@ interface UserLike {
 class EmailService {
   private provider: EmailProvider;
 
-  constructor(provider: EmailProvider = new BrevoProvider()) {
+  constructor(provider: EmailProvider = new ResendProvider()) {
     this.provider = provider;
   }
 
