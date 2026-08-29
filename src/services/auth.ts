@@ -31,7 +31,8 @@ export const createUser = async (
     country?: string;
   },
   role: UserRole.Talent | UserRole.Recruiter,
-  ip?: string
+  ip?: string,
+  redirectPath?: string
 ): Promise<{ user: User; token: string }> => {
   const email = payload.email.toLowerCase();
 
@@ -62,7 +63,7 @@ export const createUser = async (
     .execute();
 
   new EmailService()
-    .sendVerificationEmail(saved, verificationToken)
+    .sendVerificationEmail(saved, verificationToken, redirectPath)
     .catch((err: Error) =>
       logger.error(`Verification email failed for user ${saved.id}: ${err.message}`)
     );
@@ -238,7 +239,11 @@ export const verifyEmail = async ({ token }: { token: string }, ip?: string): Pr
     .where("user.emailVerificationTokenHash = :tokenHash", { tokenHash })
     .getOne();
 
-  if (!user || !user.emailVerificationTokenExpiresAt || new Date() > user.emailVerificationTokenExpiresAt) {
+  if (
+    !user ||
+    !user.emailVerificationTokenExpiresAt ||
+    new Date() > user.emailVerificationTokenExpiresAt
+  ) {
     logger.error(`Email verification failed: ip=${ip ?? "unknown"}`);
     throw new AuthenticationError("Verification link is invalid or has expired");
   }
@@ -271,7 +276,11 @@ export const verifyEmail = async ({ token }: { token: string }, ip?: string): Pr
   logger.info(`Email verified: id=${user.id} email=${user.email} ip=${ip ?? "unknown"}`);
 };
 
-export const resendVerification = async (userId: string, ip?: string): Promise<void> => {
+export const resendVerification = async (
+  userId: string,
+  ip?: string,
+  redirectPath?: string
+): Promise<void> => {
   const user = await userRepo().findOne({ where: { id: userId } });
   if (!user) throw new NotFoundError("User not found");
 
@@ -289,7 +298,7 @@ export const resendVerification = async (userId: string, ip?: string): Promise<v
     .where("id = :id", { id: user.id })
     .execute();
 
-  await new EmailService().sendVerificationEmail(user, token);
+  await new EmailService().sendVerificationEmail(user, token, redirectPath);
   logger.info(`Verification email resent: id=${user.id} ip=${ip ?? "unknown"}`);
 };
 

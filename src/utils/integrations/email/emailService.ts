@@ -44,8 +44,10 @@ class EmailService {
     await this.sendEmail({ to: user.email, subject: "Password Reset Request", html });
   }
 
-  async sendVerificationEmail(user: UserLike, token: string): Promise<void> {
-    const verificationLink = `${env.website}/verify-email?token=${token}`;
+  async sendVerificationEmail(user: UserLike, token: string, redirectPath?: string): Promise<void> {
+    const verificationLink = redirectPath
+      ? `${env.website}/verify-email?token=${token}&redirect=${encodeURIComponent(redirectPath)}`
+      : `${env.website}/verify-email?token=${token}`;
     const html = renderTemplate("verify-email", {
       firstName: user.firstName,
       lastName: user.lastName,

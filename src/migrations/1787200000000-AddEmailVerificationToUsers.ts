@@ -26,11 +26,11 @@ export class AddEmailVerificationToUsers1787200000000 implements MigrationInterf
     await queryRunner.query(
       `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "emailVerified" boolean DEFAULT true`
     );
-    await queryRunner.query(
-      `UPDATE "users" SET "emailVerified" = ("emailVerifiedAt" IS NOT NULL)`
-    );
+    await queryRunner.query(`UPDATE "users" SET "emailVerified" = ("emailVerifiedAt" IS NOT NULL)`);
     await queryRunner.query(`ALTER TABLE "users" DROP COLUMN IF EXISTS "emailVerifiedAt"`);
-    await queryRunner.query(`ALTER TABLE "users" DROP COLUMN IF EXISTS "emailVerificationTokenHash"`);
+    await queryRunner.query(
+      `ALTER TABLE "users" DROP COLUMN IF EXISTS "emailVerificationTokenHash"`
+    );
     await queryRunner.query(
       `ALTER TABLE "users" DROP COLUMN IF EXISTS "emailVerificationTokenExpiresAt"`
     );
