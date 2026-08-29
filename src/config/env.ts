@@ -10,9 +10,9 @@ const optionalEnvVars = {
   paystackSecretKey: process.env.PAYSTACK_SECRET_KEY,
   paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY,
   whitelisted_ips: process.env.PAYSTACK_WHITELISTED_IPS,
-  brevo_api_key: process.env.BREVO_API_KEY,
-  brevo_sender_email: process.env.BREVO_SENDER_EMAIL,
-  brevo_sender_name: process.env.BREVO_SENDER_NAME,
+  resend_api_key: process.env.RESEND_API_KEY,
+  resend_sender_email: process.env.RESEND_SENDER_EMAIL,
+  resend_sender_name: process.env.RESEND_SENDER_NAME,
 } as const;
 
 const requiredEnvVars = {
