@@ -2,7 +2,7 @@ import { Router } from "express";
 import * as scout from "../controllers/scout.js";
 import * as scoutJob from "../controllers/scoutJob.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
-import { validateAccess } from "../middleware/auth.js";
+import { validateAccess, requireVerifiedEmail } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { memoryUpload } from "../middleware/multer.js";
 import { UserRole } from "../types/enums.js";
@@ -28,36 +28,42 @@ const router = Router();
 router.get(
   "/jobs",
   validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
   validate(scoutJobsListQueryValidator),
   asyncHandler(scoutJob.list)
 );
 router.post(
   "/jobs/",
   validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
   validate(createScoutJobValidator),
   asyncHandler(scoutJob.create)
 );
 router.put(
   "/jobs/:_id",
   validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
   validate(updateScoutJobValidator),
   asyncHandler(scoutJob.update)
 );
 router.get(
   "/jobs/:_id",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
+  requireVerifiedEmail,
   validate(scoutJobIdParamValidator),
   asyncHandler(scoutJob.fetch)
 );
 router.delete(
   "/jobs/:_id",
   validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
   validate(scoutJobIdParamValidator),
   asyncHandler(scoutJob.remove)
 );
 router.get(
   "/jobs/:id/scouts",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
+  requireVerifiedEmail,
   validate(scoutJobScoutsParamValidator),
   asyncHandler(scout.fetchScoutReportsByJob)
 );
@@ -67,24 +73,28 @@ router.get(
 router.get(
   "/talents",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
+  requireVerifiedEmail,
   validate(searchTalentsValidator),
   asyncHandler(scout.searchTalents)
 );
 router.get(
   "/batch/:id",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
+  requireVerifiedEmail,
   validate(scoutBatchIdParamValidator),
   asyncHandler(scout.fetchScoutReports)
 );
 router.get(
   "/single/:id",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
+  requireVerifiedEmail,
   validate(scoutBatchIdParamValidator),
   asyncHandler(scout.fetchScoutReport)
 );
 router.post(
   "/cv-batch",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
+  requireVerifiedEmail,
   memoryUpload.fields([
     { name: "cv", maxCount: MAX_BATCH_SIZE },
     { name: "coverLetter", maxCount: MAX_BATCH_SIZE },
@@ -96,6 +106,7 @@ router.post(
 router.post(
   "/:scoutId/add-to-pipeline",
   validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
   validate(addScoutToPipelineValidator),
   asyncHandler(scout.addScoutToPipeline)
 );

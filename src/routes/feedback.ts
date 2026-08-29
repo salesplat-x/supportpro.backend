@@ -1,7 +1,7 @@
 import { Router } from "express";
 import * as feedback from "../controllers/feedback.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
-import { loginRequired, validateAccess } from "../middleware/auth.js";
+import { loginRequired, requireVerifiedEmail, validateAccess } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { UserRole } from "../types/enums.js";
 import {
@@ -15,24 +15,28 @@ const router = Router();
 router.post(
   "/",
   loginRequired,
+  requireVerifiedEmail,
   validate(submitFeedbackValidator),
   asyncHandler(feedback.submitFeedback)
 );
 router.get(
   "/",
   validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
   validate(listFeedbackQueryValidator),
   asyncHandler(feedback.getFeedback)
 );
 router.patch(
   "/:id/read",
   validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
   validate(feedbackIdParamValidator),
   asyncHandler(feedback.markRead)
 );
 router.patch(
   "/:id/unread",
   validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
   validate(feedbackIdParamValidator),
   asyncHandler(feedback.markUnread)
 );
