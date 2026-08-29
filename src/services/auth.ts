@@ -27,7 +27,6 @@ export const createUser = async (
     firstName: string;
     lastName: string;
     middleName?: string;
-    phone?: string;
     country?: string;
   },
   role: UserRole.Talent | UserRole.Recruiter,
@@ -37,11 +36,6 @@ export const createUser = async (
 
   const existing = await userRepo().findOne({ where: { email } });
   if (existing) throw new ConflictError("Email already in use");
-
-  if (payload.phone) {
-    const phoneExists = await userRepo().findOne({ where: { phone: payload.phone } });
-    if (phoneExists) throw new ConflictError("Phone Number already in use");
-  }
 
   const hashedPassword = await generateHashedPassword(payload.password);
 

@@ -1,5 +1,5 @@
 import { body, query } from "express-validator";
-import { phoneRule, paginationRules, idParam } from "./shared.js";
+import { paginationRules, idParam } from "./shared.js";
 import {
   ExperienceLevel,
   WorkType,
@@ -55,7 +55,6 @@ export const updateUserValidator = [
   body("firstName").optional().trim(),
   body("lastName").optional().trim(),
   body("middleName").optional().trim(),
-  phoneRule("phone"),
   body("country").optional().trim(),
   ...profileFieldRules,
 ];

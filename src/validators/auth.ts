@@ -1,12 +1,11 @@
 import { body } from "express-validator";
-import { passwordRules, phoneRule } from "./shared.js";
+import { passwordRules } from "./shared.js";
 
 export const registerValidator = [
   body("email").isEmail().normalizeEmail().withMessage("Valid email is required"),
   body("firstName").notEmpty().trim().withMessage("First name is required"),
   body("lastName").notEmpty().trim().withMessage("Last name is required"),
   body("middleName").optional().trim(),
-  phoneRule("phone"),
   body("country").optional().trim(),
   passwordRules("password"),
 ];

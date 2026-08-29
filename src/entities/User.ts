@@ -47,9 +47,6 @@ export class User {
   userRole!: UserRole;
 
   @Column({ type: "varchar", nullable: true, default: null })
-  phone!: string | null;
-
-  @Column({ type: "varchar", nullable: true, default: null })
   country!: string | null;
 
   @Column({ type: "uuid", nullable: true, default: null, name: "active_organization_id" })

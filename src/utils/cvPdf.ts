@@ -4,7 +4,6 @@ export interface CvPdfInput {
   firstName: string;
   lastName: string;
   email?: string | null;
-  phone?: string | null;
   location?: string | null;
   fileName?: string | null;
   cvText: string;
@@ -25,9 +24,7 @@ function buildLocation(location?: string | null): string {
  */
 export async function generateCvPdf(input: CvPdfInput): Promise<Buffer> {
   const fullName = `${input.firstName} ${input.lastName}`.trim() || "Candidate";
-  const contactBits = [input.email, input.phone, buildLocation(input.location)].filter(
-    Boolean
-  ) as string[];
+  const contactBits = [input.email, buildLocation(input.location)].filter(Boolean) as string[];
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
