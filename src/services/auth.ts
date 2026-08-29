@@ -1,5 +1,5 @@
 import { Repository } from "typeorm";
-import { timingSafeEqual } from "crypto";
+import { createHash, timingSafeEqual } from "crypto";
 import { AppDataSource } from "../database/dataSource.js";
 import { User } from "../entities/User.js";
 import { UserRole } from "../types/enums.js";
@@ -7,6 +7,7 @@ import {
   compareHashedPassword,
   generateHashedPassword,
   generateOTP,
+  generateVerificationToken,
   signToken,
 } from "../utils/crypto.js";
 import EmailService from "../utils/integrations/email";
@@ -43,8 +44,6 @@ export const createUser = async (
     ...payload,
     email,
     password: hashedPassword,
-    // emailVerified defaults to true — this product has no email-confirmation flow
-    emailVerified: true,
     // role is always set by the route (register vs. register/recruiter), never
     // trusted from the request body — the admin account can only be created by
     // the seedAdmin script, so no public endpoint can ever mint an admin user.
@@ -54,10 +53,18 @@ export const createUser = async (
 
   const saved = await userRepo().save(user);
 
+  const { token: verificationToken, tokenHash, expires } = generateVerificationToken();
+  await userRepo()
+    .createQueryBuilder()
+    .update(User)
+    .set({ emailVerificationTokenHash: tokenHash, emailVerificationTokenExpiresAt: expires })
+    .where("id = :id", { id: saved.id })
+    .execute();
+
   new EmailService()
-    .sendWelcome(saved)
+    .sendVerificationEmail(saved, verificationToken)
     .catch((err: Error) =>
-      logger.error(`Welcome email failed for user ${saved.id}: ${err.message}`)
+      logger.error(`Verification email failed for user ${saved.id}: ${err.message}`)
     );
   logger.info(`User registered: id=${saved.id} email=${saved.email} ip=${ip ?? "unknown"}`);
 
@@ -220,4 +227,116 @@ export const logout = async (userId: string, ip?: string): Promise<void> => {
     .execute();
 
   logger.info(`User logged out: id=${user.id} email=${user.email} ip=${ip ?? "unknown"}`);
+};
+
+export const verifyEmail = async ({ token }: { token: string }, ip?: string): Promise<void> => {
+  const tokenHash = createHash("sha256").update(token).digest("hex");
+
+  const user = await userRepo()
+    .createQueryBuilder("user")
+    .addSelect(["user.emailVerificationTokenHash", "user.emailVerificationTokenExpiresAt"])
+    .where("user.emailVerificationTokenHash = :tokenHash", { tokenHash })
+    .getOne();
+
+  if (!user || !user.emailVerificationTokenExpiresAt || new Date() > user.emailVerificationTokenExpiresAt) {
+    logger.error(`Email verification failed: ip=${ip ?? "unknown"}`);
+    throw new AuthenticationError("Verification link is invalid or has expired");
+  }
+
+  await userRepo()
+    .createQueryBuilder()
+    .update(User)
+    .set({
+      emailVerifiedAt: () => "now()",
+      emailVerificationTokenHash: () => "NULL",
+      emailVerificationTokenExpiresAt: () => "NULL",
+    })
+    .where('id = :id AND "emailVerificationTokenHash" = :tokenHash', { id: user.id, tokenHash })
+    .execute();
+
+  // Atomic conditional update: only the request that actually flips
+  // welcomeEmailSentAt from NULL sends the welcome email, so concurrent or
+  // retried verify calls can never send it more than once.
+  const result = await userRepo()
+    .createQueryBuilder()
+    .update(User)
+    .set({ welcomeEmailSentAt: () => "now()" })
+    .where('id = :id AND "welcomeEmailSentAt" IS NULL', { id: user.id })
+    .execute();
+
+  if ((result.affected ?? 0) > 0) {
+    await new EmailService().sendWelcome(user);
+  }
+
+  logger.info(`Email verified: id=${user.id} email=${user.email} ip=${ip ?? "unknown"}`);
+};
+
+export const resendVerification = async (userId: string, ip?: string): Promise<void> => {
+  const user = await userRepo().findOne({ where: { id: userId } });
+  if (!user) throw new NotFoundError("User not found");
+
+  if (user.emailVerifiedAt) {
+    logger.info(`Resend verification no-op (already verified): id=${user.id}`);
+    return;
+  }
+
+  const { token, tokenHash, expires } = generateVerificationToken();
+
+  await userRepo()
+    .createQueryBuilder()
+    .update(User)
+    .set({ emailVerificationTokenHash: tokenHash, emailVerificationTokenExpiresAt: expires })
+    .where("id = :id", { id: user.id })
+    .execute();
+
+  await new EmailService().sendVerificationEmail(user, token);
+  logger.info(`Verification email resent: id=${user.id} ip=${ip ?? "unknown"}`);
+};
+
+export const changeEmail = async (
+  userId: string,
+  payload: { newEmail: string; currentPassword: string },
+  ip?: string
+): Promise<{ user: User; token: string }> => {
+  const user = await userRepo()
+    .createQueryBuilder("user")
+    .addSelect(["user.password", "user.emailVerifiedAt"])
+    .where("user.id = :id", { id: userId })
+    .getOne();
+
+  if (!user) throw new NotFoundError("User not found");
+
+  if (user.emailVerifiedAt) {
+    throw new ConflictError("Verified email addresses cannot be changed");
+  }
+
+  if (!(await compareHashedPassword(payload.currentPassword, user.password))) {
+    logger.error(`Change email failed: id=${user.id} ip=${ip ?? "unknown"}`);
+    throw new AuthorizationError("Invalid password");
+  }
+
+  const newEmail = payload.newEmail.toLowerCase();
+  const existing = await userRepo().findOne({ where: { email: newEmail } });
+  if (existing) throw new ConflictError("Email already in use");
+
+  const { token, tokenHash, expires } = generateVerificationToken();
+
+  await userRepo()
+    .createQueryBuilder()
+    .update(User)
+    .set({
+      email: newEmail,
+      emailVerificationTokenHash: tokenHash,
+      emailVerificationTokenExpiresAt: expires,
+      tokenVersion: () => `"tokenVersion" + 1`,
+    })
+    .where("id = :id", { id: userId })
+    .execute();
+
+  const updated = await userRepo().findOneOrFail({ where: { id: userId } });
+  await new EmailService().sendVerificationEmail(updated, token);
+  logger.info(`Email changed: id=${updated.id} email=${updated.email} ip=${ip ?? "unknown"}`);
+
+  const signedToken = signToken(updated);
+  return { user: updated, token: signedToken };
 };

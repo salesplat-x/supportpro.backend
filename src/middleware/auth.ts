@@ -196,3 +196,26 @@ export const requireCompletedProfile: RequestHandler = asyncHandler(
     next();
   }
 );
+
+export const requireVerifiedEmail: RequestHandler = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        error: { code: "AUTHENTICATION_ERROR", message: "Login required" },
+      });
+      return;
+    }
+    if (!req.user.emailVerifiedAt) {
+      res.status(403).json({
+        success: false,
+        error: {
+          code: "EMAIL_VERIFICATION_REQUIRED",
+          message: "Please verify your email address to continue",
+        },
+      });
+      return;
+    }
+    next();
+  }
+);

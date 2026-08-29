@@ -29,3 +29,12 @@ export const changePasswordValidator = [
   body("oldPassword").notEmpty().withMessage("Current password is required"),
   passwordRules("newPassword"),
 ];
+
+export const verifyEmailValidator = [
+  body("token").notEmpty().withMessage("Verification token is required"),
+];
+
+export const changeEmailValidator = [
+  body("newEmail").isEmail().normalizeEmail().withMessage("Valid email is required"),
+  body("currentPassword").notEmpty().withMessage("Current password is required"),
+];

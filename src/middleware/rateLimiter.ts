@@ -17,3 +17,12 @@ export const authLimiter = rateLimit({
   message: { status: false, message: "Too many attempts, please try again later." },
   skip: () => env.app_env === "test",
 });
+
+export const verificationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { status: false, message: "Too many attempts, please try again later." },
+  skip: () => env.app_env === "test",
+});

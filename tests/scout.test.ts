@@ -64,7 +64,7 @@ async function createRecruiter(
     firstName: "Bob",
     lastName: "Smith",
     userRole: UserRole.Recruiter,
-    emailVerified: true,
+    emailVerifiedAt: new Date(),
     active: true,
     tokenVersion: 0,
     roleChangeCount: 0,

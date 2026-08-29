@@ -188,6 +188,7 @@ export const paystackMocks = {
 export const emailMocks = {
   default: jest.fn().mockImplementation(() => ({
     sendWelcome: jest.fn().mockResolvedValue(undefined),
+    sendVerificationEmail: jest.fn().mockResolvedValue(undefined),
     sendPasswordReset: jest.fn().mockResolvedValue(undefined),
   })),
 };

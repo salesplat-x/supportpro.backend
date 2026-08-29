@@ -15,6 +15,7 @@ jest.mock("../src/utils/integrations/email/emailService.js", () => {
     __esModule: true,
     default: jest.fn().mockImplementation(() => ({
       sendWelcome: jest.fn().mockResolvedValue(undefined),
+      sendVerificationEmail: jest.fn().mockResolvedValue(undefined),
       sendPasswordReset: jest.fn().mockResolvedValue(undefined),
     })),
   };
@@ -107,7 +108,7 @@ describe("POST /v1/auth/login", () => {
       firstName: "Jane",
       lastName: "Doe",
       userRole: UserRole.Talent,
-      emailVerified: true,
+      emailVerifiedAt: new Date(),
       active: true,
       tokenVersion: 0,
       roleChangeCount: 0,

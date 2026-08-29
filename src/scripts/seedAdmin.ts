@@ -30,7 +30,7 @@ async function run(): Promise<void> {
     firstName: "Admin",
     lastName: "Admin",
     userRole: UserRole.Admin,
-    emailVerified: true,
+    emailVerifiedAt: new Date(),
     active: true,
     roleChangeCount: 0,
   });

@@ -56,8 +56,17 @@ export class User {
   @JoinColumn({ name: "active_organization_id" })
   activeOrganization!: Organization | null;
 
-  @Column({ type: "boolean", default: true })
-  emailVerified!: boolean;
+  @Column({ type: "timestamp", nullable: true, default: null })
+  emailVerifiedAt!: Date | null;
+
+  @Column({ type: "varchar", nullable: true, default: null, select: false })
+  emailVerificationTokenHash!: string | null;
+
+  @Column({ type: "timestamp", nullable: true, default: null, select: false })
+  emailVerificationTokenExpiresAt!: Date | null;
+
+  @Column({ type: "timestamp", nullable: true, default: null })
+  welcomeEmailSentAt!: Date | null;
 
   @Column({ type: "boolean", default: true })
   active!: boolean;

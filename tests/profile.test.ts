@@ -11,7 +11,7 @@ function buildUser(overrides: Partial<User> = {}): User {
     firstName: "Jane",
     lastName: "Doe",
     userRole: UserRole.Talent,
-    emailVerified: true,
+    emailVerifiedAt: new Date(),
     active: true,
     tokenVersion: 0,
     roleChangeCount: 0,
