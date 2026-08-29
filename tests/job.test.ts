@@ -52,6 +52,7 @@ jest.mock("../src/utils/integrations/email/emailService.js", () => ({
   __esModule: true,
   default: jest.fn().mockImplementation(() => ({
     sendWelcome: jest.fn().mockResolvedValue(undefined),
+    sendVerificationEmail: jest.fn().mockResolvedValue(undefined),
   })),
 }));
 
@@ -70,7 +71,7 @@ async function createRecruiter(
     firstName: "Bob",
     lastName: "Smith",
     userRole: UserRole.Recruiter,
-    emailVerified: true,
+    emailVerifiedAt: new Date(),
     active: true,
     tokenVersion: 0,
     roleChangeCount: 0,
@@ -158,7 +159,7 @@ describe("POST /v1/jobs/", () => {
       firstName: "Jane",
       lastName: "Doe",
       userRole: UserRole.Talent,
-      emailVerified: true,
+      emailVerifiedAt: new Date(),
       active: true,
       tokenVersion: 0,
       roleChangeCount: 0,
@@ -259,7 +260,7 @@ describe("POST /v1/jobs/generate — AI-generated job content", () => {
       firstName: "Jane",
       lastName: "Doe",
       userRole: UserRole.Talent,
-      emailVerified: true,
+      emailVerifiedAt: new Date(),
       active: true,
       tokenVersion: 0,
       roleChangeCount: 0,

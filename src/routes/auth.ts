@@ -3,13 +3,15 @@ import * as auth from "../controllers/auth.js";
 import { validate } from "../middleware/validate.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { loginRequired } from "../middleware/auth.js";
-import { authLimiter } from "../middleware/rateLimiter.js";
+import { authLimiter, verificationLimiter } from "../middleware/rateLimiter.js";
 import {
   registerValidator,
   loginValidator,
   emailOnlyValidator,
   resetPasswordValidator,
   changePasswordValidator,
+  verifyEmailValidator,
+  changeEmailValidator,
 } from "../validators/auth.js";
 
 const router = Router();
@@ -40,5 +42,24 @@ router.post(
   asyncHandler(auth.changePassword)
 );
 router.post("/logout", loginRequired, asyncHandler(auth.logout));
+router.post(
+  "/verify-email",
+  verificationLimiter,
+  validate(verifyEmailValidator),
+  asyncHandler(auth.verifyEmail)
+);
+router.post(
+  "/resend-verification",
+  loginRequired,
+  verificationLimiter,
+  asyncHandler(auth.resendVerification)
+);
+router.post(
+  "/change-email",
+  loginRequired,
+  verificationLimiter,
+  validate(changeEmailValidator),
+  asyncHandler(auth.changeEmail)
+);
 
 export default (app: Router) => app.use("/auth", router);

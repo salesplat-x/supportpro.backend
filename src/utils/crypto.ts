@@ -49,6 +49,15 @@ export const generateOTP = async (expiry = 15): Promise<{ otp: string; expires: 
   return { otp, expires };
 };
 
+export const generateVerificationToken = (
+  expiryHours = 24
+): { token: string; tokenHash: string; expires: Date } => {
+  const token = crypto.randomBytes(32).toString("hex");
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+  const expires = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
+  return { token, tokenHash, expires };
+};
+
 export const generateSecurePassword = (length = 8): string => {
   let password = "";
   const specialChars = "!@#$%&?=";

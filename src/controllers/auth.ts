@@ -47,3 +47,21 @@ export const logout = async (req: Request, res: Response) => {
   await authService.logout(req.user.id, req.ip ?? undefined);
   sendSuccessResponse(res, "Logged out successfully");
 };
+
+export const verifyEmail = async (req: Request, res: Response) => {
+  await authService.verifyEmail(req.body, req.ip ?? undefined);
+  sendSuccessResponse(res, "Email verified successfully");
+};
+
+export const resendVerification = async (req: Request, res: Response) => {
+  await authService.resendVerification(req.user.id, req.ip ?? undefined);
+  sendSuccessResponse(res, "Verification email sent");
+};
+
+export const changeEmail = async (req: Request, res: Response) => {
+  const result = await authService.changeEmail(req.user.id, req.body, req.ip ?? undefined);
+  sendSuccessResponse(res, "Email updated. Please verify your new address.", {
+    user: result.user,
+    token: result.token,
+  });
+};

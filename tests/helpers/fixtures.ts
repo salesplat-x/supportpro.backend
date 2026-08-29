@@ -47,7 +47,7 @@ async function baseUser(overrides: Partial<User> = {}): Promise<User> {
     firstName: "Test",
     lastName: "User",
     userRole: UserRole.Talent,
-    emailVerified: true,
+    emailVerifiedAt: new Date(),
     active: true,
     tokenVersion: 0,
     roleChangeCount: 0,

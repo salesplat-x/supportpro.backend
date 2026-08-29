@@ -1,5 +1,6 @@
 import logger from "../../logger.js";
 import { UserRole } from "../../../types/enums.js";
+import env from "../../../config/env.js";
 import ResendProvider from "./providers/resend.provider.js";
 import { renderTemplate } from "./template.js";
 import type { EmailPayload, EmailProvider } from "./types.js";
@@ -41,6 +42,16 @@ class EmailService {
       otp,
     });
     await this.sendEmail({ to: user.email, subject: "Password Reset Request", html });
+  }
+
+  async sendVerificationEmail(user: UserLike, token: string): Promise<void> {
+    const verificationLink = `${env.website}/verify-email?token=${token}`;
+    const html = renderTemplate("verify-email", {
+      firstName: user.firstName,
+      lastName: user.lastName,
+      verificationLink,
+    });
+    await this.sendEmail({ to: user.email, subject: "Verify your email address", html });
   }
 }
 
