@@ -17,7 +17,12 @@ router.post(
   validate(createNotificationValidator),
   asyncHandler(notification.create)
 );
-router.get("/", loginRequired, requireVerifiedEmail, asyncHandler(notification.getNotifications));
+router.get(
+  "/",
+  loginRequired,
+  requireVerifiedEmail,
+  asyncHandler(notification.getNotifications)
+);
 router.get(
   "/:id",
   loginRequired,
