@@ -10,12 +10,7 @@ import {
 
 const router = Router();
 
-router.get(
-  "/",
-  loginRequired,
-  requireVerifiedEmail,
-  asyncHandler(conversation.getConversations)
-);
+router.get("/", loginRequired, requireVerifiedEmail, asyncHandler(conversation.getConversations));
 router.get(
   "/:id",
   loginRequired,
