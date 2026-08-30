@@ -34,6 +34,7 @@ jobs:
           host: ${{ secrets.DIGITAL_OCEAN_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          command_timeout: 15m
           script: |
             set -euo pipefail
 
@@ -61,17 +62,89 @@ jobs:
               dist/scripts/seedAdmin.js
 
             echo "==> Replacing running server"
-            docker stop supportpro-backend || true
-            docker rm supportpro-backend || true
 
-            # Entrypoint runs migrations again before listen (idempotent safety net
-            # for restarts / manual runs). Deploy already gated above.
-            docker run -d \
-              --name supportpro-backend \
-              --network app-network \
-              -p 8000:8000 \
-              --env-file .env \
-              --restart always \
-              salesplat/supportpro-backend:latest
+            unique_ids() {
+              printf '%s\n' "$@" | awk 'NF && !seen[$0]++'
+            }
+
+            free_host_port_8000() {
+              docker rm -f supportpro-backend 2>/dev/null || true
+              docker compose stop app 2>/dev/null || true
+              docker compose rm -f -s app 2>/dev/null || true
+
+              published="$(docker ps -aq --filter publish=8000 2>/dev/null || true)"
+              mapped="$(docker ps -a --format '{{.ID}} {{.Ports}}' | awk '/:8000->/ { print $1 }' || true)"
+              image_ctr="$(docker ps -q --filter ancestor=salesplat/supportpro-backend:latest 2>/dev/null || true)"
+              ids="$(unique_ids ${published:-} ${mapped:-} ${image_ctr:-})"
+
+              if [ -n "${ids}" ]; then
+                echo "Releasing :8000 / old backend containers:"
+                echo "${ids}"
+                for cid in ${ids}; do
+                  docker update --restart=no "${cid}" >/dev/null 2>&1 || true
+                  docker rm -f "${cid}" >/dev/null 2>&1 || true
+                done
+              fi
+            }
+
+            wait_for_8000_free() {
+              i=1
+              while [ "${i}" -le 15 ]; do
+                if command -v ss >/dev/null 2>&1; then
+                  if [ -z "$(ss -H -ltn 'sport = :8000' 2>/dev/null || true)" ]; then
+                    return 0
+                  fi
+                else
+                  return 0
+                fi
+                sleep 1
+                i=$((i + 1))
+              done
+              echo "Host :8000 still listed; retrying docker run"
+              ss -ltnp | grep 8000 || true
+            }
+
+            started=0
+            attempt=1
+            while [ "${attempt}" -le 20 ]; do
+              free_host_port_8000
+              wait_for_8000_free
+              docker rm -f supportpro-backend 2>/dev/null || true
+
+              set +e
+              docker run -d \
+                --name supportpro-backend \
+                --network app-network \
+                -p 8000:8000 \
+                --env-file .env \
+                --restart always \
+                salesplat/supportpro-backend:latest
+              rc=$?
+              set -e
+
+              if [ "${rc}" -eq 0 ]; then
+                started=1
+                break
+              fi
+
+              echo "docker run exit ${rc} (attempt ${attempt}/20)"
+              docker rm -f supportpro-backend 2>/dev/null || true
+              if [ "${attempt}" -ge 8 ]; then
+                fuser -k 8000/tcp 2>/dev/null || true
+              fi
+              if [ "${attempt}" -lt 5 ]; then
+                sleep 2
+              else
+                sleep 5
+              fi
+              attempt=$((attempt + 1))
+            done
+
+            if [ "${started}" -ne 1 ]; then
+              echo "Failed to bind host :8000 after retries"
+              docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+              ss -ltnp | grep 8000 || true
+              exit 1
+            fi
 
             echo "==> Deploy complete"
