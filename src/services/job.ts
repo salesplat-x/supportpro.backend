@@ -26,6 +26,7 @@ import {
 } from "../utils/integrations/openai.js";
 import { TalentEmbedding } from "../entities/TalentEmbedding.js";
 import { convertSimilarityToPercentage, preprocessText, sortDirection } from "../utils/text.js";
+import { workModeNeedsLocation } from "../utils/workMode.js";
 import { createStages } from "./aiConfig.js";
 import {
   getAssessmentRetryDate,
@@ -54,6 +55,32 @@ const talentEmbeddingRepo = () => AppDataSource.getRepository(TalentEmbedding);
 
 const scoutRepo = () => AppDataSource.getRepository(Scout);
 
+const locationFieldsForWorkMode = (payload: {
+  workMode: string[];
+  locationCountry?: string | null;
+  locationState?: string | null;
+  locationCity?: string | null;
+}) => {
+  if (!workModeNeedsLocation(payload.workMode)) {
+    return {
+      locationCountry: null as string | null,
+      locationState: null as string | null,
+      locationCity: null as string | null,
+    };
+  }
+
+  const locationCountry = payload.locationCountry?.trim() || null;
+  if (!locationCountry) {
+    throw new ValidationError("locationCountry is required for hybrid or on-site jobs");
+  }
+
+  return {
+    locationCountry,
+    locationState: payload.locationState ?? null,
+    locationCity: payload.locationCity ?? null,
+  };
+};
+
 export interface CreateJobPayload {
   role?: string;
   aiConfigId?: string | null;
@@ -64,7 +91,7 @@ export interface CreateJobPayload {
   experienceLevel: string;
   locationCity?: string | null;
   locationState?: string | null;
-  locationCountry: string;
+  locationCountry?: string | null;
   workMode: string[];
   currency?: string | null;
   requirements?: string | null;
@@ -140,6 +167,8 @@ export const createJob = async (userId: string, payload: CreateJobPayload): Prom
     }
   }
 
+  const location = locationFieldsForWorkMode(payload);
+
   // Create vector embedding for Job description
   const jd = preprocessText(payload.jobBrief);
   const jobEmbedding = await createEmbedding(jd);
@@ -151,6 +180,7 @@ export const createJob = async (userId: string, payload: CreateJobPayload): Prom
   const { role: _role, ...jobData } = payload;
   const job = jobRepo().create({
     ...jobData,
+    ...location,
     roleId,
     postedById: userId,
     organizationId,
@@ -265,7 +295,19 @@ export const updateJob = async (
 
   // Exclude 'role' string field to avoid type conflict with Role entity
   const { role: _role2, ...updateData } = update;
-  const updated = await jobRepo().save({ ...existingJob, ...updateData });
+  const nextWorkMode = updateData.workMode ?? existingJob.workMode;
+  const located = locationFieldsForWorkMode({
+    workMode: nextWorkMode,
+    locationCountry:
+      updateData.locationCountry !== undefined
+        ? updateData.locationCountry
+        : existingJob.locationCountry,
+    locationState:
+      updateData.locationState !== undefined ? updateData.locationState : existingJob.locationState,
+    locationCity:
+      updateData.locationCity !== undefined ? updateData.locationCity : existingJob.locationCity,
+  });
+  const updated = await jobRepo().save({ ...existingJob, ...updateData, ...located });
   return updated;
 };
 
