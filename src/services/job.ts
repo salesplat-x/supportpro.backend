@@ -404,7 +404,9 @@ export const fetchAllJobs = async (
     where: { talentId: payload.talentId, jobId: In(jobs.map((job) => job.id)) },
     select: { jobId: true, currentStage: true },
   });
-  const stageByJobId = new Map(applied.map((application) => [application.jobId, application.currentStage]));
+  const stageByJobId = new Map(
+    applied.map((application) => [application.jobId, application.currentStage])
+  );
 
   return jobs.map((job) =>
     Object.assign(job, {
@@ -420,10 +422,10 @@ export const fetchJob = async (
   isAuthenticated?: boolean
 ): Promise<
   Job & {
-    hasApplied?: boolean
-    applicationStage?: string | null
-    applicationId?: string | null
-    applicationStages?: Record<string, string> | null
+    hasApplied?: boolean;
+    applicationStage?: string | null;
+    applicationId?: string | null;
+    applicationStages?: Record<string, string> | null;
   }
 > => {
   const job = await jobRepo().findOne({
