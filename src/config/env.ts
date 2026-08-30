@@ -5,11 +5,17 @@ const getEnv = (): AppEnv => {
   return validEnvs.find((_) => _ === process.env.NODE_ENV) ?? "dev";
 };
 
+const paystackModeRaw = (process.env.PAYSTACK_MODE ?? "dummy").toLowerCase();
+const paystackMode = paystackModeRaw === "paystack" ? "paystack" : "dummy";
+
 const optionalEnvVars = {
   app_env: getEnv(),
   paystackSecretKey: process.env.PAYSTACK_SECRET_KEY,
   paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY,
   whitelisted_ips: process.env.PAYSTACK_WHITELISTED_IPS,
+  paystackMode,
+  paystackPlanCodeMonthly: process.env.PAYSTACK_PLAN_CODE_PAID_MONTHLY,
+  paystackPlanCodeAnnually: process.env.PAYSTACK_PLAN_CODE_PAID_ANNUALLY,
   resend_api_key: process.env.RESEND_API_KEY,
   resend_sender_email: process.env.RESEND_SENDER_EMAIL,
   resend_sender_name: process.env.RESEND_SENDER_NAME,

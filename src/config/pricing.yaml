@@ -1,0 +1,127 @@
+# Single source of truth for recruiter pricing, features, and comparison.
+# Amounts are in NGN (naira). The API converts to kobo for Paystack.
+# Optional paystackPlanCode values are filled via env (see PAYSTACK.md).
+
+currency: NGN
+currencySymbol: "₦"
+yearlyDiscountPercent: 17
+guarantee: "14-day money back guarantee"
+cancelAnytime: "Cancel anytime"
+
+hero:
+  kicker: PRICING
+  title: Simple pricing. Powerful results.
+  subtitle: Everything you need to hire smarter and faster. Choose the plan that fits your journey.
+
+plans:
+  - key: free
+    name: Free
+    description: Perfect for getting started.
+    priceCaption: Forever free
+    cta: Get Started
+    highlighted: false
+    monthlyAmountNgn: 0
+    yearlyAmountNgn: 0
+    features:
+      - text: Up to 2 active jobs
+        included: true
+      - text: 5 AI actions total
+        included: true
+      - text: 10 candidate views total
+        included: true
+      - text: 1 active company
+        included: true
+      - text: Bulk & broadcast tools
+        included: false
+
+  - key: paid
+    name: Paid
+    description: Everything. Unlimited.
+    badge: Most Popular
+    cta: Get Started
+    highlighted: true
+    monthlyAmountNgn: 550000
+    yearlyAmountNgn: 5500000
+    features:
+      - text: Unlimited active jobs
+        included: true
+      - text: Unlimited AI actions
+        included: true
+      - text: Unlimited candidate views
+        included: true
+      - text: Unlimited companies
+        included: true
+      - text: Full access to bulk & broadcast tools
+        included: true
+
+comparison:
+  columns:
+    - Features
+    - Free
+    - Paid
+  rows:
+    - id: job_postings
+      label: Job Postings
+      hint: null
+      free: Up to 2 active jobs
+      paid: Unlimited
+    - id: ai_screening
+      label: AI Screening & Matching
+      hint: AI job generation, matching, interviews, CV scoring & more
+      free: 5 AI actions total
+      paid: Unlimited
+    - id: candidate_access
+      label: Candidate Access
+      hint: Open profiles, download CVs
+      free: 10 candidate views total
+      paid: Unlimited
+    - id: companies
+      label: Company / Organization Management
+      hint: null
+      free: 1 active company
+      paid: Unlimited
+    - id: bulk_tools
+      label: Bulk & Broadcast Tools
+      hint: Bulk status updates, broadcast, exports & more
+      free: false
+      paid: true
+
+valueProps:
+  badge: Why SalesPlat?
+  title: Built for modern recruiters who want more.
+  body: All the tools you need to find, screen, and hire the best talent—faster.
+  items:
+    - title: AI That Works for You
+      body: From job descriptions to CV scoring, our AI helps you make smarter hiring decisions.
+      icon: sparkles
+    - title: Save Time, Hire Faster
+      body: Automate repetitive tasks and focus on what truly matters—people and culture.
+      icon: rocket
+    - title: Secure & Reliable
+      body: Enterprise-grade security your data is always protected.
+      icon: shield
+
+contact:
+  prompt: Need a custom plan or have questions?
+  cta: Contact our team
+  href: "mailto:hello@salesplat.com"
+
+# Dummy usage shown on the recruiter Plan page after a successful payment.
+# Not real metering — the app is not gated.
+dummyUsage:
+  - id: jobs
+    label: Active jobs
+    used: 3
+    limit: Unlimited
+  - id: ai
+    label: AI actions this period
+    used: 47
+    limit: Unlimited
+  - id: candidates
+    label: Candidate views this period
+    used: 128
+    limit: Unlimited
+  - id: companies
+    label: Companies
+    used: 2
+    limit: Unlimited

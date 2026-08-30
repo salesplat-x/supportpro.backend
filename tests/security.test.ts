@@ -7,7 +7,7 @@
  *   - Malformed/expired/tampered tokens return 401
  *   - Token invalidation works after logout, password change, and password reset
  *   - CORS wildcard is present (ISSUE-007 documentation)
- *   - Unauthenticated payment verification succeeds (ISSUE-002 documentation)
+ *   - Unauthenticated payment verification is rejected (ISSUE-002 closed)
  *   - OTP truncation bypass (ISSUE-001 regression)
  */
 
@@ -310,18 +310,16 @@ describe("Token invalidation after password change", () => {
 // ISSUE-002: Unauthenticated payment verification (documents the vulnerability)
 // ---------------------------------------------------------------------------
 
-describe("ISSUE-002: Unauthenticated payment verification", () => {
-  it("POST /v1/payments/verify succeeds without any auth token (documents ISSUE-002)", async () => {
+describe("ISSUE-002: Unauthenticated payment verification is rejected", () => {
+  it("POST /v1/payments/verify without a token → 401", async () => {
     const { user } = await createTalent();
     const payment = await createPayment(user, undefined, { paystackRef: "PSK_UNAUTHED_TEST" });
 
-    // No Authorization header — endpoint is publicly accessible
     const res = await request(app)
       .post("/v1/payments/verify")
       .send({ reference: payment.paystackRef });
 
-    // This PASSES, proving unauthenticated verification is possible (ISSUE-002)
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(401);
   });
 });
 

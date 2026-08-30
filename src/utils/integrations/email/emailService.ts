@@ -55,6 +55,26 @@ class EmailService {
     });
     await this.sendEmail({ to: user.email, subject: "Verify your email address", html });
   }
+
+  async sendPaymentConfirmation(details: {
+    email: string;
+    firstName: string;
+    planName: string;
+    interval: string;
+    amount: string;
+    currency: string;
+    reference: string;
+    paidAt: string;
+    billingStatus: string;
+    manageUrl: string;
+  }): Promise<void> {
+    const html = renderTemplate("payment-confirmation", details);
+    await this.sendEmail({
+      to: details.email,
+      subject: `Payment confirmed — you're on the ${details.planName} plan`,
+      html,
+    });
+  }
 }
 
 export default EmailService;

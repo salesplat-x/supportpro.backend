@@ -10,6 +10,7 @@ export { Message } from "./Message.js";
 export { Notification } from "./Notification.js";
 export { Plan } from "./Plan.js";
 export { Payment } from "./Payment.js";
+export { PaymentWebhookEvent } from "./PaymentWebhookEvent.js";
 export { Subscription } from "./Subscription.js";
 export { Question } from "./Question.js";
 export { Answer } from "./Answer.js";

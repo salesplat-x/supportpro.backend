@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import "dotenv/config";
-import express, { Application } from "express";
+import express, { Application, Request } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import env from "./config/env.js";
@@ -18,7 +18,13 @@ export function createApp(): Application {
   const app = express();
 
   app.use(express.urlencoded({ extended: true }));
-  app.use(express.json());
+  app.use(
+    express.json({
+      verify: (req, _res, buf) => {
+        (req as Request).rawBody = Buffer.from(buf);
+      },
+    })
+  );
   app.use(
     cors({
       origin: (origin, callback) => {
