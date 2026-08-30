@@ -128,6 +128,28 @@ describe("POST /v1/jobs/", () => {
 
     expect(res.status).toBe(201);
     expect(res.body.data.job.jobBrief).toBe("Looking for a great engineer");
+    expect(res.body.data.job.locationCountry).toBeNull();
+  });
+
+  it("creates a remote job without location → 201", async () => {
+    const { token } = await createRecruiter();
+
+    const res = await request(app)
+      .post("/v1/jobs/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        role: "software-engineer",
+        jobBrief: "Looking for a great engineer",
+        experienceLevel: "4-6 years",
+        maxSalary: 100000,
+        minSalary: 50000,
+        compensationPeriod: "yearly",
+        workMode: ["remote"],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.job.locationCountry).toBeNull();
+    expect(res.body.data.job.locationState).toBeNull();
   });
 
   it("creates a job with only Country (no State/City) → 201", async () => {
@@ -144,12 +166,31 @@ describe("POST /v1/jobs/", () => {
         minSalary: 50000,
         compensationPeriod: "yearly",
         locationCountry: "Nigeria",
-        workMode: ["remote"],
+        workMode: ["hybrid"],
       });
 
     expect(res.status).toBe(201);
     expect(res.body.data.job.locationCountry).toBe("Nigeria");
     expect(res.body.data.job.locationState).toBeNull();
+  });
+
+  it("rejects hybrid job creation without country", async () => {
+    const { token } = await createRecruiter();
+
+    const res = await request(app)
+      .post("/v1/jobs/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        role: "software-engineer",
+        jobBrief: "Looking for a great engineer",
+        experienceLevel: "4-6 years",
+        maxSalary: 100000,
+        minSalary: 50000,
+        compensationPeriod: "yearly",
+        workMode: ["hybrid"],
+      });
+
+    expect(res.status).toBe(400);
   });
 
   it("rejects job creation without a recruiter role", async () => {

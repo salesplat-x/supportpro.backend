@@ -75,8 +75,8 @@ export class Job {
   @Column({ type: "varchar", nullable: true, default: null })
   locationState!: string | null;
 
-  @Column({ type: "varchar" })
-  locationCountry!: string;
+  @Column({ type: "varchar", nullable: true, default: null })
+  locationCountry!: string | null;
 
   @Column({ type: "simple-array" })
   workMode!: string[];

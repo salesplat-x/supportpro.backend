@@ -8,6 +8,7 @@ import {
   ApplicationStatus,
   CompensationPeriod,
 } from "../types/enums.js";
+import { workModeNeedsLocation } from "../utils/workMode.js";
 
 export const generateJobContentValidator = [
   body("role").notEmpty().trim().withMessage("Role is required"),
@@ -43,13 +44,19 @@ export const createJobValidator = [
     .withMessage(
       `compensationPeriod must be one of: ${Object.values(CompensationPeriod).join(", ")}`
     ),
-  body("locationCountry").notEmpty().trim().withMessage("locationCountry is required"),
   body("locationState").optional().trim(),
   body("locationCity").optional().trim(),
   body("workMode").isArray({ min: 1 }).withMessage("workMode must be a non-empty array"),
   body("workMode.*")
     .isIn(Object.values(WorkMode))
     .withMessage(`workMode items must be one of: ${Object.values(WorkMode).join(", ")}`),
+  body("locationCountry").custom((value, { req }) => {
+    const modes = Array.isArray(req.body.workMode) ? req.body.workMode : [];
+    if (workModeNeedsLocation(modes) && (!value || String(value).trim() === "")) {
+      throw new Error("locationCountry is required for hybrid or on-site jobs");
+    }
+    return true;
+  }),
   body("currency").optional().isString(),
   body("requirements").optional().isString(),
   body("skills").optional().isArray(),
@@ -88,7 +95,16 @@ export const updateJobValidator = [
       `compensationPeriod must be one of: ${Object.values(CompensationPeriod).join(", ")}`
     ),
   body("locationState").optional().trim(),
-  body("locationCountry").optional().trim(),
+  body("locationCountry")
+    .optional({ values: "falsy" })
+    .trim()
+    .custom((value, { req }) => {
+      const modes = Array.isArray(req.body.workMode) ? req.body.workMode : undefined;
+      if (modes && workModeNeedsLocation(modes) && (!value || String(value).trim() === "")) {
+        throw new Error("locationCountry is required for hybrid or on-site jobs");
+      }
+      return true;
+    }),
   body("locationCity").optional().trim(),
   body("workMode").optional().isArray({ min: 1 }),
   body("workMode.*")
