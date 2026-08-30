@@ -328,7 +328,7 @@ export const deleteJob = async (userId: string, jobId: string): Promise<void> =>
 
 export const fetchAllJobs = async (
   payload: FetchJobsParams
-): Promise<(Job & { hasApplied?: boolean })[]> => {
+): Promise<(Job & { hasApplied?: boolean; applicationStage?: string | null })[]> => {
   const qb = jobRepo()
     .createQueryBuilder("job")
     .leftJoinAndSelect("job.role", "role")
@@ -402,18 +402,30 @@ export const fetchAllJobs = async (
 
   const applied = await applicationRepo().find({
     where: { talentId: payload.talentId, jobId: In(jobs.map((job) => job.id)) },
-    select: { jobId: true },
+    select: { jobId: true, currentStage: true },
   });
-  const appliedJobIds = new Set(applied.map((application) => application.jobId));
+  const stageByJobId = new Map(applied.map((application) => [application.jobId, application.currentStage]));
 
-  return jobs.map((job) => Object.assign(job, { hasApplied: appliedJobIds.has(job.id) }));
+  return jobs.map((job) =>
+    Object.assign(job, {
+      hasApplied: stageByJobId.has(job.id),
+      applicationStage: stageByJobId.get(job.id) ?? null,
+    })
+  );
 };
 
 export const fetchJob = async (
   jobId: string,
   talentId?: string,
   isAuthenticated?: boolean
-): Promise<Job & { hasApplied?: boolean }> => {
+): Promise<
+  Job & {
+    hasApplied?: boolean
+    applicationStage?: string | null
+    applicationId?: string | null
+    applicationStages?: Record<string, string> | null
+  }
+> => {
   const job = await jobRepo().findOne({
     where: { id: jobId },
     relations: { role: true, postedBy: true, aiConfig: true, organization: true },
@@ -430,9 +442,14 @@ export const fetchJob = async (
 
   const existingApplication = await applicationRepo().findOne({
     where: { talentId, jobId },
-    select: { id: true },
+    select: { id: true, currentStage: true, stages: true },
   });
-  return Object.assign(job, { hasApplied: !!existingApplication });
+  return Object.assign(job, {
+    hasApplied: !!existingApplication,
+    applicationStage: existingApplication?.currentStage ?? null,
+    applicationId: existingApplication?.id ?? null,
+    applicationStages: existingApplication?.stages ?? null,
+  });
 };
 
 export const matchJob = async (

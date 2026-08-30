@@ -440,6 +440,7 @@ export const userApplications = async (
     .leftJoinAndSelect("application.job", "job")
     .leftJoinAndSelect("job.postedBy", "postedBy")
     .leftJoinAndSelect("job.role", "role")
+    .leftJoinAndSelect("job.organization", "organization")
     .where("application.talent_id = :userId", { userId });
 
   if (payload.applicationType) {
