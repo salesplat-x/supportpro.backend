@@ -314,7 +314,9 @@ export const triggerMatchVerdict = async (
     // the actual reason verdicts silently never appeared: any casing/wording
     // deviation ("High", etc.) failed the DB write, was swallowed by the catch
     // below, and left matchVerdict null forever with no visible error.
-    const normalizedVerdict = String(parsed.verdict ?? "").trim().toLowerCase();
+    const normalizedVerdict = String(parsed.verdict ?? "")
+      .trim()
+      .toLowerCase();
     const validVerdicts = Object.values(MatchVerdict) as string[];
     if (!validVerdicts.includes(normalizedVerdict)) {
       throw new ValidationError(`Unexpected verdict value from LLM: "${parsed.verdict}"`);
@@ -322,7 +324,9 @@ export const triggerMatchVerdict = async (
 
     // Same validate-before-write discipline as the verdict above — a stray
     // casing/wording deviation here must not silently drop the whole update.
-    const normalizedRecommendation = String(parsed.recommendation ?? "").trim().toLowerCase();
+    const normalizedRecommendation = String(parsed.recommendation ?? "")
+      .trim()
+      .toLowerCase();
     const validRecommendations = Object.values(MatchRecommendation) as string[];
     const recommendation = validRecommendations.includes(normalizedRecommendation ?? "")
       ? (normalizedRecommendation as MatchRecommendation)
@@ -332,10 +336,7 @@ export const triggerMatchVerdict = async (
 
     await persistRecommendation(application.id, {
       verdict: normalizedVerdict as MatchVerdict,
-      reasoning:
-        typeof parsed.reasoning === "string"
-          ? parsed.reasoning
-          : analysis.hiringRationale,
+      reasoning: typeof parsed.reasoning === "string" ? parsed.reasoning : analysis.hiringRationale,
       recommendation,
       strengths: Array.isArray(parsed.strengths) ? (parsed.strengths as string[]) : null,
       weaknesses: Array.isArray(parsed.weaknesses) ? (parsed.weaknesses as string[]) : null,

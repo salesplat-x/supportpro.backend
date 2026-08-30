@@ -205,12 +205,14 @@ export const bulkUpdateStatus = async (
     throw new NotFoundError("No applications found");
   }
 
+  const changing = owned.filter((application) => application.status !== payload.status);
+
   for (const application of owned) {
     application.status = payload.status;
   }
   await applicationRepo().save(owned);
 
-  const notifications = owned.map((application) => {
+  const notifications = changing.map((application) => {
     const jobTitle = application.job.role?.name;
     const companyName = application.job.organization?.name;
     const title = decisionNotificationTitle(payload.status, jobTitle, companyName);

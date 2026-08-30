@@ -1,5 +1,14 @@
 import { AppDataSource } from "../database/dataSource.js";
-import { AIConfig, Application, Job, Question, Role, TalentEmbedding, User, Answer } from "../entities";
+import {
+  AIConfig,
+  Application,
+  Job,
+  Question,
+  Role,
+  TalentEmbedding,
+  User,
+  Answer,
+} from "../entities";
 import { NotFoundError, ValidationError, AuthorizationError } from "../utils/errors";
 import { QuestionType, JobStatus } from "../types/enums.js";
 import { calculateTimeLeft, sortDirection } from "../utils/text.js";
@@ -91,7 +100,10 @@ export const fetchQuestions = async (
     const questionIds = application.personalizedQuestions ?? [];
     if (questionIds.length === 0) return [];
 
-    const questions = await questionRepo().createQueryBuilder("q").whereInIds(questionIds).getMany();
+    const questions = await questionRepo()
+      .createQueryBuilder("q")
+      .whereInIds(questionIds)
+      .getMany();
     return withStoredAnswers(user.id, payload.jobId, QuestionType.Personalized, questions);
   }
 

@@ -137,6 +137,8 @@ export const recruiterApplications = async (
     .createQueryBuilder("application")
     .leftJoinAndSelect("application.talent", "talent")
     .leftJoinAndSelect("application.role", "role")
+    .leftJoinAndSelect("application.job", "job")
+    .leftJoinAndSelect("job.role", "jobRole")
     .where("application.recruiter_id = :userId", { userId });
 
   if (jobId) {
