@@ -10,7 +10,14 @@ import {
   UpdateDateColumn,
   Index,
 } from "typeorm";
-import { UserRole, Currency, CompensationPeriod } from "../types/enums.js";
+import {
+  UserRole,
+  Currency,
+  CompensationPeriod,
+  BillingPlan,
+  BillingInterval,
+  BillingStatus,
+} from "../types/enums.js";
 import type { Organization } from "./Organization.js";
 import type { Role } from "./Role.js";
 import type { PreScreening } from "./PreScreening.js";
@@ -79,6 +86,22 @@ export class User {
 
   @Column({ type: "int", default: 0 })
   tokenVersion!: number;
+
+  @Column({ type: "enum", enum: BillingPlan, default: BillingPlan.Free })
+  @Index("IDX_users_billing_plan")
+  billingPlan!: BillingPlan;
+
+  @Column({
+    type: "enum",
+    enum: BillingInterval,
+    enumName: "plans_interval_enum",
+    nullable: true,
+    default: null,
+  })
+  billingInterval!: BillingInterval | null;
+
+  @Column({ type: "enum", enum: BillingStatus, default: BillingStatus.Active })
+  billingStatus!: BillingStatus;
 
   // ---- Profile fields (merged from Profile model) ----
 

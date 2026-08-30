@@ -88,6 +88,17 @@ export enum PaymentStatus {
   Completed = "completed",
 }
 
+export enum BillingPlan {
+  Free = "free",
+  Paid = "paid",
+}
+
+export enum BillingStatus {
+  Active = "active",
+  PastDue = "past_due",
+  Cancelled = "cancelled",
+}
+
 export enum BillingInterval {
   Monthly = "monthly",
   Annually = "annually",

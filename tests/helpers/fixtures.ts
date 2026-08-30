@@ -208,6 +208,7 @@ export async function createPayment(
     userId: user.id,
     planId: plan?.id ?? null,
     amount: plan ? plan.amount : 5000,
+    amountKobo: plan ? Math.round(plan.amount * 100) : 500000,
     currency: "NGN",
     reference: `REF_${Date.now()}`,
     paystackRef: `PSK_${Date.now()}`,

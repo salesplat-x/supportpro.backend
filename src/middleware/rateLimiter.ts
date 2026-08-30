@@ -6,7 +6,7 @@ export const generalLimiter = rateLimit({
   limit: 300,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: () => env.app_env === "test",
+  skip: (req) => env.app_env === "test" || /\/payments\/.*webhook$/.test(req.path),
 });
 
 export const authLimiter = rateLimit({

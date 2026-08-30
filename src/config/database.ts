@@ -22,6 +22,7 @@ import { TalentEmbedding } from "../entities/TalentEmbedding.js";
 import { ErrorLog } from "../entities/ErrorLog.js";
 import { AiRecommendation } from "../entities/AiRecommendation.js";
 import { Feedback } from "../entities/Feedback.js";
+import { PaymentWebhookEvent } from "../entities/PaymentWebhookEvent.js";
 
 const databaseConfig: DataSourceOptions = {
   type: "postgres",
@@ -52,6 +53,7 @@ const databaseConfig: DataSourceOptions = {
     ErrorLog,
     AiRecommendation,
     Feedback,
+    PaymentWebhookEvent,
   ],
   migrations: [path.join(__dirname, "../migrations/*.{js,ts}")],
   synchronize: false,

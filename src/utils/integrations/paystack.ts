@@ -1,11 +1,9 @@
 import axios, { AxiosRequestConfig } from "axios";
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 import { Request } from "express";
 import env from "../../config/env.js";
 import { BillingInterval } from "../../types/enums.js";
 import type { Plan } from "../../entities/Plan.js";
-
-// ---- Paystack type definitions ----
 
 export interface IPaystackConfig {
   amount: number;
@@ -95,6 +93,20 @@ export interface IPaystackCreatePlanRes {
   data: { plan_code: string; name: string; amount: number; interval: string };
 }
 
+export interface VerifyTransactionResult {
+  status: boolean;
+  data: {
+    message?: string;
+    amount: number;
+    status: string;
+    plan?: string;
+    gateway_response?: string;
+    currency: string;
+    reference: string;
+    authorization?: { authorization_code?: string };
+  };
+}
+
 export const PaymentVerificationStatus = {
   ChargeCompleted: "charge.completed",
   TransferCompleted: "transfer.completed",
@@ -104,70 +116,121 @@ export const PaymentVerificationStatus = {
   Error: "error",
 } as const;
 
-// ---- Paystack service functions ----
+export const isDummyPaystack = (): boolean => env.paystackMode === "dummy";
+
+const authHeaders = () => ({
+  Authorization: `Bearer ${env.paystackSecretKey}`,
+  "Content-Type": "application/json",
+});
+
+export const paymentCallbackUrl = (): string =>
+  `${(env.website ?? "").replace(/\/$/, "")}/payment/verify`;
+
+export const paystackPlanCodeForInterval = (interval: BillingInterval): string | undefined => {
+  if (interval === BillingInterval.Annually) {
+    return env.paystackPlanCodeAnnually || undefined;
+  }
+  return env.paystackPlanCodeMonthly || undefined;
+};
 
 export const initializePayment = async (payload: IPaystackConfig): Promise<IPaystackInitRes> => {
-  const config = {
+  if (isDummyPaystack()) {
+    const reference = payload.reference ?? `DUMMY-${Date.now()}`;
+    return {
+      status: true,
+      message: "Dummy authorization URL",
+      data: {
+        authorization_url: `${paymentCallbackUrl()}?reference=${encodeURIComponent(reference)}&trxref=${encodeURIComponent(reference)}`,
+        access_code: "dummy_access",
+        reference,
+      },
+    };
+  }
+
+  const response = await axios({
     method: "post",
     url: `${env.paystackUrl}/transaction/initialize`,
-    headers: {
-      Authorization: `Bearer ${env.paystackSecretKey}`,
-      "Content-Type": "application/json",
-      "cache-control": "no-cache",
-    },
+    headers: authHeaders(),
     data: payload,
-  };
-  const response = await axios(config);
+  });
   return response.data as IPaystackInitRes;
 };
 
-export const verifyTransaction = async (reference: string) => {
+export const verifyTransaction = async (reference: string): Promise<VerifyTransactionResult> => {
+  if (isDummyPaystack()) {
+    return {
+      status: true,
+      data: {
+        amount: 0,
+        status: "success",
+        currency: "NGN",
+        reference,
+        authorization: { authorization_code: "AUTH_DUMMY" },
+      },
+    };
+  }
+
   const config: AxiosRequestConfig = {
     method: "get",
-    url: `${env.paystackUrl}/transaction/verify/${reference}`,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${env.paystackSecretKey}`,
-    },
+    url: `${env.paystackUrl}/transaction/verify/${encodeURIComponent(reference)}`,
+    headers: authHeaders(),
   };
   const response = await axios(config);
-  return response.data as {
-    status: boolean;
-    data: {
-      message: string;
-      amount: number;
-      status: string;
-      plan: string;
-      gateway_response: string;
-      currency: string;
-      authorization: { authorization_code: string };
-    };
-  };
+  return response.data as VerifyTransactionResult;
+};
+
+const signatureFromRawBody = (rawBody: Buffer): string => {
+  return createHmac("sha512", env.paystackSecretKey ?? "")
+    .update(rawBody)
+    .digest("hex");
 };
 
 export const webhookDataValidation = (req: Request): boolean => {
-  const hash = createHmac("sha512", env.paystackSecretKey!)
-    .update(JSON.stringify(req.body))
-    .digest("hex");
-  return hash === req.headers["x-paystack-signature"];
+  const signature = req.headers["x-paystack-signature"];
+  if (typeof signature !== "string" || !signature) return false;
+
+  const rawBody = req.rawBody;
+  if (!rawBody || rawBody.length === 0) return false;
+
+  const hash = signatureFromRawBody(rawBody);
+  const expected = Buffer.from(hash);
+  const received = Buffer.from(signature);
+  if (expected.length !== received.length) return false;
+  return timingSafeEqual(expected, received);
+};
+
+export const isPaystackIpAllowed = (req: Request): boolean => {
+  const allowlist = (env.whitelisted_ips ?? "")
+    .split(",")
+    .map((ip) => ip.trim())
+    .filter(Boolean);
+  if (allowlist.length === 0) return true;
+
+  const forwarded = req.headers["x-forwarded-for"];
+  const forwardedIp = typeof forwarded === "string" ? forwarded.split(",")[0]?.trim() : undefined;
+  const ip = forwardedIp || req.ip || req.socket.remoteAddress || "";
+  return allowlist.includes(ip);
 };
 
 export const generatePaymentObject = (
-  amount: number,
+  amountKobo: number,
   email: string,
-  plan?: string,
-  currency = "NGN"
+  options: {
+    reference: string;
+    planCode?: string;
+    metadata?: Record<string, string>;
+  }
 ): IPaystackConfig => {
-  if (!plan) amount *= 100;
   const config: IPaystackConfig = {
-    amount,
+    amount: amountKobo,
     email,
-    currency,
-    plan,
-    callback_url: `${env.website}`,
-    channels: ["card", "bank"],
+    currency: "NGN",
+    reference: options.reference,
+    callback_url: paymentCallbackUrl(),
+    channels: ["card"],
+    metadata: options.metadata,
   };
-  if (plan) config.channels = ["card"];
+  if (options.planCode) config.plan = options.planCode;
   return config;
 };
 
@@ -185,13 +248,22 @@ export const generatePlanObject = (plan: Plan): IPlanConfig => {
 };
 
 export const createPlan = async (payload: IPlanConfig): Promise<IPaystackCreatePlanRes> => {
+  if (isDummyPaystack()) {
+    return {
+      status: true,
+      message: "Dummy plan",
+      data: {
+        plan_code: `PLN_DUMMY_${Date.now()}`,
+        name: payload.name,
+        amount: payload.amount,
+        interval: payload.interval,
+      },
+    };
+  }
   const response = await axios({
     method: "post",
     url: `${env.paystackUrl}/plan`,
-    headers: {
-      Authorization: `Bearer ${env.paystackSecretKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: authHeaders(),
     data: payload,
   });
   return response.data as IPaystackCreatePlanRes;
@@ -201,39 +273,63 @@ export const updatePlan = async (
   planCode: string,
   payload: Partial<IPlanUpdateConfig>
 ): Promise<IPlanUpdateRes> => {
+  if (isDummyPaystack()) return { status: true, message: "Dummy update" };
   const response = await axios({
     method: "put",
     url: `${env.paystackUrl}/plan/${planCode}`,
-    headers: {
-      Authorization: `Bearer ${env.paystackSecretKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: authHeaders(),
     data: payload,
   });
   return response.data as IPlanUpdateRes;
 };
 
 export const createSubscription = async (payload: ISubConfig): Promise<ISubCreateRes> => {
+  if (isDummyPaystack()) {
+    return {
+      status: true,
+      message: "Dummy subscription",
+      data: {
+        customer: payload.customer,
+        plan: 0,
+        status: "active",
+        amount: 0,
+        subscription_code: `SUB_DUMMY_${Date.now()}`,
+        email_token: "dummy_token",
+        id: 0,
+        authorization: { authorization_code: payload.authorization ?? "AUTH_DUMMY" },
+      },
+    };
+  }
   const response = await axios({
     method: "post",
     url: `${env.paystackUrl}/subscription`,
-    headers: {
-      Authorization: `Bearer ${env.paystackSecretKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: authHeaders(),
     data: payload,
   });
   return response.data as ISubCreateRes;
 };
 
 export const createCustomer = async (payload: ICreatePaystackCustomer): Promise<ISubCreateRes> => {
+  if (isDummyPaystack()) {
+    return {
+      status: true,
+      message: "Dummy customer",
+      data: {
+        customer: payload.email,
+        plan: 0,
+        status: "active",
+        amount: 0,
+        subscription_code: "",
+        email_token: "",
+        id: 0,
+        authorization: { authorization_code: "" },
+      },
+    };
+  }
   const response = await axios({
     method: "post",
     url: `${env.paystackUrl}/customer`,
-    headers: {
-      Authorization: `Bearer ${env.paystackSecretKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: authHeaders(),
     data: payload,
   });
   return response.data as ISubCreateRes;
@@ -242,13 +338,11 @@ export const createCustomer = async (payload: ICreatePaystackCustomer): Promise<
 export const enableSubscription = async (
   payload: ISubDisOrEnableConfig
 ): Promise<IPlanUpdateRes> => {
+  if (isDummyPaystack()) return { status: true, message: "Dummy enable" };
   const response = await axios({
     method: "post",
     url: `${env.paystackUrl}/subscription/enable`,
-    headers: {
-      Authorization: `Bearer ${env.paystackSecretKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: authHeaders(),
     data: payload,
   });
   return response.data as IPlanUpdateRes;
@@ -257,13 +351,11 @@ export const enableSubscription = async (
 export const disableSubscription = async (
   payload: ISubDisOrEnableConfig
 ): Promise<IPlanUpdateRes> => {
+  if (isDummyPaystack()) return { status: true, message: "Dummy disable" };
   const response = await axios({
     method: "post",
     url: `${env.paystackUrl}/subscription/disable`,
-    headers: {
-      Authorization: `Bearer ${env.paystackSecretKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: authHeaders(),
     data: payload,
   });
   return response.data as IPlanUpdateRes;
@@ -272,25 +364,23 @@ export const disableSubscription = async (
 export const generateUpdateSubscriptionLink = async (
   subscriptionCode: string
 ): Promise<ISubGenerateLinkRes> => {
+  if (isDummyPaystack()) {
+    return { status: true, message: "Dummy link", data: { link: paymentCallbackUrl() } };
+  }
   const response = await axios({
     method: "get",
     url: `${env.paystackUrl}/subscription/${subscriptionCode}/manage/link`,
-    headers: {
-      Authorization: `Bearer ${env.paystackSecretKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: authHeaders(),
   });
   return response.data as ISubGenerateLinkRes;
 };
 
 export const listSubscriptions = async (customerEmail: string) => {
+  if (isDummyPaystack()) return { status: true, data: [] };
   const response = await axios({
     method: "get",
     url: `${env.paystackUrl}/subscription?email=${encodeURIComponent(customerEmail)}`,
-    headers: {
-      Authorization: `Bearer ${env.paystackSecretKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: authHeaders(),
   });
   return response.data;
 };
