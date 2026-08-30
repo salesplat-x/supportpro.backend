@@ -10,6 +10,7 @@ import {
 } from "typeorm";
 import { MatchVerdict, MatchRecommendation } from "../types/enums.js";
 import type { Application } from "./Application.js";
+import type { MatchAnalysis } from "../utils/matchAnalysis.js";
 
 /**
  * Persisted AI Match recommendation for an application.
@@ -64,6 +65,9 @@ export class AiRecommendation {
 
   @Column({ type: "jsonb", nullable: true, default: null })
   risks!: string[] | null;
+
+  @Column({ type: "jsonb", nullable: true, default: null })
+  analysis!: MatchAnalysis | null;
 
   @CreateDateColumn()
   createdAt!: Date;

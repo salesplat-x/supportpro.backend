@@ -18,6 +18,7 @@ import {
 } from "../types/enums.js";
 import { ValidationError } from "../utils/errors";
 import { assessApplicationMatch } from "../utils/integrations/openai.js";
+import { parseMatchAnalysis, type MatchAnalysis } from "../utils/matchAnalysis.js";
 import { isPrescreeningScoreValid } from "./prescreening.js";
 import logger from "../utils/logger.js";
 
@@ -65,6 +66,7 @@ const persistRecommendation = async (
     strengths: string[] | null;
     weaknesses: string[] | null;
     risks: string[] | null;
+    analysis: MatchAnalysis | null;
   }
 ): Promise<void> => {
   // Both writes must land together — a partial write here is exactly what lets
@@ -109,6 +111,7 @@ export const overlayVerdictFromRecommendation = <T extends Application>(
   application.matchStrengths = recommendation.strengths;
   application.matchWeaknesses = recommendation.weaknesses;
   application.matchRisks = recommendation.risks;
+  Object.assign(application, { matchAnalysis: recommendation.analysis ?? null });
   return application;
 };
 
@@ -236,6 +239,7 @@ export const triggerMatchVerdict = async (
         strengths: application.matchStrengths,
         weaknesses: application.matchWeaknesses,
         risks: application.matchRisks,
+        analysis: null,
       });
       return;
     }
@@ -256,6 +260,7 @@ export const triggerMatchVerdict = async (
     // answers/mbtiType happen to exist (e.g. the stage was disabled after the
     // talent already completed it).
     const includePersonality = aiConfig ? aiConfig.personalityEvaluation : true;
+    const includePersonalized = aiConfig ? aiConfig.personalizedAssessment : true;
 
     const [cvChunks, personalizedQuestionsAndAnswers, personalityQuestionsAndAnswers] =
       await Promise.all([
@@ -278,36 +283,38 @@ export const triggerMatchVerdict = async (
       goals: job.goals ?? undefined,
       recruiterGuide: aiConfig?.recruiterGuide ?? undefined,
       cvSimilarityScore: application.cvSimilarityScore,
-      personalizedScore: application.personalizedScore,
+      personalizedScore: includePersonalized ? application.personalizedScore : null,
       prescreeningScore: isPrescreeningScoreValid(talent.prescreeningScoredAt)
         ? (talent.prescreeningScore ?? null)
         : null,
       mbtiType: includePersonality ? application.mbtiType : null,
       cvText: cvText || undefined,
       personalizedQuestionsAndAnswers:
-        personalizedQuestionsAndAnswers.length > 0 ? personalizedQuestionsAndAnswers : undefined,
+        includePersonalized && personalizedQuestionsAndAnswers.length > 0
+          ? personalizedQuestionsAndAnswers
+          : undefined,
       personalityQuestionsAndAnswers:
         personalityQuestionsAndAnswers.length > 0 ? personalityQuestionsAndAnswers : undefined,
+      talentLocation: {
+        city: talent.locationCity ?? undefined,
+        state: talent.locationState ?? undefined,
+        country: talent.locationCountry ?? undefined,
+      },
+      workType: talent.workType ?? undefined,
+      experience: talent.experience ?? undefined,
     });
     if (!response?.message.content) {
       throw new ValidationError("Error with LLM");
     }
 
-    const parsed = JSON.parse(response.message.content) as {
-      verdict: string;
-      reasoning: string;
-      strengths?: string[];
-      weaknesses?: string[];
-      risks?: string[];
-      recommendation?: string;
-    };
+    const parsed = JSON.parse(response.message.content) as Record<string, unknown>;
 
     // The LLM is instructed to return exactly "high"/"medium"/"low", but nothing
     // guarantees it does — an unvalidated write straight to this enum column was
     // the actual reason verdicts silently never appeared: any casing/wording
     // deviation ("High", etc.) failed the DB write, was swallowed by the catch
     // below, and left matchVerdict null forever with no visible error.
-    const normalizedVerdict = parsed.verdict?.trim().toLowerCase();
+    const normalizedVerdict = String(parsed.verdict ?? "").trim().toLowerCase();
     const validVerdicts = Object.values(MatchVerdict) as string[];
     if (!validVerdicts.includes(normalizedVerdict)) {
       throw new ValidationError(`Unexpected verdict value from LLM: "${parsed.verdict}"`);
@@ -315,19 +322,25 @@ export const triggerMatchVerdict = async (
 
     // Same validate-before-write discipline as the verdict above — a stray
     // casing/wording deviation here must not silently drop the whole update.
-    const normalizedRecommendation = parsed.recommendation?.trim().toLowerCase();
+    const normalizedRecommendation = String(parsed.recommendation ?? "").trim().toLowerCase();
     const validRecommendations = Object.values(MatchRecommendation) as string[];
     const recommendation = validRecommendations.includes(normalizedRecommendation ?? "")
       ? (normalizedRecommendation as MatchRecommendation)
       : null;
 
+    const analysis = parseMatchAnalysis(parsed, normalizedVerdict);
+
     await persistRecommendation(application.id, {
       verdict: normalizedVerdict as MatchVerdict,
-      reasoning: parsed.reasoning,
+      reasoning:
+        typeof parsed.reasoning === "string"
+          ? parsed.reasoning
+          : analysis.hiringRationale,
       recommendation,
-      strengths: Array.isArray(parsed.strengths) ? parsed.strengths : null,
-      weaknesses: Array.isArray(parsed.weaknesses) ? parsed.weaknesses : null,
-      risks: Array.isArray(parsed.risks) ? parsed.risks : null,
+      strengths: Array.isArray(parsed.strengths) ? (parsed.strengths as string[]) : null,
+      weaknesses: Array.isArray(parsed.weaknesses) ? (parsed.weaknesses as string[]) : null,
+      risks: Array.isArray(parsed.risks) ? (parsed.risks as string[]) : null,
+      analysis,
     });
   } catch (err) {
     logger.error(
