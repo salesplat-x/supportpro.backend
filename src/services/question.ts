@@ -1,5 +1,5 @@
 import { AppDataSource } from "../database/dataSource.js";
-import { AIConfig, Application, Job, Question, Role, TalentEmbedding, User } from "../entities";
+import { AIConfig, Application, Job, Question, Role, TalentEmbedding, User, Answer } from "../entities";
 import { NotFoundError, ValidationError, AuthorizationError } from "../utils/errors";
 import { QuestionType, JobStatus } from "../types/enums.js";
 import { calculateTimeLeft, sortDirection } from "../utils/text.js";
@@ -9,6 +9,7 @@ const questionRepo = () => AppDataSource.getRepository(Question);
 const roleRepo = () => AppDataSource.getRepository(Role);
 const jobRepo = () => AppDataSource.getRepository(Job);
 const applicationRepo = () => AppDataSource.getRepository(Application);
+const answerRepo = () => AppDataSource.getRepository(Answer);
 
 const MAX_PAGE_SIZE = 100;
 const PERSONALITY_POOL_MULTIPLIER = 2;
@@ -54,6 +55,21 @@ export const createQuestion = async (payload: QuestionPayload): Promise<Question
   return questionRepo().save(question);
 };
 
+const withStoredAnswers = async (
+  userId: string,
+  jobId: string,
+  questionType: QuestionType,
+  questions: Question[]
+): Promise<Question[]> => {
+  if (questions.length === 0) return questions;
+  const answer = await answerRepo().findOne({ where: { userId, jobId, questionType } });
+  if (!answer) return questions;
+  const byId = new Map(answer.responses.map((r) => [r.questionId, r.answer]));
+  return questions.map((question) =>
+    Object.assign(question, { answer: byId.get(question.id) ?? null })
+  );
+};
+
 export const fetchQuestions = async (
   user: User,
   payload: FetchQuestionsParams
@@ -75,12 +91,14 @@ export const fetchQuestions = async (
     const questionIds = application.personalizedQuestions ?? [];
     if (questionIds.length === 0) return [];
 
-    return questionRepo().createQueryBuilder("q").whereInIds(questionIds).getMany();
+    const questions = await questionRepo().createQueryBuilder("q").whereInIds(questionIds).getMany();
+    return withStoredAnswers(user.id, payload.jobId, QuestionType.Personalized, questions);
   }
 
   // Personality questions: a per-applicant random subset of the job's shared pool
   if (payload.jobId && payload.questionType === QuestionType.Personality) {
-    return getOrAssignPersonalityQuestionsForApplicant(payload.jobId, user.id);
+    const questions = await getOrAssignPersonalityQuestionsForApplicant(payload.jobId, user.id);
+    return withStoredAnswers(user.id, payload.jobId, QuestionType.Personality, questions);
   }
 
   // Prescreening questions require a complete profile and matching role
