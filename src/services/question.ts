@@ -225,7 +225,10 @@ export const generatePersonalizedQuestions = async (
       .createQueryBuilder("q")
       .whereInIds(application.personalizedQuestions)
       .getMany();
-    return { questions, application };
+    return {
+      questions: await withStoredAnswers(talentId, jobId, QuestionType.Personalized, questions),
+      application,
+    };
   }
 
   const jobEntity = await jobRepo().findOne({ where: { id: jobId } });
