@@ -7,6 +7,7 @@ import {
   testDataSource,
 } from "./helpers/db.js";
 import { Application } from "../src/entities/Application.js";
+import { Feedback } from "../src/entities/Feedback.js";
 import { Job } from "../src/entities/Job.js";
 import { Message } from "../src/entities/Message.js";
 import { TalentEmbedding } from "../src/entities/TalentEmbedding.js";
@@ -83,7 +84,45 @@ describe("Admin talents & jobs", () => {
       cvText: "Naval officer and computer scientist",
       cvUploadedAt: new Date(),
     });
-    const application = await createApplication(talent, job);
+
+    const personalizedQuestion = await testDataSource.getRepository(Question).save(
+      testDataSource.getRepository(Question).create({
+        jobId: job.id,
+        roleId: role.id,
+        question: "Walk me through a sale you closed",
+        type: QuestionType.Personalized,
+      })
+    );
+    const personalityPoolQuestion = await testDataSource.getRepository(Question).save(
+      testDataSource.getRepository(Question).create({
+        jobId: job.id,
+        roleId: role.id,
+        question: "Do you prefer working with people or ideas?",
+        type: QuestionType.Personality,
+        criteria: "EI",
+      })
+    );
+
+    const application = await createApplication(talent, job, {
+      personalizedQuestions: [personalizedQuestion.id],
+    });
+
+    await testDataSource.getRepository(Answer).save(
+      testDataSource.getRepository(Answer).create({
+        userId: talent.id,
+        jobId: job.id,
+        questionType: QuestionType.Personalized,
+        responses: [{ questionId: personalizedQuestion.id, answer: "I closed X." }],
+      })
+    );
+
+    await testDataSource.getRepository(Feedback).save(
+      testDataSource.getRepository(Feedback).create({
+        userId: talent.id,
+        subject: "App feedback",
+        message: "The pipeline was confusing.",
+      })
+    );
 
     await testDataSource.getRepository(TalentEmbedding).save(
       testDataSource.getRepository(TalentEmbedding).create({
@@ -116,6 +155,22 @@ describe("Admin talents & jobs", () => {
     expect(
       await testDataSource.getRepository(Message).findOne({ where: { id: message.id } })
     ).toBeNull();
+    expect(await testDataSource.getRepository(Answer).count({ where: { userId: talent.id } })).toBe(
+      0
+    );
+    expect(
+      await testDataSource.getRepository(Feedback).count({ where: { userId: talent.id } })
+    ).toBe(0);
+    expect(
+      await testDataSource
+        .getRepository(Question)
+        .findOne({ where: { id: personalizedQuestion.id } })
+    ).toBeNull();
+    expect(
+      await testDataSource
+        .getRepository(Question)
+        .findOne({ where: { id: personalityPoolQuestion.id } })
+    ).not.toBeNull();
   });
 
   it("lists jobs and permanently deletes a job with dependents", async () => {

@@ -5,6 +5,7 @@ import {
   Application,
   Conversation,
   ErrorLog,
+  Feedback,
   Job,
   Message,
   Notification,
@@ -137,9 +138,11 @@ export async function purgeOrganizationCascade(
 
 /**
  * Fully remove a talent user and every associated record:
- * messages, applications (+ AI match rows), answers, notifications, payments,
- * subscriptions, embeddings, pre-screenings, conversation membership, error-log links.
+ * messages, applications (+ AI match rows), answers, personalized question rows,
+ * feedback, notifications, payments, subscriptions, embeddings, pre-screenings,
+ * conversation membership, error-log links.
  * There is no external object storage for CVs anymore (cvText on the user row).
+ * Personality question pools stay on the job — they are shared across applicants.
  */
 export async function purgeTalentCascade(manager: EntityManager, userId: string): Promise<void> {
   const user = await manager.findOne(User, { where: { id: userId } });
@@ -152,9 +155,12 @@ export async function purgeTalentCascade(manager: EntityManager, userId: string)
 
   const applications = await manager.find(Application, {
     where: { talentId: userId },
-    select: { id: true },
+    select: { id: true, personalizedQuestions: true },
   });
   const applicationIds = applications.map((a) => a.id);
+  const personalizedQuestionIds = [
+    ...new Set(applications.flatMap((a) => a.personalizedQuestions ?? []).filter(Boolean)),
+  ];
 
   const messageIds = await collectMessageIds(manager, {
     applicationIds,
@@ -167,6 +173,10 @@ export async function purgeTalentCascade(manager: EntityManager, userId: string)
   }
 
   await manager.delete(Answer, { userId });
+  if (personalizedQuestionIds.length > 0) {
+    await manager.delete(Question, { id: In(personalizedQuestionIds) });
+  }
+  await manager.delete(Feedback, { userId });
   await manager.delete(Notification, { userId });
   await manager.delete(Payment, { userId });
   await manager.delete(Subscription, { userId });
