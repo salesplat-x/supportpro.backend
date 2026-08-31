@@ -28,6 +28,7 @@ export interface RecruiterDashboardResult {
     mbtiType: string | null;
     prescreeningScore: number | null;
     cvSimilarityScore: number | null;
+    personalizedScore: number | null;
     status: string;
     currentStage: string;
     jobId: string;
@@ -103,6 +104,7 @@ export const recruiterDashboard = async (
     mbtiType: app.mbtiType,
     prescreeningScore: app.talent?.prescreeningScore ?? null,
     cvSimilarityScore: app.cvSimilarityScore,
+    personalizedScore: app.personalizedScore,
     status: app.status,
     currentStage: app.currentStage,
     jobId: app.jobId,
