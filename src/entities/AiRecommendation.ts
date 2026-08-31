@@ -14,9 +14,9 @@ import type { MatchAnalysis } from "../utils/matchAnalysis.js";
 
 /**
  * Persisted AI Match recommendation for an application.
- * Generated once when the screening pipeline completes; only recomputed when
- * a recruiter explicitly regenerates. Viewing the AI Match panel / applicant
- * table reads this stored row — it never calls OpenAI again.
+ * Generated once when the screening pipeline completes and never overwritten.
+ * Viewing the applicant dossier / table reads this stored row — it never calls
+ * OpenAI again.
  *
  * Enum columns intentionally reuse the applications_* enum types created for
  * Application.matchVerdict / matchRecommendation (see CreateAiRecommendations

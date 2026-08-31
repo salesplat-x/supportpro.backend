@@ -28,8 +28,3 @@ export const bulkUpdateStatus = async (req: Request, res: Response) => {
   const result = await applicationService.bulkUpdateStatus(req.user.id, req.body);
   sendSuccessResponse(res, "Application statuses updated", result);
 };
-
-export const regenerateVerdict = async (req: Request, res: Response) => {
-  const result = await applicationService.regenerateVerdict(req.user.id, req.params["_id"]!);
-  sendSuccessResponse(res, "Match verdict regenerated", { application: result });
-};

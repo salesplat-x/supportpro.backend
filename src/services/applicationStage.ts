@@ -80,13 +80,14 @@ const persistRecommendation = async (
   await AppDataSource.transaction(async (manager) => {
     const existing = await manager.findOne(AiRecommendation, { where: { applicationId } });
     if (existing) {
-      await manager.save(AiRecommendation, { ...existing, ...payload });
-    } else {
-      await manager.save(
-        AiRecommendation,
-        manager.create(AiRecommendation, { applicationId, ...payload })
-      );
+      // Generated once — never overwrite a stored recommendation.
+      return;
     }
+
+    await manager.save(
+      AiRecommendation,
+      manager.create(AiRecommendation, { applicationId, ...payload })
+    );
 
     // Keep denormalized columns on applications in sync for existing API consumers.
     await manager.update(Application, applicationId, {
@@ -197,7 +198,7 @@ export const rankApplication = async (
 };
 
 export interface TriggerMatchVerdictOptions {
-  /** When true, call OpenAI even if a recommendation already exists (recruiter regenerate). */
+  /** @deprecated Match is generated once. Ignored if a recommendation already exists. */
   force?: boolean;
 }
 
@@ -208,19 +209,19 @@ export interface TriggerMatchVerdictOptions {
 // it directly instead of racing the fire-and-forget call.
 //
 // Recommendations are persisted in `ai_recommendations` and generated once.
-// Opening the AI Match panel / applicant table reads the stored row — it does
-// not recompute. Only an explicit regenerate (force: true) calls OpenAI again.
+// Viewing an applicant reads the stored row — it never recomputes, and there is
+// no recruiter regenerate path.
 export const triggerMatchVerdict = async (
   talent: User,
   application: Application,
-  options: TriggerMatchVerdictOptions = {}
+  _options: TriggerMatchVerdictOptions = {}
 ): Promise<void> => {
   try {
     const existingRecommendation = await aiRecommendationRepo().findOne({
       where: { applicationId: application.id },
     });
 
-    if (existingRecommendation && !options.force) {
+    if (existingRecommendation) {
       // Already generated — sync application columns if they were cleared, then exit.
       if (!application.matchVerdict) {
         await applicationRepo().update(application.id, {
@@ -237,7 +238,7 @@ export const triggerMatchVerdict = async (
 
     // Legacy rows that have match columns but no ai_recommendations row yet —
     // promote without calling OpenAI again.
-    if (!options.force && application.matchVerdict) {
+    if (application.matchVerdict) {
       await persistRecommendation(application.id, {
         verdict: application.matchVerdict,
         reasoning: application.matchVerdictReasoning ?? "",

@@ -2,7 +2,7 @@ import { In } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { Application } from "../entities/Application.js";
 import { Notification } from "../entities/Notification.js";
-import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
+import { NotFoundError, AuthorizationError } from "../utils/errors";
 import {
   UserRole,
   ApplicationType,
@@ -13,7 +13,6 @@ import {
 import { createNotification } from "./notification.js";
 import { decisionNotificationTitle } from "./applicationNotifications.js";
 import {
-  triggerMatchVerdict,
   loadApplicationWithMatch,
   loadRecommendationsByApplicationIds,
   overlayVerdictFromRecommendation,
@@ -150,52 +149,6 @@ export const updateStatus = async (
   }
 
   return saved;
-};
-
-// Manual retry path for the AI match verdict — the automatic trigger only ever
-// fires once, fire-and-forget, the moment an application completes; if that
-// single attempt fails (a bad LLM response, a transient API error) there was
-// previously no way to get a verdict for that applicant ever again. This is
-// awaited (not fire-and-forget) so the caller gets a real result or error.
-export const regenerateVerdict = async (
-  userId: string,
-  applicationId: string
-): Promise<Application> => {
-  const application = await applicationRepo().findOne({
-    where: { id: applicationId },
-    relations: { job: true, talent: true },
-  });
-
-  if (!application) {
-    throw new NotFoundError("Application not found");
-  }
-
-  if (application.job.postedById !== userId) {
-    throw new AuthorizationError("You are not authorized to perform this action");
-  }
-
-  if (application.currentStage !== ScreeningStage.Completed) {
-    throw new ValidationError(
-      "This application hasn't completed its screening pipeline yet — a match verdict isn't available until it has"
-    );
-  }
-
-  await triggerMatchVerdict(application.talent, application, { force: true });
-
-  // triggerMatchVerdict swallows its own errors (by design — the automatic,
-  // fire-and-forget call site must never let a verdict failure bubble up to the
-  // talent). Here, the caller *is* waiting on a real result, so surface failure
-  // by checking whether a verdict actually got persisted.
-  const refreshed = await loadApplicationWithMatch(applicationId);
-  if (!refreshed) {
-    throw new NotFoundError("Application not found");
-  }
-  if (!refreshed.matchVerdict) {
-    throw new ValidationError(
-      "Could not generate a match verdict right now — please try again shortly"
-    );
-  }
-  return refreshed;
 };
 
 // Applications the caller doesn't own are silently skipped rather than failing

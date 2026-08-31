@@ -402,7 +402,7 @@ describe("triggerMatchVerdict — AI verdict is advisory and recruiter-facing on
     expect(mockAssessApplicationMatch).not.toHaveBeenCalled();
   });
 
-  it("force regenerate calls OpenAI even when a recommendation already exists", async () => {
+  it("does not overwrite an existing recommendation, even when force is passed", async () => {
     const { user: talent } = await createTalent();
     const { user: recruiter } = await createRecruiter();
     const role = await createRole();
@@ -428,11 +428,12 @@ describe("triggerMatchVerdict — AI verdict is advisory and recruiter-facing on
     mockAssessApplicationMatch.mockClear();
     await triggerMatchVerdict(talent, application, { force: true });
 
-    expect(mockAssessApplicationMatch).toHaveBeenCalledTimes(1);
+    expect(mockAssessApplicationMatch).not.toHaveBeenCalled();
     const stored = await testDataSource.getRepository(AiRecommendation).findOne({
       where: { applicationId: application.id },
     });
-    expect(stored?.verdict).toBe(MatchVerdict.High);
+    expect(stored?.verdict).toBe(MatchVerdict.Low);
+    expect(stored?.reasoning).toBe("Old reasoning");
   });
 
   it("gathers CV text and personalized/personality Q&A into the LLM context", async () => {
