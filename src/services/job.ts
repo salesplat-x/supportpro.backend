@@ -328,7 +328,13 @@ export const deleteJob = async (userId: string, jobId: string): Promise<void> =>
 
 export const fetchAllJobs = async (
   payload: FetchJobsParams
-): Promise<(Job & { hasApplied?: boolean; applicationStage?: string | null })[]> => {
+): Promise<
+  (Job & {
+    hasApplied?: boolean;
+    applicationStage?: string | null;
+    applicationStages?: Record<string, string> | null;
+  })[]
+> => {
   const qb = jobRepo()
     .createQueryBuilder("job")
     .leftJoinAndSelect("job.role", "role")
@@ -402,18 +408,20 @@ export const fetchAllJobs = async (
 
   const applied = await applicationRepo().find({
     where: { talentId: payload.talentId, jobId: In(jobs.map((job) => job.id)) },
-    select: { jobId: true, currentStage: true },
+    select: { jobId: true, currentStage: true, stages: true },
   });
-  const stageByJobId = new Map(
-    applied.map((application) => [application.jobId, application.currentStage])
+  const applicationByJobId = new Map(
+    applied.map((application) => [application.jobId, application])
   );
 
-  return jobs.map((job) =>
-    Object.assign(job, {
-      hasApplied: stageByJobId.has(job.id),
-      applicationStage: stageByJobId.get(job.id) ?? null,
-    })
-  );
+  return jobs.map((job) => {
+    const application = applicationByJobId.get(job.id);
+    return Object.assign(job, {
+      hasApplied: !!application,
+      applicationStage: application?.currentStage ?? null,
+      applicationStages: application?.stages ?? null,
+    });
+  });
 };
 
 export const fetchJob = async (
@@ -873,9 +881,7 @@ export const retryMissingVerdicts = async (
   });
 
   await Promise.all(
-    applications.map((application) =>
-      triggerMatchVerdict(application.talent, application, { force: true })
-    )
+    applications.map((application) => triggerMatchVerdict(application.talent, application))
   );
 
   const ids = applications.map((a) => a.id);
