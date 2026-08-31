@@ -16,6 +16,7 @@ export interface RecruiterDashboardResult {
   shortlistCount: number;
   recentApplications: Array<{
     id: string;
+    jobId: string;
     applicantName: string;
     prescreeningScore: number | null;
     cvSimilarityScore: number | null;
@@ -72,6 +73,7 @@ export const recruiterDashboard = async (
 
   const recentApplications = recentApplicationsRaw.map((app) => ({
     id: app.id,
+    jobId: app.jobId,
     applicantName: `${app.talent?.firstName ?? ""} ${app.talent?.lastName ?? ""}`.trim(),
     prescreeningScore: app.talent?.prescreeningScore ?? null,
     cvSimilarityScore: app.cvSimilarityScore,
