@@ -5,8 +5,10 @@ import { Conversation } from "../entities/Conversation.js";
 import { User } from "../entities/User.js";
 import { Application } from "../entities/Application.js";
 import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
-import { sortDirection } from "../utils/text.js";
+import { sortDirection, stripHtmlToText } from "../utils/text.js";
 import { UserRole, ApplicationStatus } from "../types/enums.js";
+import { createNotification } from "./notification.js";
+import logger from "../utils/logger.js";
 
 const messageRepo = () => AppDataSource.getRepository(Message);
 
@@ -113,7 +115,19 @@ export const sendMessage = async (senderId: string, payload: MessageInput): Prom
   // Update last message on conversation
   await conversationRepo().save({ ...conversation, lastMessageId: savedMessage.id });
 
+  await notifyMessageRecipient(recipient, content);
+
   return savedMessage;
+};
+
+const notifyMessageRecipient = async (userId: string, htmlContent: string): Promise<void> => {
+  try {
+    const preview = stripHtmlToText(htmlContent).slice(0, 280);
+    if (!preview) return;
+    await createNotification(userId, preview, "New message");
+  } catch (err) {
+    logger.error(`Message notification failed for user ${userId}: ${(err as Error).message}`);
+  }
 };
 
 export const acknowledge = async (
@@ -174,9 +188,11 @@ export const broadcastMessage = async (
       senderId,
       recipientId: app.talentId,
       content,
+      applicationId: app.id,
     });
     const savedMessage = await messageRepo().save(message);
     await conversationRepo().save({ ...conversation, lastMessageId: savedMessage.id });
+    await notifyMessageRecipient(app.talentId, content);
   }
 
   return { content };

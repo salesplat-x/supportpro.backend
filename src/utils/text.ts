@@ -94,6 +94,21 @@ export function sortDirection(direction: string): "ASC" | "DESC" {
   return direction?.toLowerCase() === "asc" ? "ASC" : "DESC";
 }
 
+/** Plain-text preview of recruiter rich-text messages used in notifications. */
+export function stripHtmlToText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<\/p>/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function handleFilename(filename: string): { name: string; ext: string | undefined } {
   const parts = filename.split(".");
   const oldName = parts.length > 1 ? parts.slice(0, parts.length - 1).join("_") : filename;
