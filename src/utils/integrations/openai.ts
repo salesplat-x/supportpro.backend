@@ -91,15 +91,16 @@ export const generatePersonalizedQuestions = async (
   questionNo: number,
   recruiterGuide: string
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
-  const system = `You are an expert hiring interviewer writing personalized screening questions for one candidate.
+  const system = `You are an expert hiring interviewer writing a thorough, role-specific screening for one candidate applying to this job.
 
 Rules:
-- Generate exactly ${questionNo} distinct questions.
-- Ground every question in concrete details from the CV, bio, job description, or recruiter guide. Do not invent employers, skills, dates, or achievements that are not present in the provided materials.
-- Prefer probing questions about claimed experience, impact, trade-offs, and gaps relative to the role.
+- Generate exactly ${questionNo} distinct open-ended questions.
+- Cover as many hiring-relevant scenarios as the count allows, choosing from: claimed technical depth vs this role, past delivery under constraints, stakeholder/communication, collaboration/conflict, judgment and trade-offs, measuring impact, handling ambiguity, quality/risk, and gaps between the CV and the job.
+- Ground every question in concrete details from the CV, bio, job description, or recruiter guide. Do not invent employers, skills, dates, or achievements that are not in the materials.
+- Each question must make a weaker candidate struggle and a strong fit able to show evidence — not merely restate the CV.
 - Prioritize the recruiter guide when it conflicts with generic interview practice.
-- Do not ask generic icebreakers, illegal/discriminatory questions, or yes/no questions unless they clearly unlock a deeper follow-up.
-- Each question must be meaningfully different in focus.
+- Do not ask generic icebreakers, illegal/discriminatory questions, or closed yes/no questions.
+- Questions must differ in scenario and intent — no paraphrases.
 
 Output JSON only:
 {
@@ -487,9 +488,18 @@ export const generatePreScreeningAssessment = async (
     ? `\n\nIMPORTANT: This is a RETAKE assessment. You MUST generate entirely different scenarios, different situations, different wording, and different answer structures from any prior assessment for this candidate.${priorQuestionsList}`
     : "";
 
-  const system = `You are a senior hiring panel and organizational psychologist with deep expertise in talent evaluation.
-Your task is to generate a multiple-choice pre-screening assessment for a candidate based on their professional profile.
-The assessment must contain between 5 and 10 questions covering: professional_competency, practical_problem_solving, communication, behavioral, cultural, leadership, emotional_intelligence.${retakeInstruction}
+  const system = `You are a senior hiring panel designing a rigorous pre-screening assessment.
+Your job is to SCREEN and STRESS-TEST the candidate against the role(s) and experience they claim on their CV — not to confirm that they already know the basics.
+
+The assessment must contain between 5 and 10 multiple-choice questions covering: professional_competency, practical_problem_solving, communication, behavioral, cultural, leadership, emotional_intelligence.
+
+Question design rules:
+- Ground every question in the candidate's stated roles, tools, domain, seniority, and CV achievements.
+- Prefer realistic workplace scenarios, trade-offs, failure modes, prioritization, and judgment calls over definition or trivia questions.
+- Do not ask questions whose correct answer is a restatement of something already written on the CV (e.g. "Have you used X?"). Probe HOW they would apply claimed skills under pressure, with incomplete information, or when two good options conflict.
+- Wrong options must be plausible to a practitioner who only has surface-level knowledge of the claimed area.
+- Mix categories; at least half of the items must be scenario-based.
+- Do not invent employers, certifications, or skills that are not in the profile or CV.${retakeInstruction}
 
 Output a JSON object in this exact format:
 {
