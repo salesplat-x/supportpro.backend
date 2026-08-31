@@ -3,7 +3,13 @@ import { AppDataSource } from "../database/dataSource.js";
 import { Application } from "../entities/Application.js";
 import { Notification } from "../entities/Notification.js";
 import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
-import { UserRole, ApplicationType, ApplicationStatus, ScreeningStage } from "../types/enums.js";
+import {
+  UserRole,
+  ApplicationType,
+  ApplicationStatus,
+  ScreeningStage,
+  QuestionType,
+} from "../types/enums.js";
 import { createNotification } from "./notification.js";
 import { decisionNotificationTitle } from "./applicationNotifications.js";
 import {
@@ -11,6 +17,7 @@ import {
   loadApplicationWithMatch,
   loadRecommendationsByApplicationIds,
   overlayVerdictFromRecommendation,
+  buildQuestionAnswerPairs,
 } from "./applicationStage.js";
 import logger from "../utils/logger.js";
 
@@ -52,6 +59,13 @@ export const getApplication = async (
       jobId: application.jobId,
     },
   });
+
+  const [personalityAnswers, personalizedAnswers] = await Promise.all([
+    buildQuestionAnswerPairs(application.jobId, application.talentId, QuestionType.Personality),
+    buildQuestionAnswerPairs(application.jobId, application.talentId, QuestionType.Personalized),
+  ]);
+
+  Object.assign(application, { personalityAnswers, personalizedAnswers });
 
   return { application, count };
 };

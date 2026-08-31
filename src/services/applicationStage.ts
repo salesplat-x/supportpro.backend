@@ -34,13 +34,19 @@ const questionRepo = () => AppDataSource.getRepository(Question);
 
 const talentEmbeddingRepo = () => AppDataSource.getRepository(TalentEmbedding);
 
+export type QuestionAnswerPair = {
+  question: string;
+  answer: string;
+  dichotomy?: string;
+};
+
 // Joins an Answer row's responses back to their question text so the LLM gets
 // readable Q&A pairs instead of opaque question IDs.
-const buildQuestionAnswerPairs = async (
+export const buildQuestionAnswerPairs = async (
   jobId: string,
   userId: string,
   questionType: QuestionType.Personalized | QuestionType.Personality
-): Promise<Array<{ question: string; answer: string; dichotomy?: string }>> => {
+): Promise<QuestionAnswerPair[]> => {
   const answer = await answerRepo().findOne({ where: { userId, jobId, questionType } });
   if (!answer || answer.responses.length === 0) return [];
 

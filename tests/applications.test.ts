@@ -19,16 +19,19 @@ import {
   createAIConfig,
   createApplication,
   createOrganization,
+  createQuestion,
 } from "./helpers/fixtures.js";
 import { Application } from "../src/entities/Application.js";
 import { Job } from "../src/entities/Job.js";
 import { Notification } from "../src/entities/Notification.js";
 import { AiRecommendation } from "../src/entities/AiRecommendation.js";
+import { Answer } from "../src/entities/Answer.js";
 import {
   ApplicationStatus,
   ScreeningStage,
   MatchVerdict,
   MatchRecommendation,
+  QuestionType,
 } from "../src/types/enums.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
@@ -242,6 +245,64 @@ describe("GET /v1/applications/:_id — single application", () => {
     expect(res.body.data.application.matchVerdictReasoning).toBe(
       "Strong fit despite the drifted column."
     );
+  });
+
+  it("includes personality and personalized Q&A so recruiters can read submitted answers", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { user: talent } = await createTalent();
+    const app_ = await createApplication(talent, job);
+
+    const personalityQuestion = await createQuestion(
+      QuestionType.Personality,
+      { jobId: job.id },
+      { question: "How do you recharge after a long week?", criteria: "EI" }
+    );
+    const personalizedQuestion = await createQuestion(
+      QuestionType.Personalized,
+      {
+        jobId: job.id,
+      },
+      { question: "Walk us through a launch you owned." }
+    );
+
+    await testDataSource.getRepository(Answer).save(
+      testDataSource.getRepository(Answer).create({
+        userId: talent.id,
+        jobId: job.id,
+        questionType: QuestionType.Personality,
+        responses: [{ questionId: personalityQuestion.id, answer: "Quiet evenings, then a walk." }],
+      })
+    );
+    await testDataSource.getRepository(Answer).save(
+      testDataSource.getRepository(Answer).create({
+        userId: talent.id,
+        jobId: job.id,
+        questionType: QuestionType.Personalized,
+        responses: [
+          { questionId: personalizedQuestion.id, answer: "I shipped the billing cutover." },
+        ],
+      })
+    );
+
+    const res = await request(app)
+      .get(`/v1/applications/${app_.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.application.personalityAnswers).toEqual([
+      expect.objectContaining({
+        question: "How do you recharge after a long week?",
+        answer: "Quiet evenings, then a walk.",
+      }),
+    ]);
+    expect(res.body.data.application.personalizedAnswers).toEqual([
+      expect.objectContaining({
+        question: "Walk us through a launch you owned.",
+        answer: "I shipped the billing cutover.",
+      }),
+    ]);
   });
 });
 
