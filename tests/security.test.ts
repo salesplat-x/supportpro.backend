@@ -327,29 +327,26 @@ describe("ISSUE-002: Unauthenticated payment verification is rejected", () => {
 // ISSUE-001: OTP truncation bypass (proves the bug exists)
 // ---------------------------------------------------------------------------
 
-describe("ISSUE-001: OTP truncation bypass in resetPassword", () => {
-  it("OTP longer than the stored code that starts with the correct prefix is incorrectly ACCEPTED", async () => {
+describe("ISSUE-001: extra characters on a reset token are rejected", () => {
+  it("a token with the correct prefix plus extra characters is rejected", async () => {
     const { user } = await createTalent();
+    const { createHash } = await import("crypto");
 
-    // Plant a known OTP directly in the DB
-    const storedOTP = "123456";
-    const futureExpiry = new Date(Date.now() + 15 * 60 * 1000);
+    const token = "c".repeat(64);
+    const tokenHash = createHash("sha256").update(token).digest("hex");
+    const futureExpiry = new Date(Date.now() + 2 * 60 * 60 * 1000);
     await testDataSource
       .createQueryBuilder()
       .update(User)
-      .set({ recoveryCode: storedOTP, recoveryCodeExpiry: futureExpiry })
+      .set({ recoveryCode: tokenHash, recoveryCodeExpiry: futureExpiry })
       .where("id = :id", { id: user.id })
       .execute();
 
-    // Submit an OTP that starts with the correct 6 digits but has extra chars
-    const paddedOTP = storedOTP + "EXTRA";
     const res = await request(app)
       .post("/v1/auth/reset-password")
-      .send({ email: user.email, otp: paddedOTP, password: "NewPass1!" });
+      .send({ token: `${token}EXTRA`, password: "NewPass1!" });
 
-    // This PASSES (200) demonstrating ISSUE-001 — it should return 401
-    // When the bug is fixed, this test will return 401 and should be updated
-    expect(res.status).toBe(200); // BUG: should be 401
+    expect(res.status).toBe(401);
   });
 });
 

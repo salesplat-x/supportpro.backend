@@ -142,7 +142,10 @@ export const forgotPassword = async ({ email }: { email: string }, ip?: string):
   await new EmailService().sendPasswordReset(user, token);
 };
 
-export const validateResetToken = async ({ token }: { token: string }, ip?: string): Promise<void> => {
+export const validateResetToken = async (
+  { token }: { token: string },
+  ip?: string
+): Promise<void> => {
   const user = await findUserByResetToken(token);
   if (!user || !user.recoveryCodeExpiry || new Date() > user.recoveryCodeExpiry) {
     return invalidResetToken(ip);
