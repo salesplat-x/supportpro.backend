@@ -2355,7 +2355,7 @@ paths:
                 - password
   /auth/forgot-password:
     post:
-      summary: ""
+      summary: Request a password reset email
       tags:
         - auth
       parameters: []
@@ -2377,15 +2377,41 @@ paths:
                   type: string
               required:
                 - email
-  /auth/reset-password:
+  /auth/validate-reset-token:
     post:
-      summary: ""
+      summary: Validate a password reset token
       tags:
         - auth
       parameters: []
       responses:
         "200":
-          description: Successful response
+          description: Token is valid
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Token is missing, invalid, expired, or already used
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+              required:
+                - token
+  /auth/reset-password:
+    post:
+      summary: Reset password with a valid reset token
+      tags:
+        - auth
+      parameters: []
+      responses:
+        "200":
+          description: Password reset and session issued
           content:
             application/json:
               schema:
@@ -2397,16 +2423,13 @@ paths:
             schema:
               type: object
               properties:
-                email:
+                token:
                   type: string
                 password:
                   type: string
-                otp:
-                  type: string
               required:
-                - email
+                - token
                 - password
-                - otp
   /auth/change-password:
     post:
       summary: ""
