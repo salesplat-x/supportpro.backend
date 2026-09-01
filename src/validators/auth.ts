@@ -29,9 +29,12 @@ export const emailOnlyValidator = [
   body("email").isEmail().normalizeEmail().withMessage("Valid email is required"),
 ];
 
+export const resetTokenValidator = [
+  body("token").notEmpty().withMessage("Reset token is required"),
+];
+
 export const resetPasswordValidator = [
-  body("email").isEmail().normalizeEmail().withMessage("Valid email is required"),
-  body("otp").notEmpty().withMessage("OTP is required"),
+  body("token").notEmpty().withMessage("Reset token is required"),
   passwordRules("password"),
 ];
 

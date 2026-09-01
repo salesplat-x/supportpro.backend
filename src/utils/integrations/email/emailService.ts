@@ -35,11 +35,12 @@ class EmailService {
     await this.sendEmail({ to: user.email, subject: "Welcome to Auxhr", html });
   }
 
-  async sendPasswordReset(user: UserLike, otp: string): Promise<void> {
+  async sendPasswordReset(user: UserLike, token: string): Promise<void> {
+    const resetLink = `${env.website}/reset-password?token=${encodeURIComponent(token)}`;
     const html = renderTemplate("password-reset", {
       firstName: user.firstName,
       lastName: user.lastName,
-      otp,
+      resetLink,
     });
     await this.sendEmail({ to: user.email, subject: "Password Reset Request", html });
   }

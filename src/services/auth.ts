@@ -1,12 +1,11 @@
 import { Repository } from "typeorm";
-import { createHash, timingSafeEqual } from "crypto";
+import { createHash } from "crypto";
 import { AppDataSource } from "../database/dataSource.js";
 import { User } from "../entities/User.js";
 import { UserRole } from "../types/enums.js";
 import {
   compareHashedPassword,
   generateHashedPassword,
-  generateOTP,
   generateVerificationToken,
   signToken,
 } from "../utils/crypto.js";
@@ -109,66 +108,62 @@ export const loginUser = async (
   return { user, token };
 };
 
+const hashResetToken = (token: string): string => createHash("sha256").update(token).digest("hex");
+
+const findUserByResetToken = async (token: string): Promise<User | null> => {
+  const tokenHash = hashResetToken(token);
+  return userRepo()
+    .createQueryBuilder("user")
+    .addSelect(["user.recoveryCode", "user.recoveryCodeExpiry"])
+    .where("user.recoveryCode = :tokenHash", { tokenHash })
+    .getOne();
+};
+
+const invalidResetToken = (ip?: string): never => {
+  logger.error(`Password reset token rejected: ip=${ip ?? "unknown"}`);
+  throw new AuthenticationError("Password reset link is invalid or has expired");
+};
+
 export const forgotPassword = async ({ email }: { email: string }, ip?: string): Promise<void> => {
   logger.info(`Password reset requested: email=${email.toLowerCase()} ip=${ip ?? "unknown"}`);
 
   const user = await userRepo().findOne({ where: { email: email.toLowerCase() } });
   if (!user) return; // Generic response for security — don't reveal whether email exists
 
-  const { otp, expires } = await generateOTP(5);
+  const { token, tokenHash, expires } = generateVerificationToken(2);
 
   await userRepo()
     .createQueryBuilder()
     .update(User)
-    .set({ recoveryCode: otp, recoveryCodeExpiry: expires })
+    .set({ recoveryCode: tokenHash, recoveryCodeExpiry: expires })
     .where("id = :id", { id: user.id })
     .execute();
 
-  await new EmailService().sendPasswordReset(user, otp);
+  await new EmailService().sendPasswordReset(user, token);
+};
+
+export const validateResetToken = async ({ token }: { token: string }, ip?: string): Promise<void> => {
+  const user = await findUserByResetToken(token);
+  if (!user || !user.recoveryCodeExpiry || new Date() > user.recoveryCodeExpiry) {
+    return invalidResetToken(ip);
+  }
 };
 
 export const resetPassword = async (
-  payload: { email: string; otp: string; password: string },
+  payload: { token: string; password: string },
   ip?: string
-): Promise<void> => {
-  const { email, otp, password } = payload;
+): Promise<{ user: User; token: string }> => {
+  const { token, password } = payload;
+  const tokenHash = hashResetToken(token);
 
-  // Fetch by email only; compare OTP in application code using timingSafeEqual
-  // to prevent timing-based OTP enumeration attacks.
-  const user = await userRepo()
-    .createQueryBuilder("user")
-    .addSelect(["user.recoveryCode", "user.recoveryCodeExpiry"])
-    .where("user.email = :email", { email: email.toLowerCase() })
-    .getOne();
-
-  const invalidToken = () => {
-    logger.error(`Password reset failed: email=${email.toLowerCase()} ip=${ip ?? "unknown"}`);
-    throw new AuthenticationError("Password reset token is invalid or has expired");
-  };
-
-  if (!user || !user.recoveryCode || !user.recoveryCodeExpiry) {
-    invalidToken();
-    return; // unreachable — satisfies TypeScript control-flow
-  }
-
-  // Constant-time comparison to prevent timing side-channel on OTP value.
-  // Buffers must be the same length for timingSafeEqual; pad to the stored code length.
-  const storedBuf = Buffer.from(user.recoveryCode, "utf8");
-  const inputBuf = Buffer.from(
-    otp.padEnd(user.recoveryCode.length, "\0").slice(0, user.recoveryCode.length),
-    "utf8"
-  );
-  const otpMatches =
-    storedBuf.length === inputBuf.length &&
-    timingSafeEqual(new Uint8Array(storedBuf), new Uint8Array(inputBuf));
-  if (!otpMatches || new Date() > user.recoveryCodeExpiry) {
-    invalidToken();
-    return;
+  const user = await findUserByResetToken(token);
+  if (!user || !user.recoveryCodeExpiry || new Date() > user.recoveryCodeExpiry) {
+    return invalidResetToken(ip);
   }
 
   const hashedPassword = await generateHashedPassword(password);
 
-  await userRepo()
+  const result = await userRepo()
     .createQueryBuilder()
     .update(User)
     .set({
@@ -177,10 +172,16 @@ export const resetPassword = async (
       recoveryCodeExpiry: () => "NULL",
       tokenVersion: () => `"tokenVersion" + 1`,
     })
-    .where("id = :id", { id: user.id })
+    .where('id = :id AND "recoveryCode" = :tokenHash', { id: user.id, tokenHash })
     .execute();
 
-  logger.info(`Password reset: id=${user.id} email=${user.email} ip=${ip ?? "unknown"}`);
+  if ((result.affected ?? 0) === 0) {
+    return invalidResetToken(ip);
+  }
+
+  const updated = await userRepo().findOneOrFail({ where: { id: user.id } });
+  logger.info(`Password reset: id=${updated.id} email=${updated.email} ip=${ip ?? "unknown"}`);
+  return { user: updated, token: signToken(updated) };
 };
 
 export const changePassword = async (
