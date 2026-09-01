@@ -75,9 +75,7 @@ const normalizeCorrectOption = (question: IGeneratedQuestion): number => {
 };
 
 /** Shuffle options so the correct answer is not stuck on B for every item. */
-export const redistributeCorrectOptions = (
-  questions: IGeneratedQuestion[]
-): IGeneratedQuestion[] =>
+export const redistributeCorrectOptions = (questions: IGeneratedQuestion[]): IGeneratedQuestion[] =>
   questions.map((question, index) => {
     const correctIndex = normalizeCorrectOption(question);
     const indexed = question.options.map((text, optionIndex) => ({ text, optionIndex }));
