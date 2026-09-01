@@ -13,6 +13,7 @@ import { NotFoundError, ValidationError, AuthorizationError } from "../utils/err
 import { QuestionType, JobStatus } from "../types/enums.js";
 import { calculateTimeLeft, sortDirection } from "../utils/text.js";
 import * as AI from "../utils/integrations/openai.js";
+import { answerTextForQuestion, type StoredResponse } from "../utils/answerResponses.js";
 
 const questionRepo = () => AppDataSource.getRepository(Question);
 const roleRepo = () => AppDataSource.getRepository(Role);
@@ -73,9 +74,11 @@ const withStoredAnswers = async (
   if (questions.length === 0) return questions;
   const answer = await answerRepo().findOne({ where: { userId, jobId, questionType } });
   if (!answer) return questions;
-  const byId = new Map(answer.responses.map((r) => [r.questionId, r.answer]));
-  return questions.map((question) =>
-    Object.assign(question, { answer: byId.get(question.id) ?? null })
+  const responses = (answer.responses ?? []) as StoredResponse[];
+  return questions.map((question, index) =>
+    Object.assign(question, {
+      answer: answerTextForQuestion(responses, question.id, question.question, index),
+    })
   );
 };
 
