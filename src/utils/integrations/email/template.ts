@@ -17,7 +17,7 @@ const TEMPLATE_PREHEADERS: Record<string, string> = {
   welcome: "Your Auxhr account is ready.",
   welcomeRecruiter: "Your Auxhr recruiter account is ready.",
   "verify-email": "Confirm your email address to activate your account.",
-  "password-reset": "Use this code to reset your Auxhr password.",
+  "password-reset": "Use this link to reset your Auxhr password.",
   "payment-confirmation": "Your Auxhr subscription payment was successful.",
 };
 

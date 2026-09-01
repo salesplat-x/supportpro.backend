@@ -42,12 +42,17 @@ export const login = async (req: Request, res: Response) => {
 
 export const forgotPassword = async (req: Request, res: Response) => {
   await authService.forgotPassword(req.body, req.ip ?? undefined);
-  sendSuccessResponse(res, "If an account exists for this email, a reset code has been sent.");
+  sendSuccessResponse(res, "If an account exists for this email, a reset link has been sent.");
+};
+
+export const validateResetToken = async (req: Request, res: Response) => {
+  await authService.validateResetToken(req.body, req.ip ?? undefined);
+  sendSuccessResponse(res, "Password reset token is valid", { valid: true });
 };
 
 export const resetPassword = async (req: Request, res: Response) => {
-  await authService.resetPassword(req.body, req.ip ?? undefined);
-  sendSuccessResponse(res, "Password has been reset");
+  const result = await authService.resetPassword(req.body, req.ip ?? undefined);
+  sendSuccessResponse(res, "Password has been reset", { user: result.user, token: result.token });
 };
 
 export const changePassword = async (req: Request, res: Response) => {

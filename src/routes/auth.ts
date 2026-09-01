@@ -8,6 +8,7 @@ import {
   registerValidator,
   loginValidator,
   emailOnlyValidator,
+  resetTokenValidator,
   resetPasswordValidator,
   changePasswordValidator,
   verifyEmailValidator,
@@ -29,6 +30,12 @@ router.post(
   authLimiter,
   validate(emailOnlyValidator),
   asyncHandler(auth.forgotPassword)
+);
+router.post(
+  "/validate-reset-token",
+  authLimiter,
+  validate(resetTokenValidator),
+  asyncHandler(auth.validateResetToken)
 );
 router.post(
   "/reset-password",
