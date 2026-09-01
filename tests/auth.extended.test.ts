@@ -3,6 +3,7 @@
  * registration edge cases not covered in auth.test.ts.
  */
 
+import { createHash } from "crypto";
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import {
@@ -41,118 +42,166 @@ afterEach(async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Helper: plant OTP in DB
+// Helper: plant a hashed reset token in DB
 // ---------------------------------------------------------------------------
 
-async function plantOTP(
+async function plantResetToken(
   userId: string,
-  otp: string,
-  expiryOffsetMs = 15 * 60 * 1000
+  token: string,
+  expiryOffsetMs = 2 * 60 * 60 * 1000
 ): Promise<void> {
+  const tokenHash = createHash("sha256").update(token).digest("hex");
   const expiry = new Date(Date.now() + expiryOffsetMs);
   await testDataSource
     .createQueryBuilder()
     .update(User)
-    .set({ recoveryCode: otp, recoveryCodeExpiry: expiry })
+    .set({ recoveryCode: tokenHash, recoveryCodeExpiry: expiry })
     .where("id = :id", { id: userId })
     .execute();
 }
+
+const RESET_TOKEN = "a".repeat(64);
+const NEW_PASSWORD = "NewPassword1!";
+
+// ---------------------------------------------------------------------------
+// POST /v1/auth/validate-reset-token
+// ---------------------------------------------------------------------------
+
+describe("POST /v1/auth/validate-reset-token", () => {
+  it("returns valid:true for a live token without leaking account data", async () => {
+    const { user } = await createTalent();
+    await plantResetToken(user.id, RESET_TOKEN);
+
+    const res = await request(app)
+      .post("/v1/auth/validate-reset-token")
+      .send({ token: RESET_TOKEN });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ valid: true });
+    expect(JSON.stringify(res.body)).not.toContain(user.email);
+    expect(JSON.stringify(res.body)).not.toContain(user.id);
+  });
+
+  it("rejects a missing token → 400", async () => {
+    const res = await request(app).post("/v1/auth/validate-reset-token").send({ token: "" });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects an unknown token → 401", async () => {
+    const res = await request(app)
+      .post("/v1/auth/validate-reset-token")
+      .send({ token: "b".repeat(64) });
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects an expired token → 401", async () => {
+    const { user } = await createTalent();
+    await plantResetToken(user.id, RESET_TOKEN, -1);
+
+    const res = await request(app)
+      .post("/v1/auth/validate-reset-token")
+      .send({ token: RESET_TOKEN });
+    expect(res.status).toBe(401);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // POST /v1/auth/reset-password
 // ---------------------------------------------------------------------------
 
 describe("POST /v1/auth/reset-password", () => {
-  it("resets password with valid OTP and allows login with new password", async () => {
+  it("resets password with a valid token, returns a session, and allows login with the new password", async () => {
     const { user } = await createTalent();
-    const otp = "789012";
-    await plantOTP(user.id, otp);
+    await plantResetToken(user.id, RESET_TOKEN);
 
     const resetRes = await request(app)
       .post("/v1/auth/reset-password")
-      .send({ email: user.email, otp, password: "NewPassword1!" });
+      .send({ token: RESET_TOKEN, password: NEW_PASSWORD });
     expect(resetRes.status).toBe(200);
+    expect(resetRes.body.data.token).toBeDefined();
+    expect(resetRes.body.data.user.email).toBe(user.email);
 
     const loginRes = await request(app)
       .post("/v1/auth/login")
-      .send({ email: user.email, password: "NewPassword1!" });
+      .send({ email: user.email, password: NEW_PASSWORD });
     expect(loginRes.status).toBe(200);
     expect(loginRes.body.data.token).toBeDefined();
   });
 
-  it("rejects reset with wrong OTP → 401", async () => {
-    const { user } = await createTalent();
-    await plantOTP(user.id, "111111");
-
+  it("rejects reset with an unknown token → 401", async () => {
     const res = await request(app)
       .post("/v1/auth/reset-password")
-      .send({ email: user.email, otp: "999999", password: "NewPassword1!" });
+      .send({ token: "b".repeat(64), password: NEW_PASSWORD });
     expect(res.status).toBe(401);
   });
 
-  it("rejects reset with expired OTP → 401", async () => {
+  it("rejects reset with an expired token → 401", async () => {
     const { user } = await createTalent();
-    await plantOTP(user.id, "222222", -1); // expired 1ms ago
+    await plantResetToken(user.id, RESET_TOKEN, -1);
 
     const res = await request(app)
       .post("/v1/auth/reset-password")
-      .send({ email: user.email, otp: "222222", password: "NewPassword1!" });
+      .send({ token: RESET_TOKEN, password: NEW_PASSWORD });
     expect(res.status).toBe(401);
   });
 
-  it("rejects reset for non-existent email → 401", async () => {
-    const res = await request(app)
+  it("rejects reuse of a token after a successful reset → 401", async () => {
+    const { user } = await createTalent();
+    await plantResetToken(user.id, RESET_TOKEN);
+
+    await request(app)
       .post("/v1/auth/reset-password")
-      .send({ email: "nobody@example.com", otp: "123456", password: "NewPassword1!" });
-    expect(res.status).toBe(401);
+      .send({ token: RESET_TOKEN, password: NEW_PASSWORD })
+      .expect(200);
+
+    const reuse = await request(app)
+      .post("/v1/auth/reset-password")
+      .send({ token: RESET_TOKEN, password: "AnotherPass1!" });
+    expect(reuse.status).toBe(401);
+
+    const validate = await request(app)
+      .post("/v1/auth/validate-reset-token")
+      .send({ token: RESET_TOKEN });
+    expect(validate.status).toBe(401);
   });
 
   it("invalidates old JWT after password reset (tokenVersion increments)", async () => {
     const { user, token: oldToken } = await createTalent();
-    const otp = "345678";
-    await plantOTP(user.id, otp);
+    await plantResetToken(user.id, RESET_TOKEN);
 
     await request(app)
       .post("/v1/auth/reset-password")
-      .send({ email: user.email, otp, password: "NewPassword1!" })
+      .send({ token: RESET_TOKEN, password: NEW_PASSWORD })
       .expect(200);
 
     const meRes = await request(app).get("/v1/user/me").set("Authorization", `Bearer ${oldToken}`);
     expect(meRes.status).toBe(401);
   });
 
-  it("ISSUE-001: OTP with correct prefix + extra chars is accepted (proves the bug)", async () => {
+  it("rejects a token with extra characters appended → 401", async () => {
     const { user } = await createTalent();
-    const otp = "456789";
-    await plantOTP(user.id, otp);
+    await plantResetToken(user.id, RESET_TOKEN);
 
-    // Append extra characters to the correct OTP
-    const paddedOTP = otp + "XXXXX";
     const res = await request(app)
       .post("/v1/auth/reset-password")
-      .send({ email: user.email, otp: paddedOTP, password: "NewPassword1!" });
-
-    // BUG (ISSUE-001): this returns 200 but should return 401
-    // When fixed, change this expectation to: expect(res.status).toBe(401)
-    expect(res.status).toBe(200); // Demonstrates ISSUE-001 is present
+      .send({ token: `${RESET_TOKEN}XXXXX`, password: NEW_PASSWORD });
+    expect(res.status).toBe(401);
   });
 
-  it("rejects empty OTP field → 400", async () => {
-    const { user } = await createTalent();
+  it("rejects an empty token field → 400", async () => {
     const res = await request(app)
       .post("/v1/auth/reset-password")
-      .send({ email: user.email, otp: "", password: "NewPassword1!" });
+      .send({ token: "", password: NEW_PASSWORD });
     expect(res.status).toBe(400);
   });
 
-  it("rejects weak new password → 400", async () => {
+  it("rejects a weak new password → 400", async () => {
     const { user } = await createTalent();
-    const otp = "567890";
-    await plantOTP(user.id, otp);
+    await plantResetToken(user.id, RESET_TOKEN);
 
     const res = await request(app)
       .post("/v1/auth/reset-password")
-      .send({ email: user.email, otp, password: "weak" });
+      .send({ token: RESET_TOKEN, password: "weak" });
     expect(res.status).toBe(400);
   });
 });

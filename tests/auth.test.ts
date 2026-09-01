@@ -10,13 +10,15 @@ import { User } from "../src/entities/User.js";
 import { UserRole } from "../src/types/enums.js";
 import { generateHashedPassword } from "../src/utils/crypto.js";
 
+const sendPasswordReset = jest.fn().mockResolvedValue(undefined);
+
 jest.mock("../src/utils/integrations/email/emailService.js", () => {
   return {
     __esModule: true,
     default: jest.fn().mockImplementation(() => ({
       sendWelcome: jest.fn().mockResolvedValue(undefined),
       sendVerificationEmail: jest.fn().mockResolvedValue(undefined),
-      sendPasswordReset: jest.fn().mockResolvedValue(undefined),
+      sendPasswordReset,
     })),
   };
 });
@@ -152,6 +154,45 @@ describe("POST /v1/auth/forgot-password", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe(true);
+    expect(res.body.message).toMatch(/reset link/i);
+    expect(sendPasswordReset).not.toHaveBeenCalled();
+  });
+
+  it("sends a reset email only when the account exists", async () => {
+    const { createHash } = await import("crypto");
+    const email = "known@example.com";
+    await request(app).post("/v1/auth/register").send({
+      email,
+      firstName: "Known",
+      lastName: "User",
+      password: PLAIN_PASSWORD,
+    });
+    sendPasswordReset.mockClear();
+
+    const res = await request(app).post("/v1/auth/forgot-password").send({ email });
+    expect(res.status).toBe(200);
+    expect(sendPasswordReset).toHaveBeenCalledTimes(1);
+
+    const token = sendPasswordReset.mock.calls[0][1] as string;
+    expect(token).toMatch(/^[a-f0-9]{64}$/);
+
+    const stored = await testDataSource
+      .getRepository(User)
+      .createQueryBuilder("user")
+      .addSelect(["user.recoveryCode", "user.recoveryCodeExpiry"])
+      .where("user.email = :email", { email })
+      .getOne();
+
+    expect(stored?.recoveryCode).toBe(createHash("sha256").update(token).digest("hex"));
+    expect(stored?.recoveryCodeExpiry).toBeInstanceOf(Date);
+    const remainingMs = (stored?.recoveryCodeExpiry as Date).getTime() - Date.now();
+    expect(remainingMs).toBeGreaterThan(90 * 60 * 1000);
+    expect(remainingMs).toBeLessThan(2 * 60 * 60 * 1000 + 10_000);
+  });
+
+  it("rejects an invalid email format → 400", async () => {
+    const res = await request(app).post("/v1/auth/forgot-password").send({ email: "not-an-email" });
+    expect(res.status).toBe(400);
   });
 });
 
