@@ -18,6 +18,7 @@ import {
   Subscription,
   TalentEmbedding,
   User,
+  AiRecommendation,
 } from "../entities";
 import { NotFoundError, ValidationError } from "../utils/errors";
 import { UserRole } from "../types/enums.js";
@@ -155,9 +156,10 @@ export async function purgeTalentCascade(manager: EntityManager, userId: string)
 
   const applications = await manager.find(Application, {
     where: { talentId: userId },
-    select: { id: true, personalizedQuestions: true },
+    select: { id: true, jobId: true, personalizedQuestions: true },
   });
   const applicationIds = applications.map((a) => a.id);
+  const jobIds = [...new Set(applications.map((a) => a.jobId))];
   const personalizedQuestionIds = [
     ...new Set(applications.flatMap((a) => a.personalizedQuestions ?? []).filter(Boolean)),
   ];
@@ -169,7 +171,13 @@ export async function purgeTalentCascade(manager: EntityManager, userId: string)
   await deleteMessagesAndDetachConversations(manager, messageIds);
 
   if (applicationIds.length > 0) {
+    await manager.delete(AiRecommendation, { applicationId: In(applicationIds) });
     await manager.delete(Application, { talentId: userId });
+  }
+
+  for (const jobId of jobIds) {
+    const remaining = await manager.count(Application, { where: { jobId } });
+    await manager.update(Job, { id: jobId }, { noOfApplicants: remaining });
   }
 
   await manager.delete(Answer, { userId });
