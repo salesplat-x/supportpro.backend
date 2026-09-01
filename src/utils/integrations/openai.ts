@@ -499,6 +499,7 @@ Question design rules:
 - Do not ask questions whose correct answer is a restatement of something already written on the CV (e.g. "Have you used X?"). Probe HOW they would apply claimed skills under pressure, with incomplete information, or when two good options conflict.
 - Wrong options must be plausible to a practitioner who only has surface-level knowledge of the claimed area.
 - Mix categories; at least half of the items must be scenario-based.
+- Spread the correct answer across options A, B, C, and D. Do not place the correct answer in the same position (especially B) for every question.
 - Do not invent employers, certifications, or skills that are not in the profile or CV.${retakeInstruction}
 
 Output a JSON object in this exact format:
