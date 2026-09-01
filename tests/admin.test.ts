@@ -150,7 +150,9 @@ describe("Admin talents & jobs", () => {
     expect(
       await testDataSource.getRepository(Application).findOne({ where: { id: application.id } })
     ).toBeNull();
-    const jobAfterDelete = await testDataSource.getRepository(Job).findOne({ where: { id: job.id } });
+    const jobAfterDelete = await testDataSource
+      .getRepository(Job)
+      .findOne({ where: { id: job.id } });
     expect(jobAfterDelete?.noOfApplicants).toBe(0);
     expect(
       await testDataSource.getRepository(Application).count({ where: { jobId: job.id } })

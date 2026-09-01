@@ -6,8 +6,7 @@ export type StoredResponse = {
   dichotomyPreference?: string;
 };
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /** LLM graders often echo the id in `question` instead of `questionId`. */
 export const storedResponseQuestionId = (response: StoredResponse): string | undefined => {

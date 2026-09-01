@@ -3,14 +3,11 @@ import { mergeSubmittedAnswers, answerTextForQuestion } from "../src/utils/answe
 describe("answerResponses", () => {
   it("keeps the submitted answer text and real question ids when the LLM uses `question`", () => {
     const questionId = "11111111-1111-4111-8111-111111111111";
-    const merged = mergeSubmittedAnswers(
-      { [questionId]: "I shipped the billing cutover." },
-      [{ question: questionId, answer: "rewritten by the model", score: 4 }]
-    );
-
-    expect(merged).toEqual([
-      { questionId, answer: "I shipped the billing cutover.", score: 4 },
+    const merged = mergeSubmittedAnswers({ [questionId]: "I shipped the billing cutover." }, [
+      { question: questionId, answer: "rewritten by the model", score: 4 },
     ]);
+
+    expect(merged).toEqual([{ questionId, answer: "I shipped the billing cutover.", score: 4 }]);
   });
 
   it("finds a stored answer when the grader saved the id in `question`", () => {

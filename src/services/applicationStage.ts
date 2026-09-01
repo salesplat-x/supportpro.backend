@@ -67,7 +67,15 @@ export const buildQuestionAnswerPairs = async (
       questions[index];
     return {
       question: question?.question ?? (r.question && !responseId ? r.question : "Unknown question"),
-      answer: answerTextForQuestion(responses, question?.id ?? responseId ?? "", question?.question, index) ?? r.answer ?? "",
+      answer:
+        answerTextForQuestion(
+          responses,
+          question?.id ?? responseId ?? "",
+          question?.question,
+          index
+        ) ??
+        r.answer ??
+        "",
       ...(question?.criteria ? { dichotomy: question.criteria } : {}),
     };
   });
