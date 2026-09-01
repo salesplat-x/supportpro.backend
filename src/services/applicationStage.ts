@@ -20,6 +20,11 @@ import { ValidationError } from "../utils/errors";
 import { assessApplicationMatch } from "../utils/integrations/openai.js";
 import { parseMatchAnalysis, type MatchAnalysis } from "../utils/matchAnalysis.js";
 import { isPrescreeningScoreValid } from "./prescreening.js";
+import {
+  answerTextForQuestion,
+  storedResponseQuestionId,
+  type StoredResponse,
+} from "../utils/answerResponses.js";
 import logger from "../utils/logger.js";
 
 const applicationRepo = () => AppDataSource.getRepository(Application);
@@ -52,12 +57,17 @@ export const buildQuestionAnswerPairs = async (
 
   const questions = await questionRepo().find({ where: { jobId, type: questionType } });
   const questionsById = new Map(questions.map((q) => [q.id, q]));
+  const responses = answer.responses as StoredResponse[];
 
-  return answer.responses.map((r) => {
-    const question = questionsById.get(r.questionId);
+  return responses.map((r, index) => {
+    const responseId = storedResponseQuestionId(r);
+    const question =
+      (responseId ? questionsById.get(responseId) : undefined) ??
+      questions.find((q) => q.question === r.question) ??
+      questions[index];
     return {
-      question: question?.question ?? "Unknown question",
-      answer: r.answer,
+      question: question?.question ?? (r.question && !responseId ? r.question : "Unknown question"),
+      answer: answerTextForQuestion(responses, question?.id ?? responseId ?? "", question?.question, index) ?? r.answer ?? "",
       ...(question?.criteria ? { dichotomy: question.criteria } : {}),
     };
   });
@@ -211,11 +221,15 @@ export interface TriggerMatchVerdictOptions {
 // Recommendations are persisted in `ai_recommendations` and generated once.
 // Viewing an applicant reads the stored row — it never recomputes, and there is
 // no recruiter regenerate path.
+const matchGenerationInFlight = new Set<string>();
+
 export const triggerMatchVerdict = async (
   talent: User,
   application: Application,
   _options: TriggerMatchVerdictOptions = {}
 ): Promise<void> => {
+  if (matchGenerationInFlight.has(application.id)) return;
+  matchGenerationInFlight.add(application.id);
   try {
     const existingRecommendation = await aiRecommendationRepo().findOne({
       where: { applicationId: application.id },
@@ -357,6 +371,8 @@ export const triggerMatchVerdict = async (
     await applicationRepo().update(application.id, {
       matchVerdictStatus: MatchVerdictStatus.Failed,
     });
+  } finally {
+    matchGenerationInFlight.delete(application.id);
   }
 };
 

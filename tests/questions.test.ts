@@ -26,6 +26,7 @@ import { TalentEmbedding } from "../src/entities/TalentEmbedding.js";
 import { Application } from "../src/entities/Application.js";
 import { Job } from "../src/entities/Job.js";
 import { Question } from "../src/entities/Question.js";
+import { Answer } from "../src/entities/Answer.js";
 import { ApplicationStatus, QuestionType, ScreeningStage } from "../src/types/enums.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
@@ -44,6 +45,15 @@ jest.mock("../src/utils/integrations/openai.js", () => ({
   getPersonalityEvaluationQuestion: jest.fn().mockResolvedValue({
     message: {
       content: JSON.stringify({ questions: ["Are you more E or I?"] }),
+    },
+  }),
+  assessApplicationMatch: jest.fn().mockResolvedValue({
+    message: {
+      content: JSON.stringify({
+        verdict: "high",
+        reasoning: "Strong overall fit.",
+        recommendation: "hire",
+      }),
     },
   }),
   gradeAssessmentAnswers: jest.fn().mockImplementation((_questionsJSON: string) => {
@@ -1128,5 +1138,56 @@ describe("POST /v1/questions/answer/personality — evaluate personality type", 
 
     expect(res.status).toBe(200);
     expect(res.body.data.mbtiType).toBeDefined();
+  });
+
+  it("saves the talent's answers under real question ids even when the LLM echoes `question` instead of questionId", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const aiConfig = await createAIConfig(recruiter, {
+      personalityEvaluation: true,
+      personalizedAssessment: true,
+      stages: { personality: "personalized", personalized: "completed" },
+    });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
+
+    const { user: talent, token: talentToken } = await createTalent({ prescreeningScore: 75 });
+    const q1 = await createQuestion(
+      QuestionType.Personalized,
+      { jobId: job.id },
+      { question: "Walk us through a launch you owned." }
+    );
+    await createApplication(talent, job, {
+      stages: { personality: "personalized", personalized: "completed" },
+      currentStage: ScreeningStage.Personalized,
+      personalizedQuestions: [q1.id],
+    });
+
+    const gradePersonalizedAnswers = (
+      jest.requireMock("../src/utils/integrations/openai.js") as {
+        gradePersonalizedAnswers: jest.Mock;
+      }
+    ).gradePersonalizedAnswers;
+    gradePersonalizedAnswers.mockResolvedValueOnce({
+      message: {
+        content: JSON.stringify({
+          responses: [{ question: q1.id, answer: "rewritten", score: 4 }],
+        }),
+      },
+    });
+
+    const submitted = "I shipped the billing cutover.";
+    const post = await request(app)
+      .post("/v1/questions/answer/personalized")
+      .set("Authorization", `Bearer ${talentToken}`)
+      .send({ jobId: job.id, answers: { [q1.id]: submitted } });
+    expect(post.status).toBe(200);
+
+    const stored = await testDataSource.getRepository(Answer).findOne({
+      where: { userId: talent.id, jobId: job.id, questionType: QuestionType.Personalized },
+    });
+    expect(stored?.responses).toEqual([
+      expect.objectContaining({ questionId: q1.id, answer: submitted, score: 4 }),
+    ]);
   });
 });

@@ -10,6 +10,7 @@ import { QuestionType, JobStatus, ApplicationStatus, ScreeningStage } from "../t
 import { calculateTimeLeft } from "../utils/text.js";
 import * as AI from "../utils/integrations/openai.js";
 import { canTakeAssessment, getAssessmentRetryDate, processNextStage } from "./applicationStage.js";
+import { mergeSubmittedAnswers } from "../utils/answerResponses.js";
 
 const answerRepo = () => AppDataSource.getRepository(Answer);
 
@@ -143,10 +144,9 @@ export const answerPrescreening = async (
   const maxScore = 5 * responseArray.length;
   const scorePercent = Number(((totalScore / maxScore) * 100).toFixed(2));
 
-  // Save answers
   await saveOrUpdateAnswer(
     { userId, roleId: payload.roleId, questionType: QuestionType.Prescreening },
-    responseArray
+    mergeSubmittedAnswers(payload.answers, responseArray)
   );
 
   // Update user assessment retry date and score
@@ -276,7 +276,7 @@ export const answerPersonalizedQuestions = async (
 
   await saveOrUpdateAnswer(
     { userId, jobId, questionType: QuestionType.Personalized },
-    responseArray
+    mergeSubmittedAnswers(answers, responseArray)
   );
 
   return { scorePercent, application };
@@ -420,7 +420,10 @@ export const evaluatePersonalityType = async (
     throw new ValidationError("OpenAI returned an invalid personality evaluation");
   }
 
-  await saveOrUpdateAnswer({ userId, jobId, questionType: QuestionType.Personality }, responses);
+  await saveOrUpdateAnswer(
+    { userId, jobId, questionType: QuestionType.Personality },
+    mergeSubmittedAnswers(answers, responses)
+  );
 
   const user = await userRepo().findOne({ where: { id: userId } });
   if (user && application.currentStage === ScreeningStage.Personality) {

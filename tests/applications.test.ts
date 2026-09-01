@@ -304,6 +304,46 @@ describe("GET /v1/applications/:_id — single application", () => {
       }),
     ]);
   });
+
+  it("still returns submitted answers when the stored response used `question` instead of questionId", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { user: talent } = await createTalent();
+    const app_ = await createApplication(talent, job);
+
+    const personalityQuestion = await createQuestion(
+      QuestionType.Personality,
+      { jobId: job.id },
+      { question: "How do you recharge after a long week?", criteria: "EI" }
+    );
+
+    await testDataSource.getRepository(Answer).save(
+      testDataSource.getRepository(Answer).create({
+        userId: talent.id,
+        jobId: job.id,
+        questionType: QuestionType.Personality,
+        responses: [
+          {
+            question: personalityQuestion.id,
+            answer: "Quiet evenings, then a walk.",
+          } as unknown as { questionId: string; answer: string },
+        ],
+      })
+    );
+
+    const res = await request(app)
+      .get(`/v1/applications/${app_.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.application.personalityAnswers).toEqual([
+      expect.objectContaining({
+        question: "How do you recharge after a long week?",
+        answer: "Quiet evenings, then a walk.",
+      }),
+    ]);
+  });
 });
 
 // ---------------------------------------------------------------------------
