@@ -9,6 +9,7 @@ import {
   ApplicationStatus,
   ScreeningStage,
   QuestionType,
+  MatchVerdictStatus,
 } from "../types/enums.js";
 import { createNotification } from "./notification.js";
 import { decisionNotificationTitle } from "./applicationNotifications.js";
@@ -17,6 +18,7 @@ import {
   loadRecommendationsByApplicationIds,
   overlayVerdictFromRecommendation,
   buildQuestionAnswerPairs,
+  triggerMatchVerdict,
 } from "./applicationStage.js";
 import logger from "../utils/logger.js";
 
@@ -65,6 +67,20 @@ export const getApplication = async (
   ]);
 
   Object.assign(application, { personalityAnswers, personalizedAnswers });
+
+  if (
+    application.currentStage === ScreeningStage.Completed &&
+    !application.matchVerdict &&
+    application.talent
+  ) {
+    if (application.matchVerdictStatus !== MatchVerdictStatus.Pending) {
+      await applicationRepo().update(application.id, {
+        matchVerdictStatus: MatchVerdictStatus.Pending,
+      });
+      application.matchVerdictStatus = MatchVerdictStatus.Pending;
+    }
+    void triggerMatchVerdict(application.talent, application);
+  }
 
   return { application, count };
 };
