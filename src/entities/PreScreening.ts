@@ -8,7 +8,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from "typeorm";
-import { PreScreeningStatus } from "../types/enums.js";
+import { GenerationStatus, PreScreeningStatus } from "../types/enums.js";
 import type { User } from "./User.js";
 
 @Entity("pre_screenings")
@@ -52,6 +52,21 @@ export class PreScreening {
 
   @Column({ type: "timestamp" })
   generatedAt!: Date;
+
+  @Column({ type: "enum", enum: GenerationStatus, default: GenerationStatus.Succeeded })
+  generationStatus!: GenerationStatus;
+
+  @Column({ type: "int", default: 0 })
+  generationAttempts!: number;
+
+  @Column({ type: "timestamp", nullable: true, default: null })
+  generationNextRetryAt!: Date | null;
+
+  @Column({ type: "timestamp", nullable: true, default: null })
+  generationLockedAt!: Date | null;
+
+  @Column({ type: "text", nullable: true, default: null })
+  generationLastError!: string | null;
 
   @Column({ type: "timestamp", nullable: true, default: null })
   completedAt!: Date | null;

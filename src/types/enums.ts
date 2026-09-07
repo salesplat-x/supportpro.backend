@@ -67,6 +67,18 @@ export enum MatchVerdictStatus {
   Failed = "failed",
 }
 
+export enum CvEmbeddingStatus {
+  Pending = "pending",
+  Ready = "ready",
+  Failed = "failed",
+}
+
+export enum GenerationStatus {
+  Pending = "pending",
+  Succeeded = "succeeded",
+  Failed = "failed",
+}
+
 export enum MatchRecommendation {
   Hire = "hire",
   InterviewFurther = "interview_further",

@@ -15,7 +15,7 @@ const RETRYABLE_CODES = new Set([
   "EAI_AGAIN",
 ]);
 
-const getStatus = (err: unknown): number | undefined => {
+export const getErrorStatus = (err: unknown): number | undefined => {
   const e = err as Record<string, unknown> | undefined;
   if (!e) return undefined;
   const response = e.response as Record<string, unknown> | undefined;
@@ -23,8 +23,8 @@ const getStatus = (err: unknown): number | undefined => {
   return candidates.find((c): c is number => typeof c === "number");
 };
 
-const isRetryableError = (err: unknown): boolean => {
-  const status = getStatus(err);
+export const isRetryableError = (err: unknown): boolean => {
+  const status = getErrorStatus(err);
   if (status !== undefined) {
     return status === 429 || status >= 500;
   }
