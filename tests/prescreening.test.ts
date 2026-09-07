@@ -18,7 +18,7 @@ import {
 } from "./helpers/fixtures.js";
 import { PreScreening } from "../src/entities/PreScreening.js";
 import { User } from "../src/entities/User.js";
-import { PreScreeningStatus } from "../src/types/enums.js";
+import { PreScreeningStatus, GenerationStatus } from "../src/types/enums.js";
 import { TalentEmbedding } from "../src/entities/TalentEmbedding.js";
 import {
   isPrescreeningScoreValid,
@@ -199,6 +199,75 @@ describe("GET /v1/prescreening/ — get or generate prescreening", () => {
       .getRepository(PreScreening)
       .find({ where: { userId: user.id } });
     expect(rows.length).toBe(1);
+  });
+
+  it("returns generationFailed when generation retries are exhausted", async () => {
+    const role = await createRole();
+    const { user, token } = await createCompleteTalent(role);
+    await testDataSource.getRepository(PreScreening).save(
+      testDataSource.getRepository(PreScreening).create({
+        userId: user.id,
+        roles: [role.id],
+        questions: [],
+        status: PreScreeningStatus.Pending,
+        attemptCount: 0,
+        maxAttempts: 2,
+        generatedAt: new Date(),
+        generationStatus: GenerationStatus.Failed,
+        generationAttempts: 5,
+      })
+    );
+
+    const res = await request(app).get("/v1/prescreening/").set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.preScreening.generationFailed).toBe(true);
+    expect(res.body.data.preScreening.generating).toBeFalsy();
+    expect(res.body.data.preScreening.questions).toEqual([]);
+  });
+
+  it("POST /retry-generation re-enqueues a failed generation", async () => {
+    const role = await createRole();
+    const { user, token } = await createCompleteTalent(role);
+    await testDataSource.getRepository(PreScreening).save(
+      testDataSource.getRepository(PreScreening).create({
+        userId: user.id,
+        roles: [role.id],
+        questions: [],
+        status: PreScreeningStatus.Pending,
+        attemptCount: 0,
+        maxAttempts: 2,
+        generatedAt: new Date(),
+        generationStatus: GenerationStatus.Failed,
+        generationAttempts: 5,
+      })
+    );
+
+    const retry = await request(app)
+      .post("/v1/prescreening/retry-generation")
+      .set("Authorization", `Bearer ${token}`);
+    expect(retry.status).toBe(200);
+
+    let last = retry;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      last = await request(app).get("/v1/prescreening/").set("Authorization", `Bearer ${token}`);
+      if (last.body.data.preScreening.questions?.length > 0) break;
+    }
+
+    expect(last.body.data.preScreening.questions.length).toBeGreaterThan(0);
+    expect(last.body.data.preScreening.generationFailed).toBeFalsy();
+  });
+
+  it("POST /retry-generation rejects when generation is not failed", async () => {
+    const role = await createRole();
+    const { user, token } = await createCompleteTalent(role);
+    await createPreScreening(user, [role.id]);
+
+    const res = await request(app)
+      .post("/v1/prescreening/retry-generation")
+      .set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(400);
   });
 });
 

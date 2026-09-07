@@ -1,11 +1,11 @@
-import { In } from "typeorm";
+import { In, QueryFailedError } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { PreScreening } from "../entities/PreScreening.js";
 import { User } from "../entities/User.js";
 import { Role } from "../entities/Role.js";
 import { TalentEmbedding } from "../entities/TalentEmbedding.js";
 import { NotFoundError, ValidationError } from "../utils/errors";
-import { PreScreeningStatus } from "../types/enums.js";
+import { GenerationStatus, PreScreeningStatus } from "../types/enums.js";
 import {
   generatePreScreeningAssessment,
   scorePreScreeningAssessment,
@@ -14,6 +14,14 @@ import {
 import { getProfileCompletion } from "./user.js";
 import { advanceApplicationsAfterPrescreening } from "./applicationStage.js";
 import logger from "../utils/logger.js";
+import {
+  MAX_DURABLE_ATTEMPTS,
+  STALE_LOCK_INTERVAL,
+  SWEEP_BATCH_SIZE,
+  claimRowById,
+  durableFailureUpdate,
+  selectDueIds,
+} from "../utils/durableJobs.js";
 
 export const PRESCREENING_SCORE_VALIDITY_DAYS = 90;
 
@@ -30,11 +38,13 @@ const userRepo = () => AppDataSource.getRepository(User);
 
 const roleRepo = () => AppDataSource.getRepository(Role);
 
-// Guards against a client polling GET /prescreening/ again before the previous
-// fire-and-forget generation for the same user has committed a row — without
-// this, a second poll re-triggers a second full generation (wasted OpenAI
-// calls, and a race on which one "wins" the pre_screenings row for that user).
-const generationInFlight = new Set<string>();
+const isUniqueViolation = (err: unknown): boolean => {
+  if (!(err instanceof QueryFailedError)) return false;
+  const code =
+    (err as unknown as { code?: string }).code ??
+    (err.driverError as { code?: string } | undefined)?.code;
+  return code === "23505";
+};
 
 export interface IGeneratedQuestion {
   questionId: string;
@@ -119,8 +129,17 @@ export const generatePreScreeningForUser = async (
   isRetake = false,
   existingAttemptCount = 0
 ): Promise<void> => {
+  const claimed = await claimRowById(CLAIM_PRESCREENING_SQL, user.id);
+  if (!claimed) {
+    if (isRetake) {
+      throw new ValidationError("Assessment generation is already in progress. Please wait.");
+    }
+    return;
+  }
+
   const roleValidation = await validateRoles(user);
   if (!roleValidation.valid) {
+    await recordPreScreeningFailure(user.id, new Error("Invalid roles"), { permanent: true });
     throw new ValidationError("One or more selected roles do not exist in the role catalog");
   }
 
@@ -189,9 +208,11 @@ export const generatePreScreeningForUser = async (
   }
 
   if (!parsed) {
-    throw new ValidationError(
+    const err = new ValidationError(
       "Failed to generate a valid assessment (5–10 questions). Please try again."
     );
+    await recordPreScreeningFailure(user.id, err);
+    throw err;
   }
 
   const attemptCount = isRetake ? existingAttemptCount + 1 : 1;
@@ -207,6 +228,10 @@ export const generatePreScreeningForUser = async (
     preScreening.score = null;
     preScreening.completedAt = null;
     preScreening.generatedAt = new Date();
+    preScreening.generationStatus = GenerationStatus.Succeeded;
+    preScreening.generationLockedAt = null;
+    preScreening.generationNextRetryAt = null;
+    preScreening.generationLastError = null;
   } else {
     preScreening = preScreeningRepo().create({
       userId: user.id,
@@ -216,6 +241,7 @@ export const generatePreScreeningForUser = async (
       attemptCount,
       maxAttempts: 2,
       generatedAt: new Date(),
+      generationStatus: GenerationStatus.Succeeded,
     });
   }
 
@@ -224,6 +250,125 @@ export const generatePreScreeningForUser = async (
   // Update user's activePreScreeningId
   await userRepo().update(user.id, { activePreScreeningId: saved.id });
 };
+
+const CLAIM_PRESCREENING_SQL = `
+  UPDATE "pre_screenings"
+  SET "generationLockedAt" = NOW(),
+      "generationStatus" = 'pending'
+  WHERE "user_id" = $1
+    AND "generationStatus" IN ('pending', 'failed')
+    AND "generationAttempts" < ${MAX_DURABLE_ATTEMPTS}
+    AND ("generationNextRetryAt" IS NULL OR "generationNextRetryAt" <= NOW())
+    AND ("generationLockedAt" IS NULL OR "generationLockedAt" < NOW() - INTERVAL '${STALE_LOCK_INTERVAL}')
+  RETURNING "id"
+`;
+
+const DUE_PRESCREENING_SQL = `
+  SELECT p."user_id" AS "id" FROM "pre_screenings" p
+  WHERE p."generationStatus" IN ('pending', 'failed')
+    AND p."generationAttempts" < $1
+    AND ("generationNextRetryAt" IS NULL OR "generationNextRetryAt" <= NOW())
+    AND ("generationLockedAt" IS NULL OR "generationLockedAt" < NOW() - INTERVAL '${STALE_LOCK_INTERVAL}')
+  LIMIT $2
+`;
+
+const recordPreScreeningFailure = async (
+  userId: string,
+  err: unknown,
+  options: { permanent?: boolean } = {}
+): Promise<void> => {
+  const row = await preScreeningRepo().findOne({
+    where: { userId },
+    select: { id: true, generationAttempts: true },
+  });
+  if (!row) return;
+  const currentAttempts = row.generationAttempts ?? 0;
+  const patch = options.permanent
+    ? {
+        attempts: MAX_DURABLE_ATTEMPTS,
+        nextRetryAt: null as Date | null,
+        lockedAt: null,
+        lastError: err instanceof Error ? err.message : String(err),
+        exhausted: true,
+      }
+    : durableFailureUpdate(currentAttempts, err);
+
+  await preScreeningRepo().update(row.id, {
+    generationStatus: patch.exhausted ? GenerationStatus.Failed : GenerationStatus.Pending,
+    generationAttempts: patch.attempts,
+    generationNextRetryAt: patch.nextRetryAt,
+    generationLockedAt: patch.lockedAt,
+    generationLastError: patch.lastError,
+  });
+};
+
+const ensurePendingStub = async (
+  user: User,
+  options: { reset?: boolean } = {}
+): Promise<{ row: PreScreening; created: boolean }> => {
+  const roleIds = (user.userRoles ?? []).map((r) => r.id);
+  const existing = await preScreeningRepo().findOne({ where: { userId: user.id } });
+
+  if (existing && !options.reset) {
+    return { row: existing, created: false };
+  }
+
+  if (existing && options.reset) {
+    existing.questions = [];
+    existing.roles = roleIds;
+    existing.status = PreScreeningStatus.Pending;
+    existing.score = null;
+    existing.completedAt = null;
+    existing.generatedAt = new Date();
+    existing.generationStatus = GenerationStatus.Pending;
+    existing.generationAttempts = 0;
+    existing.generationNextRetryAt = null;
+    existing.generationLockedAt = null;
+    existing.generationLastError = null;
+    return { row: await preScreeningRepo().save(existing), created: false };
+  }
+
+  try {
+    const stub = preScreeningRepo().create({
+      userId: user.id,
+      roles: roleIds,
+      questions: [],
+      status: PreScreeningStatus.Pending,
+      attemptCount: 0,
+      maxAttempts: 2,
+      generatedAt: new Date(),
+      generationStatus: GenerationStatus.Pending,
+      generationAttempts: 0,
+    });
+    const saved = await preScreeningRepo().save(stub);
+    await userRepo().update(user.id, { activePreScreeningId: saved.id });
+    return { row: saved, created: true };
+  } catch (err) {
+    if (!isUniqueViolation(err)) throw err;
+    const row = await preScreeningRepo().findOne({ where: { userId: user.id } });
+    if (!row) throw err;
+    return { row, created: false };
+  }
+};
+
+const toClientPreScreening = (
+  preScreening: PreScreening,
+  extras: { generating?: boolean; generationFailed?: boolean } = {}
+) => ({
+  id: preScreening.id,
+  status: preScreening.status,
+  score: preScreening.score,
+  attemptCount: preScreening.attemptCount,
+  maxAttempts: preScreening.maxAttempts,
+  generatedAt: preScreening.generatedAt,
+  completedAt: preScreening.completedAt,
+  roles: preScreening.roles,
+  questions:
+    extras.generating || extras.generationFailed
+      ? []
+      : stripSensitiveFields(preScreening.questions as IGeneratedQuestion[]),
+  ...extras,
+});
 
 export const getActivePreScreening = async (
   userId: string
@@ -239,6 +384,7 @@ export const getActivePreScreening = async (
     roles: string[];
     questions: ReturnType<typeof stripSensitiveFields>;
     generating?: boolean;
+    generationFailed?: boolean;
   };
 }> => {
   const user = await userRepo().findOne({
@@ -261,39 +407,22 @@ export const getActivePreScreening = async (
     if (!isProfileComplete) {
       throw new NotFoundError("No assessment found. Complete your profile to generate one.");
     }
-    // Fire-and-forget — client should poll until generating is false
-    triggerPreScreeningGeneration(user);
-    return {
-      preScreening: {
-        id: null,
-        status: PreScreeningStatus.Pending,
-        score: null,
-        attemptCount: 0,
-        maxAttempts: 2,
-        generatedAt: new Date(),
-        completedAt: null,
-        roles: [],
-        questions: [],
-        generating: true,
-      },
-    };
+    const { row, created } = await ensurePendingStub(user, { reset: scoreExpired });
+    if (created || scoreExpired) {
+      triggerPreScreeningGeneration(user);
+    }
+    return { preScreening: toClientPreScreening(row, { generating: true }) };
   }
 
-  const safeQuestions = stripSensitiveFields(preScreening.questions as IGeneratedQuestion[]);
+  if (preScreening.generationStatus === GenerationStatus.Pending) {
+    return { preScreening: toClientPreScreening(preScreening, { generating: true }) };
+  }
 
-  return {
-    preScreening: {
-      id: preScreening.id,
-      status: preScreening.status,
-      score: preScreening.score,
-      attemptCount: preScreening.attemptCount,
-      maxAttempts: preScreening.maxAttempts,
-      generatedAt: preScreening.generatedAt,
-      completedAt: preScreening.completedAt,
-      roles: preScreening.roles,
-      questions: safeQuestions,
-    },
-  };
+  if (preScreening.generationStatus === GenerationStatus.Failed) {
+    return { preScreening: toClientPreScreening(preScreening, { generationFailed: true }) };
+  }
+
+  return { preScreening: toClientPreScreening(preScreening) };
 };
 
 export const submitPreScreeningAnswers = async (
@@ -311,6 +440,12 @@ export const submitPreScreeningAnswers = async (
   }
   if (preScreening.status === PreScreeningStatus.Completed) {
     throw new ValidationError("Assessment already completed. Use retake to attempt again.");
+  }
+  if (
+    preScreening.generationStatus !== GenerationStatus.Succeeded ||
+    (preScreening.questions as IGeneratedQuestion[]).length === 0
+  ) {
+    throw new ValidationError("Assessment questions are not ready yet. Please wait and try again.");
   }
 
   const storedQuestions = preScreening.questions as IGeneratedQuestion[];
@@ -444,17 +579,71 @@ export const retakePreScreening = async (userId: string): Promise<void> => {
     throw new NotFoundError("User not found");
   }
 
+  await preScreeningRepo().update(preScreening.id, {
+    generationStatus: GenerationStatus.Pending,
+    generationAttempts: 0,
+    generationNextRetryAt: null,
+    generationLockedAt: null,
+    generationLastError: null,
+  });
   await generatePreScreeningForUser(user, true, preScreening.attemptCount);
 };
 
-// Fire-and-forget wrapper used from profile update hooks
 export const triggerPreScreeningGeneration = (user: User): void => {
-  if (generationInFlight.has(user.id)) return;
-  generationInFlight.add(user.id);
+  void ensurePendingStub(user, { reset: true })
+    .then(() => generatePreScreeningForUser(user))
+    .catch((err: unknown) =>
+      logger.error(
+        `Pre-screening generation failed for user ${user.id}: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      )
+    );
+};
 
-  generatePreScreeningForUser(user)
-    .catch((err: Error) =>
-      logger.error(`Pre-screening generation failed for user ${user.id}: ${err?.message}`)
-    )
-    .finally(() => generationInFlight.delete(user.id));
+export const retryPreScreeningGeneration = async (userId: string): Promise<void> => {
+  const user = await userRepo().findOne({
+    where: { id: userId },
+    relations: { userRoles: true },
+  });
+  if (!user) {
+    throw new NotFoundError("User not found");
+  }
+
+  const preScreening = await preScreeningRepo().findOne({ where: { userId } });
+  if (!preScreening) {
+    throw new NotFoundError("No assessment found");
+  }
+  if (preScreening.generationStatus !== GenerationStatus.Failed) {
+    throw new ValidationError("Assessment generation is not in a failed state");
+  }
+
+  triggerPreScreeningGeneration(user);
+};
+
+export const reconcileDuePreScreeningGenerations = async (): Promise<{
+  scanned: number;
+  attempted: number;
+}> => {
+  const userIds = await selectDueIds(DUE_PRESCREENING_SQL, [
+    MAX_DURABLE_ATTEMPTS,
+    SWEEP_BATCH_SIZE,
+  ]);
+  for (const userId of userIds) {
+    const user = await userRepo().findOne({
+      where: { id: userId },
+      relations: { userRoles: true },
+    });
+    if (!user) continue;
+    try {
+      await generatePreScreeningForUser(user);
+    } catch (err) {
+      logger.error(
+        `Pre-screening reconciliation failed for user ${userId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
+  }
+  return { scanned: userIds.length, attempted: userIds.length };
 };

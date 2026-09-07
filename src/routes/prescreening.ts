@@ -27,5 +27,11 @@ router.post(
   requireVerifiedEmail,
   asyncHandler(prescreening.requestRetake)
 );
+router.post(
+  "/retry-generation",
+  validateAccess([UserRole.Talent]),
+  requireVerifiedEmail,
+  asyncHandler(prescreening.retryGeneration)
+);
 
 export default (app: Router) => app.use("/prescreening", router);
