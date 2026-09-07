@@ -8,7 +8,13 @@ import {
 } from "./helpers/db.js";
 import { User } from "../src/entities/User.js";
 import { Role } from "../src/entities/Role.js";
-import { UserRole, Currency, WorkType, CompensationPeriod } from "../src/types/enums.js";
+import {
+  UserRole,
+  Currency,
+  WorkType,
+  CompensationPeriod,
+  CvEmbeddingStatus,
+} from "../src/types/enums.js";
 import { generateHashedPassword, signToken } from "../src/utils/crypto.js";
 import { createTalent, createRecruiter, createRole } from "./helpers/fixtures.js";
 
@@ -246,6 +252,13 @@ describe("PATCH /v1/user/profile", () => {
 
     expect(dbUser?.cvText).toContain("Software engineer");
     expect(dbUser?.cvFileName).toBe("jane-doe-cv.pdf");
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const afterEmbed = await testDataSource.getRepository(User).findOne({
+      where: { id: user.id },
+      select: { id: true, cvEmbeddingStatus: true },
+    });
+    expect(afterEmbed?.cvEmbeddingStatus).toBe(CvEmbeddingStatus.Ready);
   });
 });
 
