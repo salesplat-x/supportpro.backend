@@ -3,10 +3,18 @@ import { AppDataSource } from "../database/dataSource.js";
 import { Application, Role, TalentEmbedding, User } from "../entities";
 import { NotFoundError, ValidationError, AuthorizationError } from "../utils/errors";
 import logger from "../utils/logger.js";
-import { UserRole, ApplicationStatus, ApplicationType } from "../types/enums.js";
+import { UserRole, ApplicationStatus, ApplicationType, CvEmbeddingStatus } from "../types/enums.js";
 import { generateCvPdf } from "../utils/cvPdf.js";
 import { extractText, overlapChunkText, preprocessText, sortDirection } from "../utils/text.js";
 import { createEmbedding } from "../utils/integrations/openai.js";
+import {
+  MAX_DURABLE_ATTEMPTS,
+  STALE_LOCK_INTERVAL,
+  SWEEP_BATCH_SIZE,
+  claimRowById,
+  durableFailureUpdate,
+  selectDueIds,
+} from "../utils/durableJobs.js";
 
 // mammoth (used by extractText) only supports .docx, not legacy binary .doc —
 // keep this in sync with what extractText can actually parse.
@@ -209,21 +217,26 @@ export const editProfile = async (
       );
     }
 
-    const processedText = overlapChunkText(preprocessText(text));
-
     // Persist extracted content + original file name; file binary is discarded.
     update.cvText = text.trim();
     update.cvFileName = file.originalname || "cv.pdf";
     update.cvUploadedAt = new Date();
+    update.cvEmbeddingStatus = CvEmbeddingStatus.Pending;
+    update.cvEmbeddingAttempts = 0;
+    update.cvEmbeddingNextRetryAt = null;
+    update.cvEmbeddingLockedAt = null;
+    update.cvEmbeddingLastError = null;
+  }
 
-    // Generate embedding asynchronously — not needed for the response, takes 5–20s.
-    // The returned promise always resolves (never rejects) so callers can await
-    // "embedding write settled" without needing their own try/catch.
-    const textSnapshot = [...processedText];
+  const saved = await userRepo().save({ ...existingUser, ...update });
+
+  if (file) {
+    // Generate embedding asynchronously after the CV row is committed — not needed
+    // for the response, takes 5–20s. The returned promise always resolves so
+    // callers can await "embedding write settled" without their own try/catch.
     embeddingPromise = new Promise<void>((resolve) => {
       setImmediate(() => {
-        createEmbedding(textSnapshot)
-          .then((cvEmbedding) => saveTalentEmbedding(userId, textSnapshot, cvEmbedding))
+        generateCvEmbeddingForUser(userId)
           .catch((err: Error) =>
             logger.error(`CV embedding generation failed for user ${userId}: ${err.message}`)
           )
@@ -231,8 +244,6 @@ export const editProfile = async (
       });
     });
   }
-
-  const saved = await userRepo().save({ ...existingUser, ...update });
 
   // Only a role change regenerates the assessment — CV replacement (or any other
   // profile edit) must never trigger a new assessment. Initial generation for a
@@ -281,6 +292,125 @@ export const saveTalentEmbedding = async (
       })
     );
   }
+};
+
+const CLAIM_CV_EMBEDDING_SQL = `
+  UPDATE "users"
+  SET "cvEmbeddingLockedAt" = NOW(),
+      "cvEmbeddingStatus" = 'pending'
+  WHERE "id" = $1
+    AND "cvEmbeddingStatus" IN ('pending', 'failed')
+    AND "cvEmbeddingAttempts" < ${MAX_DURABLE_ATTEMPTS}
+    AND ("cvEmbeddingNextRetryAt" IS NULL OR "cvEmbeddingNextRetryAt" <= NOW())
+    AND ("cvEmbeddingLockedAt" IS NULL OR "cvEmbeddingLockedAt" < NOW() - INTERVAL '${STALE_LOCK_INTERVAL}')
+  RETURNING "id"
+`;
+
+const DUE_CV_EMBEDDING_SQL = `
+  SELECT "id" FROM "users"
+  WHERE "cvText" IS NOT NULL
+    AND "cvUploadedAt" IS NOT NULL
+    AND "cvEmbeddingStatus" IN ('pending', 'failed')
+    AND "cvEmbeddingAttempts" < $1
+    AND ("cvEmbeddingNextRetryAt" IS NULL OR "cvEmbeddingNextRetryAt" <= NOW())
+    AND ("cvEmbeddingLockedAt" IS NULL OR "cvEmbeddingLockedAt" < NOW() - INTERVAL '${STALE_LOCK_INTERVAL}')
+  LIMIT $2
+`;
+
+const recordCvEmbeddingFailure = async (
+  userId: string,
+  err: unknown,
+  options: { permanent?: boolean } = {}
+): Promise<void> => {
+  const row = await userRepo().findOne({
+    where: { id: userId },
+    select: { id: true, cvEmbeddingAttempts: true },
+  });
+  const currentAttempts = row?.cvEmbeddingAttempts ?? 0;
+  const patch = options.permanent
+    ? {
+        attempts: MAX_DURABLE_ATTEMPTS,
+        nextRetryAt: null as Date | null,
+        lockedAt: null,
+        lastError: err instanceof Error ? err.message : String(err),
+        exhausted: true,
+      }
+    : durableFailureUpdate(currentAttempts, err);
+
+  await userRepo().update(userId, {
+    cvEmbeddingStatus: patch.exhausted ? CvEmbeddingStatus.Failed : CvEmbeddingStatus.Pending,
+    cvEmbeddingAttempts: patch.attempts,
+    cvEmbeddingNextRetryAt: patch.nextRetryAt,
+    cvEmbeddingLockedAt: patch.lockedAt,
+    cvEmbeddingLastError: patch.lastError,
+  });
+};
+
+export const generateCvEmbeddingForUser = async (userId: string): Promise<void> => {
+  const claimed = await claimRowById(CLAIM_CV_EMBEDDING_SQL, userId);
+  if (!claimed) return;
+
+  try {
+    const user = await userRepo()
+      .createQueryBuilder("user")
+      .addSelect("user.cvText")
+      .where("user.id = :userId", { userId })
+      .getOne();
+    const text = user?.cvText?.trim();
+    if (!text) {
+      await recordCvEmbeddingFailure(userId, new Error("No CV text is stored"), {
+        permanent: true,
+      });
+      return;
+    }
+
+    const chunks = overlapChunkText(preprocessText(text));
+    const embeddings = await createEmbedding(chunks);
+    await saveTalentEmbedding(userId, chunks, embeddings);
+    await userRepo().update(userId, {
+      cvEmbeddingStatus: CvEmbeddingStatus.Ready,
+      cvEmbeddingLockedAt: null,
+      cvEmbeddingNextRetryAt: null,
+      cvEmbeddingLastError: null,
+    });
+  } catch (err) {
+    logger.error(
+      `CV embedding generation failed for user ${userId}: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
+    await recordCvEmbeddingFailure(userId, err);
+    throw err;
+  }
+};
+
+export const reconcileDueCvEmbeddings = async (): Promise<{
+  scanned: number;
+  healed: number;
+  failed: number;
+}> => {
+  const ids = await selectDueIds(DUE_CV_EMBEDDING_SQL, [MAX_DURABLE_ATTEMPTS, SWEEP_BATCH_SIZE]);
+  let healed = 0;
+  let failed = 0;
+  for (const id of ids) {
+    try {
+      await generateCvEmbeddingForUser(id);
+      const user = await userRepo().findOne({
+        where: { id },
+        select: { id: true, cvEmbeddingStatus: true },
+      });
+      if (user?.cvEmbeddingStatus === CvEmbeddingStatus.Ready) healed++;
+      else failed++;
+    } catch {
+      failed++;
+    }
+  }
+  if (ids.length > 0) {
+    logger.info(
+      `CV embedding reconciliation sweep: scanned ${ids.length}, healed ${healed}, failed ${failed}`
+    );
+  }
+  return { scanned: ids.length, healed, failed };
 };
 
 export const me = async (userId: string): Promise<User> => {
@@ -333,9 +463,15 @@ export const reprocessCv = async (recruiterId: string, talentId: string): Promis
     throw new ValidationError("No CV text is stored for this talent");
   }
 
-  const chunks = overlapChunkText(preprocessText(user.cvText));
-  const embeddings = await createEmbedding(chunks);
-  await saveTalentEmbedding(talentId, chunks, embeddings);
+  await userRepo().update(talentId, {
+    cvEmbeddingStatus: CvEmbeddingStatus.Pending,
+    cvEmbeddingAttempts: 0,
+    cvEmbeddingNextRetryAt: null,
+    cvEmbeddingLockedAt: null,
+    cvEmbeddingLastError: null,
+  });
+
+  await generateCvEmbeddingForUser(talentId);
 };
 
 export const getTalentCvPdf = async (
