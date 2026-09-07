@@ -16,3 +16,8 @@ export const requestRetake = async (req: Request, res: Response) => {
   const result = await prescreeningService.retakePreScreening(req.user.id);
   sendSuccessResponse(res, "Prescreening retake requested", result);
 };
+
+export const retryGeneration = async (req: Request, res: Response) => {
+  await prescreeningService.retryPreScreeningGeneration(req.user.id);
+  sendSuccessResponse(res, "Prescreening generation retried");
+};
