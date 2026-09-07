@@ -24,7 +24,7 @@
     "start": "node ./dist/app.js",
     "start:build": "npm run build && npm start",
     "dev": "npx nodemon",
-    "dev:full": "docker compose up -d postgres pgbouncer migrate && npx nodemon",
+    "dev:full": "docker compose up -d --wait postgres pgbouncer && npm run migration:run && npx nodemon",
     "build": "rimraf ./dist && tsc && mkdir -p dist/config && cp src/config/pricing.yaml dist/config/pricing.yaml",
     "docker:up": "docker compose up -d",
     "docker:drop": "docker compose down -v --remove-orphans",
