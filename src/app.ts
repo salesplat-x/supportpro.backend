@@ -11,8 +11,9 @@ import { sendSuccessResponse } from "./utils/response.js";
 import { AppDataSource, initializeDatabase } from "./database/dataSource.js";
 import v1Router from "./routes";
 import swaggerDocs from "./swagger.js";
-import { reconcilePendingCvEmbeddings } from "./services/reconciliation.js";
+import { reconcileDurableJobs } from "./services/reconciliation.js";
 import { asyncHandler } from "./middleware/asyncHandler.js";
+import { SWEEP_INTERVAL_MS } from "./utils/durableJobs.js";
 
 export function createApp(): Application {
   const app = express();
@@ -76,16 +77,17 @@ async function startApplication(): Promise<void> {
     logger.info(`App listening on http://localhost:${PORT}`);
   });
 
-  // Self-healing sweep for CV embeddings left orphaned by a failed or interrupted
-  // fire-and-forget generation (see services/reconciliation.ts). Runs in-process —
-  // no separate worker/queue — so it only needs the Postgres connection we already have.
-  const RECONCILE_INTERVAL_MS = 15 * 60 * 1000;
-  const reconcileInterval = setInterval(() => {
-    reconcilePendingCvEmbeddings().catch((err: Error) =>
-      logger.error(`CV embedding reconciliation sweep failed: ${err.message}`)
+  // Self-healing sweep for fire-and-forget LLM work (CV embeddings, match
+  // verdicts, pre-screening generation). Runs in-process — no separate
+  // worker/queue — so it only needs the Postgres connection we already have.
+  const runSweep = () => {
+    reconcileDurableJobs().catch((err: Error) =>
+      logger.error(`Durable job reconciliation sweep failed: ${err.message}`)
     );
-  }, RECONCILE_INTERVAL_MS);
+  };
+  const reconcileInterval = setInterval(runSweep, SWEEP_INTERVAL_MS);
   reconcileInterval.unref();
+  setTimeout(runSweep, 5_000).unref();
 
   const shutdown = (signal: string): void => {
     logger.info(`${signal} received — shutting down gracefully`);
