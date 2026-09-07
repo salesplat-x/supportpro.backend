@@ -10,6 +10,8 @@ import {
   loadApplicationWithMatch,
   loadRecommendationsByApplicationIds,
   overlayVerdictFromRecommendation,
+  reconcileDueMatchVerdicts,
+  resetMatchVerdictRetry,
 } from "../src/services/applicationStage.js";
 import {
   startTestDatabase,
@@ -39,6 +41,7 @@ import {
   QuestionType,
 } from "../src/types/enums.js";
 import { assessApplicationMatch } from "../src/utils/integrations/openai.js";
+import { MAX_DURABLE_ATTEMPTS } from "../src/utils/durableJobs.js";
 
 jest.mock("../src/utils/integrations/openai.js", () => ({
   __esModule: true,
@@ -71,6 +74,18 @@ afterAll(async () => {
 afterEach(async () => {
   await clearAllTables();
   jest.clearAllMocks();
+  mockAssessApplicationMatch.mockResolvedValue({
+    message: {
+      content: JSON.stringify({
+        verdict: "high",
+        reasoning: "Strong CV match and consistent scores across the pipeline.",
+        strengths: ["Five years of relevant TypeScript experience per the CV."],
+        weaknesses: ["No direct leadership experience mentioned."],
+        risks: ["May need ramp-up time on the specific stack used here."],
+        recommendation: "hire",
+      }),
+    },
+  } as unknown as Awaited<ReturnType<typeof assessApplicationMatch>>);
 });
 
 describe("processNextStage — reaching Completed no longer auto-shortlists", () => {
@@ -556,6 +571,7 @@ describe("triggerMatchVerdict — AI verdict is advisory and recruiter-facing on
       where: { id: application.id },
     });
     expect(reloaded?.matchVerdictStatus).toBe(MatchVerdictStatus.Failed);
+    expect(reloaded?.matchVerdictAttempts).toBe(MAX_DURABLE_ATTEMPTS);
   });
 
   it("normalizes a differently-cased verdict from the LLM instead of silently dropping it", async () => {
@@ -604,6 +620,9 @@ describe("triggerMatchVerdict — AI verdict is advisory and recruiter-facing on
       where: { id: application.id },
     });
     expect(reloaded?.matchVerdict).toBeNull();
+    expect(reloaded?.matchVerdictStatus).toBe(MatchVerdictStatus.Pending);
+    expect(reloaded?.matchVerdictAttempts).toBe(1);
+    expect(reloaded?.matchVerdictNextRetryAt).not.toBeNull();
   });
 
   it("swallows an LLM failure instead of throwing", async () => {
@@ -626,7 +645,8 @@ describe("triggerMatchVerdict — AI verdict is advisory and recruiter-facing on
       where: { id: application.id },
     });
     expect(reloaded?.matchVerdict).toBeNull();
-    expect(reloaded?.matchVerdictStatus).toBe(MatchVerdictStatus.Failed);
+    expect(reloaded?.matchVerdictStatus).toBe(MatchVerdictStatus.Pending);
+    expect(reloaded?.matchVerdictAttempts).toBe(1);
   });
 
   it("includes the job's skills, requirements, and goals in the LLM context", async () => {
@@ -835,5 +855,79 @@ describe("verdict overlay helpers — ai_recommendations is the source of truth 
     // Both rows exist and agree — this is what the transaction guarantees.
     expect(applicationRow?.matchVerdict).toBe(recommendationRow?.verdict);
     expect(applicationRow?.matchVerdictReasoning).toBe(recommendationRow?.reasoning);
+  });
+
+  it("keeps a retryable LLM failure pending until attempts are exhausted, then marks failed", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const application = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+    });
+
+    mockAssessApplicationMatch.mockResolvedValue({
+      message: { content: null },
+    } as unknown as Awaited<ReturnType<typeof assessApplicationMatch>>);
+
+    const applicationRepo = testDataSource.getRepository(Application);
+    for (let i = 0; i < MAX_DURABLE_ATTEMPTS; i++) {
+      await applicationRepo.update(application.id, {
+        matchVerdictNextRetryAt: null,
+        matchVerdictLockedAt: null,
+      });
+      await triggerMatchVerdict(talent, application);
+    }
+
+    const reloaded = await applicationRepo.findOne({ where: { id: application.id } });
+    expect(reloaded?.matchVerdict).toBeNull();
+    expect(reloaded?.matchVerdictStatus).toBe(MatchVerdictStatus.Failed);
+    expect(reloaded?.matchVerdictAttempts).toBe(MAX_DURABLE_ATTEMPTS);
+  });
+
+  it("sweep retries a due pending verdict after backoff has elapsed", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const application = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+      matchVerdictStatus: MatchVerdictStatus.Pending,
+      matchVerdictAttempts: 1,
+      matchVerdictNextRetryAt: new Date(0),
+    });
+
+    await reconcileDueMatchVerdicts();
+
+    const reloaded = await testDataSource.getRepository(Application).findOne({
+      where: { id: application.id },
+    });
+    expect(mockAssessApplicationMatch).toHaveBeenCalled();
+    expect(reloaded?.matchVerdict).toBe(MatchVerdict.High);
+    expect(reloaded?.matchVerdictStatus).toBe(MatchVerdictStatus.Succeeded);
+  });
+
+  it("resetMatchVerdictRetry clears exhaustion so a later trigger can run again", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const application = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+      matchVerdictStatus: MatchVerdictStatus.Failed,
+      matchVerdictAttempts: MAX_DURABLE_ATTEMPTS,
+    });
+
+    await resetMatchVerdictRetry(application.id);
+    await triggerMatchVerdict(talent, application);
+
+    const reloaded = await testDataSource.getRepository(Application).findOne({
+      where: { id: application.id },
+    });
+    expect(reloaded?.matchVerdict).toBe(MatchVerdict.High);
+    expect(reloaded?.matchVerdictStatus).toBe(MatchVerdictStatus.Succeeded);
   });
 });

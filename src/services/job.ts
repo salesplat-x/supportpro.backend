@@ -18,6 +18,7 @@ import {
   ApplicationStatus,
   ScreeningStage,
   CompensationPeriod,
+  MatchVerdictStatus,
 } from "../types/enums.js";
 import {
   createEmbedding,
@@ -34,6 +35,7 @@ import {
   loadRecommendationsByApplicationIds,
   overlayVerdictFromRecommendation,
   triggerMatchVerdict,
+  resetMatchVerdictRetry,
 } from "./applicationStage.js";
 import { isPrescreeningScoreValid } from "./prescreening.js";
 
@@ -881,7 +883,14 @@ export const retryMissingVerdicts = async (
   });
 
   await Promise.all(
-    applications.map((application) => triggerMatchVerdict(application.talent, application))
+    applications.map(async (application) => {
+      await resetMatchVerdictRetry(application.id);
+      application.matchVerdictStatus = MatchVerdictStatus.Pending;
+      application.matchVerdictAttempts = 0;
+      application.matchVerdictNextRetryAt = null;
+      application.matchVerdictLockedAt = null;
+      return triggerMatchVerdict(application.talent, application);
+    })
   );
 
   const ids = applications.map((a) => a.id);
