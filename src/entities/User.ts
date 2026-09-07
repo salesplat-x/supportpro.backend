@@ -17,6 +17,7 @@ import {
   BillingPlan,
   BillingInterval,
   BillingStatus,
+  CvEmbeddingStatus,
 } from "../types/enums.js";
 import type { Organization } from "./Organization.js";
 import type { Role } from "./Role.js";
@@ -118,6 +119,21 @@ export class User {
 
   @Column({ type: "timestamp", nullable: true, default: null })
   cvUploadedAt!: Date | null;
+
+  @Column({ type: "enum", enum: CvEmbeddingStatus, nullable: true, default: null })
+  cvEmbeddingStatus!: CvEmbeddingStatus | null;
+
+  @Column({ type: "int", default: 0 })
+  cvEmbeddingAttempts!: number;
+
+  @Column({ type: "timestamp", nullable: true, default: null })
+  cvEmbeddingNextRetryAt!: Date | null;
+
+  @Column({ type: "timestamp", nullable: true, default: null })
+  cvEmbeddingLockedAt!: Date | null;
+
+  @Column({ type: "text", nullable: true, default: null })
+  cvEmbeddingLastError!: string | null;
 
   @Column({ type: "simple-array", nullable: true, default: null })
   workType!: string[] | null;

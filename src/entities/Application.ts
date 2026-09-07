@@ -102,6 +102,18 @@ export class Application {
   @Column({ type: "enum", enum: MatchVerdictStatus, nullable: true, default: null })
   matchVerdictStatus!: MatchVerdictStatus | null;
 
+  @Column({ type: "int", default: 0 })
+  matchVerdictAttempts!: number;
+
+  @Column({ type: "timestamp", nullable: true, default: null })
+  matchVerdictNextRetryAt!: Date | null;
+
+  @Column({ type: "timestamp", nullable: true, default: null })
+  matchVerdictLockedAt!: Date | null;
+
+  @Column({ type: "text", nullable: true, default: null })
+  matchVerdictLastError!: string | null;
+
   @Column({ type: "text", nullable: true, default: null })
   matchVerdictReasoning!: string | null;
 
