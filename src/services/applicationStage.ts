@@ -16,6 +16,14 @@ import {
   MatchRecommendation,
   QuestionType,
 } from "../types/enums.js";
+import {
+  MAX_DURABLE_ATTEMPTS,
+  STALE_LOCK_INTERVAL,
+  SWEEP_BATCH_SIZE,
+  claimRowById,
+  durableFailureUpdate,
+  selectDueIds,
+} from "../utils/durableJobs.js";
 import { ValidationError } from "../utils/errors";
 import { assessApplicationMatch } from "../utils/integrations/openai.js";
 import { parseMatchAnalysis, type MatchAnalysis } from "../utils/matchAnalysis.js";
@@ -116,6 +124,9 @@ const persistRecommendation = async (
       matchStrengths: payload.strengths,
       matchWeaknesses: payload.weaknesses,
       matchRisks: payload.risks,
+      matchVerdictLockedAt: null,
+      matchVerdictNextRetryAt: null,
+      matchVerdictLastError: null,
     });
   });
 };
@@ -220,6 +231,76 @@ export interface TriggerMatchVerdictOptions {
   force?: boolean;
 }
 
+const CLAIM_MATCH_VERDICT_SQL = `
+  UPDATE "applications"
+  SET "matchVerdictLockedAt" = NOW(),
+      "matchVerdictStatus" = 'pending'
+  WHERE "id" = $1
+    AND "matchVerdict" IS NULL
+    AND "matchVerdictAttempts" < ${MAX_DURABLE_ATTEMPTS}
+    AND ("matchVerdictNextRetryAt" IS NULL OR "matchVerdictNextRetryAt" <= NOW())
+    AND ("matchVerdictLockedAt" IS NULL OR "matchVerdictLockedAt" < NOW() - INTERVAL '${STALE_LOCK_INTERVAL}')
+  RETURNING "id"
+`;
+
+const DUE_MATCH_VERDICT_SQL = `
+  SELECT "id" FROM "applications"
+  WHERE "currentStage" = 'completed'
+    AND "matchVerdict" IS NULL
+    AND ("matchVerdictStatus" IS NULL OR "matchVerdictStatus" IN ('pending', 'failed'))
+    AND "matchVerdictAttempts" < $1
+    AND ("matchVerdictNextRetryAt" IS NULL OR "matchVerdictNextRetryAt" <= NOW())
+    AND ("matchVerdictLockedAt" IS NULL OR "matchVerdictLockedAt" < NOW() - INTERVAL '${STALE_LOCK_INTERVAL}')
+  LIMIT $2
+`;
+
+const recordMatchVerdictFailure = async (
+  applicationId: string,
+  err: unknown,
+  options: { permanent?: boolean } = {}
+): Promise<void> => {
+  const row = await applicationRepo().findOne({
+    where: { id: applicationId },
+    select: { id: true, matchVerdictAttempts: true },
+  });
+  const currentAttempts = row?.matchVerdictAttempts ?? 0;
+  const patch = options.permanent
+    ? {
+        attempts: MAX_DURABLE_ATTEMPTS,
+        nextRetryAt: null as Date | null,
+        lockedAt: null,
+        lastError: err instanceof Error ? err.message : String(err),
+        exhausted: true,
+      }
+    : durableFailureUpdate(currentAttempts, err);
+
+  await applicationRepo().update(applicationId, {
+    matchVerdictStatus: patch.exhausted ? MatchVerdictStatus.Failed : MatchVerdictStatus.Pending,
+    matchVerdictAttempts: patch.attempts,
+    matchVerdictNextRetryAt: patch.nextRetryAt,
+    matchVerdictLockedAt: patch.lockedAt,
+    matchVerdictLastError: patch.lastError,
+  });
+};
+
+const overlayExistingRecommendation = async (
+  application: Application,
+  existing: AiRecommendation
+): Promise<void> => {
+  await applicationRepo().update(application.id, {
+    matchVerdict: existing.verdict,
+    matchVerdictStatus: MatchVerdictStatus.Succeeded,
+    matchVerdictReasoning: existing.reasoning,
+    matchRecommendation: existing.recommendation,
+    matchStrengths: existing.strengths,
+    matchWeaknesses: existing.weaknesses,
+    matchRisks: existing.risks,
+    matchVerdictLockedAt: null,
+    matchVerdictNextRetryAt: null,
+    matchVerdictLastError: null,
+  });
+};
+
 // Advisory only — never blocks the actual stage transition. Callers fire this
 // without awaiting it so it doesn't delay the response; failures (including a
 // missing/unparsable LLM response) are logged and swallowed rather than surfaced
@@ -227,59 +308,53 @@ export interface TriggerMatchVerdictOptions {
 // it directly instead of racing the fire-and-forget call.
 //
 // Recommendations are persisted in `ai_recommendations` and generated once.
-// Viewing an applicant reads the stored row — it never recomputes, and there is
-// no recruiter regenerate path.
-const matchGenerationInFlight = new Set<string>();
-
+// Viewing an applicant reads the stored row — it never recomputes. Recruiter
+// retry resets attempt counters and re-enqueues; the in-process sweep retries
+// pending work automatically.
 export const triggerMatchVerdict = async (
   talent: User,
   application: Application,
   _options: TriggerMatchVerdictOptions = {}
 ): Promise<void> => {
-  if (matchGenerationInFlight.has(application.id)) return;
-  matchGenerationInFlight.add(application.id);
-  try {
-    const existingRecommendation = await aiRecommendationRepo().findOne({
-      where: { applicationId: application.id },
+  // Yield so the caller can persist stage/status columns before this runs
+  // (processNextStage is fire-and-forget, then the caller saves).
+  await new Promise<void>((resolve) => setImmediate(resolve));
+
+  const existingRecommendation = await aiRecommendationRepo().findOne({
+    where: { applicationId: application.id },
+  });
+
+  if (existingRecommendation) {
+    if (!application.matchVerdict) {
+      await overlayExistingRecommendation(application, existingRecommendation);
+    }
+    return;
+  }
+
+  if (application.matchVerdict) {
+    await persistRecommendation(application.id, {
+      verdict: application.matchVerdict,
+      reasoning: application.matchVerdictReasoning ?? "",
+      recommendation: application.matchRecommendation,
+      strengths: application.matchStrengths,
+      weaknesses: application.matchWeaknesses,
+      risks: application.matchRisks,
+      analysis: null,
     });
+    return;
+  }
 
-    if (existingRecommendation) {
-      // Already generated — sync application columns if they were cleared, then exit.
-      if (!application.matchVerdict) {
-        await applicationRepo().update(application.id, {
-          matchVerdict: existingRecommendation.verdict,
-          matchVerdictReasoning: existingRecommendation.reasoning,
-          matchRecommendation: existingRecommendation.recommendation,
-          matchStrengths: existingRecommendation.strengths,
-          matchWeaknesses: existingRecommendation.weaknesses,
-          matchRisks: existingRecommendation.risks,
-        });
-      }
-      return;
-    }
+  const claimed = await claimRowById(CLAIM_MATCH_VERDICT_SQL, application.id);
+  if (!claimed) return;
 
-    // Legacy rows that have match columns but no ai_recommendations row yet —
-    // promote without calling OpenAI again.
-    if (application.matchVerdict) {
-      await persistRecommendation(application.id, {
-        verdict: application.matchVerdict,
-        reasoning: application.matchVerdictReasoning ?? "",
-        recommendation: application.matchRecommendation,
-        strengths: application.matchStrengths,
-        weaknesses: application.matchWeaknesses,
-        risks: application.matchRisks,
-        analysis: null,
-      });
-      return;
-    }
-
+  try {
     const job = await jobRepo().findOne({
       where: { id: application.jobId },
       relations: { aiConfig: true },
     });
     if (!job) {
-      await applicationRepo().update(application.id, {
-        matchVerdictStatus: MatchVerdictStatus.Failed,
+      await recordMatchVerdictFailure(application.id, new Error("Job not found"), {
+        permanent: true,
       });
       return;
     }
@@ -300,10 +375,6 @@ export const triggerMatchVerdict = async (
           : Promise.resolve([]),
       ]);
     const cvText = cvChunks.map((c) => c.cvText ?? "").join("\n\n");
-
-    await applicationRepo().update(application.id, {
-      matchVerdictStatus: MatchVerdictStatus.Pending,
-    });
 
     const response = await assessApplicationMatch({
       jobDescription: job.jobBrief,
@@ -374,14 +445,44 @@ export const triggerMatchVerdict = async (
     });
   } catch (err) {
     logger.error(
-      `Match verdict generation failed for application ${application.id}: ${(err as Error).message}`
+      `Match verdict generation failed for application ${application.id}: ${
+        err instanceof Error ? err.message : String(err)
+      }`
     );
-    await applicationRepo().update(application.id, {
-      matchVerdictStatus: MatchVerdictStatus.Failed,
-    });
-  } finally {
-    matchGenerationInFlight.delete(application.id);
+    await recordMatchVerdictFailure(application.id, err);
   }
+};
+
+export const resetMatchVerdictRetry = async (applicationId: string): Promise<void> => {
+  await applicationRepo().update(applicationId, {
+    matchVerdictStatus: MatchVerdictStatus.Pending,
+    matchVerdictAttempts: 0,
+    matchVerdictNextRetryAt: null,
+    matchVerdictLockedAt: null,
+    matchVerdictLastError: null,
+  });
+};
+
+export const reconcileDueMatchVerdicts = async (): Promise<{
+  scanned: number;
+  attempted: number;
+}> => {
+  const ids = await selectDueIds(DUE_MATCH_VERDICT_SQL, [MAX_DURABLE_ATTEMPTS, SWEEP_BATCH_SIZE]);
+  let attempted = 0;
+  for (const id of ids) {
+    const application = await applicationRepo().findOne({
+      where: { id },
+      relations: { talent: true },
+    });
+    if (!application) continue;
+    const talent =
+      application.talent ??
+      (await AppDataSource.getRepository(User).findOne({ where: { id: application.talentId } }));
+    if (!talent) continue;
+    attempted++;
+    await triggerMatchVerdict(talent, application);
+  }
+  return { scanned: ids.length, attempted };
 };
 
 export const processNextStage = async (
@@ -403,6 +504,10 @@ export const processNextStage = async (
     await rankApplication(talent, application, aiConfig);
     application.status = ApplicationStatus.AwaitingDecision;
     application.matchVerdictStatus = MatchVerdictStatus.Pending;
+    application.matchVerdictAttempts = 0;
+    application.matchVerdictNextRetryAt = null;
+    application.matchVerdictLockedAt = null;
+    application.matchVerdictLastError = null;
     void triggerMatchVerdict(talent, application);
   } else {
     application.status = ApplicationStatus.Pending;
