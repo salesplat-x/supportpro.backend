@@ -559,6 +559,18 @@ describe("Organization invites", () => {
     expect(res.status).toBe(403);
   });
 
+  it("Only the company creator can send an invite → 403 for other recruiters", async () => {
+    const { token: ownerToken } = await createRecruiter();
+    const { token: otherToken } = await createRecruiter();
+    const org = await createOwnedOrg(ownerToken);
+
+    const res = await request(app)
+      .post(`/v1/organizations/${org.id}/invites`)
+      .set("Authorization", `Bearer ${otherToken}`)
+      .send({ email: "teammate@invitecorp.com" });
+    expect(res.status).toBe(403);
+  });
+
   it("Admin sees creator and recruiters on a company", async () => {
     const { token: ownerToken } = await createRecruiter();
     const { token: adminToken } = await createAdmin();
