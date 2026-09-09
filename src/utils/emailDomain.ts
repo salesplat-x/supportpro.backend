@@ -1,0 +1,50 @@
+const PUBLIC_EMAIL_DOMAINS = new Set([
+  "gmail.com",
+  "googlemail.com",
+  "yahoo.com",
+  "yahoo.co.uk",
+  "hotmail.com",
+  "outlook.com",
+  "live.com",
+  "icloud.com",
+  "me.com",
+  "aol.com",
+  "mail.com",
+  "protonmail.com",
+  "proton.me",
+  "zoho.com",
+  "gmx.com",
+  "yandex.com",
+  "msn.com",
+]);
+
+export const extractEmailDomain = (email: string): string => {
+  return email.trim().toLowerCase().split("@")[1] ?? "";
+};
+
+export const isPublicEmailDomain = (email: string): boolean => {
+  const domain = extractEmailDomain(email);
+  return domain ? PUBLIC_EMAIL_DOMAINS.has(domain) : true;
+};
+
+export const isCorporateEmail = (email: string): boolean => {
+  return validateEmailFormat(email) && !isPublicEmailDomain(email);
+};
+
+const validateEmailFormat = (email: string): boolean =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+
+export const assertMatchingWorkEmailDomain = (companyEmail: string, workEmail: string): void => {
+  const companyDomain = extractEmailDomain(companyEmail);
+  const workDomain = extractEmailDomain(workEmail);
+
+  if (!companyDomain || !workDomain) {
+    throw new Error("Invalid email domain");
+  }
+
+  if (companyDomain !== workDomain) {
+    throw new Error(
+      `Work email domain (@${workDomain}) must match the company domain (@${companyDomain})`
+    );
+  }
+};

@@ -20,3 +20,5 @@ export { TalentEmbedding } from "./TalentEmbedding.js";
 export { ErrorLog } from "./ErrorLog.js";
 export { AiRecommendation } from "./AiRecommendation.js";
 export { Feedback } from "./Feedback.js";
+export { OrganizationMember } from "./OrganizationMember.js";
+export { OrganizationJoinRequest } from "./OrganizationJoinRequest.js";

@@ -23,6 +23,8 @@ import { ErrorLog } from "../../src/entities/ErrorLog.js";
 import { AiRecommendation } from "../../src/entities/AiRecommendation.js";
 import { PaymentWebhookEvent } from "../../src/entities/PaymentWebhookEvent.js";
 import { Feedback } from "../../src/entities/Feedback.js";
+import { OrganizationMember } from "../../src/entities/OrganizationMember.js";
+import { OrganizationJoinRequest } from "../../src/entities/OrganizationJoinRequest.js";
 
 let container: StartedPostgreSqlContainer;
 export let testDataSource: DataSource;
@@ -50,6 +52,8 @@ const ALL_ENTITIES = [
   AiRecommendation,
   Feedback,
   PaymentWebhookEvent,
+  OrganizationMember,
+  OrganizationJoinRequest,
 ];
 
 export async function startTestDatabase(): Promise<void> {
@@ -81,6 +85,8 @@ export async function startTestDatabase(): Promise<void> {
 }
 
 export async function stopTestDatabase(): Promise<void> {
+  const { drainInFlightMatchVerdicts } = await import("../../src/services/applicationStage.js");
+  await drainInFlightMatchVerdicts();
   if (testDataSource?.isInitialized) {
     await testDataSource.destroy();
   }
@@ -91,6 +97,8 @@ export async function stopTestDatabase(): Promise<void> {
 
 export async function clearAllTables(): Promise<void> {
   if (!testDataSource?.isInitialized) return;
+  const { drainInFlightMatchVerdicts } = await import("../../src/services/applicationStage.js");
+  await drainInFlightMatchVerdicts();
   const tableNames = testDataSource.entityMetadatas.map((e) => `"${e.tableName}"`).join(", ");
   // TRUNCATE ... RESTART IDENTITY CASCADE handles FK dependencies in one shot
   await testDataSource.query(`TRUNCATE TABLE ${tableNames} RESTART IDENTITY CASCADE`).catch(() => {

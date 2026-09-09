@@ -1,12 +1,13 @@
 import { AppDataSource } from "../database/dataSource.js";
 import { Application } from "../entities/Application.js";
 import { Job } from "../entities/Job.js";
+import { User } from "../entities/User.js";
 import { NotFoundError, AuthorizationError } from "../utils/errors";
 import { ApplicationType, ApplicationStatus, ScreeningStage } from "../types/enums.js";
 
 const applicationRepo = () => AppDataSource.getRepository(Application);
-
 const jobRepo = () => AppDataSource.getRepository(Job);
+const userRepo = () => AppDataSource.getRepository(User);
 
 export interface RecruiterDashboardResult {
   campaignCount: number;
@@ -41,10 +42,25 @@ export const recruiterDashboard = async (
   recruiterId: string,
   jobId?: string
 ): Promise<RecruiterDashboardResult> => {
-  // Total campaign / completion counts
-  const allApplications = await applicationRepo().find({
-    where: { recruiterId },
-  });
+  const recruiter = await userRepo().findOne({ where: { id: recruiterId } });
+  const activeOrgId = recruiter?.activeOrganizationId;
+
+  // Total campaign / completion counts across recruiter OR active org
+  let allApplications: Application[];
+  if (activeOrgId) {
+    allApplications = await applicationRepo()
+      .createQueryBuilder("application")
+      .leftJoin("application.job", "job")
+      .where("(application.recruiter_id = :recruiterId OR job.organization_id = :activeOrgId)", {
+        recruiterId,
+        activeOrgId,
+      })
+      .getMany();
+  } else {
+    allApplications = await applicationRepo().find({
+      where: { recruiterId },
+    });
+  }
 
   const campaignCount = allApplications.length;
   const completedCampaigns = allApplications.filter(
@@ -65,10 +81,19 @@ export const recruiterDashboard = async (
   const recentApplicationsQb = applicationRepo()
     .createQueryBuilder("application")
     .leftJoinAndSelect("application.talent", "talent")
-    .where("application.recruiter_id = :recruiterId", { recruiterId })
+    .leftJoin("application.job", "job")
     .andWhere("application.applicationType = :type", { type: ApplicationType.Application })
     .orderBy("application.createdAt", "DESC")
     .take(3);
+
+  if (activeOrgId) {
+    recentApplicationsQb.andWhere(
+      "(application.recruiter_id = :recruiterId OR job.organization_id = :activeOrgId)",
+      { recruiterId, activeOrgId }
+    );
+  } else {
+    recentApplicationsQb.andWhere("application.recruiter_id = :recruiterId", { recruiterId });
+  }
 
   const recentApplicationsRaw = await recentApplicationsQb.getMany();
 
@@ -86,8 +111,16 @@ export const recruiterDashboard = async (
     .createQueryBuilder("application")
     .leftJoinAndSelect("application.talent", "talent")
     .leftJoinAndSelect("application.job", "job")
-    .leftJoinAndSelect("job.role", "role")
-    .where("application.recruiter_id = :recruiterId", { recruiterId });
+    .leftJoinAndSelect("job.role", "role");
+
+  if (activeOrgId) {
+    compilationsQb.where(
+      "(application.recruiter_id = :recruiterId OR job.organization_id = :activeOrgId)",
+      { recruiterId, activeOrgId }
+    );
+  } else {
+    compilationsQb.where("application.recruiter_id = :recruiterId", { recruiterId });
+  }
 
   if (jobId) {
     compilationsQb.andWhere("application.job_id = :jobId", { jobId });
@@ -136,21 +169,32 @@ export const recruiterApplications = async (
   payload: RecruiterApplicationsParams
 ): Promise<Application[]> => {
   const { jobId, applicationType, applicationStatus, offset, limit } = payload;
+  const recruiter = await userRepo().findOne({ where: { id: userId } });
+  const activeOrgId = recruiter?.activeOrganizationId;
 
   const qb = applicationRepo()
     .createQueryBuilder("application")
     .leftJoinAndSelect("application.talent", "talent")
     .leftJoinAndSelect("application.role", "role")
     .leftJoinAndSelect("application.job", "job")
-    .leftJoinAndSelect("job.role", "jobRole")
-    .where("application.recruiter_id = :userId", { userId });
+    .leftJoinAndSelect("job.role", "jobRole");
+
+  if (activeOrgId) {
+    qb.where("(application.recruiter_id = :userId OR job.organization_id = :activeOrgId)", {
+      userId,
+      activeOrgId,
+    });
+  } else {
+    qb.where("application.recruiter_id = :userId", { userId });
+  }
 
   if (jobId) {
     const job = await jobRepo().findOne({ where: { id: jobId } });
     if (!job) {
       throw new NotFoundError("Job not found");
     }
-    if (job.postedById !== userId) {
+    const isOrgMember = activeOrgId && job.organizationId === activeOrgId;
+    if (job.postedById !== userId && !isOrgMember) {
       throw new AuthorizationError("You are not authorized to perform this action");
     }
     qb.andWhere("application.job_id = :jobId", { jobId });

@@ -43,12 +43,6 @@ export const decodeToken = (token: string): JwtPayload => {
   return jwt.verify(token, authConfig.jwtSecret, { algorithms: ["HS256"] }) as JwtPayload;
 };
 
-export const generateOTP = async (expiry = 15): Promise<{ otp: string; expires: Date }> => {
-  const expires = new Date(new Date().setMinutes(new Date().getMinutes() + expiry));
-  const otp = crypto.randomInt(100000, 1000000).toString();
-  return { otp, expires };
-};
-
 export const generateVerificationToken = (
   expiryHours = 24
 ): { token: string; tokenHash: string; expires: Date } => {

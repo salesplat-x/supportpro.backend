@@ -7,6 +7,8 @@ import { UserRole } from "../types/enums.js";
 import {
   createOrganizationValidator,
   deleteOrganizationValidator,
+  joinRequestIdValidator,
+  joinRequestOrganizationValidator,
   switchOrganizationValidator,
   updateOrganizationValidator,
 } from "../validators/organization.js";
@@ -26,6 +28,45 @@ router.get(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   asyncHandler(organization.listMyOrganizations)
+);
+
+router.get(
+  "/verified",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  asyncHandler(organization.listVerifiedOrganizations)
+);
+
+router.post(
+  "/:_id/join-request",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(joinRequestOrganizationValidator),
+  asyncHandler(organization.requestJoinOrganization)
+);
+
+router.get(
+  "/:_id/join-requests",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(switchOrganizationValidator),
+  asyncHandler(organization.listOrganizationJoinRequests)
+);
+
+router.patch(
+  "/join-requests/:requestId/approve",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(joinRequestIdValidator),
+  asyncHandler(organization.approveJoinRequest)
+);
+
+router.patch(
+  "/join-requests/:requestId/reject",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(joinRequestIdValidator),
+  asyncHandler(organization.rejectJoinRequest)
 );
 
 router.patch(

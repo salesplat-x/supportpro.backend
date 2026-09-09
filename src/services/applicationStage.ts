@@ -259,28 +259,46 @@ const recordMatchVerdictFailure = async (
   err: unknown,
   options: { permanent?: boolean } = {}
 ): Promise<void> => {
-  const row = await applicationRepo().findOne({
-    where: { id: applicationId },
-    select: { id: true, matchVerdictAttempts: true },
-  });
-  const currentAttempts = row?.matchVerdictAttempts ?? 0;
-  const patch = options.permanent
-    ? {
-        attempts: MAX_DURABLE_ATTEMPTS,
-        nextRetryAt: null as Date | null,
-        lockedAt: null,
-        lastError: err instanceof Error ? err.message : String(err),
-        exhausted: true,
-      }
-    : durableFailureUpdate(currentAttempts, err);
+  try {
+    const row = await applicationRepo().findOne({
+      where: { id: applicationId },
+      select: { id: true, matchVerdictAttempts: true },
+    });
+    const currentAttempts = row?.matchVerdictAttempts ?? 0;
+    const patch = options.permanent
+      ? {
+          attempts: MAX_DURABLE_ATTEMPTS,
+          nextRetryAt: null as Date | null,
+          lockedAt: null,
+          lastError: err instanceof Error ? err.message : String(err),
+          exhausted: true,
+        }
+      : durableFailureUpdate(currentAttempts, err);
 
-  await applicationRepo().update(applicationId, {
-    matchVerdictStatus: patch.exhausted ? MatchVerdictStatus.Failed : MatchVerdictStatus.Pending,
-    matchVerdictAttempts: patch.attempts,
-    matchVerdictNextRetryAt: patch.nextRetryAt,
-    matchVerdictLockedAt: patch.lockedAt,
-    matchVerdictLastError: patch.lastError,
-  });
+    await applicationRepo().update(applicationId, {
+      matchVerdictStatus: patch.exhausted ? MatchVerdictStatus.Failed : MatchVerdictStatus.Pending,
+      matchVerdictAttempts: patch.attempts,
+      matchVerdictNextRetryAt: patch.nextRetryAt,
+      matchVerdictLockedAt: patch.lockedAt,
+      matchVerdictLastError: patch.lastError,
+    });
+  } catch (recordErr) {
+    logger.error(
+      `Failed to record match verdict failure for application ${applicationId}: ${
+        recordErr instanceof Error ? recordErr.message : String(recordErr)
+      }`
+    );
+  }
+};
+
+const inFlightMatchVerdicts = new Set<Promise<void>>();
+
+/** Await fire-and-forget match verdict work before tearing down the test DB. */
+export const drainInFlightMatchVerdicts = async (): Promise<void> => {
+  for (let attempt = 0; attempt < 100 && inFlightMatchVerdicts.size > 0; attempt++) {
+    await Promise.allSettled([...inFlightMatchVerdicts]);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
 };
 
 const overlayExistingRecommendation = async (
@@ -311,146 +329,167 @@ const overlayExistingRecommendation = async (
 // Viewing an applicant reads the stored row — it never recomputes. Recruiter
 // retry resets attempt counters and re-enqueues; the in-process sweep retries
 // pending work automatically.
-export const triggerMatchVerdict = async (
+const executeTriggerMatchVerdict = async (
   talent: User,
   application: Application,
   _options: TriggerMatchVerdictOptions = {}
 ): Promise<void> => {
-  // Yield so the caller can persist stage/status columns before this runs
-  // (processNextStage is fire-and-forget, then the caller saves).
-  await new Promise<void>((resolve) => setImmediate(resolve));
-
-  const existingRecommendation = await aiRecommendationRepo().findOne({
-    where: { applicationId: application.id },
-  });
-
-  if (existingRecommendation) {
-    if (!application.matchVerdict) {
-      await overlayExistingRecommendation(application, existingRecommendation);
-    }
-    return;
-  }
-
-  if (application.matchVerdict) {
-    await persistRecommendation(application.id, {
-      verdict: application.matchVerdict,
-      reasoning: application.matchVerdictReasoning ?? "",
-      recommendation: application.matchRecommendation,
-      strengths: application.matchStrengths,
-      weaknesses: application.matchWeaknesses,
-      risks: application.matchRisks,
-      analysis: null,
-    });
-    return;
-  }
-
-  const claimed = await claimRowById(CLAIM_MATCH_VERDICT_SQL, application.id);
-  if (!claimed) return;
-
   try {
-    const job = await jobRepo().findOne({
-      where: { id: application.jobId },
-      relations: { aiConfig: true },
+    // Yield so the caller can persist stage/status columns before this runs
+    // (processNextStage is fire-and-forget, then the caller saves).
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    const existingRecommendation = await aiRecommendationRepo().findOne({
+      where: { applicationId: application.id },
     });
-    if (!job) {
-      await recordMatchVerdictFailure(application.id, new Error("Job not found"), {
-        permanent: true,
+
+    if (existingRecommendation) {
+      if (!application.matchVerdict) {
+        await overlayExistingRecommendation(application, existingRecommendation);
+      }
+      return;
+    }
+
+    if (application.matchVerdict) {
+      await persistRecommendation(application.id, {
+        verdict: application.matchVerdict,
+        reasoning: application.matchVerdictReasoning ?? "",
+        recommendation: application.matchRecommendation,
+        strengths: application.matchStrengths,
+        weaknesses: application.matchWeaknesses,
+        risks: application.matchRisks,
+        analysis: null,
       });
       return;
     }
 
-    const aiConfig = job.aiConfig as AIConfig | null;
-    // A disabled personality stage must never influence the verdict, even if
-    // answers/mbtiType happen to exist (e.g. the stage was disabled after the
-    // talent already completed it).
-    const includePersonality = aiConfig ? aiConfig.personalityEvaluation : true;
-    const includePersonalized = aiConfig ? aiConfig.personalizedAssessment : true;
+    const claimed = await claimRowById(CLAIM_MATCH_VERDICT_SQL, application.id);
+    if (!claimed) return;
 
-    const [cvChunks, personalizedQuestionsAndAnswers, personalityQuestionsAndAnswers] =
-      await Promise.all([
-        talentEmbeddingRepo().find({ where: { userId: talent.id }, select: { cvText: true } }),
-        buildQuestionAnswerPairs(application.jobId, talent.id, QuestionType.Personalized),
-        includePersonality
-          ? buildQuestionAnswerPairs(application.jobId, talent.id, QuestionType.Personality)
-          : Promise.resolve([]),
-      ]);
-    const cvText = cvChunks.map((c) => c.cvText ?? "").join("\n\n");
+    try {
+      const job = await jobRepo().findOne({
+        where: { id: application.jobId },
+        relations: { aiConfig: true },
+      });
+      if (!job) {
+        await recordMatchVerdictFailure(application.id, new Error("Job not found"), {
+          permanent: true,
+        });
+        return;
+      }
 
-    const response = await assessApplicationMatch({
-      jobDescription: job.jobBrief,
-      skills: job.skills ?? undefined,
-      requirements: job.requirements ?? undefined,
-      goals: job.goals ?? undefined,
-      recruiterGuide: aiConfig?.recruiterGuide ?? undefined,
-      cvSimilarityScore: application.cvSimilarityScore,
-      personalizedScore: includePersonalized ? application.personalizedScore : null,
-      prescreeningScore: isPrescreeningScoreValid(talent.prescreeningScoredAt)
-        ? (talent.prescreeningScore ?? null)
-        : null,
-      mbtiType: includePersonality ? application.mbtiType : null,
-      cvText: cvText || undefined,
-      personalizedQuestionsAndAnswers:
-        includePersonalized && personalizedQuestionsAndAnswers.length > 0
-          ? personalizedQuestionsAndAnswers
-          : undefined,
-      personalityQuestionsAndAnswers:
-        personalityQuestionsAndAnswers.length > 0 ? personalityQuestionsAndAnswers : undefined,
-      talentLocation: {
-        city: talent.locationCity ?? undefined,
-        state: talent.locationState ?? undefined,
-        country: talent.locationCountry ?? undefined,
-      },
-      workType: talent.workType ?? undefined,
-      experience: talent.experience ?? undefined,
-    });
-    if (!response?.message.content) {
-      throw new ValidationError("Error with LLM");
+      const aiConfig = job.aiConfig as AIConfig | null;
+      // A disabled personality stage must never influence the verdict, even if
+      // answers/mbtiType happen to exist (e.g. the stage was disabled after the
+      // talent already completed it).
+      const includePersonality = aiConfig ? aiConfig.personalityEvaluation : true;
+      const includePersonalized = aiConfig ? aiConfig.personalizedAssessment : true;
+
+      const [cvChunks, personalizedQuestionsAndAnswers, personalityQuestionsAndAnswers] =
+        await Promise.all([
+          talentEmbeddingRepo().find({ where: { userId: talent.id }, select: { cvText: true } }),
+          buildQuestionAnswerPairs(application.jobId, talent.id, QuestionType.Personalized),
+          includePersonality
+            ? buildQuestionAnswerPairs(application.jobId, talent.id, QuestionType.Personality)
+            : Promise.resolve([]),
+        ]);
+      const cvText = cvChunks.map((c) => c.cvText ?? "").join("\n\n");
+
+      const response = await assessApplicationMatch({
+        jobDescription: job.jobBrief,
+        skills: job.skills ?? undefined,
+        requirements: job.requirements ?? undefined,
+        goals: job.goals ?? undefined,
+        recruiterGuide: aiConfig?.recruiterGuide ?? undefined,
+        cvSimilarityScore: application.cvSimilarityScore,
+        personalizedScore: includePersonalized ? application.personalizedScore : null,
+        prescreeningScore: isPrescreeningScoreValid(talent.prescreeningScoredAt)
+          ? (talent.prescreeningScore ?? null)
+          : null,
+        mbtiType: includePersonality ? application.mbtiType : null,
+        cvText: cvText || undefined,
+        personalizedQuestionsAndAnswers:
+          includePersonalized && personalizedQuestionsAndAnswers.length > 0
+            ? personalizedQuestionsAndAnswers
+            : undefined,
+        personalityQuestionsAndAnswers:
+          personalityQuestionsAndAnswers.length > 0 ? personalityQuestionsAndAnswers : undefined,
+        talentLocation: {
+          city: talent.locationCity ?? undefined,
+          state: talent.locationState ?? undefined,
+          country: talent.locationCountry ?? undefined,
+        },
+        workType: talent.workType ?? undefined,
+        experience: talent.experience ?? undefined,
+      });
+      if (!response?.message.content) {
+        throw new ValidationError("Error with LLM");
+      }
+
+      const parsed = JSON.parse(response.message.content) as Record<string, unknown>;
+
+      // The LLM is instructed to return exactly "high"/"medium"/"low", but nothing
+      // guarantees it does — an unvalidated write straight to this enum column was
+      // the actual reason verdicts silently never appeared: any casing/wording
+      // deviation ("High", etc.) failed the DB write, was swallowed by the catch
+      // below, and left matchVerdict null forever with no visible error.
+      const normalizedVerdict = String(parsed.verdict ?? "")
+        .trim()
+        .toLowerCase();
+      const validVerdicts = Object.values(MatchVerdict) as string[];
+      if (!validVerdicts.includes(normalizedVerdict)) {
+        throw new ValidationError(`Unexpected verdict value from LLM: "${parsed.verdict}"`);
+      }
+
+      // Same validate-before-write discipline as the verdict above — a stray
+      // casing/wording deviation here must not silently drop the whole update.
+      const normalizedRecommendation = String(parsed.recommendation ?? "")
+        .trim()
+        .toLowerCase();
+      const validRecommendations = Object.values(MatchRecommendation) as string[];
+      const recommendation = validRecommendations.includes(normalizedRecommendation ?? "")
+        ? (normalizedRecommendation as MatchRecommendation)
+        : null;
+
+      const analysis = parseMatchAnalysis(parsed, normalizedVerdict);
+
+      await persistRecommendation(application.id, {
+        verdict: normalizedVerdict as MatchVerdict,
+        reasoning:
+          typeof parsed.reasoning === "string" ? parsed.reasoning : analysis.hiringRationale,
+        recommendation,
+        strengths: Array.isArray(parsed.strengths) ? (parsed.strengths as string[]) : null,
+        weaknesses: Array.isArray(parsed.weaknesses) ? (parsed.weaknesses as string[]) : null,
+        risks: Array.isArray(parsed.risks) ? (parsed.risks as string[]) : null,
+        analysis,
+      });
+    } catch (err) {
+      logger.error(
+        `Match verdict generation failed for application ${application.id}: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+      await recordMatchVerdictFailure(application.id, err);
     }
-
-    const parsed = JSON.parse(response.message.content) as Record<string, unknown>;
-
-    // The LLM is instructed to return exactly "high"/"medium"/"low", but nothing
-    // guarantees it does — an unvalidated write straight to this enum column was
-    // the actual reason verdicts silently never appeared: any casing/wording
-    // deviation ("High", etc.) failed the DB write, was swallowed by the catch
-    // below, and left matchVerdict null forever with no visible error.
-    const normalizedVerdict = String(parsed.verdict ?? "")
-      .trim()
-      .toLowerCase();
-    const validVerdicts = Object.values(MatchVerdict) as string[];
-    if (!validVerdicts.includes(normalizedVerdict)) {
-      throw new ValidationError(`Unexpected verdict value from LLM: "${parsed.verdict}"`);
-    }
-
-    // Same validate-before-write discipline as the verdict above — a stray
-    // casing/wording deviation here must not silently drop the whole update.
-    const normalizedRecommendation = String(parsed.recommendation ?? "")
-      .trim()
-      .toLowerCase();
-    const validRecommendations = Object.values(MatchRecommendation) as string[];
-    const recommendation = validRecommendations.includes(normalizedRecommendation ?? "")
-      ? (normalizedRecommendation as MatchRecommendation)
-      : null;
-
-    const analysis = parseMatchAnalysis(parsed, normalizedVerdict);
-
-    await persistRecommendation(application.id, {
-      verdict: normalizedVerdict as MatchVerdict,
-      reasoning: typeof parsed.reasoning === "string" ? parsed.reasoning : analysis.hiringRationale,
-      recommendation,
-      strengths: Array.isArray(parsed.strengths) ? (parsed.strengths as string[]) : null,
-      weaknesses: Array.isArray(parsed.weaknesses) ? (parsed.weaknesses as string[]) : null,
-      risks: Array.isArray(parsed.risks) ? (parsed.risks as string[]) : null,
-      analysis,
-    });
   } catch (err) {
     logger.error(
-      `Match verdict generation failed for application ${application.id}: ${
+      `Match verdict trigger failed for application ${application.id}: ${
         err instanceof Error ? err.message : String(err)
       }`
     );
-    await recordMatchVerdictFailure(application.id, err);
   }
+};
+
+export const triggerMatchVerdict = (
+  talent: User,
+  application: Application,
+  options: TriggerMatchVerdictOptions = {}
+): Promise<void> => {
+  const task = executeTriggerMatchVerdict(talent, application, options);
+  inFlightMatchVerdicts.add(task);
+  return task.finally(() => {
+    inFlightMatchVerdicts.delete(task);
+  });
 };
 
 export const resetMatchVerdictRetry = async (applicationId: string): Promise<void> => {
