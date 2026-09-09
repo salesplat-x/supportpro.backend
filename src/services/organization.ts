@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { Not } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { Organization } from "../entities/Organization.js";
 import { User } from "../entities/User.js";
@@ -30,6 +31,12 @@ const joinReqRepo = () => AppDataSource.getRepository(OrganizationJoinRequest);
 const inviteRepo = () => AppDataSource.getRepository(OrganizationInvite);
 
 const INVITE_EXPIRY_DAYS = 7;
+
+/** Recruiters who can sit on a company in addition to the creator. */
+export const MAX_COMPANY_TEAMMATES = 6;
+
+const TEAM_FULL_MESSAGE =
+  "This company already has 6 recruiters plus the creator. Remove a teammate before adding another.";
 
 export interface OrganizationInviteView {
   id: string;
@@ -131,6 +138,29 @@ export const loadOrganizationMembers = async (
     if (b.role === "owner" && a.role !== "owner") return 1;
     return a.createdAt.getTime() - b.createdAt.getTime();
   });
+};
+
+const countCompanyTeammates = async (organizationId: string): Promise<number> => {
+  return memberRepo().count({
+    where: { organizationId, role: Not("owner") },
+  });
+};
+
+const countPendingInvites = async (organizationId: string): Promise<number> => {
+  const invites = await inviteRepo().find({
+    where: {
+      organizationId,
+      status: OrganizationInviteStatus.Pending,
+    },
+  });
+  return invites.filter((invite) => invite.expiresAt.getTime() >= Date.now()).length;
+};
+
+const assertCompanyHasOpenSeat = async (organizationId: string): Promise<void> => {
+  const teammates = await countCompanyTeammates(organizationId);
+  if (teammates >= MAX_COMPANY_TEAMMATES) {
+    throw new ValidationError(TEAM_FULL_MESSAGE);
+  }
 };
 
 const assertCompanyAllowsJoinRequests = (org: Organization): void => {
@@ -408,6 +438,8 @@ export const approveJoinRequest = async (
     throw new ConflictError("This recruiter is already a member of your company");
   }
 
+  await assertCompanyHasOpenSeat(request.organizationId);
+
   const member = memberRepo().create({
     userId: request.userId,
     organizationId: request.organizationId,
@@ -569,6 +601,12 @@ export const sendOrganizationInvite = async (
   const org = await assertOwnership(ownerId, organizationId);
   assertCompanyAllowsJoinRequests(org);
   assertRecruiterWorkEmailMatchesCompany(org, email);
+
+  const teammates = await countCompanyTeammates(org.id);
+  const pendingInvites = await countPendingInvites(org.id);
+  if (teammates + pendingInvites >= MAX_COMPANY_TEAMMATES) {
+    throw new ValidationError(TEAM_FULL_MESSAGE);
+  }
 
   const existingUser = await userRepo().findOne({ where: { email } });
   if (existingUser) {
@@ -740,6 +778,8 @@ export const acceptOrganizationInvite = async (
     await inviteRepo().save(invite);
     throw new ConflictError("You are already a member of this company");
   }
+
+  await assertCompanyHasOpenSeat(invite.organizationId);
 
   const member = memberRepo().create({
     userId,

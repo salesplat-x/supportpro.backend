@@ -84,6 +84,22 @@ describe("POST /v1/auth/register — email verification", () => {
     );
   });
 
+  it("forwards a company-invite redirectPath on recruiter signup", async () => {
+    const joinPath =
+      "/join-company/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const res = await request(app).post("/v1/auth/register/recruiter").send({
+      email: "invitejoin@invitecorp.com",
+      firstName: "Inv",
+      lastName: "Itee",
+      password: PLAIN_PASSWORD,
+      redirectPath: joinPath,
+    });
+
+    expect(res.status).toBe(201);
+    expect(sendVerificationEmail).toHaveBeenCalledTimes(1);
+    expect(sendVerificationEmail.mock.calls[0][2]).toBe(joinPath);
+  });
+
   it.each([
     "https://evil.com",
     "//evil.com",

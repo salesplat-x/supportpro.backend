@@ -60,3 +60,8 @@ export const rejectOrganization = async (req: Request, res: Response) => {
   );
   sendSuccessResponse(res, "Organization rejected", { organization: result });
 };
+
+export const deleteOrganization = async (req: Request, res: Response) => {
+  await adminService.deleteOrganizationAsAdmin(req.params["_id"]!);
+  sendSuccessResponse(res, "Company permanently deleted");
+};

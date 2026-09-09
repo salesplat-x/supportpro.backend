@@ -3,7 +3,12 @@ import { Job, Organization, User } from "../entities";
 import { NotFoundError, ValidationError } from "../utils/errors";
 import { JobStatus, OrganizationStatus, UserRole } from "../types/enums.js";
 import { sortDirection } from "../utils/text.js";
-import { purgeJobCascade, purgeRecruiterCascade, purgeTalentCascade } from "./cascadeDelete.js";
+import {
+  purgeJobCascade,
+  purgeOrganizationCascade,
+  purgeRecruiterCascade,
+  purgeTalentCascade,
+} from "./cascadeDelete.js";
 import { loadOrganizationMembers, OrganizationMemberView } from "./organization.js";
 
 const userRepo = () => AppDataSource.getRepository(User);
@@ -188,6 +193,12 @@ export const getOrganization = async (organizationId: string): Promise<AdminOrga
   }
   const members = await loadOrganizationMembers(organizationId);
   return Object.assign(org, { members });
+};
+
+export const deleteOrganizationAsAdmin = async (organizationId: string): Promise<void> => {
+  await AppDataSource.transaction(async (manager) => {
+    await purgeOrganizationCascade(manager, organizationId);
+  });
 };
 
 export const updateOrganizationStatus = async (
