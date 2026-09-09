@@ -10,7 +10,7 @@ import {
   clearAllTables,
   testDataSource,
 } from "./helpers/db.js";
-import { Job, User } from "../src/entities";
+import { Job, OrganizationMember, User } from "../src/entities";
 import {
   createTalent,
   createRecruiter,
@@ -632,5 +632,64 @@ describe("Organization invites", () => {
       .get(`/v1/organizations/${org.id}/invites`)
       .set("Authorization", `Bearer ${token}`);
     expect(list.body.data.invites).toHaveLength(0);
+  });
+
+  it("Rejects a seventh teammate invite when 6 recruiters plus the creator already occupy seats", async () => {
+    const { token } = await createRecruiter();
+    const org = await createOwnedOrg(token);
+
+    for (let i = 1; i <= 6; i += 1) {
+      const send = await request(app)
+        .post(`/v1/organizations/${org.id}/invites`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({ email: `teammate${i}@invitecorp.com` });
+      expect(send.status).toBe(201);
+    }
+
+    const seventh = await request(app)
+      .post(`/v1/organizations/${org.id}/invites`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ email: "teammate7@invitecorp.com" });
+    expect(seventh.status).toBe(400);
+    expect(seventh.body.error.message).toMatch(/6 recruiters plus the creator/i);
+  });
+
+  it("Rejects invite accept when the company already has 6 teammates", async () => {
+    const { token } = await createRecruiter();
+    const org = await createOwnedOrg(token);
+
+    const send = await request(app)
+      .post(`/v1/organizations/${org.id}/invites`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ email: "latejoiner@invitecorp.com" });
+    expect(send.status).toBe(201);
+
+    const inviteRows = await testDataSource.query(
+      `SELECT token FROM organization_invites WHERE email = $1 LIMIT 1`,
+      ["latejoiner@invitecorp.com"]
+    );
+    const inviteToken = inviteRows[0]?.token as string;
+
+    const memberRepo = testDataSource.getRepository(OrganizationMember);
+    for (let i = 1; i <= 6; i += 1) {
+      const { user } = await createRecruiter({ email: `filled${i}@invitecorp.com` });
+      await memberRepo.save(
+        memberRepo.create({
+          userId: user.id,
+          organizationId: org.id,
+          workEmail: user.email,
+          role: "member",
+        })
+      );
+    }
+
+    const { token: joinerToken } = await createRecruiter({
+      email: "latejoiner@invitecorp.com",
+    });
+    const accept = await request(app)
+      .post(`/v1/organizations/invites/${inviteToken}/accept`)
+      .set("Authorization", `Bearer ${joinerToken}`);
+    expect(accept.status).toBe(400);
+    expect(accept.body.error.message).toMatch(/6 recruiters plus the creator/i);
   });
 });

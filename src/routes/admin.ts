@@ -87,5 +87,12 @@ router.patch(
   validate(adminIdParamValidator),
   asyncHandler(admin.rejectOrganization)
 );
+router.delete(
+  "/organizations/:_id",
+  validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(adminIdParamValidator),
+  asyncHandler(admin.deleteOrganization)
+);
 
 export default (app: Router) => app.use("/admin", router);
