@@ -640,7 +640,6 @@ export const listOrganizationInvites = async (
   organizationId: string
 ): Promise<OrganizationInviteView[]> => {
   const org = await assertOwnership(ownerId, organizationId);
-  assertCompanyAllowsJoinRequests(org);
 
   const invites = await inviteRepo().find({
     where: {
