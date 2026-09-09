@@ -57,6 +57,21 @@ class EmailService {
     await this.sendEmail({ to: user.email, subject: "Verify your email address", html });
   }
 
+  async sendCompanyInvite(details: {
+    email: string;
+    firstName: string;
+    companyName: string;
+    inviterName: string;
+    inviteLink: string;
+  }): Promise<void> {
+    const html = renderTemplate("company-invite", details);
+    await this.sendEmail({
+      to: details.email,
+      subject: `You're invited to join ${details.companyName} on Auxhr`,
+      html,
+    });
+  }
+
   async sendPaymentConfirmation(details: {
     email: string;
     firstName: string;
