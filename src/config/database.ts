@@ -25,6 +25,7 @@ import { Feedback } from "../entities/Feedback.js";
 import { PaymentWebhookEvent } from "../entities/PaymentWebhookEvent.js";
 import { OrganizationMember } from "../entities/OrganizationMember.js";
 import { OrganizationJoinRequest } from "../entities/OrganizationJoinRequest.js";
+import { OrganizationInvite } from "../entities/OrganizationInvite.js";
 
 const databaseConfig: DataSourceOptions = {
   type: "postgres",
@@ -58,6 +59,7 @@ const databaseConfig: DataSourceOptions = {
     PaymentWebhookEvent,
     OrganizationMember,
     OrganizationJoinRequest,
+    OrganizationInvite,
   ],
   migrations: [path.join(__dirname, "../migrations/*.{js,ts}")],
   synchronize: false,

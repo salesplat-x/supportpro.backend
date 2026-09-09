@@ -25,6 +25,7 @@ import { PaymentWebhookEvent } from "../../src/entities/PaymentWebhookEvent.js";
 import { Feedback } from "../../src/entities/Feedback.js";
 import { OrganizationMember } from "../../src/entities/OrganizationMember.js";
 import { OrganizationJoinRequest } from "../../src/entities/OrganizationJoinRequest.js";
+import { OrganizationInvite } from "../../src/entities/OrganizationInvite.js";
 
 let container: StartedPostgreSqlContainer;
 export let testDataSource: DataSource;
@@ -54,6 +55,7 @@ const ALL_ENTITIES = [
   PaymentWebhookEvent,
   OrganizationMember,
   OrganizationJoinRequest,
+  OrganizationInvite,
 ];
 
 export async function startTestDatabase(): Promise<void> {

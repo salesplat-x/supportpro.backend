@@ -25,6 +25,7 @@ jest.mock("../src/utils/integrations/email/emailService.js", () => ({
   default: jest.fn().mockImplementation(() => ({
     sendWelcome: jest.fn().mockResolvedValue(undefined),
     sendVerificationEmail: jest.fn().mockResolvedValue(undefined),
+    sendCompanyInvite: jest.fn().mockResolvedValue(undefined),
   })),
 }));
 
@@ -130,6 +131,27 @@ describe("POST /v1/organizations/ — create organization (Recruiter only)", () 
     expect(res.status).toBe(201);
   });
 
+  it("Personal email domain → 400", async () => {
+    const { token } = await createRecruiter();
+    const res = await request(app)
+      .post("/v1/organizations/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ ...validOrgBody, email: "owner@gmail.com" });
+    expect(res.status).toBe(400);
+  });
+
+  it("Email domain does not match website → 400", async () => {
+    const { token } = await createRecruiter();
+    const res = await request(app)
+      .post("/v1/organizations/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        ...validOrgBody,
+        email: "contact@othercorp.com",
+      });
+    expect(res.status).toBe(400);
+  });
+
   it("Same name and website as an existing company → 409", async () => {
     const { token: firstToken } = await createRecruiter();
     const first = await request(app)
@@ -161,7 +183,7 @@ describe("POST /v1/organizations/ — create organization (Recruiter only)", () 
       .set("Authorization", `Bearer ${secondToken}`)
       .send({
         ...validOrgBody,
-        email: "other@techcorp.com",
+        email: "other@techcorp.io",
         phone: "+2348011112222",
         website: "https://techcorp.io",
       });
@@ -183,6 +205,7 @@ describe("POST /v1/organizations/ — create organization (Recruiter only)", () 
         name: "Second Co",
         email: "contact@secondco.com",
         phone: "+2348098765432",
+        website: "https://secondco.com",
       });
 
     expect(first.status).toBe(201);
@@ -405,5 +428,114 @@ describe("DELETE /v1/organizations/:id — delete organization", () => {
       .delete(`/v1/organizations/${org.id}`)
       .set("Authorization", `Bearer ${otherToken}`);
     expect(res.status).toBe(403);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Company invites
+// ---------------------------------------------------------------------------
+
+describe("Organization invites", () => {
+  const corporateOrgBody = {
+    name: "Invite Corp",
+    email: "owner@invitecorp.com",
+    phone: "+2348012345679",
+    address: "1 Invite Street",
+    industry: "Technology",
+    website: "https://invitecorp.com",
+  };
+
+  async function createOwnedOrg(token: string) {
+    const res = await request(app)
+      .post("/v1/organizations/")
+      .set("Authorization", `Bearer ${token}`)
+      .send(corporateOrgBody);
+    expect(res.status).toBe(201);
+    return res.body.data.organization;
+  }
+
+  it("Owner sends invite → 201, lists pending invite", async () => {
+    const { token } = await createRecruiter();
+    const org = await createOwnedOrg(token);
+
+    const send = await request(app)
+      .post(`/v1/organizations/${org.id}/invites`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ email: "teammate@invitecorp.com" });
+    expect(send.status).toBe(201);
+    expect(send.body.data.invite.email).toBe("teammate@invitecorp.com");
+
+    const list = await request(app)
+      .get(`/v1/organizations/${org.id}/invites`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(list.status).toBe(200);
+    expect(list.body.data.invites).toHaveLength(1);
+  });
+
+  it("Rejects invite when email domain does not match company → 400", async () => {
+    const { token } = await createRecruiter();
+    const org = await createOwnedOrg(token);
+
+    const res = await request(app)
+      .post(`/v1/organizations/${org.id}/invites`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ email: "person@gmail.com" });
+    expect(res.status).toBe(400);
+  });
+
+  it("Recruiter accepts invite and joins company", async () => {
+    const { token: ownerToken } = await createRecruiter();
+    const org = await createOwnedOrg(ownerToken);
+
+    const send = await request(app)
+      .post(`/v1/organizations/${org.id}/invites`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ email: "joiner@invitecorp.com" });
+    expect(send.status).toBe(201);
+
+    const inviteRows = await testDataSource.query(
+      `SELECT token FROM organization_invites WHERE email = $1 LIMIT 1`,
+      ["joiner@invitecorp.com"]
+    );
+    const token = inviteRows[0]?.token as string;
+    expect(token).toBeTruthy();
+
+    const publicPreview = await request(app).get(`/v1/organizations/invites/${token}`);
+    expect(publicPreview.status).toBe(200);
+    expect(publicPreview.body.data.invite.organizationName).toBe("Invite Corp");
+
+    const { token: joinerToken } = await createRecruiter({
+      email: "joiner@invitecorp.com",
+    });
+
+    const accept = await request(app)
+      .post(`/v1/organizations/invites/${token}/accept`)
+      .set("Authorization", `Bearer ${joinerToken}`);
+    expect(accept.status).toBe(200);
+    expect(accept.body.data.organization.id).toBe(org.id);
+
+    const me = await request(app).get("/v1/user/me").set("Authorization", `Bearer ${joinerToken}`);
+    expect(me.body.data.user.activeOrganizationId).toBe(org.id);
+  });
+
+  it("Owner revokes pending invite", async () => {
+    const { token } = await createRecruiter();
+    const org = await createOwnedOrg(token);
+
+    const send = await request(app)
+      .post(`/v1/organizations/${org.id}/invites`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ email: "revoke@invitecorp.com" });
+    expect(send.status).toBe(201);
+
+    const revoke = await request(app)
+      .delete(`/v1/organizations/${org.id}/invites/${send.body.data.invite.id}`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(revoke.status).toBe(200);
+
+    const list = await request(app)
+      .get(`/v1/organizations/${org.id}/invites`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(list.body.data.invites).toHaveLength(0);
   });
 });

@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { AppDataSource } from "../database/dataSource.js";
 import { Organization } from "../entities/Organization.js";
 import { User } from "../entities/User.js";
@@ -6,9 +7,18 @@ import {
   OrganizationJoinRequest,
   OrganizationJoinRequestStatus,
 } from "../entities/OrganizationJoinRequest.js";
-import { OrganizationStatus } from "../types/enums.js";
+import { OrganizationInvite, OrganizationInviteStatus } from "../entities/OrganizationInvite.js";
+import { OrganizationStatus, UserRole } from "../types/enums.js";
+import env from "../config/env.js";
+import EmailService from "../utils/integrations/email/emailService.js";
 import { AuthorizationError, ConflictError, NotFoundError, ValidationError } from "../utils/errors";
-import { extractEmailDomain, isCorporateEmail, isPublicEmailDomain } from "../utils/emailDomain.js";
+import {
+  emailDomainMatchesWebsite,
+  extractEmailDomain,
+  extractWebsiteDomain,
+  isCorporateEmail,
+  isPublicEmailDomain,
+} from "../utils/emailDomain.js";
 import { createNotification } from "./notification.js";
 import { purgeOrganizationCascade } from "./cascadeDelete.js";
 import logger from "../utils/logger.js";
@@ -17,6 +27,25 @@ const orgRepo = () => AppDataSource.getRepository(Organization);
 const userRepo = () => AppDataSource.getRepository(User);
 const memberRepo = () => AppDataSource.getRepository(OrganizationMember);
 const joinReqRepo = () => AppDataSource.getRepository(OrganizationJoinRequest);
+const inviteRepo = () => AppDataSource.getRepository(OrganizationInvite);
+
+const INVITE_EXPIRY_DAYS = 7;
+
+export interface OrganizationInviteView {
+  id: string;
+  organizationId: string;
+  email: string;
+  status: OrganizationInviteStatus;
+  expiresAt: Date;
+  createdAt: Date;
+}
+
+export interface OrganizationInvitePreview {
+  organizationName: string;
+  invitedEmail: string;
+  status: OrganizationInviteStatus;
+  expiresAt: Date;
+}
 
 const validateEmail = (email: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
@@ -109,6 +138,21 @@ export const createOrganization = async (
     const phoneExists = await orgRepo().findOne({ where: { phone: payload.phone } });
     if (phoneExists) {
       throw new ConflictError("Organization already registered with this phone number");
+    }
+  }
+
+  if (isPublicEmailDomain(email)) {
+    throw new ValidationError(
+      "Please use a corporate work email address (e.g. name@company.com), not a personal email."
+    );
+  }
+
+  if (payload.website) {
+    if (!emailDomainMatchesWebsite(email, payload.website)) {
+      const websiteDomain = extractWebsiteDomain(payload.website);
+      throw new ValidationError(
+        `Contact email domain must match your website domain (@${websiteDomain || "your website"}).`
+      );
     }
   }
 
@@ -425,4 +469,238 @@ export const deleteOrganization = async (
   await AppDataSource.transaction(async (manager) => {
     await purgeOrganizationCascade(manager, organizationId);
   });
+};
+
+const generateInviteToken = (): string => crypto.randomBytes(32).toString("hex");
+
+const resolveInviteStatus = (invite: OrganizationInvite): OrganizationInviteStatus => {
+  if (
+    invite.status === OrganizationInviteStatus.Pending &&
+    invite.expiresAt.getTime() < Date.now()
+  ) {
+    return OrganizationInviteStatus.Expired;
+  }
+  return invite.status;
+};
+
+const findInviteByToken = async (token: string): Promise<OrganizationInvite | null> => {
+  return inviteRepo().findOne({
+    where: { token },
+    relations: { organization: true },
+  });
+};
+
+const assertInviteUsable = (invite: OrganizationInvite): void => {
+  const status = resolveInviteStatus(invite);
+  if (status === OrganizationInviteStatus.Revoked) {
+    throw new ValidationError("This invite has been revoked");
+  }
+  if (status === OrganizationInviteStatus.Expired) {
+    throw new ValidationError("This invite has expired");
+  }
+  if (status === OrganizationInviteStatus.Accepted) {
+    throw new ValidationError("This invite has already been accepted");
+  }
+};
+
+export const sendOrganizationInvite = async (
+  ownerId: string,
+  organizationId: string,
+  inviteEmail: string
+): Promise<OrganizationInviteView> => {
+  if (!validateEmail(inviteEmail)) {
+    throw new ValidationError("Valid email is required");
+  }
+  const email = inviteEmail.toLowerCase().trim();
+
+  const org = await assertOwnership(ownerId, organizationId);
+  assertCompanyAllowsJoinRequests(org);
+  assertRecruiterWorkEmailMatchesCompany(org, email);
+
+  const existingUser = await userRepo().findOne({ where: { email } });
+  if (existingUser) {
+    const existingMember = await memberRepo().findOne({
+      where: { userId: existingUser.id, organizationId: org.id },
+    });
+    if (existingMember) {
+      throw new ConflictError("This person is already a member of your company");
+    }
+  }
+
+  const existingPending = await inviteRepo().findOne({
+    where: {
+      organizationId: org.id,
+      email,
+      status: OrganizationInviteStatus.Pending,
+    },
+  });
+  if (
+    existingPending &&
+    resolveInviteStatus(existingPending) === OrganizationInviteStatus.Pending
+  ) {
+    throw new ConflictError("An invite has already been sent to this email");
+  }
+
+  const owner = await userRepo().findOne({ where: { id: ownerId } });
+  if (!owner) {
+    throw new NotFoundError("User not found");
+  }
+
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + INVITE_EXPIRY_DAYS);
+
+  const invite = inviteRepo().create({
+    organizationId: org.id,
+    email,
+    token: generateInviteToken(),
+    invitedById: ownerId,
+    status: OrganizationInviteStatus.Pending,
+    expiresAt,
+  });
+  const saved = await inviteRepo().save(invite);
+
+  const inviteLink = `${env.website}/join-company/${saved.token}`;
+  new EmailService()
+    .sendCompanyInvite({
+      email,
+      firstName: email.split("@")[0] ?? "there",
+      companyName: org.name,
+      inviterName: `${owner.firstName} ${owner.lastName}`.trim() || "Your team",
+      inviteLink,
+    })
+    .catch((err: Error) =>
+      logger.error(`Company invite email failed for ${email}: ${err.message}`)
+    );
+
+  return {
+    id: saved.id,
+    organizationId: saved.organizationId,
+    email: saved.email,
+    status: saved.status,
+    expiresAt: saved.expiresAt,
+    createdAt: saved.createdAt,
+  };
+};
+
+export const listOrganizationInvites = async (
+  ownerId: string,
+  organizationId: string
+): Promise<OrganizationInviteView[]> => {
+  const org = await assertOwnership(ownerId, organizationId);
+  assertCompanyAllowsJoinRequests(org);
+
+  const invites = await inviteRepo().find({
+    where: {
+      organizationId: org.id,
+      status: OrganizationInviteStatus.Pending,
+    },
+    order: { createdAt: "DESC" },
+  });
+
+  return invites
+    .map((invite) => ({
+      id: invite.id,
+      organizationId: invite.organizationId,
+      email: invite.email,
+      status: resolveInviteStatus(invite),
+      expiresAt: invite.expiresAt,
+      createdAt: invite.createdAt,
+    }))
+    .filter((invite) => invite.status === OrganizationInviteStatus.Pending);
+};
+
+export const revokeOrganizationInvite = async (
+  ownerId: string,
+  organizationId: string,
+  inviteId: string
+): Promise<void> => {
+  await assertOwnership(ownerId, organizationId);
+
+  const invite = await inviteRepo().findOne({
+    where: { id: inviteId, organizationId },
+  });
+  if (!invite) {
+    throw new NotFoundError("Invite not found");
+  }
+  if (invite.status !== OrganizationInviteStatus.Pending) {
+    throw new ValidationError("Only pending invites can be revoked");
+  }
+
+  invite.status = OrganizationInviteStatus.Revoked;
+  await inviteRepo().save(invite);
+};
+
+export const getOrganizationInvitePreview = async (
+  token: string
+): Promise<OrganizationInvitePreview> => {
+  const invite = await findInviteByToken(token);
+  if (!invite) {
+    throw new NotFoundError("Invite not found");
+  }
+
+  const status = resolveInviteStatus(invite);
+  if (status !== OrganizationInviteStatus.Pending) {
+    throw new ValidationError(
+      status === OrganizationInviteStatus.Expired
+        ? "This invite has expired"
+        : "This invite is no longer valid"
+    );
+  }
+
+  return {
+    organizationName: invite.organization.name,
+    invitedEmail: invite.email,
+    status,
+    expiresAt: invite.expiresAt,
+  };
+};
+
+export const acceptOrganizationInvite = async (
+  userId: string,
+  token: string
+): Promise<Organization> => {
+  const invite = await findInviteByToken(token);
+  if (!invite) {
+    throw new NotFoundError("Invite not found");
+  }
+
+  assertInviteUsable(invite);
+
+  const user = await userRepo().findOne({ where: { id: userId } });
+  if (!user) {
+    throw new NotFoundError("User not found");
+  }
+  if (user.userRole !== UserRole.Recruiter) {
+    throw new AuthorizationError("Only recruiters can join a company");
+  }
+  if (user.email.toLowerCase() !== invite.email.toLowerCase()) {
+    throw new AuthorizationError("Sign in with the email address this invite was sent to");
+  }
+
+  assertCompanyAllowsJoinRequests(invite.organization);
+  assertRecruiterWorkEmailMatchesCompany(invite.organization, invite.email);
+
+  const existingMember = await memberRepo().findOne({
+    where: { userId, organizationId: invite.organizationId },
+  });
+  if (existingMember) {
+    invite.status = OrganizationInviteStatus.Accepted;
+    await inviteRepo().save(invite);
+    throw new ConflictError("You are already a member of this company");
+  }
+
+  const member = memberRepo().create({
+    userId,
+    organizationId: invite.organizationId,
+    workEmail: invite.email,
+    role: "member",
+  });
+  await memberRepo().save(member);
+
+  await userRepo().update({ id: userId }, { activeOrganizationId: invite.organizationId });
+
+  invite.status = OrganizationInviteStatus.Accepted;
+  await inviteRepo().save(invite);
+
+  return invite.organization;
 };

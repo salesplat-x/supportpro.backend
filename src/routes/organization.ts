@@ -7,8 +7,11 @@ import { UserRole } from "../types/enums.js";
 import {
   createOrganizationValidator,
   deleteOrganizationValidator,
+  inviteTokenValidator,
   joinRequestIdValidator,
   joinRequestOrganizationValidator,
+  revokeOrganizationInviteValidator,
+  sendOrganizationInviteValidator,
   switchOrganizationValidator,
   updateOrganizationValidator,
 } from "../validators/organization.js";
@@ -35,6 +38,44 @@ router.get(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   asyncHandler(organization.listVerifiedOrganizations)
+);
+
+router.get(
+  "/invites/:token",
+  validate(inviteTokenValidator),
+  asyncHandler(organization.getOrganizationInvitePreview)
+);
+
+router.post(
+  "/invites/:token/accept",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(inviteTokenValidator),
+  asyncHandler(organization.acceptOrganizationInvite)
+);
+
+router.post(
+  "/:_id/invites",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(sendOrganizationInviteValidator),
+  asyncHandler(organization.sendOrganizationInvite)
+);
+
+router.get(
+  "/:_id/invites",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(switchOrganizationValidator),
+  asyncHandler(organization.listOrganizationInvites)
+);
+
+router.delete(
+  "/:_id/invites/:inviteId",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(revokeOrganizationInviteValidator),
+  asyncHandler(organization.revokeOrganizationInvite)
 );
 
 router.post(

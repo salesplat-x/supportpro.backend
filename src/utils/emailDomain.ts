@@ -48,3 +48,21 @@ export const assertMatchingWorkEmailDomain = (companyEmail: string, workEmail: s
     );
   }
 };
+
+export const extractWebsiteDomain = (url: string): string => {
+  try {
+    const normalized = url.trim();
+    if (!normalized) return "";
+    const withProtocol = /^https?:\/\//i.test(normalized) ? normalized : `https://${normalized}`;
+    const hostname = new URL(withProtocol).hostname.toLowerCase();
+    return hostname.startsWith("www.") ? hostname.slice(4) : hostname;
+  } catch {
+    return "";
+  }
+};
+
+export const emailDomainMatchesWebsite = (email: string, website: string): boolean => {
+  const emailDomain = extractEmailDomain(email);
+  const websiteDomain = extractWebsiteDomain(website);
+  return !!emailDomain && !!websiteDomain && emailDomain === websiteDomain;
+};

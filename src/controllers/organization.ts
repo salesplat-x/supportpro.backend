@@ -67,3 +67,39 @@ export const deleteOrganization = async (req: Request, res: Response) => {
   await organizationService.deleteOrganization(req.user.id, req.params["_id"]!);
   sendSuccessResponse(res, "Company deleted", {});
 };
+
+export const sendOrganizationInvite = async (req: Request, res: Response) => {
+  const result = await organizationService.sendOrganizationInvite(
+    req.user.id,
+    req.params["_id"]!,
+    req.body.email
+  );
+  sendSuccessResponse(res, "Invite sent", { invite: result }, 201);
+};
+
+export const listOrganizationInvites = async (req: Request, res: Response) => {
+  const result = await organizationService.listOrganizationInvites(req.user.id, req.params["_id"]!);
+  sendSuccessResponse(res, "Invites fetched", { invites: result });
+};
+
+export const revokeOrganizationInvite = async (req: Request, res: Response) => {
+  await organizationService.revokeOrganizationInvite(
+    req.user.id,
+    req.params["_id"]!,
+    req.params["inviteId"]!
+  );
+  sendSuccessResponse(res, "Invite revoked", {});
+};
+
+export const getOrganizationInvitePreview = async (req: Request, res: Response) => {
+  const result = await organizationService.getOrganizationInvitePreview(req.params["token"]!);
+  sendSuccessResponse(res, "Invite fetched", { invite: result });
+};
+
+export const acceptOrganizationInvite = async (req: Request, res: Response) => {
+  const result = await organizationService.acceptOrganizationInvite(
+    req.user.id,
+    req.params["token"]!
+  );
+  sendSuccessResponse(res, "You have joined the company", { organization: result });
+};

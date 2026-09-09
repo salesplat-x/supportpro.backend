@@ -26,13 +26,27 @@ export const joinRequestOrganizationValidator = [
   body("workEmail").isEmail().normalizeEmail().withMessage("Valid work email is required"),
 ];
 
+export const inviteTokenValidator = [
+  param("token").notEmpty().withMessage("Invite token is required"),
+];
+
+export const sendOrganizationInviteValidator = [
+  idParam("_id"),
+  body("email").isEmail().normalizeEmail().withMessage("Valid email is required"),
+];
+
+export const revokeOrganizationInviteValidator = [
+  idParam("_id"),
+  param("inviteId").isUUID().withMessage("Invalid invite id"),
+];
+
 export const createOrganizationValidator = [
   body("email").isEmail().normalizeEmail().withMessage("Valid email is required"),
   body("name").notEmpty().withMessage("Organization name is required"),
   phoneRule("phone"),
   body("website").optional().isString(),
   body("address").notEmpty().withMessage("Address is required"),
-  body("industry").optional().isString(),
+  body("industry").notEmpty().withMessage("Industry is required").isString(),
   body("twitter").optional().isString(),
   body("linkedin").optional().isString(),
   body("facebook").optional().isString(),
