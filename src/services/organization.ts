@@ -73,6 +73,23 @@ export interface UpdateOrganizationPayload {
   logoUrl?: string | null;
 }
 
+export interface OrganizationMemberUserView {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
+export interface OrganizationMemberView {
+  id: string;
+  userId: string;
+  organizationId: string;
+  workEmail: string;
+  role: string;
+  createdAt: Date;
+  user: OrganizationMemberUserView;
+}
+
 export interface OrganizationJoinRequestView {
   id: string;
   userId: string;
@@ -80,13 +97,41 @@ export interface OrganizationJoinRequestView {
   workEmail: string;
   status: OrganizationJoinRequestStatus;
   createdAt: Date;
-  user: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-  };
+  user: OrganizationMemberUserView;
 }
+
+const toMemberUserView = (user: User): OrganizationMemberUserView => ({
+  id: user.id,
+  firstName: user.firstName,
+  lastName: user.lastName,
+  email: user.email,
+});
+
+const toMemberView = (member: OrganizationMember): OrganizationMemberView => ({
+  id: member.id,
+  userId: member.userId,
+  organizationId: member.organizationId,
+  workEmail: member.workEmail,
+  role: member.role,
+  createdAt: member.createdAt,
+  user: toMemberUserView(member.user),
+});
+
+export const loadOrganizationMembers = async (
+  organizationId: string
+): Promise<OrganizationMemberView[]> => {
+  const members = await memberRepo().find({
+    where: { organizationId },
+    relations: { user: true },
+    order: { createdAt: "ASC" },
+  });
+
+  return members.map(toMemberView).sort((a, b) => {
+    if (a.role === "owner" && b.role !== "owner") return -1;
+    if (b.role === "owner" && a.role !== "owner") return 1;
+    return a.createdAt.getTime() - b.createdAt.getTime();
+  });
+};
 
 const assertCompanyAllowsJoinRequests = (org: Organization): void => {
   if (!org.email) {
@@ -427,6 +472,14 @@ const assertOwnership = async (ownerId: string, organizationId: string): Promise
     throw new AuthorizationError("You can only manage a company you created");
   }
   return org;
+};
+
+export const listOrganizationMembers = async (
+  ownerId: string,
+  organizationId: string
+): Promise<OrganizationMemberView[]> => {
+  await assertOwnership(ownerId, organizationId);
+  return loadOrganizationMembers(organizationId);
 };
 
 export const updateOrganization = async (

@@ -77,6 +77,11 @@ export const sendOrganizationInvite = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Invite sent", { invite: result }, 201);
 };
 
+export const listOrganizationMembers = async (req: Request, res: Response) => {
+  const result = await organizationService.listOrganizationMembers(req.user.id, req.params["_id"]!);
+  sendSuccessResponse(res, "Members fetched", { members: result });
+};
+
 export const listOrganizationInvites = async (req: Request, res: Response) => {
   const result = await organizationService.listOrganizationInvites(req.user.id, req.params["_id"]!);
   sendSuccessResponse(res, "Invites fetched", { invites: result });
