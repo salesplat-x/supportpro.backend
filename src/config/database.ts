@@ -23,6 +23,8 @@ import { ErrorLog } from "../entities/ErrorLog.js";
 import { AiRecommendation } from "../entities/AiRecommendation.js";
 import { Feedback } from "../entities/Feedback.js";
 import { PaymentWebhookEvent } from "../entities/PaymentWebhookEvent.js";
+import { OrganizationMember } from "../entities/OrganizationMember.js";
+import { OrganizationJoinRequest } from "../entities/OrganizationJoinRequest.js";
 
 const databaseConfig: DataSourceOptions = {
   type: "postgres",
@@ -54,6 +56,8 @@ const databaseConfig: DataSourceOptions = {
     AiRecommendation,
     Feedback,
     PaymentWebhookEvent,
+    OrganizationMember,
+    OrganizationJoinRequest,
   ],
   migrations: [path.join(__dirname, "../migrations/*.{js,ts}")],
   synchronize: false,

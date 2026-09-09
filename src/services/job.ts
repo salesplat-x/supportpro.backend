@@ -83,6 +83,24 @@ const locationFieldsForWorkMode = (payload: {
   };
 };
 
+const assertRecruiterJobAccess = async (
+  userId: string,
+  userRole: UserRole,
+  job: Job
+): Promise<void> => {
+  if (userRole === UserRole.Admin) return;
+  if (job.postedById === userId) return;
+
+  if (job.organizationId) {
+    const user = await userRepo().findOne({ where: { id: userId } });
+    if (user?.activeOrganizationId && user.activeOrganizationId === job.organizationId) {
+      return;
+    }
+  }
+
+  throw new AuthorizationError("You are not authorized to perform this action");
+};
+
 export interface CreateJobPayload {
   role?: string;
   aiConfigId?: string | null;
@@ -247,9 +265,7 @@ export const updateJob = async (
     throw new NotFoundError("Job does not exist");
   }
 
-  if (existingJob.postedById !== userId) {
-    throw new AuthorizationError("You are not authorized to perform this action");
-  }
+  await assertRecruiterJobAccess(userId, userRole, existingJob);
 
   if (update.status === JobStatus.Active) {
     const nextAiConfigId =
@@ -318,9 +334,7 @@ export const deleteJob = async (userId: string, jobId: string): Promise<void> =>
   if (!job) {
     throw new NotFoundError("Job does not exist");
   }
-  if (job.postedById !== userId) {
-    throw new AuthorizationError("You are not authorized to perform this action");
-  }
+  await assertRecruiterJobAccess(userId, UserRole.Recruiter, job);
 
   // Full cascade (messages → applications → answers/questions → job + unused AI config).
   await AppDataSource.transaction(async (manager) => {
@@ -477,9 +491,7 @@ export const matchJob = async (
     throw new NotFoundError("Job not found");
   }
 
-  if (job.postedById !== userId && userRole !== UserRole.Admin) {
-    throw new AuthorizationError("You are not authorized to perform this action");
-  }
+  await assertRecruiterJobAccess(userId, userRole, job);
 
   const qb = userRepo()
     .createQueryBuilder("user")
@@ -553,9 +565,7 @@ export const topTalents = async (
     throw new NotFoundError("Job does not exist");
   }
 
-  if (job.postedById !== userId && userRole !== UserRole.Admin) {
-    throw new AuthorizationError("You are not authorized to perform this action");
-  }
+  await assertRecruiterJobAccess(userId, userRole, job);
 
   const aiConfig = job.aiConfig;
   if (!aiConfig) {
@@ -795,9 +805,7 @@ export const jobApplications = async (
   if (!job) {
     throw new NotFoundError("Job not found");
   }
-  if (job.postedById !== userId) {
-    throw new AuthorizationError("You are not authorized to perform this action");
-  }
+  await assertRecruiterJobAccess(userId, UserRole.Recruiter, job);
 
   const qb = applicationRepo()
     .createQueryBuilder("application")
@@ -873,9 +881,7 @@ export const retryMissingVerdicts = async (
   if (!job) {
     throw new NotFoundError("Job not found");
   }
-  if (job.postedById !== userId) {
-    throw new AuthorizationError("You are not authorized to perform this action");
-  }
+  await assertRecruiterJobAccess(userId, UserRole.Recruiter, job);
 
   const applications = await applicationRepo().find({
     where: { jobId, currentStage: ScreeningStage.Completed, matchVerdict: IsNull() },
@@ -1002,9 +1008,7 @@ export const addScoutToJobPipeline = async (
   if (!job) {
     throw new NotFoundError("Job not found");
   }
-  if (job.postedById !== userId) {
-    throw new AuthorizationError("You are not authorized to perform this action");
-  }
+  await assertRecruiterJobAccess(userId, UserRole.Recruiter, job);
   if (job.status !== JobStatus.Active) {
     throw new ValidationError(`Applications for this job is currently ${job.status}`);
   }

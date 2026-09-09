@@ -1,11 +1,12 @@
-import { body } from "express-validator";
+import { body, param } from "express-validator";
 import { idParam, phoneRule } from "./shared.js";
 
 export const switchOrganizationValidator = [idParam("_id")];
 
-// Email and website are immutable once a company is created — they are the two
-// fields verification is anchored to, so changing them would silently invalidate
-// an already-verified company.
+export const joinRequestIdValidator = [
+  param("requestId").isUUID().withMessage("Invalid request id"),
+];
+
 export const updateOrganizationValidator = [
   idParam("_id"),
   body("name").optional().notEmpty().withMessage("Organization name cannot be empty"),
@@ -19,6 +20,11 @@ export const updateOrganizationValidator = [
 ];
 
 export const deleteOrganizationValidator = [idParam("_id")];
+
+export const joinRequestOrganizationValidator = [
+  idParam("_id"),
+  body("workEmail").isEmail().normalizeEmail().withMessage("Valid work email is required"),
+];
 
 export const createOrganizationValidator = [
   body("email").isEmail().normalizeEmail().withMessage("Valid email is required"),
