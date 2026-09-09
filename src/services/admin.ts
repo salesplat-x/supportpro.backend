@@ -4,6 +4,7 @@ import { NotFoundError, ValidationError } from "../utils/errors";
 import { JobStatus, OrganizationStatus, UserRole } from "../types/enums.js";
 import { sortDirection } from "../utils/text.js";
 import { purgeJobCascade, purgeRecruiterCascade, purgeTalentCascade } from "./cascadeDelete.js";
+import { loadOrganizationMembers, OrganizationMemberView } from "./organization.js";
 
 const userRepo = () => AppDataSource.getRepository(User);
 const jobRepo = () => AppDataSource.getRepository(Job);
@@ -173,7 +174,11 @@ export const listOrganizations = async (
   return { organizations, total };
 };
 
-export const getOrganization = async (organizationId: string): Promise<Organization> => {
+export type AdminOrganizationView = Organization & {
+  members: OrganizationMemberView[];
+};
+
+export const getOrganization = async (organizationId: string): Promise<AdminOrganizationView> => {
   const org = await orgRepo().findOne({
     where: { id: organizationId },
     relations: { owner: true, verifiedBy: true },
@@ -181,7 +186,8 @@ export const getOrganization = async (organizationId: string): Promise<Organizat
   if (!org) {
     throw new NotFoundError("Organization not found");
   }
-  return org;
+  const members = await loadOrganizationMembers(organizationId);
+  return Object.assign(org, { members });
 };
 
 export const updateOrganizationStatus = async (

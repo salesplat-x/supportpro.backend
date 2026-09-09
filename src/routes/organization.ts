@@ -63,6 +63,14 @@ router.post(
 );
 
 router.get(
+  "/:_id/members",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(switchOrganizationValidator),
+  asyncHandler(organization.listOrganizationMembers)
+);
+
+router.get(
   "/:_id/invites",
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,

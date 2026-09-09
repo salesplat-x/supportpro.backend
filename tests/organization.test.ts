@@ -516,6 +516,89 @@ describe("Organization invites", () => {
 
     const me = await request(app).get("/v1/user/me").set("Authorization", `Bearer ${joinerToken}`);
     expect(me.body.data.user.activeOrganizationId).toBe(org.id);
+
+    const members = await request(app)
+      .get(`/v1/organizations/${org.id}/members`)
+      .set("Authorization", `Bearer ${ownerToken}`);
+    expect(members.status).toBe(200);
+    expect(members.body.data.members).toHaveLength(2);
+    const roles = members.body.data.members.map((m: { role: string }) => m.role).sort();
+    expect(roles).toEqual(["member", "owner"]);
+    const emails = members.body.data.members.map((m: { user: { email: string } }) => m.user.email);
+    expect(emails).toContain("joiner@invitecorp.com");
+  });
+
+  it("Owner lists company users including themselves", async () => {
+    const { token } = await createRecruiter();
+    const org = await createOwnedOrg(token);
+
+    const members = await request(app)
+      .get(`/v1/organizations/${org.id}/members`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(members.status).toBe(200);
+    expect(members.body.data.members).toHaveLength(1);
+    expect(members.body.data.members[0].role).toBe("owner");
+    expect(members.body.data.members[0].user).toEqual(
+      expect.objectContaining({
+        id: expect.any(String),
+        firstName: expect.any(String),
+        lastName: expect.any(String),
+        email: expect.any(String),
+      })
+    );
+  });
+
+  it("Non-owner recruiter cannot list company members → 403", async () => {
+    const { token: ownerToken } = await createRecruiter();
+    const { token: otherToken } = await createRecruiter();
+    const org = await createOwnedOrg(ownerToken);
+
+    const res = await request(app)
+      .get(`/v1/organizations/${org.id}/members`)
+      .set("Authorization", `Bearer ${otherToken}`);
+    expect(res.status).toBe(403);
+  });
+
+  it("Admin sees creator and recruiters on a company", async () => {
+    const { token: ownerToken } = await createRecruiter();
+    const { token: adminToken } = await createAdmin();
+    const org = await createOwnedOrg(ownerToken);
+
+    const send = await request(app)
+      .post(`/v1/organizations/${org.id}/invites`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ email: "recruiter@invitecorp.com" });
+    expect(send.status).toBe(201);
+
+    const inviteRows = await testDataSource.query(
+      `SELECT token FROM organization_invites WHERE email = $1 LIMIT 1`,
+      ["recruiter@invitecorp.com"]
+    );
+    const token = inviteRows[0]?.token as string;
+    const { token: joinerToken } = await createRecruiter({
+      email: "recruiter@invitecorp.com",
+    });
+    const accept = await request(app)
+      .post(`/v1/organizations/invites/${token}/accept`)
+      .set("Authorization", `Bearer ${joinerToken}`);
+    expect(accept.status).toBe(200);
+
+    const detail = await request(app)
+      .get(`/v1/admin/organizations/${org.id}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.data.organization.owner).toEqual(
+      expect.objectContaining({
+        firstName: expect.any(String),
+        lastName: expect.any(String),
+        email: expect.any(String),
+      })
+    );
+    expect(detail.body.data.organization.members).toHaveLength(2);
+    const memberEmails = detail.body.data.organization.members.map(
+      (m: { user: { email: string } }) => m.user.email
+    );
+    expect(memberEmails).toContain("recruiter@invitecorp.com");
   });
 
   it("Owner revokes pending invite", async () => {
