@@ -374,12 +374,7 @@ export const scoutCvBatch = async (
   if (!job) {
     throw new NotFoundError("Job not found");
   }
-  await assertCompanyResourceAccess(
-    userId,
-    UserRole.Recruiter,
-    job.organizationId,
-    job.postedById
-  );
+  await assertCompanyResourceAccess(userId, UserRole.Recruiter, job.organizationId, job.postedById);
 
   const { cvFiles, coverLetterFiles } = payload;
   const batchId = uuidv4();

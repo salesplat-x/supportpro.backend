@@ -6,6 +6,7 @@ import {
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  Index,
 } from "typeorm";
 import type { Role } from "./Role.js";
 import type { User } from "./User.js";
@@ -31,10 +32,14 @@ export class ScoutJob {
   postedBy!: User;
 
   @Column({ type: "uuid", nullable: true, default: null, name: "organization_id" })
+  @Index("IDX_scout_jobs_organization_id")
   organizationId!: string | null;
 
   @ManyToOne("Organization", { nullable: true, eager: false })
-  @JoinColumn({ name: "organization_id" })
+  @JoinColumn({
+    name: "organization_id",
+    foreignKeyConstraintName: "FK_scout_jobs_organization",
+  })
   organization!: Organization | null;
 
   @Column({ type: "text" })
