@@ -2,9 +2,15 @@ import { AppDataSource } from "../database/dataSource.js";
 import { ScoutJob } from "../entities/ScoutJob.js";
 import { Scout } from "../entities/Scout.js";
 import { Role } from "../entities/Role.js";
-import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
+import { NotFoundError, ValidationError } from "../utils/errors";
 import { createEmbedding } from "../utils/integrations/openai.js";
 import { preprocessText } from "../utils/text.js";
+import { UserRole } from "../types/enums.js";
+import {
+  assertCompanyResourceAccess,
+  getActiveOrganizationId,
+  requireActiveOrganizationId,
+} from "./organizationScope.js";
 
 const scoutJobRepo = () => AppDataSource.getRepository(ScoutJob);
 
@@ -29,6 +35,11 @@ export const createJob = async (
   userId: string,
   payload: CreateScoutJobPayload
 ): Promise<ScoutJob> => {
+  const organizationId = await requireActiveOrganizationId(
+    userId,
+    "Create or switch to a company before scouting"
+  );
+
   const existingRole = await roleRepo().findOne({ where: { id: payload.role } });
   if (!existingRole) {
     throw new NotFoundError("Role does not exist");
@@ -49,6 +60,7 @@ export const createJob = async (
     recruiterGuide: payload.recruiterGuide,
     roleId: payload.role,
     postedById: userId,
+    organizationId,
     jobEmbedding,
   });
 
@@ -69,9 +81,12 @@ export const updateJob = async (
     throw new NotFoundError("Job does not exist");
   }
 
-  if (existingJob.postedById !== userId) {
-    throw new AuthorizationError("You are not authorized to perform this action");
-  }
+  await assertCompanyResourceAccess(
+    userId,
+    UserRole.Recruiter,
+    existingJob.organizationId,
+    existingJob.postedById
+  );
 
   if (role) {
     const existingRole = await roleRepo().findOne({ where: { id: role } });
@@ -100,9 +115,12 @@ export const fetchJob = async (
   if (!scoutJob) {
     throw new NotFoundError("Job not found");
   }
-  if (!isAdmin && scoutJob.postedById !== userId) {
-    throw new AuthorizationError("You are not authorized to perform this action");
-  }
+  await assertCompanyResourceAccess(
+    userId,
+    isAdmin ? UserRole.Admin : UserRole.Recruiter,
+    scoutJob.organizationId,
+    scoutJob.postedById
+  );
   return scoutJob;
 };
 
@@ -111,9 +129,12 @@ export const deleteJob = async (userId: string, scoutJobId: string): Promise<voi
   if (!existingJob) {
     throw new NotFoundError("Job does not exist");
   }
-  if (existingJob.postedById !== userId) {
-    throw new AuthorizationError("You are not authorized to perform this action");
-  }
+  await assertCompanyResourceAccess(
+    userId,
+    UserRole.Recruiter,
+    existingJob.organizationId,
+    existingJob.postedById
+  );
 
   // FK from scouts to scout_jobs is ON DELETE NO ACTION, so dependent Scout
   // rows must be removed first, in one transaction, before the ScoutJob.
@@ -132,11 +153,14 @@ export interface FetchScoutJobsParams {
 const MAX_PAGE_SIZE = 100;
 
 export const fetchJobs = async (payload: FetchScoutJobsParams): Promise<ScoutJob[]> => {
+  const activeOrgId = await getActiveOrganizationId(payload.userId);
+  if (!activeOrgId) return [];
+
   const limit = Math.min(Number(payload.limit) || 20, MAX_PAGE_SIZE);
   const offset = Number(payload.offset) || 0;
 
   return scoutJobRepo().find({
-    where: { postedById: payload.userId },
+    where: { organizationId: activeOrgId },
     relations: { role: true },
     order: { createdAt: "DESC" },
     take: limit,

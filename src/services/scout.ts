@@ -1,8 +1,7 @@
 import crypto from "crypto";
-import { FindOptionsWhere } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { Scout, ScoutJob, User, Role, Job } from "../entities";
-import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
+import { NotFoundError, ValidationError } from "../utils/errors";
 import { UserRole } from "../types/enums.js";
 import { extractText, preprocessText } from "../utils/text.js";
 import * as AI from "../utils/integrations/openai.js";
@@ -12,6 +11,7 @@ import {
   enrichTalentsWithFitEvidence,
   TalentWithFitEvidence,
 } from "./job.js";
+import { assertCompanyResourceAccess, getActiveOrganizationId } from "./organizationScope.js";
 
 const scoutRepo = () => AppDataSource.getRepository(Scout);
 
@@ -49,21 +49,29 @@ export interface FetchScoutReportsParams {
 }
 
 export const fetchScoutReports = async (payload: FetchScoutReportsParams): Promise<Scout[]> => {
-  const where: FindOptionsWhere<Scout> = {};
-  if (payload.batchId) where.batchId = payload.batchId;
-  if (payload.scoutJobId) where.scoutJobId = payload.scoutJobId;
-  if (!payload.isAdmin) where.recruiterId = payload.userId;
-
   const limit = Math.min(Number(payload.limit) || 50, MAX_PAGE_SIZE);
   const offset = Number(payload.offset) || 0;
 
-  return scoutRepo().find({
-    where,
-    relations: { scoutJob: true, recruiter: true },
-    order: { createdAt: "DESC" },
-    take: limit,
-    skip: offset,
-  });
+  const qb = scoutRepo()
+    .createQueryBuilder("scout")
+    .leftJoinAndSelect("scout.scoutJob", "scoutJob")
+    .leftJoinAndSelect("scout.recruiter", "recruiter")
+    .orderBy("scout.createdAt", "DESC")
+    .take(limit)
+    .skip(offset);
+
+  if (payload.batchId) qb.andWhere("scout.batchId = :batchId", { batchId: payload.batchId });
+  if (payload.scoutJobId) {
+    qb.andWhere("scout.scoutJobId = :scoutJobId", { scoutJobId: payload.scoutJobId });
+  }
+
+  if (!payload.isAdmin) {
+    const activeOrgId = await getActiveOrganizationId(payload.userId);
+    if (!activeOrgId) return [];
+    qb.andWhere("scoutJob.organization_id = :activeOrgId", { activeOrgId });
+  }
+
+  return qb.getMany();
 };
 
 export const fetchScoutReport = async (
@@ -76,9 +84,12 @@ export const fetchScoutReport = async (
     relations: { scoutJob: true, recruiter: true },
   });
   if (!scout) return null;
-  if (!isAdmin && scout.recruiterId !== userId) {
-    throw new AuthorizationError("You are not authorized to perform this action");
-  }
+  await assertCompanyResourceAccess(
+    userId,
+    isAdmin ? UserRole.Admin : UserRole.Recruiter,
+    scout.scoutJob?.organizationId,
+    scout.recruiterId
+  );
   return scout;
 };
 
@@ -147,9 +158,7 @@ const searchTalentsByJobFit = async (
   if (!job) {
     throw new NotFoundError("Job does not exist");
   }
-  if (job.postedById !== userId && userRole !== UserRole.Admin) {
-    throw new AuthorizationError("You are not authorized to perform this action");
-  }
+  await assertCompanyResourceAccess(userId, userRole, job.organizationId, job.postedById);
 
   const limit = Math.min(Number(payload.limit) || 50, MAX_PAGE_SIZE);
   const percentage = payload.percentage ?? job.aiConfig?.minCvSimilarityScore ?? 50;
@@ -365,9 +374,12 @@ export const scoutCvBatch = async (
   if (!job) {
     throw new NotFoundError("Job not found");
   }
-  if (job.postedById !== userId) {
-    throw new AuthorizationError("You are not authorized to perform this action");
-  }
+  await assertCompanyResourceAccess(
+    userId,
+    UserRole.Recruiter,
+    job.organizationId,
+    job.postedById
+  );
 
   const { cvFiles, coverLetterFiles } = payload;
   const batchId = uuidv4();
