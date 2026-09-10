@@ -2,7 +2,7 @@ import { In } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { Application } from "../entities/Application.js";
 import { Notification } from "../entities/Notification.js";
-import { NotFoundError, AuthorizationError } from "../utils/errors";
+import { NotFoundError } from "../utils/errors";
 import {
   UserRole,
   ApplicationType,
@@ -21,6 +21,7 @@ import {
   triggerMatchVerdict,
 } from "./applicationStage.js";
 import logger from "../utils/logger.js";
+import { assertCompanyResourceAccess, getActiveOrganizationId } from "./organizationScope.js";
 
 const notificationRepo = () => AppDataSource.getRepository(Notification);
 
@@ -50,8 +51,13 @@ export const getApplication = async (
     throw new NotFoundError("Application not found");
   }
 
-  if (application.job.postedById !== userId && application.talentId !== userId) {
-    throw new AuthorizationError("You are not authorized to perform this action");
+  if (application.talentId !== userId) {
+    await assertCompanyResourceAccess(
+      userId,
+      UserRole.Recruiter,
+      application.job.organizationId,
+      application.job.postedById
+    );
   }
 
   const count = await applicationRepo().count({
@@ -100,7 +106,12 @@ export const getApplications = async (
     .leftJoinAndSelect("application.role", "role");
 
   if (userRole === UserRole.Recruiter) {
-    qb.where("application.recruiter_id = :userId", { userId });
+    const activeOrgId = await getActiveOrganizationId(userId);
+    if (!activeOrgId) {
+      qb.where("application.recruiter_id = :userId", { userId });
+    } else {
+      qb.where("job.organization_id = :activeOrgId", { activeOrgId });
+    }
   } else if (userRole === UserRole.Talent) {
     qb.where("application.talent_id = :userId", { userId });
   }
@@ -137,8 +148,13 @@ export const updateStatus = async (
     throw new NotFoundError("Application not found");
   }
 
-  if (application.job.postedById !== userId && application.talentId !== userId) {
-    throw new AuthorizationError("You are not authorized to perform this action");
+  if (application.talentId !== userId) {
+    await assertCompanyResourceAccess(
+      userId,
+      UserRole.Recruiter,
+      application.job.organizationId,
+      application.job.postedById
+    );
   }
 
   application.status = payload.status;
@@ -183,7 +199,12 @@ export const bulkUpdateStatus = async (
     relations: { job: { role: true, organization: true } },
   });
 
-  const owned = applications.filter((application) => application.job.postedById === userId);
+  const activeOrgId = await getActiveOrganizationId(userId);
+  const owned = applications.filter((application) =>
+    application.job.organizationId
+      ? application.job.organizationId === activeOrgId
+      : application.job.postedById === userId
+  );
   if (owned.length === 0) {
     throw new NotFoundError("No applications found");
   }

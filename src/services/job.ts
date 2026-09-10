@@ -10,6 +10,7 @@ import { Notification } from "../entities/Notification.js";
 import { Scout } from "../entities/Scout.js";
 import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
 import { purgeJobCascade } from "./cascadeDelete.js";
+import { assertCompanyResourceAccess, getActiveOrganizationId } from "./organizationScope.js";
 import {
   UserRole,
   JobStatus,
@@ -83,22 +84,12 @@ const locationFieldsForWorkMode = (payload: {
   };
 };
 
-const assertRecruiterJobAccess = async (
+export const assertRecruiterJobAccess = async (
   userId: string,
   userRole: UserRole,
   job: Job
 ): Promise<void> => {
-  if (userRole === UserRole.Admin) return;
-  if (job.postedById === userId) return;
-
-  if (job.organizationId) {
-    const user = await userRepo().findOne({ where: { id: userId } });
-    if (user?.activeOrganizationId && user.activeOrganizationId === job.organizationId) {
-      return;
-    }
-  }
-
-  throw new AuthorizationError("You are not authorized to perform this action");
+  await assertCompanyResourceAccess(userId, userRole, job.organizationId, job.postedById);
 };
 
 export interface CreateJobPayload {
@@ -129,6 +120,7 @@ export interface FetchJobsParams {
   status?: JobStatus;
   experienceLevel?: string;
   postedBy?: string;
+  organizationId?: string;
   city?: string;
   state?: string;
   country?: string;
@@ -377,6 +369,12 @@ export const fetchAllJobs = async (
     qb.andWhere("job.posted_by_id = :postedBy", { postedBy: payload.postedBy });
   }
 
+  if (payload.organizationId) {
+    qb.andWhere("job.organization_id = :organizationId", {
+      organizationId: payload.organizationId,
+    });
+  }
+
   if (payload.city) {
     qb.andWhere("LOWER(job.locationCity) = :city", { city: payload.city.toLowerCase() });
   }
@@ -438,6 +436,22 @@ export const fetchAllJobs = async (
       applicationStages: application?.stages ?? null,
     });
   });
+};
+
+export const fetchRecruiterJobs = async (
+  userId: string,
+  payload: FetchJobsParams
+): Promise<
+  (Job & {
+    hasApplied?: boolean;
+    applicationStage?: string | null;
+    applicationStages?: Record<string, string> | null;
+  })[]
+> => {
+  const activeOrgId = await getActiveOrganizationId(userId);
+  if (!activeOrgId) return [];
+
+  return fetchAllJobs({ ...payload, postedBy: undefined, organizationId: activeOrgId });
 };
 
 export const fetchJob = async (
@@ -993,13 +1007,19 @@ export const addScoutToJobPipeline = async (
 ): Promise<Application> => {
   const { scoutId, jobId, talentEmail } = payload;
 
-  const scout = await scoutRepo().findOne({ where: { id: scoutId } });
+  const scout = await scoutRepo().findOne({
+    where: { id: scoutId },
+    relations: { scoutJob: true },
+  });
   if (!scout) {
     throw new NotFoundError("Scout report not found");
   }
-  if (scout.recruiterId !== userId) {
-    throw new AuthorizationError("You are not authorized to perform this action");
-  }
+  await assertCompanyResourceAccess(
+    userId,
+    UserRole.Recruiter,
+    scout.scoutJob?.organizationId,
+    scout.recruiterId
+  );
 
   const job = await jobRepo().findOne({
     where: { id: jobId },
@@ -1009,6 +1029,13 @@ export const addScoutToJobPipeline = async (
     throw new NotFoundError("Job not found");
   }
   await assertRecruiterJobAccess(userId, UserRole.Recruiter, job);
+  if (
+    scout.scoutJob?.organizationId &&
+    job.organizationId &&
+    scout.scoutJob.organizationId !== job.organizationId
+  ) {
+    throw new AuthorizationError("You are not authorized to perform this action");
+  }
   if (job.status !== JobStatus.Active) {
     throw new ValidationError(`Applications for this job is currently ${job.status}`);
   }
