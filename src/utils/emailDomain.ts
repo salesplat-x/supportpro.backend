@@ -66,3 +66,28 @@ export const emailDomainMatchesWebsite = (email: string, website: string): boole
   const websiteDomain = extractWebsiteDomain(website);
   return !!emailDomain && !!websiteDomain && emailDomain === websiteDomain;
 };
+
+/** Validates @domain.tld shape (at least one dot after @). */
+export const parseCompanyDomain = (input: string): string => {
+  const trimmed = input.trim();
+  if (!/^@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    throw new Error("Domain must start with @ and include a dot (e.g. @acme.com)");
+  }
+  return trimmed;
+};
+
+/** Strips leading @ and lowercases, e.g. @Acme.com → acme.com */
+export const normalizeCompanyDomain = (input: string): string => {
+  const parsed = parseCompanyDomain(input.startsWith("@") ? input : `@${input}`);
+  return parsed.slice(1).toLowerCase();
+};
+
+export const formatCompanyDomain = (domain: string): string =>
+  domain.startsWith("@") ? domain : `@${domain}`;
+
+export const emailMatchesCompanyDomain = (email: string, companyDomain: string): boolean => {
+  const normalized = companyDomain.startsWith("@")
+    ? companyDomain.slice(1).toLowerCase()
+    : companyDomain.toLowerCase();
+  return extractEmailDomain(email) === normalized;
+};

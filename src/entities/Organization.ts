@@ -28,6 +28,10 @@ export class Organization {
   @Column({ type: "varchar", nullable: true, default: null })
   email!: string | null;
 
+  /** Normalized corporate domain, e.g. acme.com (no leading @). */
+  @Column({ type: "varchar", nullable: true, default: null })
+  domain!: string | null;
+
   @Column({ type: "varchar", nullable: true, default: null })
   phone!: string | null;
 

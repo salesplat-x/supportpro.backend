@@ -9,16 +9,18 @@ import {
   OrganizationJoinRequestStatus,
 } from "../entities/OrganizationJoinRequest.js";
 import { OrganizationInvite, OrganizationInviteStatus } from "../entities/OrganizationInvite.js";
-import { OrganizationStatus, UserRole } from "../types/enums.js";
+import { BillingPlan, BillingStatus, OrganizationStatus, UserRole } from "../types/enums.js";
 import env from "../config/env.js";
 import EmailService from "../utils/integrations/email/emailService.js";
 import { AuthorizationError, ConflictError, NotFoundError, ValidationError } from "../utils/errors";
 import {
   emailDomainMatchesWebsite,
+  emailMatchesCompanyDomain,
   extractEmailDomain,
   extractWebsiteDomain,
   isCorporateEmail,
   isPublicEmailDomain,
+  normalizeCompanyDomain,
 } from "../utils/emailDomain.js";
 import { createNotification } from "./notification.js";
 import { purgeOrganizationCascade } from "./cascadeDelete.js";
@@ -52,12 +54,15 @@ export interface OrganizationInvitePreview {
   invitedEmail: string;
   status: OrganizationInviteStatus;
   expiresAt: Date;
+  inviteeExists: boolean;
+  inviteeHasPaidPlan: boolean;
 }
 
 const validateEmail = (email: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 export interface OrganizationPayload {
   name: string;
+  domain: string;
   email?: string | null;
   phone?: string | null;
   address?: string | null;
@@ -164,38 +169,101 @@ const assertCompanyHasOpenSeat = async (organizationId: string): Promise<void> =
 };
 
 const assertCompanyAllowsJoinRequests = (org: Organization): void => {
-  if (!org.email) {
+  if (!org.domain && !org.email) {
     throw new ValidationError("This company cannot accept join requests");
   }
-  if (isPublicEmailDomain(org.email)) {
+  const domainProbe = org.domain ? `placeholder@${org.domain}` : org.email!;
+  if (isPublicEmailDomain(domainProbe)) {
     throw new ValidationError(
       "This company was registered with a personal email address. Only companies with a corporate work email domain accept team join requests."
     );
   }
 };
 
+const getOrganizationDomain = (org: Organization): string => {
+  if (org.domain) return org.domain;
+  if (org.email) return extractEmailDomain(org.email);
+  throw new ValidationError("Company domain is not configured");
+};
+
 const assertRecruiterWorkEmailMatchesCompany = (org: Organization, workEmail: string): void => {
-  if (!org.email) {
-    throw new ValidationError("Company email is not configured");
-  }
   if (isPublicEmailDomain(workEmail)) {
     throw new ValidationError(
       "Please use your corporate work email address (e.g. name@company.com), not a personal email."
     );
   }
-  const companyDomain = extractEmailDomain(org.email);
+  const companyDomain = getOrganizationDomain(org);
+  if (isPublicEmailDomain(`placeholder@${companyDomain}`)) {
+    throw new ValidationError("This company cannot accept team join requests");
+  }
   const workDomain = extractEmailDomain(workEmail);
-  if (companyDomain !== workDomain) {
+  if (workDomain !== companyDomain) {
     throw new ValidationError(
       `Your work email domain (@${workDomain}) must match this company's domain (@${companyDomain}).`
     );
   }
 };
 
+const assertInviteeCanJoinCompany = async (email: string): Promise<void> => {
+  const existingUser = await userRepo().findOne({ where: { email } });
+  if (!existingUser) return;
+  if (
+    existingUser.billingPlan === BillingPlan.Paid &&
+    existingUser.billingStatus === BillingStatus.Active
+  ) {
+    throw new ValidationError(
+      "This recruiter is on a paid plan. They must be on the free plan before joining a company."
+    );
+  }
+};
+
+const inheritOwnerBillingPlan = async (memberId: string, organizationId: string): Promise<void> => {
+  const org = await orgRepo().findOne({ where: { id: organizationId } });
+  if (!org?.ownerId) return;
+  const owner = await userRepo().findOne({ where: { id: org.ownerId } });
+  if (!owner) return;
+  await userRepo().update(memberId, {
+    billingPlan: owner.billingPlan,
+    billingInterval: owner.billingInterval,
+    billingStatus: owner.billingStatus,
+  });
+};
+
 export const createOrganization = async (
   ownerId: string,
   payload: OrganizationPayload
 ): Promise<Organization> => {
+  if (!payload.domain?.trim()) {
+    throw new ValidationError("Company domain is required");
+  }
+  let domain: string;
+  try {
+    domain = normalizeCompanyDomain(payload.domain);
+  } catch {
+    throw new ValidationError("Domain must start with @ and include a dot (e.g. @acme.com)");
+  }
+
+  if (isPublicEmailDomain(`placeholder@${domain}`)) {
+    throw new ValidationError(
+      "Please use a corporate domain (e.g. @acme.com), not a personal email provider."
+    );
+  }
+
+  const domainExists = await orgRepo().findOne({ where: { domain } });
+  if (domainExists) {
+    throw new ConflictError("A company with this domain already exists");
+  }
+
+  const owner = await userRepo().findOne({ where: { id: ownerId } });
+  if (!owner) {
+    throw new NotFoundError("User not found");
+  }
+  if (!emailMatchesCompanyDomain(owner.email, domain)) {
+    throw new ValidationError(
+      `Your profile email must use the same domain as the company (@${domain}).`
+    );
+  }
+
   if (!payload.email) {
     throw new ValidationError("Email is required");
   }
@@ -203,6 +271,10 @@ export const createOrganization = async (
     throw new ValidationError("Invalid Email Address");
   }
   const email = payload.email.toLowerCase();
+
+  if (!emailMatchesCompanyDomain(email, domain)) {
+    throw new ValidationError(`Contact email must use the company domain (@${domain}).`);
+  }
 
   const emailExists = await orgRepo().findOne({ where: { email } });
   if (emailExists) {
@@ -247,6 +319,7 @@ export const createOrganization = async (
   const org = orgRepo().create({
     ...payload,
     email,
+    domain,
     ownerId,
     status: OrganizationStatus.Pending,
   });
@@ -428,6 +501,7 @@ export const approveJoinRequest = async (
   await assertOwnership(ownerId, request.organizationId);
   assertCompanyAllowsJoinRequests(request.organization);
   assertRecruiterWorkEmailMatchesCompany(request.organization, request.workEmail);
+  await assertInviteeCanJoinCompany(request.user.email.toLowerCase());
 
   const existingMember = await memberRepo().findOne({
     where: { userId: request.userId, organizationId: request.organizationId },
@@ -449,6 +523,7 @@ export const approveJoinRequest = async (
   await memberRepo().save(member);
 
   await userRepo().update({ id: request.userId }, { activeOrganizationId: request.organizationId });
+  await inheritOwnerBillingPlan(request.userId, request.organizationId);
 
   request.status = OrganizationJoinRequestStatus.Approved;
   await joinReqRepo().save(request);
@@ -524,8 +599,13 @@ export const updateOrganization = async (
   const {
     email: _email,
     website: _website,
+    domain: _domain,
     ...allowed
-  } = payload as UpdateOrganizationPayload & { email?: string; website?: string };
+  } = payload as UpdateOrganizationPayload & {
+    email?: string;
+    website?: string;
+    domain?: string;
+  };
 
   const updates = Object.fromEntries(
     Object.entries(allowed).filter(([, value]) => value !== undefined)
@@ -601,6 +681,7 @@ export const sendOrganizationInvite = async (
   const org = await assertOwnership(ownerId, organizationId);
   assertCompanyAllowsJoinRequests(org);
   assertRecruiterWorkEmailMatchesCompany(org, email);
+  await assertInviteeCanJoinCompany(email);
 
   const teammates = await countCompanyTeammates(org.id);
   const pendingInvites = await countPendingInvites(org.id);
@@ -737,12 +818,49 @@ export const getOrganizationInvitePreview = async (
     );
   }
 
+  const existingUser = await userRepo().findOne({ where: { email: invite.email } });
+
   return {
     organizationName: invite.organization.name,
     invitedEmail: invite.email,
     status,
     expiresAt: invite.expiresAt,
+    inviteeExists: !!existingUser,
+    inviteeHasPaidPlan:
+      !!existingUser &&
+      existingUser.billingPlan === BillingPlan.Paid &&
+      existingUser.billingStatus === BillingStatus.Active,
   };
+};
+
+export const acceptPendingInviteForUser = async (
+  userId: string
+): Promise<{ joinedCompanyName: string } | null> => {
+  const user = await userRepo().findOne({ where: { id: userId } });
+  if (!user || user.userRole !== UserRole.Recruiter) return null;
+
+  const invite = await inviteRepo().findOne({
+    where: {
+      email: user.email.toLowerCase(),
+      status: OrganizationInviteStatus.Pending,
+    },
+    relations: { organization: true },
+    order: { createdAt: "DESC" },
+  });
+
+  if (!invite || resolveInviteStatus(invite) !== OrganizationInviteStatus.Pending) {
+    return null;
+  }
+
+  try {
+    await acceptOrganizationInvite(userId, invite.token);
+    return { joinedCompanyName: invite.organization.name };
+  } catch (err) {
+    logger.error(
+      `Auto-accept invite failed for user ${userId}: ${(err as Error).message}`
+    );
+    return null;
+  }
 };
 
 export const acceptOrganizationInvite = async (
@@ -790,6 +908,7 @@ export const acceptOrganizationInvite = async (
   await memberRepo().save(member);
 
   await userRepo().update({ id: userId }, { activeOrganizationId: invite.organizationId });
+  await inheritOwnerBillingPlan(userId, invite.organizationId);
 
   invite.status = OrganizationInviteStatus.Accepted;
   await inviteRepo().save(invite);

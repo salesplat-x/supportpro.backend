@@ -293,9 +293,12 @@ export async function createOrganization(
   overrides: Partial<Organization> = {}
 ): Promise<Organization> {
   const repo = testDataSource.getRepository(Organization);
+  const email = overrides.email ?? uniqueEmail("org");
+  const domain = overrides.domain ?? email.split("@")[1] ?? "example.com";
   const org = repo.create({
     name: `Org_${Date.now()}`,
-    email: uniqueEmail("org"),
+    email,
+    domain,
     phone: `+234${Math.floor(7000000000 + Math.random() * 999999999)}`,
     address: "123 Test Street",
     industry: "Technology",
