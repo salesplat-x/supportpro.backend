@@ -129,6 +129,16 @@ export async function purgeOrganizationCascade(
     await purgeJobCascade(manager, job.id);
   }
 
+  const scoutJobs = await manager.find(ScoutJob, {
+    where: { organizationId },
+    select: { id: true },
+  });
+  const scoutJobIds = scoutJobs.map((sj) => sj.id);
+  if (scoutJobIds.length > 0) {
+    await manager.delete(Scout, { scoutJobId: In(scoutJobIds) });
+    await manager.delete(ScoutJob, { organizationId });
+  }
+
   // ai_configs.organization_id is ON DELETE NO ACTION. Keep recruiter accounts
   // and their configs; just detach them from the company being removed.
   await manager.update(AIConfig, { organizationId }, { organizationId: null });
