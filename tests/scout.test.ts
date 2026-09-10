@@ -21,6 +21,7 @@ import {
   createCompleteTalent,
   createJob,
   createAIConfig,
+  createOrganization,
 } from "./helpers/fixtures.js";
 
 jest.mock("../src/utils/integrations/openai.js", () => ({
@@ -90,7 +91,8 @@ afterEach(async () => {
 
 describe("POST /v1/scout/jobs — P0 role field regression", () => {
   it("creates a scout job and persists the correct roleId", async () => {
-    const { token } = await createRecruiter();
+    const { user, token } = await createRecruiter();
+    await createOrganization(user);
     const role = await createRole();
 
     const res = await request(app)
@@ -106,10 +108,29 @@ describe("POST /v1/scout/jobs — P0 role field regression", () => {
     expect(res.status).toBe(201);
     expect(res.body.data.scoutJob.roleId).toBe(role.id);
     expect(res.body.data.scoutJob.jobBrief).toBe("Looking for backend engineers");
+    expect(res.body.data.scoutJob.organizationId).toBeTruthy();
+  });
+
+  it("rejects scouting without an active company → 400", async () => {
+    const { token } = await createRecruiter();
+    const role = await createRole();
+
+    const res = await request(app)
+      .post("/v1/scout/jobs")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        role: role.id,
+        name: "No Company Scout",
+        jobBrief: "Brief",
+        recruiterGuide: "Guide",
+      });
+
+    expect(res.status).toBe(400);
   });
 
   it("rejects a non-existent role with 404, not a silent roleId mismatch", async () => {
-    const { token } = await createRecruiter();
+    const { user, token } = await createRecruiter();
+    await createOrganization(user);
 
     const res = await request(app)
       .post("/v1/scout/jobs")
