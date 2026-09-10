@@ -877,8 +877,6 @@ export const acceptOrganizationInvite = async (
     throw new NotFoundError("Invite not found");
   }
 
-  assertInviteUsable(invite);
-
   const user = await userRepo().findOne({ where: { id: userId } });
   if (!user) {
     throw new NotFoundError("User not found");
@@ -890,17 +888,21 @@ export const acceptOrganizationInvite = async (
     throw new AuthorizationError("Sign in with the email address this invite was sent to");
   }
 
-  assertCompanyAllowsJoinRequests(invite.organization);
-  assertRecruiterWorkEmailMatchesCompany(invite.organization, invite.email);
-
   const existingMember = await memberRepo().findOne({
     where: { userId, organizationId: invite.organizationId },
   });
   if (existingMember) {
-    invite.status = OrganizationInviteStatus.Accepted;
-    await inviteRepo().save(invite);
-    throw new ConflictError("You are already a member of this company");
+    if (invite.status === OrganizationInviteStatus.Pending) {
+      invite.status = OrganizationInviteStatus.Accepted;
+      await inviteRepo().save(invite);
+    }
+    return invite.organization;
   }
+
+  assertInviteUsable(invite);
+
+  assertCompanyAllowsJoinRequests(invite.organization);
+  assertRecruiterWorkEmailMatchesCompany(invite.organization, invite.email);
 
   await assertCompanyHasOpenSeat(invite.organizationId);
 
