@@ -294,7 +294,9 @@ export async function createOrganization(
 ): Promise<Organization> {
   const repo = testDataSource.getRepository(Organization);
   const email = overrides.email ?? uniqueEmail("org");
-  const domain = overrides.domain ?? email.split("@")[1] ?? "example.com";
+  // Unique per call: organizations.domain has a partial unique index, so two
+  // fixture orgs cannot share "example.com" even when their emails differ.
+  const domain = overrides.domain ?? `org-${++_userCounter}-${Date.now()}.example.com`;
   const org = repo.create({
     name: `Org_${Date.now()}`,
     email,

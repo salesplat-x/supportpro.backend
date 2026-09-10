@@ -21,14 +21,30 @@ import {
   createJob,
 } from "./helpers/fixtures.js";
 
-jest.mock("../src/utils/integrations/email/emailService.js", () => ({
-  __esModule: true,
-  default: jest.fn().mockImplementation(() => ({
-    sendWelcome: jest.fn().mockResolvedValue(undefined),
-    sendVerificationEmail: jest.fn().mockResolvedValue(undefined),
-    sendCompanyInvite: jest.fn().mockResolvedValue(undefined),
-  })),
-}));
+jest.mock("../src/utils/integrations/email/emailService.js", () => {
+  const sendCompanyInvite = jest.fn().mockResolvedValue(undefined);
+  return {
+    __esModule: true,
+    sendCompanyInvite,
+    default: jest.fn().mockImplementation(() => ({
+      sendWelcome: jest.fn().mockResolvedValue(undefined),
+      sendVerificationEmail: jest.fn().mockResolvedValue(undefined),
+      sendCompanyInvite,
+    })),
+  };
+});
+
+function inviteTokenFromEmail(): string {
+  const { sendCompanyInvite } = jest.requireMock(
+    "../src/utils/integrations/email/emailService.js"
+  ) as { sendCompanyInvite: jest.Mock };
+  const inviteLink = sendCompanyInvite.mock.calls.at(-1)?.[0]?.inviteLink as string | undefined;
+  const token = inviteLink?.split("/").pop();
+  if (!token) {
+    throw new Error("Invite email was not sent");
+  }
+  return token;
+}
 
 let app: ReturnType<typeof createApp>;
 
@@ -495,12 +511,7 @@ describe("Organization invites", () => {
       .send({ email: "joiner@invitecorp.com" });
     expect(send.status).toBe(201);
 
-    const inviteRows = await testDataSource.query(
-      `SELECT token FROM organization_invites WHERE email = $1 LIMIT 1`,
-      ["joiner@invitecorp.com"]
-    );
-    const token = inviteRows[0]?.token as string;
-    expect(token).toBeTruthy();
+    const token = inviteTokenFromEmail();
 
     const publicPreview = await request(app).get(`/v1/organizations/invites/${token}`);
     expect(publicPreview.status).toBe(200);
@@ -580,11 +591,7 @@ describe("Organization invites", () => {
       .send({ email: "recruiter@invitecorp.com" });
     expect(send.status).toBe(201);
 
-    const inviteRows = await testDataSource.query(
-      `SELECT token FROM organization_invites WHERE email = $1 LIMIT 1`,
-      ["recruiter@invitecorp.com"]
-    );
-    const token = inviteRows[0]?.token as string;
+    const token = inviteTokenFromEmail();
     const { token: joinerToken } = await createRecruiter({
       email: "recruiter@invitecorp.com",
     });
@@ -659,11 +666,7 @@ describe("Organization invites", () => {
       .send({ email: "latejoiner@invitecorp.com" });
     expect(send.status).toBe(201);
 
-    const inviteRows = await testDataSource.query(
-      `SELECT token FROM organization_invites WHERE email = $1 LIMIT 1`,
-      ["latejoiner@invitecorp.com"]
-    );
-    const inviteToken = inviteRows[0]?.token as string;
+    const inviteToken = inviteTokenFromEmail();
 
     const memberRepo = testDataSource.getRepository(OrganizationMember);
     for (let i = 1; i <= 6; i += 1) {
@@ -717,11 +720,7 @@ describe("Organization invites", () => {
       .send({ email: "billing@invitecorp.com" })
       .expect(201);
 
-    const inviteRows = await testDataSource.query(
-      `SELECT token FROM organization_invites WHERE email = $1 LIMIT 1`,
-      ["billing@invitecorp.com"]
-    );
-    const inviteToken = inviteRows[0]?.token as string;
+    const inviteToken = inviteTokenFromEmail();
     const { user: joiner, token: joinerToken } = await createRecruiter({
       email: "billing@invitecorp.com",
     });

@@ -2,6 +2,9 @@ export interface EmailPayload {
   to: string;
   subject: string;
   html: string;
+  text?: string;
+  replyTo?: string;
+  tags?: Array<{ name: string; value: string }>;
 }
 
 export interface EmailProvider {

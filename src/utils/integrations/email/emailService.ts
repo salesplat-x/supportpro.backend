@@ -2,6 +2,7 @@ import logger from "../../logger.js";
 import { UserRole } from "../../../types/enums.js";
 import env from "../../../config/env.js";
 import ResendProvider from "./providers/resend.provider.js";
+import { companyInvitePlainText, verificationPlainText } from "./plainText.js";
 import { renderTemplate } from "./template.js";
 import type { EmailPayload, EmailProvider } from "./types.js";
 
@@ -54,7 +55,13 @@ class EmailService {
       lastName: user.lastName,
       verificationLink,
     });
-    await this.sendEmail({ to: user.email, subject: "Verify your email address", html });
+    await this.sendEmail({
+      to: user.email,
+      subject: "Verify your email address",
+      html,
+      text: verificationPlainText(user.firstName, verificationLink),
+      tags: [{ name: "category", value: "verification" }],
+    });
   }
 
   async sendCompanyInvite(details: {
@@ -67,8 +74,10 @@ class EmailService {
     const html = renderTemplate("company-invite", details);
     await this.sendEmail({
       to: details.email,
-      subject: `You're invited to join ${details.companyName} on Auxhr`,
+      subject: `${details.inviterName} invited you to join ${details.companyName}`,
       html,
+      text: companyInvitePlainText(details),
+      tags: [{ name: "category", value: "company-invite" }],
     });
   }
 
