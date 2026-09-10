@@ -9,6 +9,7 @@ import { sortDirection, stripHtmlToText } from "../utils/text.js";
 import { UserRole, ApplicationStatus } from "../types/enums.js";
 import { createNotification } from "./notification.js";
 import logger from "../utils/logger.js";
+import { assertCompanyResourceAccess, getActiveOrganizationId } from "./organizationScope.js";
 
 const messageRepo = () => AppDataSource.getRepository(Message);
 
@@ -55,9 +56,21 @@ const canStartConversation = async (userA: User, userB: User): Promise<boolean> 
     return false;
   }
 
-  const count = await applicationRepo().count({
-    where: { recruiterId, talentId, status: ApplicationStatus.Shortlisted },
-  });
+  const countQb = applicationRepo()
+    .createQueryBuilder("application")
+    .leftJoin("application.job", "job")
+    .where("application.recruiter_id = :recruiterId", { recruiterId })
+    .andWhere("application.talent_id = :talentId", { talentId })
+    .andWhere("application.status = :status", { status: ApplicationStatus.Shortlisted });
+
+  const recruiter = userA.userRole === UserRole.Recruiter ? userA : userB;
+  if (recruiter.activeOrganizationId) {
+    countQb.andWhere("job.organization_id = :activeOrgId", {
+      activeOrgId: recruiter.activeOrganizationId,
+    });
+  }
+
+  const count = await countQb.getCount();
   return count > 0;
 };
 
@@ -155,13 +168,19 @@ export const broadcastMessage = async (
 ): Promise<{ content: string }> => {
   const { application, content, talentIds } = payload;
 
-  const targetApplication = await applicationRepo().findOne({ where: { id: application } });
+  const targetApplication = await applicationRepo().findOne({
+    where: { id: application },
+    relations: { job: true },
+  });
   if (!targetApplication) {
     throw new NotFoundError("Application not found");
   }
-  if (targetApplication.recruiterId !== senderId) {
-    throw new AuthorizationError("You are not authorized to perform this action");
-  }
+  await assertCompanyResourceAccess(
+    senderId,
+    UserRole.Recruiter,
+    targetApplication.job.organizationId,
+    targetApplication.job.postedById
+  );
 
   const sender = await userRepo().findOne({ where: { id: senderId } });
   if (!sender) {
@@ -246,12 +265,21 @@ export interface ChatSessionGroup {
 export const getRecruiterChatSessions = async (
   recruiterId: string
 ): Promise<ChatSessionGroup[]> => {
-  const messages = await messageRepo()
+  const activeOrgId = await getActiveOrganizationId(recruiterId);
+
+  const qb = messageRepo()
     .createQueryBuilder("message")
     .innerJoinAndSelect("message.application", "application")
     .innerJoinAndSelect("application.job", "job")
-    .innerJoinAndSelect("application.talent", "talent")
-    .where("application.recruiterId = :recruiterId", { recruiterId })
+    .innerJoinAndSelect("application.talent", "talent");
+
+  if (activeOrgId) {
+    qb.where("job.organization_id = :activeOrgId", { activeOrgId });
+  } else {
+    qb.where("application.recruiterId = :recruiterId", { recruiterId });
+  }
+
+  const messages = await qb
     .andWhere("(message.senderId = :recruiterId OR message.recipientId = :recruiterId)", {
       recruiterId,
     })

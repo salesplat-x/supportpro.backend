@@ -6,8 +6,9 @@ import { AIConfig } from "../entities/AIConfig.js";
 import { Answer } from "../entities/Answer.js";
 import { Application } from "../entities/Application.js";
 import { Job } from "../entities/Job.js";
-import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
+import { NotFoundError, ValidationError } from "../utils/errors";
 import { UserRole, ScreeningStage, QuestionType } from "../types/enums.js";
+import { assertCompanyResourceAccess, getActiveOrganizationId } from "./organizationScope.js";
 
 const aiConfigRepo = () => AppDataSource.getRepository(AIConfig);
 
@@ -101,6 +102,7 @@ export const resyncUntouchedApplications = async (
 
 export const createAIConfig = async (
   userId: string,
+  userRole: UserRole,
   payload: AIConfigPayload
 ): Promise<AIConfig> => {
   if (!payload.jobId) {
@@ -112,9 +114,16 @@ export const createAIConfig = async (
   const { stages } = createStages(normalizedPayload);
 
   return AppDataSource.transaction(async (manager) => {
+    const job = await manager.findOne(Job, { where: { id: payload.jobId } });
+    if (!job) {
+      throw new NotFoundError("Job not found");
+    }
+    await assertCompanyResourceAccess(userId, userRole, job.organizationId, job.postedById);
+
     const config = manager.create(AIConfig, {
       ...normalizedPayload,
       recruiterId: userId,
+      organizationId: job.organizationId,
       stages,
     });
     const saved = await manager.save(AIConfig, config);
@@ -134,9 +143,7 @@ export const updateAIConfig = async (
     throw new NotFoundError("Configuration not found");
   }
 
-  if (config.recruiterId !== userId && userRole !== UserRole.Admin) {
-    throw new AuthorizationError("You are not authorized to perform this action");
-  }
+  await assertCompanyResourceAccess(userId, userRole, config.organizationId, config.recruiterId);
 
   // Pre-screening is a mandatory stage — never trust a client-supplied value.
   const normalizedPayload: AIConfigPayload = { ...payload, prescreeningAssessment: true };
@@ -150,27 +157,35 @@ export const updateAIConfig = async (
 };
 
 export const allAIConfig = async (userId: string): Promise<AIConfig[]> => {
+  const activeOrgId = await getActiveOrganizationId(userId);
+  if (activeOrgId) {
+    return aiConfigRepo().find({ where: { organizationId: activeOrgId } });
+  }
   return aiConfigRepo().find({ where: { recruiterId: userId } });
 };
 
-export const fetchAIConfig = async (userId: string, configId: string): Promise<AIConfig> => {
+export const fetchAIConfig = async (
+  userId: string,
+  userRole: UserRole,
+  configId: string
+): Promise<AIConfig> => {
   const config = await aiConfigRepo().findOne({ where: { id: configId } });
   if (!config) {
     throw new NotFoundError("Configuration not found");
   }
-  if (config.recruiterId !== userId) {
-    throw new AuthorizationError("You are not authorized to perform this action");
-  }
+  await assertCompanyResourceAccess(userId, userRole, config.organizationId, config.recruiterId);
   return config;
 };
 
-export const deleteAIConfig = async (userId: string, configId: string): Promise<void> => {
+export const deleteAIConfig = async (
+  userId: string,
+  userRole: UserRole,
+  configId: string
+): Promise<void> => {
   const config = await aiConfigRepo().findOne({ where: { id: configId } });
   if (!config) {
     throw new NotFoundError("Configuration not found");
   }
-  if (config.recruiterId !== userId) {
-    throw new AuthorizationError("You are not authorized to perform this action");
-  }
+  await assertCompanyResourceAccess(userId, userRole, config.organizationId, config.recruiterId);
   await aiConfigRepo().remove(config);
 };

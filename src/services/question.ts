@@ -10,10 +10,11 @@ import {
   Answer,
 } from "../entities";
 import { NotFoundError, ValidationError, AuthorizationError } from "../utils/errors";
-import { QuestionType, JobStatus } from "../types/enums.js";
+import { QuestionType, JobStatus, UserRole } from "../types/enums.js";
 import { calculateTimeLeft, sortDirection } from "../utils/text.js";
 import * as AI from "../utils/integrations/openai.js";
 import { answerTextForQuestion, type StoredResponse } from "../utils/answerResponses.js";
+import { assertCompanyResourceAccess } from "./organizationScope.js";
 
 const questionRepo = () => AppDataSource.getRepository(Question);
 const roleRepo = () => AppDataSource.getRepository(Role);
@@ -180,9 +181,15 @@ export const deleteQuestion = async (userId: string, questionId: string): Promis
   if (!question) {
     throw new NotFoundError("Question not found");
   }
-  if (!question.job || question.job.postedById !== userId) {
+  if (!question.job) {
     throw new AuthorizationError("You are not authorized to perform this action");
   }
+  await assertCompanyResourceAccess(
+    userId,
+    UserRole.Recruiter,
+    question.job.organizationId,
+    question.job.postedById
+  );
 
   await questionRepo().remove(question);
 };
