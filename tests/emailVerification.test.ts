@@ -12,7 +12,7 @@ import {
   clearAllTables,
   testDataSource,
 } from "./helpers/db.js";
-import { createTalent, PLAIN_PASSWORD } from "./helpers/fixtures.js";
+import { createRecruiter, createTalent, PLAIN_PASSWORD } from "./helpers/fixtures.js";
 import { User } from "../src/entities/User.js";
 
 const sendVerificationEmail = jest.fn().mockResolvedValue(undefined);
@@ -23,6 +23,7 @@ jest.mock("../src/utils/integrations/email/emailService.js", () => ({
   default: jest.fn().mockImplementation(() => ({
     sendWelcome,
     sendVerificationEmail,
+    sendCompanyInvite: jest.fn().mockResolvedValue(undefined),
     sendPasswordReset: jest.fn().mockResolvedValue(undefined),
   })),
 }));
@@ -345,5 +346,50 @@ describe("requireVerifiedEmail gate on protected routes", () => {
       .post("/v1/auth/logout")
       .set("Authorization", `Bearer ${authToken}`);
     expect(res.status).toBe(200);
+  });
+});
+
+describe("POST /v1/auth/verify-email — company invite auto-accept", () => {
+  it("joins a pending company invite when a recruiter verifies their email", async () => {
+    const { token: ownerToken } = await createRecruiter({ email: "owner@autoinvite.com" });
+    const orgRes = await request(app)
+      .post("/v1/organizations/")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({
+        name: "Auto Invite Corp",
+        domain: "@autoinvite.com",
+        email: "contact@autoinvite.com",
+        phone: "+2348012345678",
+        address: "1 Auto Street",
+        industry: "Technology",
+        website: "https://autoinvite.com",
+      });
+    expect(orgRes.status).toBe(201);
+    const orgId = orgRes.body.data.organization.id as string;
+
+    const inviteRes = await request(app)
+      .post(`/v1/organizations/${orgId}/invites`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ email: "joiner@autoinvite.com" });
+    expect(inviteRes.status).toBe(201);
+
+    await request(app).post("/v1/auth/register/recruiter").send({
+      email: "joiner@autoinvite.com",
+      firstName: "Join",
+      lastName: "Er",
+      password: PLAIN_PASSWORD,
+    });
+
+    const verifyToken =
+      sendVerificationEmail.mock.calls[sendVerificationEmail.mock.calls.length - 1][1];
+
+    const res = await request(app).post("/v1/auth/verify-email").send({ token: verifyToken });
+    expect(res.status).toBe(200);
+    expect(res.body.data.joinedCompanyName).toBe("Auto Invite Corp");
+
+    const user = await testDataSource
+      .getRepository(User)
+      .findOne({ where: { email: "joiner@autoinvite.com" } });
+    expect(user?.activeOrganizationId).toBe(orgId);
   });
 });
