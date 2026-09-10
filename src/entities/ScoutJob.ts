@@ -9,6 +9,7 @@ import {
 } from "typeorm";
 import type { Role } from "./Role.js";
 import type { User } from "./User.js";
+import type { Organization } from "./Organization.js";
 
 @Entity("scout_jobs")
 export class ScoutJob {
@@ -28,6 +29,13 @@ export class ScoutJob {
   @ManyToOne("User", { eager: false })
   @JoinColumn({ name: "posted_by_id" })
   postedBy!: User;
+
+  @Column({ type: "uuid", nullable: true, default: null, name: "organization_id" })
+  organizationId!: string | null;
+
+  @ManyToOne("Organization", { nullable: true, eager: false })
+  @JoinColumn({ name: "organization_id" })
+  organization!: Organization | null;
 
   @Column({ type: "text" })
   jobBrief!: string;
