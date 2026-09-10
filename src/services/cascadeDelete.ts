@@ -247,10 +247,17 @@ export async function purgeRecruiterCascade(manager: EntityManager, userId: stri
   }
 
   // Break the user -> organization FK (their own active company) before
-  // deleting the organizations they own, since organizations.owner_id also
+  // purging the organizations they own, since organizations.owner_id also
   // points back at this user.
   await manager.update(User, { id: userId }, { activeOrganizationId: null });
-  await manager.delete(Organization, { ownerId: userId });
+
+  const ownedOrgs = await manager.find(Organization, {
+    where: { ownerId: userId },
+    select: { id: true },
+  });
+  for (const org of ownedOrgs) {
+    await purgeOrganizationCascade(manager, org.id);
+  }
 
   const scoutJobs = await manager.find(ScoutJob, {
     where: { postedById: userId },

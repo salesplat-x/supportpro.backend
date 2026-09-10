@@ -381,4 +381,60 @@ describe("Admin organizations", () => {
     expect(detachedConfig).not.toBeNull();
     expect(detachedConfig?.organizationId).toBeNull();
   });
+
+  it("deleting a company creator removes the org and jobs but keeps teammates", async () => {
+    const { token: adminToken } = await createAdmin();
+    const { user: owner } = await createRecruiter({
+      firstName: "Creator",
+      lastName: "Owner",
+      email: "creator.owner@corpdelete.com",
+    });
+    const { user: teammate } = await createRecruiter({
+      firstName: "Team",
+      lastName: "Mate",
+      email: "teammate@corpdelete.com",
+    });
+    const org = await createOrganization(owner, {
+      name: "Corp Delete Inc",
+      email: "contact@corpdelete.com",
+      domain: "corpdelete.com",
+    });
+    const memberRepo = testDataSource.getRepository(OrganizationMember);
+    await memberRepo.save(
+      memberRepo.create({
+        userId: teammate.id,
+        organizationId: org.id,
+        workEmail: teammate.email,
+        role: "member",
+      })
+    );
+    await testDataSource.getRepository(User).update(teammate.id, { activeOrganizationId: org.id });
+
+    const role = await createRole("delete-role");
+    const job = await createJob(owner, role, {
+      organizationId: org.id,
+      jobBrief: "Delete me",
+    });
+
+    const res = await request(app)
+      .delete(`/v1/admin/recruiters/${owner.id}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+
+    expect(
+      await testDataSource.getRepository(Organization).findOne({ where: { id: org.id } })
+    ).toBeNull();
+    expect(await testDataSource.getRepository(Job).findOne({ where: { id: job.id } })).toBeNull();
+    expect(
+      await testDataSource.getRepository(User).findOne({ where: { id: owner.id } })
+    ).toBeNull();
+    expect(
+      await testDataSource.getRepository(User).findOne({ where: { id: teammate.id } })
+    ).not.toBeNull();
+
+    const refreshedTeammate = await testDataSource.getRepository(User).findOne({
+      where: { id: teammate.id },
+    });
+    expect(refreshedTeammate?.activeOrganizationId).toBeNull();
+  });
 });
