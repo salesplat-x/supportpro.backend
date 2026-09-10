@@ -6,11 +6,16 @@ import {
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  Index,
 } from "typeorm";
 import { OrganizationStatus } from "../types/enums.js";
 import type { User } from "./User.js";
 
 @Entity("organizations")
+@Index("IDX_organizations_domain_unique", ["domain"], {
+  unique: true,
+  where: `"domain" IS NOT NULL`,
+})
 export class Organization {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

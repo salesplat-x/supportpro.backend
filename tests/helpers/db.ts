@@ -103,13 +103,14 @@ export async function clearAllTables(): Promise<void> {
   await drainInFlightMatchVerdicts();
   const tableNames = testDataSource.entityMetadatas.map((e) => `"${e.tableName}"`).join(", ");
   // TRUNCATE ... RESTART IDENTITY CASCADE handles FK dependencies in one shot
-  await testDataSource.query(`TRUNCATE TABLE ${tableNames} RESTART IDENTITY CASCADE`).catch(() => {
-    // Fallback: clear individually, swallowing FK errors
+  try {
+    await testDataSource.query(`TRUNCATE TABLE ${tableNames} RESTART IDENTITY CASCADE`);
+  } catch {
     for (const entity of testDataSource.entityMetadatas) {
-      testDataSource
+      await testDataSource
         .getRepository(entity.name)
         .clear()
         .catch(() => {});
     }
-  });
+  }
 }

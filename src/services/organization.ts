@@ -649,10 +649,17 @@ const resolveInviteStatus = (invite: OrganizationInvite): OrganizationInviteStat
 };
 
 const findInviteByToken = async (token: string): Promise<OrganizationInvite | null> => {
-  return inviteRepo().findOne({
-    where: { token },
-    relations: { organization: true },
-  });
+  // Load the invite first, then the company. `relations: { organization: true }`
+  // uses an inner join, so a metadata/join mismatch returns null and the
+  // public preview/accept routes 404 even though the token row exists.
+  const invite = await inviteRepo().findOne({ where: { token: token.trim() } });
+  if (!invite) return null;
+
+  const organization = await orgRepo().findOne({ where: { id: invite.organizationId } });
+  if (!organization) return null;
+
+  invite.organization = organization;
+  return invite;
 };
 
 const assertInviteUsable = (invite: OrganizationInvite): void => {
@@ -856,9 +863,7 @@ export const acceptPendingInviteForUser = async (
     await acceptOrganizationInvite(userId, invite.token);
     return { joinedCompanyName: invite.organization.name };
   } catch (err) {
-    logger.error(
-      `Auto-accept invite failed for user ${userId}: ${(err as Error).message}`
-    );
+    logger.error(`Auto-accept invite failed for user ${userId}: ${(err as Error).message}`);
     return null;
   }
 };
