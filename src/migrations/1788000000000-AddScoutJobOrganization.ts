@@ -76,4 +76,4 @@ export class AddScoutJobOrganization1788000000000 implements MigrationInterface 
     );
     await queryRunner.query(`ALTER TABLE "scout_jobs" DROP COLUMN IF EXISTS "organization_id"`);
   }
-};
+}
