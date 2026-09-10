@@ -66,8 +66,8 @@ export const logout = async (req: Request, res: Response) => {
 };
 
 export const verifyEmail = async (req: Request, res: Response) => {
-  await authService.verifyEmail(req.body, req.ip ?? undefined);
-  sendSuccessResponse(res, "Email verified successfully");
+  const result = await authService.verifyEmail(req.body, req.ip ?? undefined);
+  sendSuccessResponse(res, "Email verified successfully", result);
 };
 
 export const resendVerification = async (req: Request, res: Response) => {

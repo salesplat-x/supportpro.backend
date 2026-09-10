@@ -17,6 +17,7 @@ import {
   NotFoundError,
 } from "../utils/errors";
 import logger from "../utils/logger.js";
+import { acceptPendingInviteForUser } from "./organization.js";
 
 const userRepo = (): Repository<User> => AppDataSource.getRepository(User);
 
@@ -234,7 +235,14 @@ export const logout = async (userId: string, ip?: string): Promise<void> => {
   logger.info(`User logged out: id=${user.id} email=${user.email} ip=${ip ?? "unknown"}`);
 };
 
-export const verifyEmail = async ({ token }: { token: string }, ip?: string): Promise<void> => {
+export interface VerifyEmailResult {
+  joinedCompanyName?: string;
+}
+
+export const verifyEmail = async (
+  { token }: { token: string },
+  ip?: string
+): Promise<VerifyEmailResult> => {
   const tokenHash = createHash("sha256").update(token).digest("hex");
 
   const user = await userRepo()
@@ -278,6 +286,9 @@ export const verifyEmail = async ({ token }: { token: string }, ip?: string): Pr
   }
 
   logger.info(`Email verified: id=${user.id} email=${user.email} ip=${ip ?? "unknown"}`);
+
+  const joined = await acceptPendingInviteForUser(user.id);
+  return joined ? { joinedCompanyName: joined.joinedCompanyName } : {};
 };
 
 export const resendVerification = async (
