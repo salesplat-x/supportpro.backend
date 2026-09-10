@@ -11,6 +11,7 @@ import {
   testDataSource,
 } from "./helpers/db.js";
 import { Job, OrganizationMember, User } from "../src/entities";
+import { BillingPlan, BillingStatus } from "../src/types/enums.js";
 import {
   createTalent,
   createRecruiter,
@@ -47,6 +48,7 @@ afterEach(async () => {
 
 const validOrgBody = {
   name: "TechCorp Ltd",
+  domain: "@techcorp.com",
   email: "contact@techcorp.com",
   phone: "+2348012345678",
   address: "123 Tech Street, Lagos",
@@ -54,13 +56,15 @@ const validOrgBody = {
   website: "https://techcorp.com",
 };
 
+const recruiterForTechCorp = () => createRecruiter({ email: "creator@techcorp.com" });
+
 // ---------------------------------------------------------------------------
 // POST /v1/organizations/ — create organization (Recruiter only)
 // ---------------------------------------------------------------------------
 
 describe("POST /v1/organizations/ — create organization (Recruiter only)", () => {
   it("Recruiter creates organization → 201, pending, and becomes their active company", async () => {
-    const { token } = await createRecruiter();
+    const { token } = await recruiterForTechCorp();
     const res = await request(app)
       .post("/v1/organizations/")
       .set("Authorization", `Bearer ${token}`)
@@ -94,7 +98,7 @@ describe("POST /v1/organizations/ — create organization (Recruiter only)", () 
   });
 
   it("Missing name → 400", async () => {
-    const { token } = await createRecruiter();
+    const { token } = await recruiterForTechCorp();
     const res = await request(app)
       .post("/v1/organizations/")
       .set("Authorization", `Bearer ${token}`)
@@ -103,7 +107,7 @@ describe("POST /v1/organizations/ — create organization (Recruiter only)", () 
   });
 
   it("Invalid email format → 400", async () => {
-    const { token } = await createRecruiter();
+    const { token } = await recruiterForTechCorp();
     const res = await request(app)
       .post("/v1/organizations/")
       .set("Authorization", `Bearer ${token}`)
@@ -112,7 +116,7 @@ describe("POST /v1/organizations/ — create organization (Recruiter only)", () 
   });
 
   it("Missing both website and LinkedIn → 400", async () => {
-    const { token } = await createRecruiter();
+    const { token } = await recruiterForTechCorp();
     const { website: _website, ...bodyWithoutWebsite } = validOrgBody;
     const res = await request(app)
       .post("/v1/organizations/")
@@ -122,7 +126,7 @@ describe("POST /v1/organizations/ — create organization (Recruiter only)", () 
   });
 
   it("LinkedIn provided without a website → 201", async () => {
-    const { token } = await createRecruiter();
+    const { token } = await recruiterForTechCorp();
     const { website: _website, ...bodyWithoutWebsite } = validOrgBody;
     const res = await request(app)
       .post("/v1/organizations/")
@@ -132,7 +136,7 @@ describe("POST /v1/organizations/ — create organization (Recruiter only)", () 
   });
 
   it("Personal email domain → 400", async () => {
-    const { token } = await createRecruiter();
+    const { token } = await recruiterForTechCorp();
     const res = await request(app)
       .post("/v1/organizations/")
       .set("Authorization", `Bearer ${token}`)
@@ -141,7 +145,7 @@ describe("POST /v1/organizations/ — create organization (Recruiter only)", () 
   });
 
   it("Email domain does not match website → 400", async () => {
-    const { token } = await createRecruiter();
+    const { token } = await recruiterForTechCorp();
     const res = await request(app)
       .post("/v1/organizations/")
       .set("Authorization", `Bearer ${token}`)
@@ -153,14 +157,14 @@ describe("POST /v1/organizations/ — create organization (Recruiter only)", () 
   });
 
   it("Same name and website as an existing company → 409", async () => {
-    const { token: firstToken } = await createRecruiter();
+    const { token: firstToken } = await recruiterForTechCorp();
     const first = await request(app)
       .post("/v1/organizations/")
       .set("Authorization", `Bearer ${firstToken}`)
       .send(validOrgBody);
     expect(first.status).toBe(201);
 
-    const { token: secondToken } = await createRecruiter();
+    const { token: secondToken } = await createRecruiter({ email: "other@techcorp.com" });
     const res = await request(app)
       .post("/v1/organizations/")
       .set("Authorization", `Bearer ${secondToken}`)
@@ -170,19 +174,20 @@ describe("POST /v1/organizations/ — create organization (Recruiter only)", () 
   });
 
   it("Same name but different website → 201 (name alone may repeat)", async () => {
-    const { token: firstToken } = await createRecruiter();
+    const { token: firstToken } = await recruiterForTechCorp();
     const first = await request(app)
       .post("/v1/organizations/")
       .set("Authorization", `Bearer ${firstToken}`)
       .send(validOrgBody);
     expect(first.status).toBe(201);
 
-    const { token: secondToken } = await createRecruiter();
+    const { token: secondToken } = await createRecruiter({ email: "other@techcorp.io" });
     const res = await request(app)
       .post("/v1/organizations/")
       .set("Authorization", `Bearer ${secondToken}`)
       .send({
         ...validOrgBody,
+        domain: "@techcorp.io",
         email: "other@techcorp.io",
         phone: "+2348011112222",
         website: "https://techcorp.io",
@@ -191,8 +196,8 @@ describe("POST /v1/organizations/ — create organization (Recruiter only)", () 
     expect(res.status).toBe(201);
   });
 
-  it("Second company created by the same recruiter switches their active company", async () => {
-    const { token } = await createRecruiter();
+  it("Same recruiter cannot create a second company on a different domain", async () => {
+    const { token } = await recruiterForTechCorp();
     const first = await request(app)
       .post("/v1/organizations/")
       .set("Authorization", `Bearer ${token}`)
@@ -203,16 +208,14 @@ describe("POST /v1/organizations/ — create organization (Recruiter only)", () 
       .send({
         ...validOrgBody,
         name: "Second Co",
+        domain: "@secondco.com",
         email: "contact@secondco.com",
         phone: "+2348098765432",
         website: "https://secondco.com",
       });
 
     expect(first.status).toBe(201);
-    expect(second.status).toBe(201);
-
-    const me = await request(app).get("/v1/user/me").set("Authorization", `Bearer ${token}`);
-    expect(me.body.data.user.activeOrganizationId).toBe(second.body.data.organization.id);
+    expect(second.status).toBe(400);
   });
 });
 
@@ -438,6 +441,7 @@ describe("DELETE /v1/organizations/:id — delete organization", () => {
 describe("Organization invites", () => {
   const corporateOrgBody = {
     name: "Invite Corp",
+    domain: "@invitecorp.com",
     email: "owner@invitecorp.com",
     phone: "+2348012345679",
     address: "1 Invite Street",
@@ -445,18 +449,18 @@ describe("Organization invites", () => {
     website: "https://invitecorp.com",
   };
 
-  async function createOwnedOrg(token: string) {
+  async function createOwnedOrg() {
+    const { token, user } = await createRecruiter({ email: "owner@invitecorp.com" });
     const res = await request(app)
       .post("/v1/organizations/")
       .set("Authorization", `Bearer ${token}`)
       .send(corporateOrgBody);
     expect(res.status).toBe(201);
-    return res.body.data.organization;
+    return { org: res.body.data.organization, token, user };
   }
 
   it("Owner sends invite → 201, lists pending invite", async () => {
-    const { token } = await createRecruiter();
-    const org = await createOwnedOrg(token);
+    const { org, token } = await createOwnedOrg();
 
     const send = await request(app)
       .post(`/v1/organizations/${org.id}/invites`)
@@ -473,8 +477,7 @@ describe("Organization invites", () => {
   });
 
   it("Rejects invite when email domain does not match company → 400", async () => {
-    const { token } = await createRecruiter();
-    const org = await createOwnedOrg(token);
+    const { org, token } = await createOwnedOrg();
 
     const res = await request(app)
       .post(`/v1/organizations/${org.id}/invites`)
@@ -484,8 +487,7 @@ describe("Organization invites", () => {
   });
 
   it("Recruiter accepts invite and joins company", async () => {
-    const { token: ownerToken } = await createRecruiter();
-    const org = await createOwnedOrg(ownerToken);
+    const { org, token: ownerToken } = await createOwnedOrg();
 
     const send = await request(app)
       .post(`/v1/organizations/${org.id}/invites`)
@@ -529,8 +531,7 @@ describe("Organization invites", () => {
   });
 
   it("Owner lists company users including themselves", async () => {
-    const { token } = await createRecruiter();
-    const org = await createOwnedOrg(token);
+    const { org, token } = await createOwnedOrg();
 
     const members = await request(app)
       .get(`/v1/organizations/${org.id}/members`)
@@ -549,9 +550,8 @@ describe("Organization invites", () => {
   });
 
   it("Non-owner recruiter cannot list company members → 403", async () => {
-    const { token: ownerToken } = await createRecruiter();
+    const { org, token: ownerToken } = await createOwnedOrg();
     const { token: otherToken } = await createRecruiter();
-    const org = await createOwnedOrg(ownerToken);
 
     const res = await request(app)
       .get(`/v1/organizations/${org.id}/members`)
@@ -560,9 +560,8 @@ describe("Organization invites", () => {
   });
 
   it("Only the company creator can send an invite → 403 for other recruiters", async () => {
-    const { token: ownerToken } = await createRecruiter();
+    const { org, token: ownerToken } = await createOwnedOrg();
     const { token: otherToken } = await createRecruiter();
-    const org = await createOwnedOrg(ownerToken);
 
     const res = await request(app)
       .post(`/v1/organizations/${org.id}/invites`)
@@ -572,9 +571,8 @@ describe("Organization invites", () => {
   });
 
   it("Admin sees creator and recruiters on a company", async () => {
-    const { token: ownerToken } = await createRecruiter();
+    const { org, token: ownerToken } = await createOwnedOrg();
     const { token: adminToken } = await createAdmin();
-    const org = await createOwnedOrg(ownerToken);
 
     const send = await request(app)
       .post(`/v1/organizations/${org.id}/invites`)
@@ -614,8 +612,7 @@ describe("Organization invites", () => {
   });
 
   it("Owner revokes pending invite", async () => {
-    const { token } = await createRecruiter();
-    const org = await createOwnedOrg(token);
+    const { org, token } = await createOwnedOrg();
 
     const send = await request(app)
       .post(`/v1/organizations/${org.id}/invites`)
@@ -635,8 +632,7 @@ describe("Organization invites", () => {
   });
 
   it("Rejects a seventh teammate invite when 6 recruiters plus the creator already occupy seats", async () => {
-    const { token } = await createRecruiter();
-    const org = await createOwnedOrg(token);
+    const { org, token } = await createOwnedOrg();
 
     for (let i = 1; i <= 6; i += 1) {
       const send = await request(app)
@@ -655,8 +651,7 @@ describe("Organization invites", () => {
   });
 
   it("Rejects invite accept when the company already has 6 teammates", async () => {
-    const { token } = await createRecruiter();
-    const org = await createOwnedOrg(token);
+    const { org, token } = await createOwnedOrg();
 
     const send = await request(app)
       .post(`/v1/organizations/${org.id}/invites`)
@@ -691,5 +686,75 @@ describe("Organization invites", () => {
       .set("Authorization", `Bearer ${joinerToken}`);
     expect(accept.status).toBe(400);
     expect(accept.body.error.message).toMatch(/6 recruiters plus the creator/i);
+  });
+
+  it("Rejects invite when invitee is on a paid plan", async () => {
+    const { org, token } = await createOwnedOrg();
+    await createRecruiter({
+      email: "paid@invitecorp.com",
+      billingPlan: BillingPlan.Paid,
+      billingStatus: BillingStatus.Active,
+    });
+
+    const res = await request(app)
+      .post(`/v1/organizations/${org.id}/invites`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ email: "paid@invitecorp.com" });
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toMatch(/paid plan/i);
+  });
+
+  it("Inherits owner billing plan when invite is accepted", async () => {
+    const { org, token: ownerToken, user: owner } = await createOwnedOrg();
+    await testDataSource.getRepository(User).update(owner.id, {
+      billingPlan: BillingPlan.Paid,
+      billingStatus: BillingStatus.Active,
+    });
+
+    await request(app)
+      .post(`/v1/organizations/${org.id}/invites`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ email: "billing@invitecorp.com" })
+      .expect(201);
+
+    const inviteRows = await testDataSource.query(
+      `SELECT token FROM organization_invites WHERE email = $1 LIMIT 1`,
+      ["billing@invitecorp.com"]
+    );
+    const inviteToken = inviteRows[0]?.token as string;
+    const { user: joiner, token: joinerToken } = await createRecruiter({
+      email: "billing@invitecorp.com",
+    });
+
+    await request(app)
+      .post(`/v1/organizations/invites/${inviteToken}/accept`)
+      .set("Authorization", `Bearer ${joinerToken}`)
+      .expect(200);
+
+    const refreshed = await testDataSource.getRepository(User).findOne({
+      where: { id: joiner.id },
+    });
+    expect(refreshed?.billingPlan).toBe(BillingPlan.Paid);
+    expect(refreshed?.billingStatus).toBe(BillingStatus.Active);
+  });
+});
+
+describe("Organization domain field", () => {
+  it("Rejects company creation when profile email does not match domain", async () => {
+    const { token } = await createRecruiter({ email: "someone@other.com" });
+    const res = await request(app)
+      .post("/v1/organizations/")
+      .set("Authorization", `Bearer ${token}`)
+      .send(validOrgBody);
+    expect(res.status).toBe(400);
+  });
+
+  it("Rejects invalid domain format", async () => {
+    const { token } = await recruiterForTechCorp();
+    const res = await request(app)
+      .post("/v1/organizations/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ ...validOrgBody, domain: "acme.com" });
+    expect(res.status).toBe(400);
   });
 });

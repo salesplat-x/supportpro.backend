@@ -41,6 +41,11 @@ export const revokeOrganizationInviteValidator = [
 ];
 
 export const createOrganizationValidator = [
+  body("domain")
+    .notEmpty()
+    .withMessage("Company domain is required")
+    .matches(/^@[^\s@]+\.[^\s@]+$/)
+    .withMessage("Domain must start with @ and include a dot (e.g. @acme.com)"),
   body("email").isEmail().normalizeEmail().withMessage("Valid email is required"),
   body("name").notEmpty().withMessage("Organization name is required"),
   phoneRule("phone"),
