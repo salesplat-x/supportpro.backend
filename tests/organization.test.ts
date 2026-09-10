@@ -527,6 +527,12 @@ describe("Organization invites", () => {
     expect(accept.status).toBe(200);
     expect(accept.body.data.organization.id).toBe(org.id);
 
+    const acceptAgain = await request(app)
+      .post(`/v1/organizations/invites/${token}/accept`)
+      .set("Authorization", `Bearer ${joinerToken}`);
+    expect(acceptAgain.status).toBe(200);
+    expect(acceptAgain.body.data.organization.id).toBe(org.id);
+
     const me = await request(app).get("/v1/user/me").set("Authorization", `Bearer ${joinerToken}`);
     expect(me.body.data.user.activeOrganizationId).toBe(org.id);
 
