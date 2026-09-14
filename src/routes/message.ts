@@ -28,18 +28,16 @@ router.patch(
   validate(acknowledgeMessageValidator),
   asyncHandler(message.acknowledge)
 );
-// Talents can read/acknowledge messages but never send one — in-app messaging is
-// recruiter-to-talent only (item 8/10). Enforced here, not just left to the UI.
 router.post(
   "/",
-  validateAccess([UserRole.Recruiter, UserRole.Admin]),
+  validateAccess([UserRole.Recruiter, UserRole.Admin, UserRole.Talent]),
   requireVerifiedEmail,
   validate(sendMessageValidator),
   asyncHandler(message.create)
 );
 router.get(
   "/sessions",
-  validateAccess([UserRole.Recruiter]),
+  validateAccess([UserRole.Recruiter, UserRole.Talent]),
   requireVerifiedEmail,
   asyncHandler(message.getChatSessions)
 );

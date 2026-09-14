@@ -14,6 +14,7 @@ export interface RecruiterDashboardResult {
   completionRatio: number;
   applicationsCount: number;
   shortlistCount: number;
+  applicationHeatmap: Array<{ date: string; count: number }>;
   recentApplications: Array<{
     id: string;
     jobId: string;
@@ -43,6 +44,7 @@ const EMPTY_DASHBOARD: RecruiterDashboardResult = {
   completionRatio: 0,
   applicationsCount: 0,
   shortlistCount: 0,
+  applicationHeatmap: [],
   recentApplications: [],
   recentCompilations: [],
 };
@@ -74,6 +76,25 @@ export const recruiterDashboard = async (
   const shortlistCount = allApplications.filter(
     (a) => a.status === ApplicationStatus.Shortlisted
   ).length;
+
+  const heatmapSince = new Date();
+  heatmapSince.setUTCDate(heatmapSince.getUTCDate() - 83);
+  heatmapSince.setUTCHours(0, 0, 0, 0);
+
+  const heatmapRows: Array<{ date: string; count: string | number }> = await applicationRepo()
+    .createQueryBuilder("application")
+    .leftJoin("application.job", "job")
+    .select("TO_CHAR(application.createdAt, 'YYYY-MM-DD')", "date")
+    .addSelect("COUNT(application.id)", "count")
+    .where("job.organization_id = :activeOrgId", { activeOrgId })
+    .andWhere("application.createdAt >= :heatmapSince", { heatmapSince })
+    .groupBy("TO_CHAR(application.createdAt, 'YYYY-MM-DD')")
+    .getRawMany();
+
+  const applicationHeatmap = heatmapRows.map((row) => ({
+    date: row.date,
+    count: Number(row.count) || 0,
+  }));
 
   const recentApplicationsRaw = await applicationRepo()
     .createQueryBuilder("application")
@@ -130,6 +151,7 @@ export const recruiterDashboard = async (
     completionRatio,
     applicationsCount,
     shortlistCount,
+    applicationHeatmap,
     recentApplications,
     recentCompilations,
   };

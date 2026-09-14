@@ -1,3 +1,10 @@
+export type QuestionFeedback = {
+  question: string;
+  whatTheyAnswered: string;
+  whatItDemonstrates: string;
+  experienceLink: string;
+};
+
 export type MatchAnalysis = {
   overallFitScore: number;
   whyFit: string;
@@ -6,6 +13,7 @@ export type MatchAnalysis = {
   relevantExperience: string[];
   prescreeningInsights: { strengths: string[]; weaknesses: string[] };
   assessmentInsights?: string;
+  questionFeedback: QuestionFeedback[];
   missingRequirements: string[];
   conflictingRequirements: string[];
   keyEvidence: string[];
@@ -26,6 +34,25 @@ const scoreFromVerdict = (verdict: string): number => {
   if (verdict === "medium") return 65;
   if (verdict === "low") return 35;
   return 50;
+};
+
+const asQuestionFeedback = (value: unknown): QuestionFeedback[] => {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const row = item as Record<string, unknown>;
+    const question = typeof row.question === "string" ? row.question.trim() : "";
+    if (!question) return [];
+    return [
+      {
+        question,
+        whatTheyAnswered: typeof row.whatTheyAnswered === "string" ? row.whatTheyAnswered : "",
+        whatItDemonstrates:
+          typeof row.whatItDemonstrates === "string" ? row.whatItDemonstrates : "",
+        experienceLink: typeof row.experienceLink === "string" ? row.experienceLink : "",
+      },
+    ];
+  });
 };
 
 export const parseMatchAnalysis = (
@@ -52,6 +79,7 @@ export const parseMatchAnalysis = (
     relevantExperience: asStringArray(parsed.relevantExperience),
     prescreeningInsights: insights,
     ...(assessmentInsights ? { assessmentInsights } : {}),
+    questionFeedback: asQuestionFeedback(parsed.questionFeedback),
     missingRequirements: asStringArray(parsed.missingRequirements),
     conflictingRequirements: asStringArray(parsed.conflictingRequirements),
     keyEvidence: asStringArray(parsed.keyEvidence),

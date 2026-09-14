@@ -176,6 +176,7 @@ function matchBundle(index: number): {
       conflictingRequirements: [],
       keyEvidence: ["CV overlap with the job brief", "Assessment completion"],
       hiringRationale: "Seeded match summary for local development.",
+      questionFeedback: [],
     },
   };
 }

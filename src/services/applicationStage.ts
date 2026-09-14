@@ -421,6 +421,8 @@ const executeTriggerMatchVerdict = async (
         },
         workType: talent.workType ?? undefined,
         experience: talent.experience ?? undefined,
+        talentName: [talent.firstName, talent.lastName].filter(Boolean).join(" ") || undefined,
+        talentBio: talent.bio ?? undefined,
       });
       if (!response?.message.content) {
         throw new ValidationError("Error with LLM");
