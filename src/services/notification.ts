@@ -58,6 +58,14 @@ export const readNotification = async (
   return notificationRepo().save(notification);
 };
 
+export const markAllNotificationsRead = async (userId: string): Promise<{ updated: number }> => {
+  const result = await notificationRepo().update(
+    { userId, isRead: false, deleted: false },
+    { isRead: true }
+  );
+  return { updated: result.affected ?? 0 };
+};
+
 export const deleteNotification = async (
   userId: string,
   notificationId: string

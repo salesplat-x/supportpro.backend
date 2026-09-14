@@ -1,6 +1,6 @@
 /**
- * Message tests — bulk/broadcast messaging (item 5), chat sessions grouped by
- * job (item 8), and the hard server-side block on talents replying (item 8/10).
+ * Message tests — bulk/broadcast messaging, chat sessions grouped by job,
+ * talent replies (existing threads only), and talent inbox sessions.
  */
 
 import request from "supertest";
@@ -17,6 +17,7 @@ import {
   createRole,
   createJob,
   createApplication,
+  createOrganization,
 } from "./helpers/fixtures.js";
 import { Message } from "../src/entities/Message.js";
 import { ApplicationStatus } from "../src/types/enums.js";
@@ -96,8 +97,8 @@ describe("POST /v1/messages/broadcast — bulk message (item 5)", () => {
   });
 });
 
-describe("POST /v1/messages/ — talents cannot send messages (item 8/10)", () => {
-  it("a talent's POST is rejected", async () => {
+describe("POST /v1/messages/ — talent replies, not new threads", () => {
+  it("rejects a talent starting a conversation with a recruiter they have never been messaged by", async () => {
     const { user: talent, token: talentToken } = await createTalent();
     const { user: recruiter } = await createRecruiter();
 
@@ -108,6 +109,33 @@ describe("POST /v1/messages/ — talents cannot send messages (item 8/10)", () =
 
     expect(res.status).toBe(403);
     expect(talent).toBeDefined();
+  });
+
+  it("lets a talent reply once the recruiter has opened the thread", async () => {
+    const { user: recruiter, token: recruiterToken } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { user: talent, token: talentToken } = await createTalent();
+    const application = await createApplication(talent, job, {
+      status: ApplicationStatus.Shortlisted,
+    });
+
+    await request(app)
+      .post("/v1/messages/")
+      .set("Authorization", `Bearer ${recruiterToken}`)
+      .send({ content: "Congrats!", recipient: talent.id, application: application.id });
+
+    const res = await request(app)
+      .post("/v1/messages/")
+      .set("Authorization", `Bearer ${talentToken}`)
+      .send({
+        content: "Thank you, I am interested.",
+        recipient: recruiter.id,
+        application: application.id,
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.message.content).toBe("Thank you, I am interested.");
   });
 
   it("a recruiter's POST still succeeds", async () => {
@@ -149,6 +177,36 @@ describe("GET /v1/messages/ — talent inbox", () => {
     expect(res.body.data.messages).toHaveLength(1);
     expect(res.body.data.messages[0].content).toBe("You're shortlisted!");
     expect(res.body.data.unReadCount).toBe(1);
+    expect(res.body.data.messages[0].sender.firstName).toBe(recruiter.firstName);
+    expect(res.body.data.messages[0].sender.userRole).toBe("recruiter");
+  });
+
+  it("marks inbound messages read when the talent opens the thread", async () => {
+    const { user: recruiter, token: recruiterToken } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { user: talent, token: talentToken } = await createTalent();
+    const application = await createApplication(talent, job, {
+      status: ApplicationStatus.Shortlisted,
+    });
+
+    await request(app)
+      .post("/v1/messages/")
+      .set("Authorization", `Bearer ${recruiterToken}`)
+      .send({ content: "You're shortlisted!", recipient: talent.id, application: application.id });
+
+    const opened = await request(app)
+      .get(`/v1/messages/?application=${application.id}`)
+      .set("Authorization", `Bearer ${talentToken}`);
+
+    expect(opened.status).toBe(200);
+    expect(opened.body.data.unReadCount).toBe(0);
+
+    const inbox = await request(app)
+      .get("/v1/messages/")
+      .set("Authorization", `Bearer ${talentToken}`);
+
+    expect(inbox.body.data.unReadCount).toBe(0);
   });
 });
 
@@ -206,5 +264,42 @@ describe("GET /v1/messages/sessions — recruiter chat list grouped by job (item
     expect(res.status).toBe(200);
     expect(res.body.data.sessions).toHaveLength(1);
     expect(res.body.data.sessions[0].jobId).toBe(jobA.id);
+    expect(res.body.data.sessions[0].threads[0].lastMessagePreview).toBe("Hi");
+  });
+});
+
+describe("GET /v1/messages/sessions — talent inbox threads", () => {
+  it("returns recruiter name, company, and last message preview", async () => {
+    const { user: recruiter, token: recruiterToken } = await createRecruiter({
+      firstName: "Jane",
+      lastName: "Recruiter",
+    });
+    const org = await createOrganization(recruiter, { name: "Acme Corp" });
+    const role = await createRole();
+    const job = await createJob(recruiter, role, { organizationId: org.id });
+    const { user: talent, token: talentToken } = await createTalent();
+    const application = await createApplication(talent, job, {
+      status: ApplicationStatus.Shortlisted,
+    });
+
+    await request(app)
+      .post("/v1/messages/")
+      .set("Authorization", `Bearer ${recruiterToken}`)
+      .send({ content: "Let's chat", recipient: talent.id, application: application.id });
+
+    const res = await request(app)
+      .get("/v1/messages/sessions")
+      .set("Authorization", `Bearer ${talentToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.sessions).toHaveLength(1);
+    expect(res.body.data.sessions[0]).toMatchObject({
+      applicationId: application.id,
+      recruiterId: recruiter.id,
+      recruiterName: "Jane Recruiter",
+      companyName: "Acme Corp",
+      lastMessagePreview: "Let's chat",
+      unreadCount: 1,
+    });
   });
 });

@@ -219,6 +219,34 @@ describe("DELETE /v1/notifications/:id — soft-delete", () => {
   });
 });
 
+describe("PATCH /v1/notifications/read-all", () => {
+  it("marks every unread notification as read", async () => {
+    const { user, token } = await createTalent();
+    await createNotification(user, { message: "First" });
+    await createNotification(user, { message: "Second" });
+    await createNotification(user, { message: "Already read", isRead: true });
+
+    const res = await request(app)
+      .patch("/v1/notifications/read-all")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.updated).toBe(2);
+
+    const listRes = await request(app)
+      .get("/v1/notifications/")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(listRes.body.data.unReadCount).toBe(0);
+    expect(listRes.body.data.notifications.every((n: Notification) => n.isRead)).toBe(true);
+  });
+
+  it("Unauthenticated → 401", async () => {
+    const res = await request(app).patch("/v1/notifications/read-all");
+    expect(res.status).toBe(401);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // GET /v1/conversations/ — list conversations
 // ---------------------------------------------------------------------------

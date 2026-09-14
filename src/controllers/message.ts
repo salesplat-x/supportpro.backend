@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import * as messageService from "../services/message.js";
 import { sendSuccessResponse } from "../utils/response.js";
+import { UserRole } from "../types/enums.js";
 
 export const create = async (req: Request, res: Response) => {
   const result = await messageService.sendMessage(req.user.id, req.body);
@@ -31,6 +32,11 @@ export const getMessage = async (req: Request, res: Response) => {
 };
 
 export const getChatSessions = async (req: Request, res: Response) => {
+  if (req.user.userRole === UserRole.Talent) {
+    const sessions = await messageService.getTalentChatSessions(req.user.id);
+    sendSuccessResponse(res, "Chat sessions fetched", { sessions });
+    return;
+  }
   const sessions = await messageService.getRecruiterChatSessions(req.user.id);
   sendSuccessResponse(res, "Chat sessions fetched", { sessions });
 };

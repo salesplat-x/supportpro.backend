@@ -87,6 +87,25 @@ export interface FetchMessagesParams {
   sort?: string;
 }
 
+export type PublicMessageSender = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  userRole: UserRole;
+};
+
+const toPublicSender = (sender?: User | null): PublicMessageSender | undefined => {
+  if (!sender) return undefined;
+  return {
+    id: sender.id,
+    firstName: sender.firstName,
+    lastName: sender.lastName,
+    userRole: sender.userRole,
+  };
+};
+
+const previewOf = (html: string): string => stripHtmlToText(html).slice(0, 120);
+
 export const sendMessage = async (senderId: string, payload: MessageInput): Promise<Message> => {
   const { application, content, recipient } = payload;
 
@@ -107,6 +126,10 @@ export const sendMessage = async (senderId: string, payload: MessageInput): Prom
 
   let conversation = await findConversation(senderId, recipient);
   if (!conversation) {
+    // Talents may only reply in an existing thread — they cannot open a new one.
+    if (sender.userRole === UserRole.Talent) {
+      throw new AuthorizationError("You can only reply to an existing conversation");
+    }
     if (!(await canStartConversation(sender, receiver))) {
       throw new AuthorizationError(
         "You can only message a recruiter/talent you have a shortlisted application with"
@@ -220,13 +243,24 @@ export const broadcastMessage = async (
 export const getMessages = async (
   userId: string,
   query: FetchMessagesParams
-): Promise<{ messages: Message[]; unReadCount: number }> => {
+): Promise<{
+  messages: Array<Omit<Message, "sender"> & { sender?: PublicMessageSender }>;
+  unReadCount: number;
+}> => {
   const limit = Number(query.limit) || 50;
   const offset = Number(query.offset) || 0;
   const order = sortDirection(query.sort ?? "desc");
 
+  if (query.application) {
+    await messageRepo().update(
+      { applicationId: query.application, recipientId: userId, isRead: false },
+      { isRead: true }
+    );
+  }
+
   const qb = messageRepo()
     .createQueryBuilder("message")
+    .leftJoinAndSelect("message.sender", "sender")
     .where("(message.sender_id = :userId OR message.recipient_id = :userId)", { userId });
 
   if (query.application) {
@@ -242,13 +276,31 @@ export const getMessages = async (
       .getCount(),
   ]);
 
-  return { messages, unReadCount };
+  return {
+    messages: messages.map((message) => ({
+      ...message,
+      sender: toPublicSender(message.sender),
+    })),
+    unReadCount,
+  };
 };
 
 export interface ChatSessionThread {
   applicationId: string;
   talentId: string;
   talentName: string;
+  lastMessagePreview: string;
+  lastMessageAt: Date;
+  unreadCount: number;
+}
+
+export interface TalentChatSession {
+  applicationId: string;
+  recruiterId: string;
+  recruiterName: string;
+  companyName: string;
+  jobTitle: string;
+  lastMessagePreview: string;
   lastMessageAt: Date;
   unreadCount: number;
 }
@@ -299,6 +351,7 @@ export const getRecruiterChatSessions = async (
         applicationId: application.id,
         talentId: application.talentId,
         talentName: `${application.talent.firstName} ${application.talent.lastName}`.trim(),
+        lastMessagePreview: previewOf(message.content),
         lastMessageAt: message.createdAt,
         unreadCount: 0,
       };
@@ -318,6 +371,47 @@ export const getRecruiterChatSessions = async (
   }
 
   return Array.from(groupsByJobId.values());
+};
+
+export const getTalentChatSessions = async (talentId: string): Promise<TalentChatSession[]> => {
+  const messages = await messageRepo()
+    .createQueryBuilder("message")
+    .innerJoinAndSelect("message.application", "application")
+    .innerJoinAndSelect("application.job", "job")
+    .leftJoinAndSelect("job.organization", "organization")
+    .innerJoinAndSelect("application.recruiter", "recruiter")
+    .where("(message.senderId = :talentId OR message.recipientId = :talentId)", { talentId })
+    .orderBy("message.createdAt", "DESC")
+    .getMany();
+
+  const threadsByApplicationId = new Map<string, TalentChatSession>();
+
+  for (const message of messages) {
+    const application = message.application;
+    if (!application?.job || !application.recruiter) continue;
+
+    let thread = threadsByApplicationId.get(application.id);
+    if (!thread) {
+      thread = {
+        applicationId: application.id,
+        recruiterId: application.recruiterId,
+        recruiterName:
+          `${application.recruiter.firstName} ${application.recruiter.lastName}`.trim(),
+        companyName: application.job.organization?.name ?? "",
+        jobTitle: application.job.jobBrief,
+        lastMessagePreview: previewOf(message.content),
+        lastMessageAt: message.createdAt,
+        unreadCount: 0,
+      };
+      threadsByApplicationId.set(application.id, thread);
+    }
+
+    if (message.recipientId === talentId && !message.isRead) {
+      thread.unreadCount += 1;
+    }
+  }
+
+  return Array.from(threadsByApplicationId.values());
 };
 
 export const getMessage = async (userId: string, messageId: string): Promise<Message> => {

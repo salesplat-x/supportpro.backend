@@ -18,6 +18,12 @@ router.post(
   asyncHandler(notification.create)
 );
 router.get("/", loginRequired, requireVerifiedEmail, asyncHandler(notification.getNotifications));
+router.patch(
+  "/read-all",
+  loginRequired,
+  requireVerifiedEmail,
+  asyncHandler(notification.markAllRead)
+);
 router.get(
   "/:id",
   loginRequired,
