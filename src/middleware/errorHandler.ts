@@ -15,8 +15,7 @@ export function errorHandler(
   _next: NextFunction
 ): void {
   if (err instanceof MulterError) {
-    const message =
-      err.code === "LIMIT_FILE_SIZE" ? "File is too large" : "Invalid file upload";
+    const message = err.code === "LIMIT_FILE_SIZE" ? "File is too large" : "Invalid file upload";
     res.status(400).json({
       success: false,
       error: { code: err.code, message },

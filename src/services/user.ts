@@ -540,8 +540,7 @@ export const reprocessCv = async (recruiterId: string, talentId: string): Promis
 };
 
 export type TalentCvFile =
-  | { type: "redirect"; url: string }
-  | { type: "pdf"; buffer: Buffer; fileName: string };
+  { type: "redirect"; url: string } | { type: "pdf"; buffer: Buffer; fileName: string };
 
 /**
  * Talents uploaded before Spaces storage shipped only have cvText, so this falls

@@ -16,10 +16,25 @@ import {
   CvEmbeddingStatus,
 } from "../src/types/enums.js";
 import { generateHashedPassword, signToken } from "../src/utils/crypto.js";
-import { createTalent, createRecruiter, createRole } from "./helpers/fixtures.js";
+import { createTalent, createRecruiter, createAdmin, createRole } from "./helpers/fixtures.js";
+import { uploadToSpaces, deleteFromSpaces } from "../src/utils/integrations/spaces.js";
+import { extractText } from "../src/utils/text.js";
+
+const mockUploadToSpaces = uploadToSpaces as jest.Mock;
+const mockDeleteFromSpaces = deleteFromSpaces as jest.Mock;
+const mockExtractText = extractText as jest.Mock;
 
 jest.mock("../src/utils/integrations/openai.js", () => ({
   createEmbedding: jest.fn().mockResolvedValue([{ embedding: new Array(512).fill(0.1) }]),
+}));
+
+jest.mock("../src/utils/integrations/spaces.js", () => ({
+  // The URL derives from the key (like the real implementation) so tests can
+  // assert the stored url/key pair actually describe the same uploaded object.
+  uploadToSpaces: jest.fn((_buffer: Buffer, key: string) =>
+    Promise.resolve(`https://salesplat.nyc3.digitaloceanspaces.com/${key}`)
+  ),
+  deleteFromSpaces: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock("../src/utils/text.js", () => {
@@ -230,7 +245,7 @@ describe("PATCH /v1/user/profile", () => {
     expect(res.status).toBe(400);
   });
 
-  it("stores extracted CV text and file name", async () => {
+  it("stores extracted CV text, file name, and the Spaces file URL", async () => {
     const { token, user } = await createTalent();
 
     const res = await request(app)
@@ -243,6 +258,12 @@ describe("PATCH /v1/user/profile", () => {
     expect(res.body.data.user.cvUploadedAt).toBeTruthy();
     expect(res.body.data.user.cvText).toBeUndefined();
 
+    expect(mockUploadToSpaces).toHaveBeenCalledTimes(1);
+    const [, key, mimetype] = mockUploadToSpaces.mock.calls[0] as [Buffer, string, string];
+    expect(key).toMatch(new RegExp(`^cvs/${user.id}/.+\\.pdf$`));
+    expect(mimetype).toBe("application/pdf");
+    expect(res.body.data.user.cvUrl).toBe(`https://salesplat.nyc3.digitaloceanspaces.com/${key}`);
+
     const dbUser = await testDataSource
       .getRepository(User)
       .createQueryBuilder("user")
@@ -252,6 +273,8 @@ describe("PATCH /v1/user/profile", () => {
 
     expect(dbUser?.cvText).toContain("Software engineer");
     expect(dbUser?.cvFileName).toBe("jane-doe-cv.pdf");
+    expect(dbUser?.cvKey).toBe(key);
+    expect(dbUser?.cvUrl).toBe(`https://salesplat.nyc3.digitaloceanspaces.com/${key}`);
 
     await new Promise((resolve) => setTimeout(resolve, 150));
     const afterEmbed = await testDataSource.getRepository(User).findOne({
@@ -260,10 +283,331 @@ describe("PATCH /v1/user/profile", () => {
     });
     expect(afterEmbed?.cvEmbeddingStatus).toBe(CvEmbeddingStatus.Ready);
   });
+
+  it("deletes the previous CV object in Spaces when replacing a CV", async () => {
+    const { token } = await createTalent();
+
+    await request(app)
+      .patch("/v1/user/profile")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("cv", Buffer.from("%PDF-1.4 fake"), "first.pdf");
+
+    const firstKey = mockUploadToSpaces.mock.calls[0]![1] as string;
+
+    const res = await request(app)
+      .patch("/v1/user/profile")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("cv", Buffer.from("%PDF-1.4 fake again"), "second.pdf");
+
+    expect(res.status).toBe(200);
+    expect(mockDeleteFromSpaces).toHaveBeenCalledWith(firstKey);
+  });
+
+  it("rejects an oversized CV with a clean 400, not a 500", async () => {
+    const { token } = await createTalent();
+    const oversized = Buffer.alloc(5 * 1024 * 1024 + 1, "a");
+
+    const res = await request(app)
+      .patch("/v1/user/profile")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("cv", oversized, "huge.pdf");
+
+    expect(res.status).toBe(400);
+    expect(mockUploadToSpaces).not.toHaveBeenCalled();
+  });
+
+  it("accepts a CV just under the 5MB limit", async () => {
+    const { token } = await createTalent();
+    // multer/busboy treats fileSize as a strict upper bound (a file of exactly
+    // that many bytes is rejected), so the accepted boundary is one byte under.
+    const atLimit = Buffer.alloc(5 * 1024 * 1024 - 1, "a");
+
+    const res = await request(app)
+      .patch("/v1/user/profile")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("cv", atLimit, "at-limit.pdf");
+
+    expect(res.status).toBe(200);
+  });
+
+  it("never calls Spaces for a rejected mimetype", async () => {
+    const { token } = await createTalent();
+
+    const res = await request(app)
+      .patch("/v1/user/profile")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("cv", Buffer.from("plain text resume"), {
+        filename: "resume.txt",
+        contentType: "text/plain",
+      });
+
+    expect(res.status).toBe(400);
+    expect(mockUploadToSpaces).not.toHaveBeenCalled();
+  });
+
+  it("never calls Spaces when text extraction fails", async () => {
+    const { token } = await createTalent();
+    mockExtractText.mockRejectedValueOnce(new Error("Corrupt PDF"));
+
+    const res = await request(app)
+      .patch("/v1/user/profile")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("cv", Buffer.from("%PDF-1.4 fake"), "resume.pdf");
+
+    expect(res.status).toBe(400);
+    expect(mockUploadToSpaces).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty CV file without calling Spaces", async () => {
+    const { token } = await createTalent();
+
+    const res = await request(app)
+      .patch("/v1/user/profile")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("cv", Buffer.alloc(0), "empty.pdf");
+
+    expect(res.status).toBe(400);
+    expect(mockUploadToSpaces).not.toHaveBeenCalled();
+  });
+
+  it("leaves the existing CV row untouched when the Spaces upload fails", async () => {
+    const { token, user } = await createTalent({
+      cvFileName: "existing.pdf",
+      cvText: "Pre-existing CV text",
+      cvUploadedAt: new Date("2024-01-01"),
+    });
+    mockUploadToSpaces.mockRejectedValueOnce(new Error("Spaces is down"));
+
+    const res = await request(app)
+      .patch("/v1/user/profile")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("cv", Buffer.from("%PDF-1.4 fake"), "new.pdf");
+
+    expect(res.status).toBeGreaterThanOrEqual(400);
+
+    const dbUser = await testDataSource
+      .getRepository(User)
+      .createQueryBuilder("user")
+      .addSelect("user.cvText")
+      .where("user.id = :id", { id: user.id })
+      .getOne();
+    expect(dbUser?.cvFileName).toBe("existing.pdf");
+    expect(dbUser?.cvText).toBe("Pre-existing CV text");
+    expect(dbUser?.cvUrl).toBeNull();
+  });
+});
+
+describe("PATCH /v1/user/avatar", () => {
+  const jpeg = () => Buffer.from([0xff, 0xd8, 0xff, 0xdb, 0x00, 0x01, 0x02, 0x03]);
+
+  it("uploads an avatar and stores the returned URL", async () => {
+    const { token, user } = await createTalent();
+
+    const res = await request(app)
+      .patch("/v1/user/avatar")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("avatar", jpeg(), { filename: "me.jpg", contentType: "image/jpeg" });
+
+    expect(res.status).toBe(200);
+    expect(mockUploadToSpaces).toHaveBeenCalledTimes(1);
+    const [, key] = mockUploadToSpaces.mock.calls[0] as [Buffer, string, string];
+    expect(key).toMatch(new RegExp(`^avatars/${user.id}/.+\\.jpg$`));
+    expect(res.body.data.user.profileImageUrl).toBe(
+      `https://salesplat.nyc3.digitaloceanspaces.com/${key}`
+    );
+
+    const dbUser = await testDataSource.getRepository(User).findOne({ where: { id: user.id } });
+    expect(dbUser?.profileImageKey).toBe(key);
+    expect(dbUser?.profileImageUrl).toBe(`https://salesplat.nyc3.digitaloceanspaces.com/${key}`);
+  });
+
+  it.each([
+    ["talent", createTalent],
+    ["recruiter", createRecruiter],
+    ["admin", createAdmin],
+  ])("is available to a %s caller", async (_label, createUser) => {
+    const { token } = await createUser();
+
+    const res = await request(app)
+      .patch("/v1/user/avatar")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("avatar", jpeg(), { filename: "me.jpg", contentType: "image/jpeg" });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("rejects requests without an auth token", async () => {
+    const res = await request(app)
+      .patch("/v1/user/avatar")
+      .attach("avatar", jpeg(), { filename: "me.jpg", contentType: "image/jpeg" });
+
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects an unsupported mimetype without calling Spaces", async () => {
+    const { token } = await createTalent();
+
+    const res = await request(app)
+      .patch("/v1/user/avatar")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("avatar", Buffer.from("%PDF-1.4 fake"), {
+        filename: "not-an-image.pdf",
+        contentType: "application/pdf",
+      });
+
+    expect(res.status).toBe(400);
+    expect(mockUploadToSpaces).not.toHaveBeenCalled();
+  });
+
+  it("rejects a request with no file attached", async () => {
+    const { token } = await createTalent();
+
+    const res = await request(app)
+      .patch("/v1/user/avatar")
+      .set("Authorization", `Bearer ${token}`)
+      .field("noop", "1");
+
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects an empty image file without calling Spaces", async () => {
+    const { token } = await createTalent();
+
+    const res = await request(app)
+      .patch("/v1/user/avatar")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("avatar", Buffer.alloc(0), { filename: "empty.jpg", contentType: "image/jpeg" });
+
+    expect(res.status).toBe(400);
+    expect(mockUploadToSpaces).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unexpected multipart field name with a clean 400, not a 500", async () => {
+    const { token } = await createTalent();
+    const jpegBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xdb, 0x00, 0x01, 0x02, 0x03]);
+
+    const res = await request(app)
+      .patch("/v1/user/avatar")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("file", jpegBuffer, { filename: "me.jpg", contentType: "image/jpeg" });
+
+    expect(res.status).toBe(400);
+    expect(mockUploadToSpaces).not.toHaveBeenCalled();
+  });
+
+  it("rejects an oversized image with a clean 400, not a 500", async () => {
+    const { token } = await createTalent();
+    const oversized = Buffer.alloc(2 * 1024 * 1024 + 1, "a");
+
+    const res = await request(app)
+      .patch("/v1/user/avatar")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("avatar", oversized, { filename: "huge.jpg", contentType: "image/jpeg" });
+
+    expect(res.status).toBe(400);
+    expect(mockUploadToSpaces).not.toHaveBeenCalled();
+  });
+
+  it("accepts an image just under the 2MB limit", async () => {
+    const { token } = await createTalent();
+    // multer/busboy treats fileSize as a strict upper bound (a file of exactly
+    // that many bytes is rejected), so the accepted boundary is one byte under.
+    const atLimit = Buffer.alloc(2 * 1024 * 1024 - 1, "a");
+
+    const res = await request(app)
+      .patch("/v1/user/avatar")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("avatar", atLimit, { filename: "at-limit.jpg", contentType: "image/jpeg" });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("deletes the previous avatar object in Spaces when replacing it", async () => {
+    const { token } = await createTalent();
+
+    await request(app)
+      .patch("/v1/user/avatar")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("avatar", jpeg(), { filename: "first.jpg", contentType: "image/jpeg" });
+    const firstKey = mockUploadToSpaces.mock.calls[0]![1] as string;
+
+    const res = await request(app)
+      .patch("/v1/user/avatar")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("avatar", jpeg(), { filename: "second.jpg", contentType: "image/jpeg" });
+
+    expect(res.status).toBe(200);
+    expect(mockDeleteFromSpaces).toHaveBeenCalledWith(firstKey);
+  });
+
+  it("leaves the existing avatar untouched when the Spaces upload fails", async () => {
+    const { token, user } = await createTalent();
+    await request(app)
+      .patch("/v1/user/avatar")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("avatar", jpeg(), { filename: "first.jpg", contentType: "image/jpeg" });
+    const firstKey = mockUploadToSpaces.mock.calls[0]![1] as string;
+
+    mockUploadToSpaces.mockRejectedValueOnce(new Error("Spaces is down"));
+    const res = await request(app)
+      .patch("/v1/user/avatar")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("avatar", jpeg(), { filename: "second.jpg", contentType: "image/jpeg" });
+
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    const dbUser = await testDataSource.getRepository(User).findOne({ where: { id: user.id } });
+    expect(dbUser?.profileImageKey).toBe(firstKey);
+    expect(dbUser?.profileImageUrl).toBe(
+      `https://salesplat.nyc3.digitaloceanspaces.com/${firstKey}`
+    );
+  });
+
+  it("still succeeds when cleaning up the old avatar object fails", async () => {
+    const { token } = await createTalent();
+    await request(app)
+      .patch("/v1/user/avatar")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("avatar", jpeg(), { filename: "first.jpg", contentType: "image/jpeg" });
+
+    mockDeleteFromSpaces.mockRejectedValueOnce(new Error("Object already gone"));
+    const res = await request(app)
+      .patch("/v1/user/avatar")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("avatar", jpeg(), { filename: "second.jpg", contentType: "image/jpeg" });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("leaves a self-consistent url/key pair after two concurrent uploads", async () => {
+    const { token, user } = await createTalent();
+
+    const [res1, res2] = await Promise.all([
+      request(app)
+        .patch("/v1/user/avatar")
+        .set("Authorization", `Bearer ${token}`)
+        .attach("avatar", jpeg(), { filename: "a.jpg", contentType: "image/jpeg" }),
+      request(app)
+        .patch("/v1/user/avatar")
+        .set("Authorization", `Bearer ${token}`)
+        .attach("avatar", jpeg(), { filename: "b.jpg", contentType: "image/jpeg" }),
+    ]);
+
+    expect(res1.status).toBe(200);
+    expect(res2.status).toBe(200);
+
+    const dbUser = await testDataSource.getRepository(User).findOne({ where: { id: user.id } });
+    // Last-write-wins is an accepted limitation here — what matters is that the
+    // stored key and URL still describe one consistent object, not a mismatched pair
+    // from the two interleaved requests.
+    expect(dbUser?.profileImageKey).toMatch(new RegExp(`^avatars/${user.id}/.+\\.jpg$`));
+    expect(dbUser?.profileImageUrl).toBe(
+      `https://salesplat.nyc3.digitaloceanspaces.com/${dbUser?.profileImageKey}`
+    );
+  });
 });
 
 describe("GET /v1/user/profile/:_id/cv", () => {
-  it("returns a regenerated PDF for recruiters", async () => {
+  it("falls back to a regenerated PDF for legacy talents with no stored cvUrl", async () => {
     const { user: talent } = await createTalent({
       firstName: "Ada",
       lastName: "Lovelace",
@@ -288,6 +632,27 @@ describe("GET /v1/user/profile/:_id/cv", () => {
     expect(Buffer.isBuffer(res.body)).toBe(true);
     expect((res.body as Buffer).length).toBeGreaterThan(100);
     expect((res.body as Buffer).subarray(0, 4).toString()).toBe("%PDF");
+  });
+
+  it("redirects recruiters to the stored file when a cvUrl is present", async () => {
+    const { user: talent } = await createTalent({
+      cvFileName: "ada-cv.pdf",
+      cvText: "Ada Lovelace\nPioneer of computing.",
+      cvUrl: "https://salesplat.nyc3.digitaloceanspaces.com/cvs/talent-id/some-uuid.pdf",
+      cvKey: "cvs/talent-id/some-uuid.pdf",
+      cvUploadedAt: new Date(),
+    });
+    const { token: recruiterToken } = await createRecruiter();
+
+    const res = await request(app)
+      .get(`/v1/user/profile/${talent.id}/cv`)
+      .set("Authorization", `Bearer ${recruiterToken}`)
+      .redirects(0);
+
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(
+      "https://salesplat.nyc3.digitaloceanspaces.com/cvs/talent-id/some-uuid.pdf"
+    );
   });
 
   it("rejects talent callers", async () => {
