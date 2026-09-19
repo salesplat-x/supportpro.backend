@@ -70,7 +70,7 @@ export const gradeCv = async (req: Request, res: Response) => {
 };
 
 export const applications = async (req: Request, res: Response) => {
-  const result = await jobService.jobApplications(req.user.id, {
+  const result = await jobService.jobApplications(req.user.id, req.user.userRole, {
     jobId: req.params["jobId"]!,
     ...(req.query as Record<string, string | number>),
   });

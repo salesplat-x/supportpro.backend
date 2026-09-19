@@ -89,7 +89,7 @@ router.patch(
 );
 router.get(
   "/applications/:jobId",
-  validateAccess([UserRole.Recruiter]),
+  validateAccess([UserRole.Recruiter, UserRole.Admin]),
   requireVerifiedEmail,
   validate(jobApplicationsQueryValidator),
   asyncHandler(job.applications)
