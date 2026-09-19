@@ -16,6 +16,7 @@ import {
   createTalent,
   createApplication,
   createAIConfig,
+  createAdmin,
 } from "./helpers/fixtures.js";
 import { AIConfig } from "../src/entities/AIConfig.js";
 import { TalentEmbedding } from "../src/entities/TalentEmbedding.js";
@@ -515,6 +516,22 @@ describe("GET /v1/jobs/applications/:jobId — applicant list includes jobId", (
     const applications = res.body.data.applications;
     expect(applications.length).toBeGreaterThan(0);
     expect(applications.every((a: { jobId: string }) => a.jobId === job.id)).toBe(true);
+  });
+
+  it("lets an Admin view any recruiter's job applications for the Company > Jobs > Candidates drill-down", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const { token: adminToken } = await createAdmin();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { user: talent } = await createTalent();
+    await createApplication(talent, job);
+
+    const res = await request(app)
+      .get(`/v1/jobs/applications/${job.id}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.applications.length).toBeGreaterThan(0);
   });
 
   it("includes the talent's cvUrl so the recruiter can view the CV in a new tab", async () => {

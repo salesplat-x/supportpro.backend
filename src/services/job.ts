@@ -811,6 +811,7 @@ export interface JobApplicationsResult {
 
 export const jobApplications = async (
   userId: string,
+  userRole: UserRole,
   payload: JobApplicationsParams
 ): Promise<JobApplicationsResult> => {
   const { jobId } = payload;
@@ -819,7 +820,7 @@ export const jobApplications = async (
   if (!job) {
     throw new NotFoundError("Job not found");
   }
-  await assertRecruiterJobAccess(userId, UserRole.Recruiter, job);
+  await assertRecruiterJobAccess(userId, userRole, job);
 
   const qb = applicationRepo()
     .createQueryBuilder("application")
