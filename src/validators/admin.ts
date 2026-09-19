@@ -25,10 +25,7 @@ export const adminJobsQueryValidator = [
     .isIn(Object.values(JobStatus))
     .withMessage(`status must be one of: ${Object.values(JobStatus).join(", ")}`),
   query("roleId").optional().isUUID().withMessage("roleId must be a valid UUID"),
-  query("organizationId")
-    .optional()
-    .isUUID()
-    .withMessage("organizationId must be a valid UUID"),
+  query("organizationId").optional().isUUID().withMessage("organizationId must be a valid UUID"),
 ];
 
 export const adminIdParamValidator = [idParam("_id")];

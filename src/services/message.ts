@@ -19,7 +19,10 @@ const userRepo = () => AppDataSource.getRepository(User);
 
 const applicationRepo = () => AppDataSource.getRepository(Application);
 
-const findConversation = async (userIdA: string, userIdB: string): Promise<Conversation | null> => {
+export const findConversation = async (
+  userIdA: string,
+  userIdB: string
+): Promise<Conversation | null> => {
   return conversationRepo()
     .createQueryBuilder("c")
     .innerJoin("c.participants", "p1", "p1.id = :a", { a: userIdA })
@@ -82,6 +85,8 @@ export interface MessageInput {
 
 export interface FetchMessagesParams {
   application?: string;
+  /** The other side of a direct (non-application) conversation, e.g. an admin viewing one talent's thread. */
+  participantId?: string;
   limit?: number | string;
   offset?: number | string;
   sort?: string;
@@ -258,6 +263,19 @@ export const getMessages = async (
     );
   }
 
+  let conversationId: string | null = null;
+  if (query.participantId) {
+    const conversation = await findConversation(userId, query.participantId);
+    if (!conversation) {
+      return { messages: [], unReadCount: 0 };
+    }
+    conversationId = conversation.id;
+    await messageRepo().update(
+      { conversationId, recipientId: userId, isRead: false },
+      { isRead: true }
+    );
+  }
+
   const qb = messageRepo()
     .createQueryBuilder("message")
     .leftJoinAndSelect("message.sender", "sender")
@@ -265,6 +283,9 @@ export const getMessages = async (
 
   if (query.application) {
     qb.andWhere("message.application_id = :application", { application: query.application });
+  }
+  if (conversationId) {
+    qb.andWhere("message.conversation_id = :conversationId", { conversationId });
   }
 
   const [messages, unReadCount] = await Promise.all([

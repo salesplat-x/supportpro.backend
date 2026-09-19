@@ -202,9 +202,9 @@ describe("GET /v1/applications/:_id — single application", () => {
     const role = await createRole();
     const job = await createJob(recruiter, role);
     const app_ = await createApplication(talent, job);
-    await testDataSource
-      .getRepository(User)
-      .update(talent.id, { cvUrl: "https://salesplat.nyc3.digitaloceanspaces.com/cvs/talent-id/some-uuid.pdf" });
+    await testDataSource.getRepository(User).update(talent.id, {
+      cvUrl: "https://salesplat.nyc3.digitaloceanspaces.com/cvs/talent-id/some-uuid.pdf",
+    });
 
     const res = await request(app)
       .get(`/v1/applications/${app_.id}`)

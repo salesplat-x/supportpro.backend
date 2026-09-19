@@ -22,6 +22,7 @@ export const acknowledgeMessageValidator = [
 export const fetchMessagesQueryValidator = [
   query("application").optional().isString(),
   query("conversationId").optional().isString(),
+  query("participantId").optional().isString(),
   ...paginationRules,
 ];
 

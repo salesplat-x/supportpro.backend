@@ -18,6 +18,7 @@ import {
   createJob,
   createApplication,
   createOrganization,
+  createAdmin,
 } from "./helpers/fixtures.js";
 import { Message } from "../src/entities/Message.js";
 import { ApplicationStatus } from "../src/types/enums.js";
@@ -301,5 +302,42 @@ describe("GET /v1/messages/sessions — talent inbox threads", () => {
       lastMessagePreview: "Let's chat",
       unreadCount: 1,
     });
+  });
+});
+
+describe("Admin messaging a talent directly (no job application)", () => {
+  it("lets an admin start a conversation with a talent and read it back by participantId", async () => {
+    const { user: admin, token: adminToken } = await createAdmin();
+    const { user: talent, token: talentToken } = await createTalent();
+
+    const sendRes = await request(app)
+      .post("/v1/messages/")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ content: "Welcome to the platform", recipient: talent.id });
+    expect(sendRes.status).toBe(201);
+
+    const adminView = await request(app)
+      .get(`/v1/messages?participantId=${talent.id}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(adminView.status).toBe(200);
+    expect(adminView.body.data.messages).toHaveLength(1);
+    expect(adminView.body.data.messages[0].content).toBe("Welcome to the platform");
+
+    const talentView = await request(app)
+      .get(`/v1/messages?participantId=${admin.id}`)
+      .set("Authorization", `Bearer ${talentToken}`);
+    expect(talentView.status).toBe(200);
+    expect(talentView.body.data.messages).toHaveLength(1);
+  });
+
+  it("returns an empty thread when no conversation exists yet for that participant", async () => {
+    const { token: adminToken } = await createAdmin();
+    const { user: talent } = await createTalent();
+
+    const res = await request(app)
+      .get(`/v1/messages?participantId=${talent.id}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data.messages).toHaveLength(0);
   });
 });

@@ -539,9 +539,9 @@ describe("GET /v1/jobs/applications/:jobId — applicant list includes jobId", (
     const role = await createRole();
     const job = await createJob(recruiter, role);
     const { user: talent } = await createTalent();
-    await testDataSource
-      .getRepository(User)
-      .update(talent.id, { cvUrl: "https://salesplat.nyc3.digitaloceanspaces.com/cvs/talent-id/some-uuid.pdf" });
+    await testDataSource.getRepository(User).update(talent.id, {
+      cvUrl: "https://salesplat.nyc3.digitaloceanspaces.com/cvs/talent-id/some-uuid.pdf",
+    });
     await createApplication(talent, job);
 
     const res = await request(app)
