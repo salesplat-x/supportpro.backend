@@ -230,6 +230,23 @@ describe("Admin talents & jobs", () => {
     expect(await testDataSource.getRepository(Answer).count({ where: { jobId: job.id } })).toBe(0);
   });
 
+  it("filters jobs by organizationId for the admin Company > Jobs drill-down", async () => {
+    const { token: adminToken } = await createAdmin();
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole("backend-engineer");
+    const org = await createOrganization(recruiter);
+    const jobInOrg = await createJob(recruiter, role, { organizationId: org.id });
+    await createJob(recruiter, role);
+
+    const res = await request(app)
+      .get(`/v1/admin/jobs?organizationId=${org.id}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.total).toBe(1);
+    expect(res.body.data.jobs[0].id).toBe(jobInOrg.id);
+  });
+
   it("lists recruiters for admin and rejects talents", async () => {
     const { token: adminToken } = await createAdmin();
     const { token: talentToken } = await createTalent();

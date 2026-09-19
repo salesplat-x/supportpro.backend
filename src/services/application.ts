@@ -39,6 +39,7 @@ export interface FetchApplicationsParams {
 
 export const getApplication = async (
   userId: string,
+  userRole: UserRole,
   applicationId: string
 ): Promise<{ application: Application; count: number }> => {
   const application = await loadApplicationWithMatch(applicationId, {
@@ -54,7 +55,7 @@ export const getApplication = async (
   if (application.talentId !== userId) {
     await assertCompanyResourceAccess(
       userId,
-      UserRole.Recruiter,
+      userRole,
       application.job.organizationId,
       application.job.postedById
     );

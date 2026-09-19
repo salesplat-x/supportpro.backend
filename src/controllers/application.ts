@@ -12,7 +12,11 @@ export const getApplications = async (req: Request, res: Response) => {
 };
 
 export const getApplication = async (req: Request, res: Response) => {
-  const result = await applicationService.getApplication(req.user.id, req.params["_id"]!);
+  const result = await applicationService.getApplication(
+    req.user.id,
+    req.user.userRole,
+    req.params["_id"]!
+  );
   sendSuccessResponse(res, "Application fetched", result);
 };
 
