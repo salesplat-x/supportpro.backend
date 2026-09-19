@@ -898,7 +898,10 @@ export const retryMissingVerdicts = async (
   await assertRecruiterJobAccess(userId, UserRole.Recruiter, job);
 
   const applications = await applicationRepo().find({
-    where: { jobId, currentStage: ScreeningStage.Completed, matchVerdict: IsNull() },
+    where: [
+      { jobId, currentStage: ScreeningStage.Completed, matchVerdict: IsNull() },
+      { jobId, currentStage: ScreeningStage.Completed, matchVerdictStatus: MatchVerdictStatus.Failed },
+    ],
     relations: { talent: true },
   });
 
