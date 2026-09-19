@@ -28,14 +28,28 @@ jest.mock("../src/utils/integrations/openai.js", () => ({
   createEmbedding: jest.fn().mockResolvedValue([{ embedding: new Array(512).fill(0.1) }]),
 }));
 
-jest.mock("../src/utils/integrations/spaces.js", () => ({
-  // The URL derives from the key (like the real implementation) so tests can
-  // assert the stored url/key pair actually describe the same uploaded object.
-  uploadToSpaces: jest.fn((_buffer: Buffer, key: string) =>
-    Promise.resolve(`https://salesplat.nyc3.digitaloceanspaces.com/${key}`)
-  ),
-  deleteFromSpaces: jest.fn().mockResolvedValue(undefined),
-}));
+jest.mock("../src/utils/integrations/spaces.js", () => {
+  // spacesKeyFor/ALLOWED_IMAGE_TYPES are pure (no network) — keep the real ones.
+  // uploadToSpaces/deleteFromSpaces must not hit real Spaces, so those are mocked;
+  // deleteSpacesObjectQuietly is reimplemented to delegate to the mocked
+  // deleteFromSpaces below (the actual one closes over its own module's real
+  // deleteFromSpaces, not this mock, so requireActual can't be used for it).
+  const actual = jest.requireActual("../src/utils/integrations/spaces.js");
+  const deleteFromSpaces = jest.fn().mockResolvedValue(undefined);
+  return {
+    ...actual,
+    // The URL derives from the key (like the real implementation) so tests can
+    // assert the stored url/key pair actually describe the same uploaded object.
+    uploadToSpaces: jest.fn((_buffer: Buffer, key: string) =>
+      Promise.resolve(`https://salesplat.nyc3.digitaloceanspaces.com/${key}`)
+    ),
+    deleteFromSpaces,
+    deleteSpacesObjectQuietly: jest.fn(async (key: string | null) => {
+      if (!key) return;
+      await deleteFromSpaces(key).catch(() => undefined);
+    }),
+  };
+});
 
 jest.mock("../src/utils/text.js", () => {
   const actual = jest.requireActual("../src/utils/text.js");
@@ -603,6 +617,65 @@ describe("PATCH /v1/user/avatar", () => {
     expect(dbUser?.profileImageUrl).toBe(
       `https://salesplat.nyc3.digitaloceanspaces.com/${dbUser?.profileImageKey}`
     );
+  });
+});
+
+describe("DELETE /v1/user/avatar", () => {
+  const jpeg = () => Buffer.from([0xff, 0xd8, 0xff, 0xdb, 0x00, 0x01, 0x02, 0x03]);
+
+  it("removes an existing avatar and deletes it from Spaces", async () => {
+    const { token, user } = await createTalent();
+    await request(app)
+      .patch("/v1/user/avatar")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("avatar", jpeg(), { filename: "me.jpg", contentType: "image/jpeg" });
+    const key = mockUploadToSpaces.mock.calls[0]![1] as string;
+
+    const res = await request(app)
+      .delete("/v1/user/avatar")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.user.profileImageUrl).toBeNull();
+    expect(mockDeleteFromSpaces).toHaveBeenCalledWith(key);
+
+    const dbUser = await testDataSource.getRepository(User).findOne({ where: { id: user.id } });
+    expect(dbUser?.profileImageUrl).toBeNull();
+    expect(dbUser?.profileImageKey).toBeNull();
+  });
+
+  it("is a no-op 200 when there is no avatar to remove", async () => {
+    const { token } = await createTalent();
+
+    const res = await request(app)
+      .delete("/v1/user/avatar")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(mockDeleteFromSpaces).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["talent", createTalent],
+    ["recruiter", createRecruiter],
+  ])("works for a %s caller — the endpoint is role-agnostic", async (_label, createUser) => {
+    const { token } = await createUser();
+    await request(app)
+      .patch("/v1/user/avatar")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("avatar", jpeg(), { filename: "me.jpg", contentType: "image/jpeg" });
+
+    const res = await request(app)
+      .delete("/v1/user/avatar")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.user.profileImageUrl).toBeNull();
+  });
+
+  it("rejects requests without an auth token", async () => {
+    const res = await request(app).delete("/v1/user/avatar");
+    expect(res.status).toBe(401);
   });
 });
 

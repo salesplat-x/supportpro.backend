@@ -69,11 +69,7 @@ export const deleteOrganization = async (req: Request, res: Response) => {
 };
 
 export const updateLogo = async (req: Request, res: Response) => {
-  const result = await organizationService.updateLogo(
-    req.user.id,
-    req.params["_id"]!,
-    req.file
-  );
+  const result = await organizationService.updateLogo(req.user.id, req.params["_id"]!, req.file);
   sendSuccessResponse(res, "Company logo updated", { organization: result });
 };
 
