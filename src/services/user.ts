@@ -1,5 +1,3 @@
-import { randomUUID } from "crypto";
-import path from "path";
 import { In } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { Application, Role, TalentEmbedding, User } from "../entities";
@@ -9,7 +7,12 @@ import { UserRole, ApplicationStatus, ApplicationType, CvEmbeddingStatus } from 
 import { generateCvPdf } from "../utils/cvPdf.js";
 import { extractText, overlapChunkText, preprocessText, sortDirection } from "../utils/text.js";
 import { createEmbedding } from "../utils/integrations/openai.js";
-import { uploadToSpaces, deleteFromSpaces } from "../utils/integrations/spaces.js";
+import {
+  uploadToSpaces,
+  deleteSpacesObjectQuietly,
+  spacesKeyFor,
+  ALLOWED_IMAGE_TYPES,
+} from "../utils/integrations/spaces.js";
 import {
   MAX_DURABLE_ATTEMPTS,
   STALE_LOCK_INTERVAL,
@@ -25,23 +28,6 @@ const ALLOWED_CV_TYPES = [
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
-
-const ALLOWED_AVATAR_TYPES = ["image/jpeg", "image/png", "image/webp"];
-
-const spacesKeyFor = (prefix: "avatars" | "cvs", userId: string, originalname: string): string => {
-  const extension = path.extname(originalname) || ".bin";
-  return `${prefix}/${userId}/${randomUUID()}${extension}`;
-};
-
-/** Best-effort cleanup of a replaced file — never fails the request that already succeeded. */
-const deleteSpacesObjectQuietly = async (key: string | null, userId: string): Promise<void> => {
-  if (!key) return;
-  await deleteFromSpaces(key).catch((err: unknown) => {
-    logger.error(`Failed to delete old Spaces object for user ${userId}: ${key}`, {
-      message: err instanceof Error ? err.message : String(err),
-    });
-  });
-};
 
 /** Talent has an uploaded CV when extraction was persisted. */
 export const hasUploadedCv = (
@@ -310,7 +296,7 @@ export const updateAvatar = async (userId: string, file?: Express.Multer.File): 
   if (!file) {
     throw new ValidationError("No image file was provided");
   }
-  if (!ALLOWED_AVATAR_TYPES.includes(file.mimetype)) {
+  if (!ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
     throw new ValidationError("Unsupported image file type");
   }
   if (file.size === 0) {
@@ -332,6 +318,28 @@ export const updateAvatar = async (userId: string, file?: Express.Multer.File): 
     ...existingUser,
     profileImageUrl,
     profileImageKey: key,
+  });
+
+  await deleteSpacesObjectQuietly(previousKey, userId);
+
+  return saved;
+};
+
+export const removeAvatar = async (userId: string): Promise<User> => {
+  const existingUser = await userRepo().findOne({ where: { id: userId } });
+  if (!existingUser) {
+    throw new NotFoundError("Authenticated user no longer exists");
+  }
+
+  if (!existingUser.profileImageKey) {
+    return existingUser;
+  }
+
+  const previousKey = existingUser.profileImageKey;
+  const saved = await userRepo().save({
+    ...existingUser,
+    profileImageUrl: null,
+    profileImageKey: null,
   });
 
   await deleteSpacesObjectQuietly(previousKey, userId);
