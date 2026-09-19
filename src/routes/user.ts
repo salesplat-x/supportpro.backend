@@ -41,6 +41,7 @@ router.patch(
   avatarUpload.single("avatar"),
   asyncHandler(user.updateAvatar)
 );
+router.delete("/avatar", loginRequired, requireVerifiedEmail, asyncHandler(user.removeAvatar));
 router.get("/me", loginRequired, asyncHandler(user.me));
 router.get(
   "/profile/",

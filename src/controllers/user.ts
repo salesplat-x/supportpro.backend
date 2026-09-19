@@ -22,6 +22,11 @@ export const updateAvatar = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Profile picture updated", { user: withoutCvText(result) });
 };
 
+export const removeAvatar = async (req: Request, res: Response) => {
+  const result = await userService.removeAvatar(req.user.id);
+  sendSuccessResponse(res, "Profile picture removed", { user: withoutCvText(result) });
+};
+
 export const me = async (req: Request, res: Response) => {
   const result = await userService.me(req.user.id);
   const profileCompletion = userService.getProfileCompletion(result);
