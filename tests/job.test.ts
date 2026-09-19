@@ -1,4 +1,5 @@
 import request from "supertest";
+import { In } from "typeorm";
 import { createApp } from "../src/app.js";
 import {
   startTestDatabase,
@@ -21,7 +22,13 @@ import { TalentEmbedding } from "../src/entities/TalentEmbedding.js";
 import { Job } from "../src/entities/Job.js";
 import { Organization } from "../src/entities/Organization.js";
 import { AiRecommendation } from "../src/entities/AiRecommendation.js";
-import { MatchVerdict, MatchRecommendation } from "../src/types/enums.js";
+import { Application } from "../src/entities/Application.js";
+import {
+  MatchVerdict,
+  MatchRecommendation,
+  MatchVerdictStatus,
+  ScreeningStage,
+} from "../src/types/enums.js";
 
 jest.mock("../src/utils/integrations/openai.js", () => ({
   createEmbedding: jest.fn().mockResolvedValue([{ embedding: new Array(512).fill(0.1) }]),
@@ -43,6 +50,19 @@ jest.mock("../src/utils/integrations/openai.js", () => ({
       content: JSON.stringify({
         strengths: ["Five years of relevant backend experience per the CV."],
         weaknesses: ["No mention of the specific cloud provider used here."],
+      }),
+    },
+  }),
+  assessApplicationMatch: jest.fn().mockResolvedValue({
+    message: {
+      content: JSON.stringify({
+        verdict: "high",
+        recommendation: "hire",
+        reasoning: "Strong fit based on retried evidence.",
+        strengths: ["Relevant CV experience"],
+        weaknesses: [],
+        risks: [],
+        overallFitScore: 80,
       }),
     },
   }),
@@ -497,6 +517,27 @@ describe("GET /v1/jobs/applications/:jobId — applicant list includes jobId", (
     expect(applications.every((a: { jobId: string }) => a.jobId === job.id)).toBe(true);
   });
 
+  it("includes the talent's cvUrl so the recruiter can view the CV in a new tab", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { user: talent } = await createTalent();
+    await testDataSource
+      .getRepository(User)
+      .update(talent.id, { cvUrl: "https://salesplat.nyc3.digitaloceanspaces.com/cvs/talent-id/some-uuid.pdf" });
+    await createApplication(talent, job);
+
+    const res = await request(app)
+      .get(`/v1/jobs/applications/${job.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const application = res.body.data.applications[0];
+    expect(application.talent.cvUrl).toBe(
+      "https://salesplat.nyc3.digitaloceanspaces.com/cvs/talent-id/some-uuid.pdf"
+    );
+  });
+
   it("shows the ai_recommendations verdict even when Application.matchVerdict drifted out of sync", async () => {
     const { user: recruiter, token } = await createRecruiter();
     const role = await createRole();
@@ -527,6 +568,48 @@ describe("GET /v1/jobs/applications/:jobId — applicant list includes jobId", (
     );
     expect(returned.matchVerdict).toBe(MatchVerdict.High);
     expect(returned.matchVerdictReasoning).toBe("Strong fit despite the drifted column.");
+  });
+});
+
+describe("POST /v1/jobs/:jobId/retry-verdicts", () => {
+  it("retries both never-processed (null) and explicitly failed verdicts, not just missing ones", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+
+    const { user: neverProcessedTalent } = await createTalent();
+    const neverProcessed = await createApplication(neverProcessedTalent, job, {
+      currentStage: ScreeningStage.Completed,
+      matchVerdict: null,
+      matchVerdictStatus: MatchVerdictStatus.Pending,
+    });
+
+    const { user: failedTalent } = await createTalent();
+    const failed = await createApplication(failedTalent, job, {
+      currentStage: ScreeningStage.Completed,
+      matchVerdict: null,
+      matchVerdictStatus: MatchVerdictStatus.Failed,
+      matchVerdictAttempts: 5,
+    });
+
+    const { user: succeededTalent } = await createTalent();
+    await createApplication(succeededTalent, job, {
+      currentStage: ScreeningStage.Completed,
+      matchVerdict: MatchVerdict.High,
+      matchVerdictStatus: MatchVerdictStatus.Succeeded,
+    });
+
+    const res = await request(app)
+      .post(`/v1/jobs/${job.id}/retry-verdicts`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.attempted).toBe(2);
+
+    const refetched = await testDataSource
+      .getRepository(Application)
+      .find({ where: { id: In([neverProcessed.id, failed.id]) } });
+    expect(refetched.every((a) => a.matchVerdict === MatchVerdict.High)).toBe(true);
   });
 });
 
