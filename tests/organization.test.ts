@@ -20,6 +20,28 @@ import {
   createRole,
   createJob,
 } from "./helpers/fixtures.js";
+import { uploadToSpaces, deleteFromSpaces } from "../src/utils/integrations/spaces.js";
+
+const mockUploadToSpaces = uploadToSpaces as jest.Mock;
+const mockDeleteFromSpaces = deleteFromSpaces as jest.Mock;
+
+jest.mock("../src/utils/integrations/spaces.js", () => {
+  // See tests/user.test.ts for why deleteSpacesObjectQuietly is reimplemented
+  // here rather than pulled from requireActual.
+  const actual = jest.requireActual("../src/utils/integrations/spaces.js");
+  const deleteFromSpaces = jest.fn().mockResolvedValue(undefined);
+  return {
+    ...actual,
+    uploadToSpaces: jest.fn((_buffer: Buffer, key: string) =>
+      Promise.resolve(`https://salesplat.nyc3.digitaloceanspaces.com/${key}`)
+    ),
+    deleteFromSpaces,
+    deleteSpacesObjectQuietly: jest.fn(async (key: string | null) => {
+      if (!key) return;
+      await deleteFromSpaces(key).catch(() => undefined);
+    }),
+  };
+});
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => {
   const sendCompanyInvite = jest.fn().mockResolvedValue(undefined);
@@ -349,13 +371,11 @@ describe("PATCH /v1/organizations/:id — update organization", () => {
       .send({
         name: "New Name",
         industry: "Fintech",
-        logoUrl: "https://cdn.example.com/logo.png",
       });
 
     expect(res.status).toBe(200);
     expect(res.body.data.organization.name).toBe("New Name");
     expect(res.body.data.organization.industry).toBe("Fintech");
-    expect(res.body.data.organization.logoUrl).toBe("https://cdn.example.com/logo.png");
   });
 
   it("Email and website are ignored even when sent → unchanged", async () => {
@@ -380,16 +400,20 @@ describe("PATCH /v1/organizations/:id — update organization", () => {
     expect(res.body.data.organization.website).toBe("https://locked.example.com");
   });
 
-  it("Rejects an invalid logo URL → 400", async () => {
+  it("logoUrl sent in the body is ignored — only the upload endpoint can set it", async () => {
     const { user: recruiter, token } = await createRecruiter();
-    const org = await createOrganization(recruiter);
+    const org = await createOrganization(recruiter, {
+      logoUrl: "https://original.example.com/logo.png",
+    });
 
     const res = await request(app)
       .patch(`/v1/organizations/${org.id}`)
       .set("Authorization", `Bearer ${token}`)
-      .send({ logoUrl: "not-a-url" });
+      .send({ name: "Renamed", logoUrl: "https://attacker.example.com/logo.png" });
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
+    expect(res.body.data.organization.name).toBe("Renamed");
+    expect(res.body.data.organization.logoUrl).toBe("https://original.example.com/logo.png");
   });
 
   it("Non-owner recruiter cannot update → 403", async () => {
@@ -447,6 +471,172 @@ describe("DELETE /v1/organizations/:id — delete organization", () => {
       .delete(`/v1/organizations/${org.id}`)
       .set("Authorization", `Bearer ${otherToken}`);
     expect(res.status).toBe(403);
+  });
+
+  it("Deletes the logo from Spaces when the organization is deleted", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter, {
+      logoUrl: "https://salesplat.nyc3.digitaloceanspaces.com/logos/org-1/existing.png",
+      logoKey: "logos/org-1/existing.png",
+    });
+
+    const res = await request(app)
+      .delete(`/v1/organizations/${org.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(mockDeleteFromSpaces).toHaveBeenCalledWith("logos/org-1/existing.png");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PATCH/DELETE /v1/organizations/:id/logo — company logo upload/remove
+// ---------------------------------------------------------------------------
+
+describe("PATCH /v1/organizations/:id/logo", () => {
+  const jpeg = () => Buffer.from([0xff, 0xd8, 0xff, 0xdb, 0x00, 0x01, 0x02, 0x03]);
+
+  it("uploads a logo and stores the returned URL", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+
+    const res = await request(app)
+      .patch(`/v1/organizations/${org.id}/logo`)
+      .set("Authorization", `Bearer ${token}`)
+      .attach("logo", jpeg(), { filename: "logo.jpg", contentType: "image/jpeg" });
+
+    expect(res.status).toBe(200);
+    expect(mockUploadToSpaces).toHaveBeenCalledTimes(1);
+    const [, key] = mockUploadToSpaces.mock.calls[0] as [Buffer, string, string];
+    expect(key).toMatch(new RegExp(`^logos/${org.id}/.+\\.jpg$`));
+    expect(res.body.data.organization.logoUrl).toBe(
+      `https://salesplat.nyc3.digitaloceanspaces.com/${key}`
+    );
+  });
+
+  it("deletes the previous logo object in Spaces when replacing it", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+    await request(app)
+      .patch(`/v1/organizations/${org.id}/logo`)
+      .set("Authorization", `Bearer ${token}`)
+      .attach("logo", jpeg(), { filename: "first.jpg", contentType: "image/jpeg" });
+    const firstKey = mockUploadToSpaces.mock.calls[0]![1] as string;
+
+    const res = await request(app)
+      .patch(`/v1/organizations/${org.id}/logo`)
+      .set("Authorization", `Bearer ${token}`)
+      .attach("logo", jpeg(), { filename: "second.jpg", contentType: "image/jpeg" });
+
+    expect(res.status).toBe(200);
+    expect(mockDeleteFromSpaces).toHaveBeenCalledWith(firstKey);
+  });
+
+  it("rejects a non-owner recruiter with 403 and never calls Spaces", async () => {
+    const { user: owner } = await createRecruiter();
+    const { token: otherToken } = await createRecruiter();
+    const org = await createOrganization(owner);
+
+    const res = await request(app)
+      .patch(`/v1/organizations/${org.id}/logo`)
+      .set("Authorization", `Bearer ${otherToken}`)
+      .attach("logo", jpeg(), { filename: "logo.jpg", contentType: "image/jpeg" });
+
+    expect(res.status).toBe(403);
+    expect(mockUploadToSpaces).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unsupported mimetype without calling Spaces", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+
+    const res = await request(app)
+      .patch(`/v1/organizations/${org.id}/logo`)
+      .set("Authorization", `Bearer ${token}`)
+      .attach("logo", Buffer.from("%PDF-1.4 fake"), {
+        filename: "not-an-image.pdf",
+        contentType: "application/pdf",
+      });
+
+    expect(res.status).toBe(400);
+    expect(mockUploadToSpaces).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty image file without calling Spaces", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+
+    const res = await request(app)
+      .patch(`/v1/organizations/${org.id}/logo`)
+      .set("Authorization", `Bearer ${token}`)
+      .attach("logo", Buffer.alloc(0), { filename: "empty.jpg", contentType: "image/jpeg" });
+
+    expect(res.status).toBe(400);
+    expect(mockUploadToSpaces).not.toHaveBeenCalled();
+  });
+
+  it("rejects an oversized image with a clean 400, not a 500", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+    const oversized = Buffer.alloc(2 * 1024 * 1024 + 1, "a");
+
+    const res = await request(app)
+      .patch(`/v1/organizations/${org.id}/logo`)
+      .set("Authorization", `Bearer ${token}`)
+      .attach("logo", oversized, { filename: "huge.jpg", contentType: "image/jpeg" });
+
+    expect(res.status).toBe(400);
+    expect(mockUploadToSpaces).not.toHaveBeenCalled();
+  });
+});
+
+describe("DELETE /v1/organizations/:id/logo", () => {
+  const jpeg = () => Buffer.from([0xff, 0xd8, 0xff, 0xdb, 0x00, 0x01, 0x02, 0x03]);
+
+  it("removes an existing logo and deletes it from Spaces", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+    await request(app)
+      .patch(`/v1/organizations/${org.id}/logo`)
+      .set("Authorization", `Bearer ${token}`)
+      .attach("logo", jpeg(), { filename: "logo.jpg", contentType: "image/jpeg" });
+    const key = mockUploadToSpaces.mock.calls[0]![1] as string;
+
+    const res = await request(app)
+      .delete(`/v1/organizations/${org.id}/logo`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.organization.logoUrl).toBeNull();
+    expect(mockDeleteFromSpaces).toHaveBeenCalledWith(key);
+  });
+
+  it("is a no-op 200 when there is no logo to remove", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+
+    const res = await request(app)
+      .delete(`/v1/organizations/${org.id}/logo`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(mockDeleteFromSpaces).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-owner recruiter with 403", async () => {
+    const { user: owner } = await createRecruiter();
+    const { token: otherToken } = await createRecruiter();
+    const org = await createOrganization(owner, {
+      logoUrl: "https://salesplat.nyc3.digitaloceanspaces.com/logos/org-1/existing.png",
+      logoKey: "logos/org-1/existing.png",
+    });
+
+    const res = await request(app)
+      .delete(`/v1/organizations/${org.id}/logo`)
+      .set("Authorization", `Bearer ${otherToken}`);
+
+    expect(res.status).toBe(403);
+    expect(mockDeleteFromSpaces).not.toHaveBeenCalled();
   });
 });
 
