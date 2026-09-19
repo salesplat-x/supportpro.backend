@@ -3,7 +3,7 @@ import * as user from "../controllers/user.js";
 import { validate } from "../middleware/validate.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { loginRequired, requireVerifiedEmail, validateAccess } from "../middleware/auth.js";
-import { memoryUpload } from "../middleware/multer.js";
+import { cvUpload, avatarUpload } from "../middleware/multer.js";
 import { UserRole } from "../types/enums.js";
 import {
   updateUserValidator,
@@ -28,9 +28,18 @@ router.patch(
   "/profile",
   validateAccess([UserRole.Talent]),
   requireVerifiedEmail,
-  memoryUpload.single("cv"),
+  cvUpload.single("cv"),
   validate(updateProfileValidator),
   asyncHandler(user.editProfile)
+);
+// Every role can have an avatar, unlike the talent-only CV flow above, so this stays a
+// separate route rather than being folded into /profile.
+router.patch(
+  "/avatar",
+  loginRequired,
+  requireVerifiedEmail,
+  avatarUpload.single("avatar"),
+  asyncHandler(user.updateAvatar)
 );
 router.get("/me", loginRequired, asyncHandler(user.me));
 router.get(
