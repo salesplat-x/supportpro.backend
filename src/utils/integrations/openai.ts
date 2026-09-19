@@ -360,6 +360,8 @@ export const assessTalentFit = async (
 
   You will receive a job description and a candidate's CV text. Provide a brief, evidence-based assessment of this candidate's fit for the role, citing specific details from the CV.
 
+  Every strength and weakness must name a concrete source (an employer, project, skill, or dated experience from the CV) — never generic praise like "strong communicator" or "good potential" without a fact behind it. If the CV lacks evidence for something the role needs, list that gap explicitly as a weakness rather than omitting it.
+
   Output JSON:
   {
     "strengths": ["<specific strength, citing evidence from the CV>", "..."],
@@ -408,9 +410,11 @@ Your job is to explain clearly why this candidate is a good or poor fit, using o
 
 Writing standard:
 - Every claim must name a concrete source: a CV employer/project/skill, a quoted screening answer, a numeric score, or a stated profile field.
+- reasoning, whyFit, whyHire, and hiringRationale must each open with a one-sentence verdict (e.g. "Strong fit for this role." / "Not a fit for this role.") before the supporting evidence — a recruiter reading only the first sentence should already know the call.
+- Keep each of reasoning, whyFit, whyHire, and hiringRationale to 2-4 sentences total, including the opening verdict sentence. Concise and specific beats long and padded.
 - whyFit, whyHire, reasoning, and hiringRationale must read like a briefing, not a template. Name tools, companies, projects, and answer details that actually appear in the input.
-- Good example: "This candidate is a strong fit because they have five years of Kubernetes operations at Seed Co, described rolling back a failed deploy by isolating the canary, and their CV lists production on-call ownership that matches this role's reliability goal."
-- Bad example: "This candidate is a good communicator with relevant experience and would be a culture fit." — never write like this.
+- Good example: "Strong fit for this role. They have five years of Kubernetes operations at Seed Co, described rolling back a failed deploy by isolating the canary, and their CV lists production on-call ownership that matches this role's reliability goal."
+- Bad example: "This candidate is a good communicator with relevant experience and would be a culture fit." — never write like this: no verdict, no evidence, generic praise.
 - If evidence is thin, say exactly what is missing. Never invent employers, skills, dates, metrics, answers, or achievements.
 - Never use protected characteristics (race, gender, age, religion, disability, marital status, pregnancy, nationality as a proxy for identity) even if they appear in the CV.
 - Do not assume soft skills, seniority, or culture fit that are not evidenced.
@@ -434,13 +438,13 @@ Output JSON:
 {
   "verdict": "high" | "medium" | "low",
   "recommendation": "hire" | "interview_further" | "no_hire",
-  "reasoning": "<3-6 sentences explaining the verdict from available evidence only, naming specific CV facts and answer details>",
+  "reasoning": "<2-4 sentences, opening with the verdict, then the evidence behind it — naming specific CV facts and answer details>",
   "strengths": ["<specific strength with cited evidence>", "..."],
   "weaknesses": ["<specific weakness or gap with cited evidence>", "..."],
   "risks": ["<specific hiring risk with cited evidence>", "..."],
   "overallFitScore": 0,
-  "whyFit": "<one detailed paragraph: good or poor fit because of X experience, Y demonstrated skill, and Z company/project — all from the input>",
-  "whyHire": "<one detailed paragraph on whether to hire/interview/reject, grounded in the same evidence>",
+  "whyFit": "<2-4 sentences opening with the verdict, then good or poor fit because of X experience, Y demonstrated skill, and Z company/project — all from the input>",
+  "whyHire": "<2-4 sentences opening with the verdict, then whether to hire/interview/reject, grounded in the same evidence>",
   "strongestQualifications": ["<qualification tied to a CV or answer fact>"],
   "relevantExperience": ["<employer, project, or achievement from the CV and why it matters for this role>"],
   "prescreeningInsights": { "strengths": ["..."], "weaknesses": ["..."] },
@@ -456,7 +460,7 @@ Output JSON:
   "missingRequirements": ["..."],
   "conflictingRequirements": ["..."],
   "keyEvidence": ["quoted evidence from the CV or answers"],
-  "hiringRationale": "<one paragraph for the board pack, still specific and evidence-based>"
+  "hiringRationale": "<2-4 sentences for the board pack, opening with the verdict, still specific and evidence-based>"
 }
 
 overallFitScore must be an integer 0–100. Provide at least one strength when any positive evidence exists. Provide at least one weakness or risk unless the match is outstanding on all available evidence.`;
