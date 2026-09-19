@@ -22,6 +22,7 @@ import {
   createQuestion,
 } from "./helpers/fixtures.js";
 import { Application } from "../src/entities/Application.js";
+import { User } from "../src/entities/User.js";
 import { Job } from "../src/entities/Job.js";
 import { Notification } from "../src/entities/Notification.js";
 import { AiRecommendation } from "../src/entities/AiRecommendation.js";
@@ -178,6 +179,25 @@ describe("GET /v1/applications/:_id — single application", () => {
       .get(`/v1/applications/${app_.id}`)
       .set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(200);
+  });
+
+  it("includes the talent's cvUrl so the recruiter can view the CV in a new tab", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const app_ = await createApplication(talent, job);
+    await testDataSource
+      .getRepository(User)
+      .update(talent.id, { cvUrl: "https://salesplat.nyc3.digitaloceanspaces.com/cvs/talent-id/some-uuid.pdf" });
+
+    const res = await request(app)
+      .get(`/v1/applications/${app_.id}`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data.application.talent.cvUrl).toBe(
+      "https://salesplat.nyc3.digitaloceanspaces.com/cvs/talent-id/some-uuid.pdf"
+    );
   });
 
   it("Another talent cannot fetch a different talent's application → 403", async () => {
