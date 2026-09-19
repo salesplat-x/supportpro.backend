@@ -4,7 +4,7 @@ import * as scoutJob from "../controllers/scoutJob.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { validateAccess, requireVerifiedEmail } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
-import { memoryUpload } from "../middleware/multer.js";
+import { cvUpload } from "../middleware/multer.js";
 import { UserRole } from "../types/enums.js";
 import {
   searchTalentsValidator,
@@ -95,7 +95,7 @@ router.post(
   "/cv-batch",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
   requireVerifiedEmail,
-  memoryUpload.fields([
+  cvUpload.fields([
     { name: "cv", maxCount: MAX_BATCH_SIZE },
     { name: "coverLetter", maxCount: MAX_BATCH_SIZE },
   ]),
