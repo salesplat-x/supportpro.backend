@@ -53,6 +53,7 @@
   "author": "ojokukufolahanmi@gmail.com",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1135.0",
     "@babel/parser": "^7.28.5",
     "@babel/traverse": "^7.28.5",
     "@babel/types": "^7.28.5",

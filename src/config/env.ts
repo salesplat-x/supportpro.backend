@@ -19,6 +19,11 @@ const optionalEnvVars = {
   resend_api_key: process.env.RESEND_API_KEY,
   resend_sender_email: process.env.RESEND_SENDER_EMAIL,
   resend_sender_name: process.env.RESEND_SENDER_NAME,
+  doSpacesEndpoint: process.env.DO_SPACES_ENDPOINT,
+  doSpacesRegion: process.env.DO_SPACES_REGION,
+  doSpacesBucket: process.env.DO_SPACES_BUCKET,
+  doSpacesKey: process.env.DO_SPACES_KEY,
+  doSpacesSecret: process.env.DO_SPACES_SECRET,
 } as const;
 
 const requiredEnvVars = {
