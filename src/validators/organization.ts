@@ -3,6 +3,8 @@ import { idParam, phoneRule } from "./shared.js";
 
 export const switchOrganizationValidator = [idParam("_id")];
 
+export const organizationLogoValidator = [idParam("_id")];
+
 export const joinRequestIdValidator = [
   param("requestId").isUUID().withMessage("Invalid request id"),
 ];
@@ -16,7 +18,6 @@ export const updateOrganizationValidator = [
   body("twitter").optional().isString(),
   body("linkedin").optional().isString(),
   body("facebook").optional().isString(),
-  body("logoUrl").optional({ values: "falsy" }).isURL().withMessage("Logo must be a valid URL"),
 ];
 
 export const deleteOrganizationValidator = [idParam("_id")];
@@ -55,7 +56,6 @@ export const createOrganizationValidator = [
   body("twitter").optional().isString(),
   body("linkedin").optional().isString(),
   body("facebook").optional().isString(),
-  body("logoUrl").optional({ values: "falsy" }).isURL().withMessage("Logo must be a valid URL"),
   body("website").custom((value, { req }) => {
     if (!value && !req.body.linkedin) {
       throw new Error("Provide either a website or a LinkedIn URL");

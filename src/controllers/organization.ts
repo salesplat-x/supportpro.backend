@@ -68,6 +68,20 @@ export const deleteOrganization = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Company deleted", {});
 };
 
+export const updateLogo = async (req: Request, res: Response) => {
+  const result = await organizationService.updateLogo(
+    req.user.id,
+    req.params["_id"]!,
+    req.file
+  );
+  sendSuccessResponse(res, "Company logo updated", { organization: result });
+};
+
+export const removeLogo = async (req: Request, res: Response) => {
+  const result = await organizationService.removeLogo(req.user.id, req.params["_id"]!);
+  sendSuccessResponse(res, "Company logo removed", { organization: result });
+};
+
 export const sendOrganizationInvite = async (req: Request, res: Response) => {
   const result = await organizationService.sendOrganizationInvite(
     req.user.id,
