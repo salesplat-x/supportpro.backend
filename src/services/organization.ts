@@ -14,6 +14,12 @@ import env from "../config/env.js";
 import EmailService from "../utils/integrations/email/emailService.js";
 import { AuthorizationError, ConflictError, NotFoundError, ValidationError } from "../utils/errors";
 import {
+  uploadToSpaces,
+  deleteSpacesObjectQuietly,
+  spacesKeyFor,
+  ALLOWED_IMAGE_TYPES,
+} from "../utils/integrations/spaces.js";
+import {
   emailDomainMatchesWebsite,
   emailMatchesCompanyDomain,
   extractEmailDomain,
@@ -71,7 +77,6 @@ export interface OrganizationPayload {
   facebook?: string | null;
   linkedin?: string | null;
   twitter?: string | null;
-  logoUrl?: string | null;
 }
 
 export interface UpdateOrganizationPayload {
@@ -82,7 +87,6 @@ export interface UpdateOrganizationPayload {
   facebook?: string | null;
   linkedin?: string | null;
   twitter?: string | null;
-  logoUrl?: string | null;
 }
 
 export interface OrganizationMemberUserView {
@@ -316,8 +320,15 @@ export const createOrganization = async (
     }
   }
 
+  // logoUrl is never accepted here — it's only ever set through the logo upload
+  // endpoint, never as a client-supplied string — so drop it even if a caller
+  // still sends one (payload is untyped req.body at the controller boundary).
+  const { logoUrl: _logoUrl, ...createFields } = payload as OrganizationPayload & {
+    logoUrl?: string;
+  };
+
   const org = orgRepo().create({
-    ...payload,
+    ...createFields,
     email,
     domain,
     ownerId,
@@ -596,15 +607,18 @@ export const updateOrganization = async (
 ): Promise<Organization> => {
   const org = await assertOwnership(ownerId, organizationId);
 
+  // logoUrl is never accepted here — same reasoning as createOrganization above.
   const {
     email: _email,
     website: _website,
     domain: _domain,
+    logoUrl: _logoUrl,
     ...allowed
   } = payload as UpdateOrganizationPayload & {
     email?: string;
     website?: string;
     domain?: string;
+    logoUrl?: string;
   };
 
   const updates = Object.fromEntries(
@@ -629,11 +643,64 @@ export const deleteOrganization = async (
   ownerId: string,
   organizationId: string
 ): Promise<void> => {
-  await assertOwnership(ownerId, organizationId);
+  const org = await assertOwnership(ownerId, organizationId);
 
   await AppDataSource.transaction(async (manager) => {
     await purgeOrganizationCascade(manager, organizationId);
   });
+
+  // Only clean up the logo once the delete itself has actually committed —
+  // otherwise a failed/rolled-back delete would leave a still-referenced
+  // logo deleted from Spaces.
+  await deleteSpacesObjectQuietly(org.logoKey, organizationId);
+};
+
+export const updateLogo = async (
+  ownerId: string,
+  organizationId: string,
+  file?: Express.Multer.File
+): Promise<Organization> => {
+  if (!file) {
+    throw new ValidationError("No image file was provided");
+  }
+  if (!ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
+    throw new ValidationError("Unsupported image file type");
+  }
+  if (file.size === 0) {
+    throw new ValidationError("File is empty");
+  }
+
+  const org = await assertOwnership(ownerId, organizationId);
+
+  // Upload before saving so a Spaces failure throws here, leaving the
+  // company's existing logo (if any) in place rather than clearing it.
+  const key = spacesKeyFor("logos", organizationId, file.originalname);
+  const logoUrl = await uploadToSpaces(file.buffer, key, file.mimetype);
+
+  const previousKey = org.logoKey;
+  const saved = await orgRepo().save({ ...org, logoUrl, logoKey: key });
+
+  await deleteSpacesObjectQuietly(previousKey, organizationId);
+
+  return saved;
+};
+
+export const removeLogo = async (
+  ownerId: string,
+  organizationId: string
+): Promise<Organization> => {
+  const org = await assertOwnership(ownerId, organizationId);
+
+  if (!org.logoKey) {
+    return org;
+  }
+
+  const previousKey = org.logoKey;
+  const saved = await orgRepo().save({ ...org, logoUrl: null, logoKey: null });
+
+  await deleteSpacesObjectQuietly(previousKey, organizationId);
+
+  return saved;
 };
 
 const generateInviteToken = (): string => crypto.randomBytes(32).toString("hex");

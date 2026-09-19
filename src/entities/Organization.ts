@@ -61,6 +61,10 @@ export class Organization {
   @Column({ type: "varchar", nullable: true, default: null, name: "logo_url" })
   logoUrl!: string | null;
 
+  /** DigitalOcean Spaces object key — needed to delete the previous logo on replace/remove. */
+  @Column({ type: "varchar", nullable: true, default: null, name: "logo_key" })
+  logoKey!: string | null;
+
   @Column({ type: "enum", enum: OrganizationStatus, default: OrganizationStatus.Pending })
   status!: OrganizationStatus;
 

@@ -3,6 +3,7 @@ import * as organization from "../controllers/organization.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { validateAccess, requireVerifiedEmail } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
+import { avatarUpload } from "../middleware/multer.js";
 import { UserRole } from "../types/enums.js";
 import {
   createOrganizationValidator,
@@ -10,6 +11,7 @@ import {
   inviteTokenValidator,
   joinRequestIdValidator,
   joinRequestOrganizationValidator,
+  organizationLogoValidator,
   revokeOrganizationInviteValidator,
   sendOrganizationInviteValidator,
   switchOrganizationValidator,
@@ -140,6 +142,23 @@ router.delete(
   requireVerifiedEmail,
   validate(deleteOrganizationValidator),
   asyncHandler(organization.deleteOrganization)
+);
+
+router.patch(
+  "/:_id/logo",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  avatarUpload.single("logo"),
+  validate(organizationLogoValidator),
+  asyncHandler(organization.updateLogo)
+);
+
+router.delete(
+  "/:_id/logo",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(organizationLogoValidator),
+  asyncHandler(organization.removeLogo)
 );
 
 export default (app: Router) => app.use("/organizations", router);
