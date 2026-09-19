@@ -20,6 +20,7 @@ export interface AdminListParams {
   experience?: string;
   roleId?: string;
   status?: string;
+  organizationId?: string;
   limit?: number | string;
   offset?: number | string;
   sort?: string;
@@ -128,6 +129,11 @@ export const listJobs = async (
   }
   if (params.roleId) {
     qb.andWhere("job.role_id = :roleId", { roleId: params.roleId });
+  }
+  if (params.organizationId) {
+    qb.andWhere("job.organization_id = :organizationId", {
+      organizationId: params.organizationId,
+    });
   }
 
   const [jobs, total] = await qb

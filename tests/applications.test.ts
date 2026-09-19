@@ -20,6 +20,7 @@ import {
   createApplication,
   createOrganization,
   createQuestion,
+  createAdmin,
 } from "./helpers/fixtures.js";
 import { Application } from "../src/entities/Application.js";
 import { User } from "../src/entities/User.js";
@@ -178,6 +179,20 @@ describe("GET /v1/applications/:_id — single application", () => {
     const res = await request(app)
       .get(`/v1/applications/${app_.id}`)
       .set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(200);
+  });
+
+  it("lets an Admin fetch any application for the admin candidate dossier view", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter } = await createRecruiter();
+    const { token: adminToken } = await createAdmin();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const app_ = await createApplication(talent, job);
+
+    const res = await request(app)
+      .get(`/v1/applications/${app_.id}`)
+      .set("Authorization", `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
   });
 
