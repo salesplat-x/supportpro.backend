@@ -109,9 +109,24 @@ export class User {
   @Column({ type: "text", nullable: true, default: null })
   bio!: string | null;
 
+  @Column({ type: "varchar", nullable: true, default: null })
+  profileImageUrl!: string | null;
+
+  /** DigitalOcean Spaces object key — needed to delete the previous image on replace. */
+  @Column({ type: "varchar", nullable: true, default: null })
+  profileImageKey!: string | null;
+
   /** Original uploaded file name (e.g. jane-doe-cv.pdf). */
   @Column({ type: "varchar", nullable: true, default: null })
   cvFileName!: string | null;
+
+  /** DigitalOcean Spaces URL of the original uploaded CV file. */
+  @Column({ type: "varchar", nullable: true, default: null })
+  cvUrl!: string | null;
+
+  /** DigitalOcean Spaces object key — needed to delete the previous CV on replace. */
+  @Column({ type: "varchar", nullable: true, default: null })
+  cvKey!: string | null;
 
   /** Full extracted CV text used for AI and on-demand PDF regeneration. */
   @Column({ type: "text", nullable: true, default: null, select: false })
