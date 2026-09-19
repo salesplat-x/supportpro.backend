@@ -17,6 +17,11 @@ export const editProfile = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Profile updated", { user: withoutCvText(result) });
 };
 
+export const updateAvatar = async (req: Request, res: Response) => {
+  const result = await userService.updateAvatar(req.user.id, req.file);
+  sendSuccessResponse(res, "Profile picture updated", { user: withoutCvText(result) });
+};
+
 export const me = async (req: Request, res: Response) => {
   const result = await userService.me(req.user.id);
   const profileCompletion = userService.getProfileCompletion(result);
@@ -36,11 +41,15 @@ export const viewProfile = async (req: Request, res: Response) => {
 };
 
 export const downloadTalentCv = async (req: Request, res: Response) => {
-  const { buffer, fileName } = await userService.getTalentCvPdf(req.params["_id"]!);
+  const file = await userService.getTalentCvFile(req.params["_id"]!);
+  if (file.type === "redirect") {
+    res.redirect(302, file.url);
+    return;
+  }
   res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
-  res.setHeader("Content-Length", String(buffer.length));
-  res.send(buffer);
+  res.setHeader("Content-Disposition", `inline; filename="${file.fileName}"`);
+  res.setHeader("Content-Length", String(file.buffer.length));
+  res.send(file.buffer);
 };
 
 export const reprocessCv = async (req: Request, res: Response) => {

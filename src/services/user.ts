@@ -1,3 +1,5 @@
+import { randomUUID } from "crypto";
+import path from "path";
 import { In } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { Application, Role, TalentEmbedding, User } from "../entities";
@@ -7,6 +9,7 @@ import { UserRole, ApplicationStatus, ApplicationType, CvEmbeddingStatus } from 
 import { generateCvPdf } from "../utils/cvPdf.js";
 import { extractText, overlapChunkText, preprocessText, sortDirection } from "../utils/text.js";
 import { createEmbedding } from "../utils/integrations/openai.js";
+import { uploadToSpaces, deleteFromSpaces } from "../utils/integrations/spaces.js";
 import {
   MAX_DURABLE_ATTEMPTS,
   STALE_LOCK_INTERVAL,
@@ -22,6 +25,23 @@ const ALLOWED_CV_TYPES = [
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
+
+const ALLOWED_AVATAR_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+const spacesKeyFor = (prefix: "avatars" | "cvs", userId: string, originalname: string): string => {
+  const extension = path.extname(originalname) || ".bin";
+  return `${prefix}/${userId}/${randomUUID()}${extension}`;
+};
+
+/** Best-effort cleanup of a replaced file — never fails the request that already succeeded. */
+const deleteSpacesObjectQuietly = async (key: string | null, userId: string): Promise<void> => {
+  if (!key) return;
+  await deleteFromSpaces(key).catch((err: unknown) => {
+    logger.error(`Failed to delete old Spaces object for user ${userId}: ${key}`, {
+      message: err instanceof Error ? err.message : String(err),
+    });
+  });
+};
 
 /** Talent has an uploaded CV when extraction was persisted. */
 export const hasUploadedCv = (
@@ -201,6 +221,9 @@ export const editProfile = async (
     if (!ALLOWED_CV_TYPES.includes(file.mimetype)) {
       throw new ValidationError("Unsupported CV file type");
     }
+    if (file.size === 0) {
+      throw new ValidationError("File is empty");
+    }
 
     let text: string;
     try {
@@ -217,9 +240,15 @@ export const editProfile = async (
       );
     }
 
-    // Persist extracted content + original file name; file binary is discarded.
+    // Upload before saving so a Spaces failure throws here and leaves the existing
+    // row untouched, instead of persisting cvText without a matching cvUrl.
+    const key = spacesKeyFor("cvs", userId, file.originalname);
+    const cvUrl = await uploadToSpaces(file.buffer, key, file.mimetype);
+
     update.cvText = text.trim();
     update.cvFileName = file.originalname || "cv.pdf";
+    update.cvUrl = cvUrl;
+    update.cvKey = key;
     update.cvUploadedAt = new Date();
     update.cvEmbeddingStatus = CvEmbeddingStatus.Pending;
     update.cvEmbeddingAttempts = 0;
@@ -228,9 +257,12 @@ export const editProfile = async (
     update.cvEmbeddingLastError = null;
   }
 
+  const previousCvKey = existingUser.cvKey;
   const saved = await userRepo().save({ ...existingUser, ...update });
 
   if (file) {
+    await deleteSpacesObjectQuietly(previousCvKey, userId);
+
     // Generate embedding asynchronously after the CV row is committed — not needed
     // for the response, takes 5–20s. The returned promise always resolves so
     // callers can await "embedding write settled" without their own try/catch.
@@ -270,6 +302,39 @@ export const editProfile = async (
       triggerGeneration();
     }
   }
+
+  return saved;
+};
+
+export const updateAvatar = async (userId: string, file?: Express.Multer.File): Promise<User> => {
+  if (!file) {
+    throw new ValidationError("No image file was provided");
+  }
+  if (!ALLOWED_AVATAR_TYPES.includes(file.mimetype)) {
+    throw new ValidationError("Unsupported image file type");
+  }
+  if (file.size === 0) {
+    throw new ValidationError("File is empty");
+  }
+
+  const existingUser = await userRepo().findOne({ where: { id: userId } });
+  if (!existingUser) {
+    throw new NotFoundError("Authenticated user no longer exists");
+  }
+
+  // Upload before saving so a Spaces failure throws here, leaving the user's
+  // existing avatar (if any) in place rather than clearing it.
+  const key = spacesKeyFor("avatars", userId, file.originalname);
+  const profileImageUrl = await uploadToSpaces(file.buffer, key, file.mimetype);
+
+  const previousKey = existingUser.profileImageKey;
+  const saved = await userRepo().save({
+    ...existingUser,
+    profileImageUrl,
+    profileImageKey: key,
+  });
+
+  await deleteSpacesObjectQuietly(previousKey, userId);
 
   return saved;
 };
@@ -474,9 +539,15 @@ export const reprocessCv = async (recruiterId: string, talentId: string): Promis
   await generateCvEmbeddingForUser(talentId);
 };
 
-export const getTalentCvPdf = async (
-  talentId: string
-): Promise<{ buffer: Buffer; fileName: string }> => {
+export type TalentCvFile =
+  | { type: "redirect"; url: string }
+  | { type: "pdf"; buffer: Buffer; fileName: string };
+
+/**
+ * Talents uploaded before Spaces storage shipped only have cvText, so this falls
+ * back to a regenerated PDF for them; anyone with a stored cvUrl gets the real file.
+ */
+export const getTalentCvFile = async (talentId: string): Promise<TalentCvFile> => {
   const user = await userRepo()
     .createQueryBuilder("user")
     .addSelect("user.cvText")
@@ -486,7 +557,12 @@ export const getTalentCvPdf = async (
   if (!user || user.userRole !== UserRole.Talent) {
     throw new NotFoundError("Talent not found");
   }
-  if (!user.cvText?.trim()) {
+  if (user.cvUrl) {
+    return { type: "redirect", url: user.cvUrl };
+  }
+
+  const cvText = user.cvText?.trim();
+  if (!cvText) {
     throw new NotFoundError("CV not available for this talent");
   }
 
@@ -500,14 +576,14 @@ export const getTalentCvPdf = async (
     email: user.email,
     location: location || null,
     fileName: user.cvFileName,
-    cvText: user.cvText,
+    cvText,
   });
 
   const baseName = (user.cvFileName || `${user.firstName}-${user.lastName}-cv`)
     .replace(/\.[^.]+$/, "")
     .replace(/[^\w.-]+/g, "-");
 
-  return { buffer, fileName: `${baseName || "cv"}.pdf` };
+  return { type: "pdf", buffer, fileName: `${baseName || "cv"}.pdf` };
 };
 
 export interface FetchProfilesParams {
