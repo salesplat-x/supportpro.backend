@@ -34,9 +34,10 @@ export const syncPlansFromCatalog = async (): Promise<Map<string, Plan>> => {
 
   for (const plan of getSubscriptionPlans()) {
     for (const interval of [BillingInterval.Monthly, BillingInterval.Annually]) {
-      const amount = interval === BillingInterval.Annually
-        ? Math.round((plan.yearlyAmountNgn ?? 0) / 12)
-        : plan.monthlyAmountNgn;
+      const amount =
+        interval === BillingInterval.Annually
+          ? Math.round((plan.yearlyAmountNgn ?? 0) / 12)
+          : plan.monthlyAmountNgn;
 
       const existing = await planRepo().findOne({
         where: { planKey: plan.key, interval, isDeleted: false },
@@ -71,7 +72,9 @@ export const syncPlansFromCatalog = async (): Promise<Map<string, Plan>> => {
         interval,
         currency: Currency.NGN,
         description: plan.description,
-        features: plan.features.map((feature) => feature.label ?? feature.text ?? "").filter(Boolean),
+        features: plan.features
+          .map((feature) => feature.label ?? feature.text ?? "")
+          .filter(Boolean),
       });
       result.set(`${plan.key}:${interval}`, created);
     }

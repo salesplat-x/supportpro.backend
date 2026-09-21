@@ -27,8 +27,20 @@ plans:
     yearlyAmountNgn: 1440000
     featuresIntro: null
     features:
-      - { key: job_listings, label: "2 active job listings", kind: metered, limit: 2, period: concurrent }
-      - { key: candidate_views, label: "Up to 50 candidate profile views/month", kind: metered, limit: 50, period: monthly }
+      - {
+          key: job_listings,
+          label: "2 active job listings",
+          kind: metered,
+          limit: 2,
+          period: concurrent,
+        }
+      - {
+          key: candidate_views,
+          label: "Up to 50 candidate profile views/month",
+          kind: metered,
+          limit: 50,
+          period: monthly,
+        }
       - { key: team_members, label: "1 team member", kind: metered, limit: 1, period: concurrent }
       - { text: "AI job description creation", included: true }
       - { text: "AI CV scoring & matching", included: true }
@@ -45,8 +57,20 @@ plans:
     yearlyAmountNgn: null
     featuresIntro: null
     features:
-      - { key: job_listings, label: "Pay per job listing", kind: metered, limit: 1, period: concurrent }
-      - { key: candidate_views, label: "Up to 25 candidate profile views/month", kind: metered, limit: 25, period: monthly }
+      - {
+          key: job_listings,
+          label: "Pay per job listing",
+          kind: metered,
+          limit: 1,
+          period: concurrent,
+        }
+      - {
+          key: candidate_views,
+          label: "Up to 25 candidate profile views/month",
+          kind: metered,
+          limit: 25,
+          period: monthly,
+        }
       - { key: team_members, label: "1 team member", kind: metered, limit: 1, period: concurrent }
       - { text: "AI job description creation", included: true }
       - { text: "AI CV scoring & matching", included: true }
@@ -63,10 +87,33 @@ plans:
     yearlyAmountNgn: 2880000
     featuresIntro: "Everything in SME Basic, plus:"
     features:
-      - { key: job_listings, label: "10 active job listings", kind: metered, limit: 10, period: concurrent }
-      - { key: candidate_views, label: "Up to 250 candidate profile views/month", kind: metered, limit: 250, period: monthly }
-      - { key: team_members, label: "Up to 3 team members", kind: metered, limit: 3, period: concurrent }
-      - { key: bulk_broadcast_tools, label: "Bulk pipeline actions & broadcast messaging", kind: flag, included: true }
+      - {
+          key: job_listings,
+          label: "10 active job listings",
+          kind: metered,
+          limit: 10,
+          period: concurrent,
+        }
+      - {
+          key: candidate_views,
+          label: "Up to 250 candidate profile views/month",
+          kind: metered,
+          limit: 250,
+          period: monthly,
+        }
+      - {
+          key: team_members,
+          label: "Up to 3 team members",
+          kind: metered,
+          limit: 3,
+          period: concurrent,
+        }
+      - {
+          key: bulk_broadcast_tools,
+          label: "Bulk pipeline actions & broadcast messaging",
+          kind: flag,
+          included: true,
+        }
       - { text: "AI interview question generation", included: true }
       - { text: "Priority email support", included: true }
 
@@ -80,9 +127,27 @@ plans:
     yearlyAmountNgn: 4800000
     featuresIntro: "Everything in Pro, plus:"
     features:
-      - { key: job_listings, label: "30 active job listings", kind: metered, limit: 30, period: concurrent }
-      - { key: candidate_views, label: "Unlimited candidate profile views", kind: metered, limit: null, period: monthly }
-      - { key: team_members, label: "Up to 10 team members", kind: metered, limit: 10, period: concurrent }
+      - {
+          key: job_listings,
+          label: "30 active job listings",
+          kind: metered,
+          limit: 30,
+          period: concurrent,
+        }
+      - {
+          key: candidate_views,
+          label: "Unlimited candidate profile views",
+          kind: metered,
+          limit: null,
+          period: monthly,
+        }
+      - {
+          key: team_members,
+          label: "Up to 10 team members",
+          kind: metered,
+          limit: 10,
+          period: concurrent,
+        }
       - { key: job_board_distribution, label: "Job board distribution", kind: flag, included: true }
       - { key: dedicated_support, label: "Dedicated account support", kind: flag, included: true }
       - { text: "Advanced reporting & analytics", included: true }
@@ -97,9 +162,27 @@ plans:
     yearlyAmountNgn: 9600000
     featuresIntro: "Everything in Advance, plus:"
     features:
-      - { key: job_listings, label: "Unlimited job listings", kind: metered, limit: null, period: concurrent }
-      - { key: candidate_views, label: "Unlimited candidate profile views", kind: metered, limit: null, period: monthly }
-      - { key: team_members, label: "Unlimited team members", kind: metered, limit: null, period: concurrent }
+      - {
+          key: job_listings,
+          label: "Unlimited job listings",
+          kind: metered,
+          limit: null,
+          period: concurrent,
+        }
+      - {
+          key: candidate_views,
+          label: "Unlimited candidate profile views",
+          kind: metered,
+          limit: null,
+          period: monthly,
+        }
+      - {
+          key: team_members,
+          label: "Unlimited team members",
+          kind: metered,
+          limit: null,
+          period: concurrent,
+        }
       - { key: hr_assistant, label: "1 dedicated HR Assistant", kind: flag, included: true }
       - { text: "Custom integrations (coming soon)", included: true }
       - { text: "Custom reporting (coming soon)", included: true }

@@ -10,12 +10,7 @@ import {
   UpdateDateColumn,
   Index,
 } from "typeorm";
-import {
-  UserRole,
-  Currency,
-  CompensationPeriod,
-  CvEmbeddingStatus,
-} from "../types/enums.js";
+import { UserRole, Currency, CompensationPeriod, CvEmbeddingStatus } from "../types/enums.js";
 import type { Organization } from "./Organization.js";
 import type { Role } from "./Role.js";
 import type { PreScreening } from "./PreScreening.js";

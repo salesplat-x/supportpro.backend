@@ -9,7 +9,7 @@ import {
   OrganizationJoinRequestStatus,
 } from "../entities/OrganizationJoinRequest.js";
 import { OrganizationInvite, OrganizationInviteStatus } from "../entities/OrganizationInvite.js";
-import { BillingPlan, BillingStatus, OrganizationStatus, UserRole } from "../types/enums.js";
+import { OrganizationStatus, UserRole } from "../types/enums.js";
 import env from "../config/env.js";
 import EmailService from "../utils/integrations/email/emailService.js";
 import { AuthorizationError, ConflictError, NotFoundError, ValidationError } from "../utils/errors";
@@ -61,7 +61,6 @@ export interface OrganizationInvitePreview {
   status: OrganizationInviteStatus;
   expiresAt: Date;
   inviteeExists: boolean;
-  inviteeHasPaidPlan: boolean;
 }
 
 const validateEmail = (email: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -206,31 +205,6 @@ const assertRecruiterWorkEmailMatchesCompany = (org: Organization, workEmail: st
       `Your work email domain (@${workDomain}) must match this company's domain (@${companyDomain}).`
     );
   }
-};
-
-const assertInviteeCanJoinCompany = async (email: string): Promise<void> => {
-  const existingUser = await userRepo().findOne({ where: { email } });
-  if (!existingUser) return;
-  if (
-    existingUser.billingPlan === BillingPlan.Paid &&
-    existingUser.billingStatus === BillingStatus.Active
-  ) {
-    throw new ValidationError(
-      "This recruiter is on a paid plan. They must be on the free plan before joining a company."
-    );
-  }
-};
-
-const inheritOwnerBillingPlan = async (memberId: string, organizationId: string): Promise<void> => {
-  const org = await orgRepo().findOne({ where: { id: organizationId } });
-  if (!org?.ownerId) return;
-  const owner = await userRepo().findOne({ where: { id: org.ownerId } });
-  if (!owner) return;
-  await userRepo().update(memberId, {
-    billingPlan: owner.billingPlan,
-    billingInterval: owner.billingInterval,
-    billingStatus: owner.billingStatus,
-  });
 };
 
 export const createOrganization = async (
@@ -512,7 +486,6 @@ export const approveJoinRequest = async (
   await assertOwnership(ownerId, request.organizationId);
   assertCompanyAllowsJoinRequests(request.organization);
   assertRecruiterWorkEmailMatchesCompany(request.organization, request.workEmail);
-  await assertInviteeCanJoinCompany(request.user.email.toLowerCase());
 
   const existingMember = await memberRepo().findOne({
     where: { userId: request.userId, organizationId: request.organizationId },
@@ -534,7 +507,6 @@ export const approveJoinRequest = async (
   await memberRepo().save(member);
 
   await userRepo().update({ id: request.userId }, { activeOrganizationId: request.organizationId });
-  await inheritOwnerBillingPlan(request.userId, request.organizationId);
 
   request.status = OrganizationJoinRequestStatus.Approved;
   await joinReqRepo().save(request);
@@ -755,7 +727,6 @@ export const sendOrganizationInvite = async (
   const org = await assertOwnership(ownerId, organizationId);
   assertCompanyAllowsJoinRequests(org);
   assertRecruiterWorkEmailMatchesCompany(org, email);
-  await assertInviteeCanJoinCompany(email);
 
   const teammates = await countCompanyTeammates(org.id);
   const pendingInvites = await countPendingInvites(org.id);
@@ -900,10 +871,6 @@ export const getOrganizationInvitePreview = async (
     status,
     expiresAt: invite.expiresAt,
     inviteeExists: !!existingUser,
-    inviteeHasPaidPlan:
-      !!existingUser &&
-      existingUser.billingPlan === BillingPlan.Paid &&
-      existingUser.billingStatus === BillingStatus.Active,
   };
 };
 
@@ -982,7 +949,6 @@ export const acceptOrganizationInvite = async (
   await memberRepo().save(member);
 
   await userRepo().update({ id: userId }, { activeOrganizationId: invite.organizationId });
-  await inheritOwnerBillingPlan(userId, invite.organizationId);
 
   invite.status = OrganizationInviteStatus.Accepted;
   await inviteRepo().save(invite);

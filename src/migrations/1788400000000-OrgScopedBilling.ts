@@ -50,7 +50,9 @@ export class OrgScopedBilling1788400000000 implements MigrationInterface {
     `);
     // Every subscription is created through the new org-scoped checkout flow going forward;
     // the live `subscriptions` table is empty pre-rewrite (see PRICING_PLAN.md), so this is safe.
-    await queryRunner.query(`ALTER TABLE "subscriptions" ALTER COLUMN "organization_id" SET NOT NULL`);
+    await queryRunner.query(
+      `ALTER TABLE "subscriptions" ALTER COLUMN "organization_id" SET NOT NULL`
+    );
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "IDX_subscriptions_organization_id" ON "subscriptions" ("organization_id")`
     );
@@ -71,7 +73,9 @@ export class OrgScopedBilling1788400000000 implements MigrationInterface {
     await queryRunner.query(`DROP TYPE IF EXISTS "public"."users_billingplan_enum"`);
 
     // --- Plan gets a stable slug linking it back to config/pricing.yaml. ---
-    await queryRunner.query(`ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "plan_key" character varying(64)`);
+    await queryRunner.query(
+      `ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "plan_key" character varying(64)`
+    );
     await queryRunner.query(`UPDATE "plans" SET "plan_key" = 'paid' WHERE "plan_key" IS NULL`);
     await queryRunner.query(`ALTER TABLE "plans" ALTER COLUMN "plan_key" SET NOT NULL`);
     await queryRunner.query(`
