@@ -23,3 +23,4 @@ export { Feedback } from "./Feedback.js";
 export { OrganizationMember } from "./OrganizationMember.js";
 export { OrganizationJoinRequest } from "./OrganizationJoinRequest.js";
 export { OrganizationInvite } from "./OrganizationInvite.js";
+export { FeatureUsageCounter } from "./FeatureUsageCounter.js";
