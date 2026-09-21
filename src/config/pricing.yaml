@@ -1,90 +1,125 @@
 # Single source of truth for recruiter pricing, features, and comparison.
 # Amounts are in NGN (naira). The API converts to kobo for Paystack.
-# Optional paystackPlanCode values are filled via env (see PAYSTACK.md).
+# Real Paystack plan codes for the subscription tiers are stored on the DB-backed
+# `plans` table (see src/entities/Plan.ts / src/services/planSync.ts) — this file
+# describes the marketing catalogue, not the checkout mechanics.
 
 currency: NGN
 currencySymbol: "₦"
-yearlyDiscountPercent: 17
+yearlyDiscountPercent: 20
 guarantee: "14-day money back guarantee"
 cancelAnytime: "Cancel anytime"
 
 hero:
   kicker: PRICING
-  title: Simple pricing. Powerful results.
-  subtitle: Everything you need to hire smarter and faster. Choose the plan that fits your journey.
+  title: Simple, transparent pricing
+  subtitle: Simple, transparent pricing that grows with you. Try any plan free for 30 days.
 
 plans:
-  - key: free
-    name: Free
-    description: Perfect for getting started.
-    priceCaption: Forever free
-    cta: Get Started
+  - key: sme_basic
+    name: SME Basic
+    description: Basic features free for 7 days, then a flat monthly rate.
+    priceCaption: 7-day free trial
+    cta: Get started
+    secondaryCta: Chat to sales
     highlighted: false
-    monthlyAmountNgn: 0
-    yearlyAmountNgn: 0
+    monthlyAmountNgn: 150000
+    yearlyAmountNgn: 1440000
+    featuresIntro: null
     features:
-      - text: Up to 2 active jobs
-        included: true
-      - text: 5 AI actions total
-        included: true
-      - text: 10 candidate views total
-        included: true
-      - text: 1 active company
-        included: true
-      - text: Bulk & broadcast tools
-        included: false
+      - { key: job_listings, label: "2 active job listings", kind: metered, limit: 2, period: concurrent }
+      - { key: candidate_views, label: "Up to 50 candidate profile views/month", kind: metered, limit: 50, period: monthly }
+      - { key: team_members, label: "1 team member", kind: metered, limit: 1, period: concurrent }
+      - { text: "AI job description creation", included: true }
+      - { text: "AI CV scoring & matching", included: true }
+      - { text: "Email support", included: true }
 
-  - key: paid
-    name: Paid
-    description: Everything. Unlimited.
+  - key: pay_per_use
+    name: Pay per Use
+    description: Pay ₦75,000 per job listing — no monthly commitment.
+    priceCaption: Billed per job listing
+    cta: Get started
+    secondaryCta: Chat to sales
+    highlighted: false
+    monthlyAmountNgn: 75000
+    yearlyAmountNgn: null
+    featuresIntro: null
+    features:
+      - { key: job_listings, label: "Pay per job listing", kind: metered, limit: 1, period: concurrent }
+      - { key: candidate_views, label: "Up to 25 candidate profile views/month", kind: metered, limit: 25, period: monthly }
+      - { key: team_members, label: "1 team member", kind: metered, limit: 1, period: concurrent }
+      - { text: "AI job description creation", included: true }
+      - { text: "AI CV scoring & matching", included: true }
+      - { text: "Email support", included: true }
+
+  - key: pro
+    name: Pro
+    description: More listings and candidate access for growing teams.
+    cta: Get started
+    secondaryCta: Chat to sales
     badge: Most Popular
-    cta: Get Started
     highlighted: true
+    monthlyAmountNgn: 300000
+    yearlyAmountNgn: 2880000
+    featuresIntro: "Everything in SME Basic, plus:"
+    features:
+      - { key: job_listings, label: "10 active job listings", kind: metered, limit: 10, period: concurrent }
+      - { key: candidate_views, label: "Up to 250 candidate profile views/month", kind: metered, limit: 250, period: monthly }
+      - { key: team_members, label: "Up to 3 team members", kind: metered, limit: 3, period: concurrent }
+      - { key: bulk_broadcast_tools, label: "Bulk pipeline actions & broadcast messaging", kind: flag, included: true }
+      - { text: "AI interview question generation", included: true }
+      - { text: "Priority email support", included: true }
+
+  - key: advance
+    name: Advance
+    description: Job board distribution and dedicated support for scaling teams.
+    cta: Get started
+    secondaryCta: Chat to sales
+    highlighted: false
+    monthlyAmountNgn: 500000
+    yearlyAmountNgn: 4800000
+    featuresIntro: "Everything in Pro, plus:"
+    features:
+      - { key: job_listings, label: "30 active job listings", kind: metered, limit: 30, period: concurrent }
+      - { key: candidate_views, label: "Unlimited candidate profile views", kind: metered, limit: null, period: monthly }
+      - { key: team_members, label: "Up to 10 team members", kind: metered, limit: 10, period: concurrent }
+      - { key: job_board_distribution, label: "Job board distribution", kind: flag, included: true }
+      - { key: dedicated_support, label: "Dedicated account support", kind: flag, included: true }
+      - { text: "Advanced reporting & analytics", included: true }
+
+  - key: enterprise
+    name: Enterprise
+    description: Unlimited everything, plus a dedicated HR Assistant.
+    cta: Get started
+    secondaryCta: Chat to sales
+    highlighted: false
+    monthlyAmountNgn: 1000000
+    yearlyAmountNgn: 9600000
+    featuresIntro: "Everything in Advance, plus:"
+    features:
+      - { key: job_listings, label: "Unlimited job listings", kind: metered, limit: null, period: concurrent }
+      - { key: candidate_views, label: "Unlimited candidate profile views", kind: metered, limit: null, period: monthly }
+      - { key: team_members, label: "Unlimited team members", kind: metered, limit: null, period: concurrent }
+      - { key: hr_assistant, label: "1 dedicated HR Assistant", kind: flag, included: true }
+      - { text: "Custom integrations (coming soon)", included: true }
+      - { text: "Custom reporting (coming soon)", included: true }
+      - { text: "Dedicated success manager & SLA", included: true }
+
+  # Hidden legacy tier — not shown on the pricing page, not purchasable.
+  # Exists only so pre-rewrite "paid" organizations still resolve a display name
+  # (badges, PlanUsage, receipts). See PRICING_PLAN.md for the grandfathering rationale.
+  - key: paid
+    name: Paid (legacy)
+    description: Legacy flat plan, no longer sold.
+    cta: Get started
+    secondaryCta: Chat to sales
+    highlighted: false
+    visible: false
+    purchasable: false
     monthlyAmountNgn: 550000
     yearlyAmountNgn: 5500000
-    features:
-      - text: Unlimited active jobs
-        included: true
-      - text: Unlimited AI actions
-        included: true
-      - text: Unlimited candidate views
-        included: true
-      - text: Unlimited companies
-        included: true
-      - text: Full access to bulk & broadcast tools
-        included: true
-
-comparison:
-  columns:
-    - Features
-    - Free
-    - Paid
-  rows:
-    - id: job_postings
-      label: Job Postings
-      hint: null
-      free: Up to 2 active jobs
-      paid: Unlimited
-    - id: ai_screening
-      label: AI Screening & Matching
-      hint: AI job generation, matching, interviews, CV scoring & more
-      free: 5 AI actions total
-      paid: Unlimited
-    - id: candidate_access
-      label: Candidate Access
-      hint: Open profiles, download CVs
-      free: 10 candidate views total
-      paid: Unlimited
-    - id: companies
-      label: Company / Organization Management
-      hint: null
-      free: 1 active company
-      paid: Unlimited
-    - id: bulk_tools
-      label: Bulk & Broadcast Tools
-      hint: Bulk status updates, broadcast, exports & more
-      free: false
-      paid: true
+    featuresIntro: null
+    features: []
 
 valueProps:
   badge: Why SalesPlat?
@@ -105,23 +140,3 @@ contact:
   prompt: Need a custom plan or have questions?
   cta: Contact our team
   href: "mailto:hello@salesplat.com"
-
-# Dummy usage shown on the recruiter Plan page after a successful payment.
-# Not real metering — the app is not gated.
-dummyUsage:
-  - id: jobs
-    label: Active jobs
-    used: 3
-    limit: Unlimited
-  - id: ai
-    label: AI actions this period
-    used: 47
-    limit: Unlimited
-  - id: candidates
-    label: Candidate views this period
-    used: 128
-    limit: Unlimited
-  - id: companies
-    label: Companies
-    used: 2
-    limit: Unlimited

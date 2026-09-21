@@ -1,32 +1,33 @@
 import fs from "fs";
 import path from "path";
 import yaml from "js-yaml";
-import { BillingInterval } from "../types/enums.js";
+import { BillingInterval, FREE_PLAN_KEY } from "../types/enums.js";
 
 export interface PricingFeature {
-  text: string;
-  included: boolean;
+  key?: string;
+  label?: string;
+  text?: string;
+  kind?: "metered" | "flag";
+  limit?: number | null;
+  period?: "concurrent" | "monthly";
+  included?: boolean;
 }
 
 export interface PricingPlan {
-  key: "free" | "paid";
+  key: string;
   name: string;
   description: string;
   priceCaption?: string;
   badge?: string;
   cta: string;
+  secondaryCta?: string;
   highlighted: boolean;
+  visible?: boolean;
+  purchasable?: boolean;
   monthlyAmountNgn: number;
-  yearlyAmountNgn: number;
+  yearlyAmountNgn: number | null;
+  featuresIntro: string | null;
   features: PricingFeature[];
-}
-
-export interface ComparisonRow {
-  id: string;
-  label: string;
-  hint: string | null;
-  free: string | boolean;
-  paid: string | boolean;
 }
 
 export interface PricingCatalog {
@@ -37,7 +38,6 @@ export interface PricingCatalog {
   cancelAnytime: string;
   hero: { kicker: string; title: string; subtitle: string };
   plans: PricingPlan[];
-  comparison: { columns: string[]; rows: ComparisonRow[] };
   valueProps: {
     badge: string;
     title: string;
@@ -45,7 +45,6 @@ export interface PricingCatalog {
     items: Array<{ title: string; body: string; icon: string }>;
   };
   contact: { prompt: string; cta: string; href: string };
-  dummyUsage: Array<{ id: string; label: string; used: number; limit: string }>;
 }
 
 const NGN_TO_KOBO = 100;
@@ -72,16 +71,37 @@ export const loadPricingCatalog = (): PricingCatalog => {
   return raw;
 };
 
-export const getPaidPlan = (): PricingPlan => {
-  const plan = loadPricingCatalog().plans.find((item) => item.key === "paid");
-  if (!plan) throw new Error("Paid plan missing from pricing.yaml");
-  return plan;
+/** Public-facing catalogue: strips hidden/legacy plans (e.g. the grandfathered `paid` tier). */
+export const publicCatalog = (): PricingCatalog => {
+  const catalog = loadPricingCatalog();
+  return { ...catalog, plans: catalog.plans.filter((plan) => plan.visible !== false) };
 };
 
-export const amountKoboForInterval = (interval: BillingInterval): number => {
-  const plan = getPaidPlan();
-  const ngn = interval === BillingInterval.Annually ? plan.yearlyAmountNgn : plan.monthlyAmountNgn;
-  return Math.round(ngn * NGN_TO_KOBO);
+export const getPlanByKey = (key: string): PricingPlan | undefined =>
+  loadPricingCatalog().plans.find((plan) => plan.key === key);
+
+/** Plans a customer can actually check out (excludes hidden/legacy, includes pay_per_use). */
+export const getPurchasablePlans = (): PricingPlan[] =>
+  loadPricingCatalog().plans.filter((plan) => plan.visible !== false && plan.purchasable !== false);
+
+/** Subscription-billed plans only (excludes pay_per_use, which has no recurring Paystack plan). */
+export const getSubscriptionPlans = (): PricingPlan[] =>
+  getPurchasablePlans().filter((plan) => plan.key !== "pay_per_use");
+
+export const getSubscriptionPlanKeys = (): string[] => getSubscriptionPlans().map((plan) => plan.key);
+
+export const isKnownPlanKey = (key: string): boolean =>
+  key === FREE_PLAN_KEY || loadPricingCatalog().plans.some((plan) => plan.key === key);
+
+/** Monthly-equivalent NGN amount for a plan+interval — matches Plan.amount's existing contract. */
+export const monthlyEquivalentNgn = (plan: PricingPlan, interval: BillingInterval): number => {
+  if (interval === BillingInterval.Annually) {
+    if (plan.yearlyAmountNgn == null) {
+      throw new Error(`Plan ${plan.key} has no annual pricing`);
+    }
+    return Math.round(plan.yearlyAmountNgn / 12);
+  }
+  return plan.monthlyAmountNgn;
 };
 
 export const ngnToKobo = (ngn: number): number => Math.round(ngn * NGN_TO_KOBO);
