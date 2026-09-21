@@ -6,11 +6,13 @@ import { Role } from "../entities/Role.js";
 import { AIConfig } from "../entities/AIConfig.js";
 import { Application } from "../entities/Application.js";
 import { User } from "../entities/User.js";
+import { Organization } from "../entities/Organization.js";
 import { Notification } from "../entities/Notification.js";
 import { Scout } from "../entities/Scout.js";
 import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
 import { purgeJobCascade } from "./cascadeDelete.js";
 import { assertCompanyResourceAccess, getActiveOrganizationId } from "./organizationScope.js";
+import { assertWithinLimit } from "./entitlements.js";
 import {
   UserRole,
   JobStatus,
@@ -57,6 +59,8 @@ const notificationRepo = () => AppDataSource.getRepository(Notification);
 const talentEmbeddingRepo = () => AppDataSource.getRepository(TalentEmbedding);
 
 const scoutRepo = () => AppDataSource.getRepository(Scout);
+
+const organizationRepo = () => AppDataSource.getRepository(Organization);
 
 const locationFieldsForWorkMode = (payload: {
   workMode: string[];
@@ -264,6 +268,26 @@ export const updateJob = async (
       update.aiConfigId !== undefined ? update.aiConfigId : existingJob.aiConfigId;
     if (!nextAiConfigId) {
       throw new ValidationError("This job cannot be activated until an AI configuration is added");
+    }
+
+    // Plan gating is org-wide, shared across every recruiter at the company — only
+    // applies the first time a job goes live (re-saving an already-Active job or
+    // reactivating shouldn't re-charge/re-count it).
+    if (existingJob.status !== JobStatus.Active && existingJob.organizationId) {
+      const org = await organizationRepo().findOne({ where: { id: existingJob.organizationId } });
+      if (org) {
+        if (org.billingPlan === "pay_per_use") {
+          // Pay per Use has no subscription/limit — every activation is a fresh
+          // one-time charge instead. The payment-fulfillment path sets status to
+          // Active directly (bypassing updateJob), so this only fires for the
+          // recruiter-driven "activate" action.
+          update.status = JobStatus.PendingPayment;
+        } else {
+          await assertWithinLimit(org, "job_listings", async () =>
+            jobRepo().count({ where: { organizationId: org.id, status: JobStatus.Active } })
+          );
+        }
+      }
     }
   }
 

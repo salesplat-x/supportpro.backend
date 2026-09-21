@@ -106,6 +106,10 @@ export const createSubscription = async (
   if (!plan) {
     throw new NotFoundError("Plan not found");
   }
+  if (!user.activeOrganizationId) {
+    throw new ValidationError("Join or create a company before subscribing to a plan");
+  }
+  const organizationId = user.activeOrganizationId;
 
   try {
     const subConfig: ISubConfig = {
@@ -123,6 +127,7 @@ export const createSubscription = async (
 
     const subscription = subscriptionRepo().create({
       userId: user.id,
+      organizationId,
       planId: plan.id,
       paystackSubscriptionCode: response.data.subscription_code,
       authorizationCode: response.data.authorization.authorization_code,
@@ -157,6 +162,7 @@ export const createSubscription = async (
           if (existingPaystackSub) {
             const subscription = subscriptionRepo().create({
               userId: user.id,
+              organizationId,
               planId: plan.id,
               paystackSubscriptionCode: existingPaystackSub.subscription_code as string,
               authorizationCode:
@@ -217,6 +223,9 @@ export const subscribe = async (user: User, payload: { planId: string }): Promis
   if (!plan) {
     throw new NotFoundError("Plan not found");
   }
+  if (!user.activeOrganizationId) {
+    throw new ValidationError("Join or create a company before subscribing to a plan");
+  }
 
   const response = await paystackCreateSubscription({
     customer: user.email,
@@ -225,6 +234,7 @@ export const subscribe = async (user: User, payload: { planId: string }): Promis
 
   const subscription = subscriptionRepo().create({
     userId: user.id,
+    organizationId: user.activeOrganizationId,
     planId: payload.planId,
     paystackSubscriptionCode: response.data.subscription_code,
     authorizationCode: response.data.authorization.authorization_code,

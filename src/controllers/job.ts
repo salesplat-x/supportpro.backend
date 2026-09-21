@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import * as jobService from "../services/job.js";
+import * as paymentService from "../services/payment.js";
 import { JobStatus, UserRole } from "../types/enums.js";
 import { sendSuccessResponse } from "../utils/response.js";
 
@@ -85,6 +86,11 @@ export const retryVerdicts = async (req: Request, res: Response) => {
 export const apply = async (req: Request, res: Response) => {
   const result = await jobService.apply(req.user, { jobId: req.params["jobId"]! });
   sendSuccessResponse(res, "Application submitted", { application: result }, 201);
+};
+
+export const activatePayment = async (req: Request, res: Response) => {
+  const result = await paymentService.initiateJobPayment(req.user, req.params["jobId"]!);
+  sendSuccessResponse(res, "Payment link generated", result);
 };
 
 export const checkPrescreening = async (req: Request, res: Response) => {

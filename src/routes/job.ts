@@ -100,6 +100,12 @@ router.post(
   requireVerifiedEmail,
   asyncHandler(job.retryVerdicts)
 );
+router.post(
+  "/:jobId/activate-payment",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  asyncHandler(job.activatePayment)
+);
 router.get("/:_id", optionalAuth, validate(matchJobValidator), asyncHandler(job.fetch));
 
 export default (app: Router) => app.use("/jobs", router);
