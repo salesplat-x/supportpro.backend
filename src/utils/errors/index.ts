@@ -5,3 +5,4 @@ export { AuthorizationError } from "./AuthorizationError.js";
 export { NotFoundError } from "./NotFoundError.js";
 export { ConflictError } from "./ConflictError.js";
 export { DatabaseError } from "./DatabaseError.js";
+export { PlanLimitError } from "./PlanLimitError.js";

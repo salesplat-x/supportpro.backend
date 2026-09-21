@@ -3,6 +3,7 @@ import { QueryFailedError } from "typeorm";
 import { MulterError } from "multer";
 import { AppError } from "../utils/errors/AppError.js";
 import { ValidationError } from "../utils/errors/ValidationError.js";
+import { PlanLimitError } from "../utils/errors/PlanLimitError.js";
 import logger from "../utils/logger.js";
 import env from "../config/env.js";
 
@@ -30,6 +31,19 @@ export function errorHandler(
         code: err.code,
         message: err.message,
         ...(err.fields ? { fields: err.fields } : {}),
+      },
+    });
+    return;
+  }
+
+  if (err instanceof PlanLimitError) {
+    res.status(err.statusCode).json({
+      success: false,
+      error: {
+        code: err.code,
+        message: err.message,
+        featureKey: err.featureKey,
+        planKey: err.planKey,
       },
     });
     return;
