@@ -88,7 +88,8 @@ export const getPurchasablePlans = (): PricingPlan[] =>
 export const getSubscriptionPlans = (): PricingPlan[] =>
   getPurchasablePlans().filter((plan) => plan.key !== "pay_per_use");
 
-export const getSubscriptionPlanKeys = (): string[] => getSubscriptionPlans().map((plan) => plan.key);
+export const getSubscriptionPlanKeys = (): string[] =>
+  getSubscriptionPlans().map((plan) => plan.key);
 
 export const isKnownPlanKey = (key: string): boolean =>
   key === FREE_PLAN_KEY || loadPricingCatalog().plans.some((plan) => plan.key === key);

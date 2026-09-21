@@ -16,9 +16,13 @@ import type { Organization } from "./Organization.js";
  * checked live against the real rows instead, so they can never drift.
  */
 @Entity("feature_usage_counters")
-@Index("UQ_feature_usage_counters_org_feature_period", ["organizationId", "featureKey", "periodStart"], {
-  unique: true,
-})
+@Index(
+  "UQ_feature_usage_counters_org_feature_period",
+  ["organizationId", "featureKey", "periodStart"],
+  {
+    unique: true,
+  }
+)
 export class FeatureUsageCounter {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

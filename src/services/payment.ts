@@ -7,7 +7,12 @@ import { User } from "../entities/User.js";
 import { Organization } from "../entities/Organization.js";
 import { Plan } from "../entities/Plan.js";
 import { Job } from "../entities/Job.js";
-import { getPlanByKey, getSubscriptionPlanKeys, loadPricingCatalog, ngnToKobo } from "../config/pricingCatalog.js";
+import {
+  getPlanByKey,
+  getSubscriptionPlanKeys,
+  loadPricingCatalog,
+  ngnToKobo,
+} from "../config/pricingCatalog.js";
 import env from "../config/env.js";
 import { NotFoundError, ValidationError, ConflictError, AuthorizationError } from "../utils/errors";
 import {
@@ -75,7 +80,9 @@ const resolveOrganizationForBilling = async (user: User): Promise<Organization> 
   if (!user.activeOrganizationId) {
     throw new ValidationError("Join or create a company before purchasing a plan");
   }
-  const organization = await organizationRepo().findOne({ where: { id: user.activeOrganizationId } });
+  const organization = await organizationRepo().findOne({
+    where: { id: user.activeOrganizationId },
+  });
   if (!organization) {
     throw new NotFoundError("Organization not found");
   }
@@ -407,7 +414,9 @@ export const paystackWebhook = async (payload: {
         const user = customerData?.email
           ? await userRepo().findOne({ where: { email: customerData.email } })
           : null;
-        const plan = planCode ? await planRepo().findOne({ where: { paystackPlanCode: planCode } }) : null;
+        const plan = planCode
+          ? await planRepo().findOne({ where: { paystackPlanCode: planCode } })
+          : null;
 
         if (user?.activeOrganizationId && plan) {
           const subscription = subscriptionRepo().create({
@@ -416,10 +425,13 @@ export const paystackWebhook = async (payload: {
             planId: plan.id,
             paystackSubscriptionCode: code,
             authorizationCode:
-              (data.authorization as Record<string, string> | undefined)?.authorization_code ?? null,
+              (data.authorization as Record<string, string> | undefined)?.authorization_code ??
+              null,
             status: SubscriptionStatus.Active,
             startDate: new Date(),
-            nextPaymentDate: data.next_payment_date ? new Date(data.next_payment_date as string) : null,
+            nextPaymentDate: data.next_payment_date
+              ? new Date(data.next_payment_date as string)
+              : null,
             cron_expression: (data.cron_expression as string) ?? null,
             email_token: (data.email_token as string) ?? null,
           });

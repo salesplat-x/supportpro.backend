@@ -8,7 +8,12 @@ import {
   UpdateDateColumn,
   Index,
 } from "typeorm";
-import { BillingInterval, BillingStatus, FREE_PLAN_KEY, OrganizationStatus } from "../types/enums.js";
+import {
+  BillingInterval,
+  BillingStatus,
+  FREE_PLAN_KEY,
+  OrganizationStatus,
+} from "../types/enums.js";
 import type { User } from "./User.js";
 
 @Entity("organizations")
