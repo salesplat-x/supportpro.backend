@@ -30,12 +30,12 @@ import {
   ApplicationStatus,
   ApplicationType,
   BillingInterval,
-  BillingPlan,
   BillingStatus,
   CompensationPeriod,
   Currency,
   CvEmbeddingStatus,
   ExperienceLevel,
+  FREE_PLAN_KEY,
   GenerationStatus,
   JobStatus,
   MatchRecommendation,
@@ -51,7 +51,7 @@ import {
   WorkMode,
   WorkType,
 } from "../types/enums.js";
-import { getPaidPlan, ngnToKobo } from "../config/pricingCatalog.js";
+import { syncPlansFromCatalog } from "../services/planSync.js";
 import { generateHashedPassword } from "../utils/crypto.js";
 import logger from "../utils/logger.js";
 import { decisionNotificationTitle } from "../services/applicationNotifications.js";
@@ -198,38 +198,6 @@ async function upsertRoles(ds: DataSource): Promise<Role[]> {
   );
 }
 
-async function upsertPaidPlans(ds: DataSource): Promise<{ monthly: Plan; annually: Plan }> {
-  const repo = ds.getRepository(Plan);
-  const paid = getPaidPlan();
-  const features = paid.features
-    .filter((feature) => feature.included)
-    .map((feature) => feature.text);
-
-  const ensure = async (interval: BillingInterval, amount: number): Promise<Plan> => {
-    const existing = await repo.findOne({
-      where: { name: paid.name, interval, isDeleted: false },
-    });
-    if (existing) return existing;
-    return repo.save(
-      repo.create({
-        name: paid.name,
-        amount,
-        paystackAmount: ngnToKobo(amount),
-        interval,
-        currency: Currency.NGN,
-        description: paid.description,
-        features,
-        isDeleted: false,
-      })
-    );
-  };
-
-  return {
-    monthly: await ensure(BillingInterval.Monthly, paid.monthlyAmountNgn),
-    annually: await ensure(BillingInterval.Annually, paid.yearlyAmountNgn),
-  };
-}
-
 export async function runSeed(ds: DataSource, options: SeedCliOptions): Promise<SeedSummary> {
   const scale = computeScale(options.n);
   logger.info(
@@ -246,7 +214,7 @@ export async function runSeed(ds: DataSource, options: SeedCliOptions): Promise<
   const passwordHash = await generateHashedPassword(SEED_PASSWORD);
   const now = new Date();
   const roles = await upsertRoles(ds);
-  const plans = await upsertPaidPlans(ds);
+  const plans = await syncPlansFromCatalog();
   const admin = await ds.getRepository(User).findOne({ where: { userRole: UserRole.Admin } });
 
   const userRepo = ds.getRepository(User);
@@ -270,9 +238,6 @@ export async function runSeed(ds: DataSource, options: SeedCliOptions): Promise<
         welcomeEmailSentAt: now,
         active: true,
         tokenVersion: 0,
-        billingPlan: BillingPlan.Free,
-        billingInterval: null,
-        billingStatus: BillingStatus.Active,
         bio: `${firstName} is a ${experience} ${role.name} open to new roles.`,
         cvFileName: `${firstName.toLowerCase()}-${lastName.toLowerCase()}-cv.pdf`,
         cvText: `${firstName} ${lastName}\n${role.name}\n${experience} of experience in ${location.city}. Skills: ${skillsForIndex(i).join(", ")}.`,
@@ -310,7 +275,6 @@ export async function runSeed(ds: DataSource, options: SeedCliOptions): Promise<
     for (let recruiterIndex = 0; recruiterIndex < RECRUITERS_PER_COMPANY; recruiterIndex++) {
       const i = companyIndex * RECRUITERS_PER_COMPANY + recruiterIndex;
       const location = catalogItem(CITIES, i + 2);
-      const paid = companyIndex % 2 === 0 && recruiterIndex === 0;
       recruiterRows.push(
         userRepo.create({
           email: recruiterEmail(companyIndex + 1, recruiterIndex + 1),
@@ -324,9 +288,6 @@ export async function runSeed(ds: DataSource, options: SeedCliOptions): Promise<
           welcomeEmailSentAt: now,
           active: true,
           tokenVersion: 0,
-          billingPlan: paid ? BillingPlan.Paid : BillingPlan.Free,
-          billingInterval: paid ? BillingInterval.Monthly : null,
-          billingStatus: BillingStatus.Active,
           bio: `Recruiter at ${orgDomain(companyIndex + 1)} hiring for ${catalogItem(INDUSTRIES, companyIndex)}.`,
           locationCity: location.city,
           locationState: location.state,
@@ -346,6 +307,7 @@ export async function runSeed(ds: DataSource, options: SeedCliOptions): Promise<
     const owner = must(recruiters[companyIndex * RECRUITERS_PER_COMPANY], `owner ${companyIndex}`);
     const domain = orgDomain(companyIndex + 1);
     const location = catalogItem(CITIES, companyIndex);
+    const paid = companyIndex % 2 === 0;
     orgRows.push(
       orgRepo.create({
         ownerId: owner.id,
@@ -363,6 +325,9 @@ export async function runSeed(ds: DataSource, options: SeedCliOptions): Promise<
         status: OrganizationStatus.Verified,
         verifiedAt: now,
         verifiedById: admin?.id ?? null,
+        billingPlan: paid ? "advance" : FREE_PLAN_KEY,
+        billingInterval: paid ? BillingInterval.Monthly : null,
+        billingStatus: BillingStatus.Active,
       })
     );
   }
@@ -1006,18 +971,21 @@ export async function runSeed(ds: DataSource, options: SeedCliOptions): Promise<
   const subscriptionRepo = ds.getRepository(Subscription);
   const paymentRows: Payment[] = [];
   const subscriptionRows: Subscription[] = [];
+  const advanceMonthly = must(plans.get("advance:monthly"), "advance:monthly plan");
   for (let companyIndex = 0; companyIndex < scale.companies; companyIndex++) {
     if (companyIndex % 2 !== 0) continue;
     const owner = must(
       recruiters[companyIndex * RECRUITERS_PER_COMPANY],
       `paid owner ${companyIndex}`
     );
+    const org = must(organizations[companyIndex], `paid org ${companyIndex}`);
     paymentRows.push(
       paymentRepo.create({
         userId: owner.id,
-        planId: plans.monthly.id,
-        amount: plans.monthly.amount,
-        amountKobo: Math.round(plans.monthly.paystackAmount),
+        organizationId: org.id,
+        planId: advanceMonthly.id,
+        amount: advanceMonthly.amount,
+        amountKobo: Math.round(advanceMonthly.paystackAmount),
         currency: "NGN",
         billingInterval: BillingInterval.Monthly,
         reference: `seed-pay-${owner.id.replace(/-/g, "").slice(0, 16)}`,
@@ -1033,7 +1001,8 @@ export async function runSeed(ds: DataSource, options: SeedCliOptions): Promise<
     subscriptionRows.push(
       subscriptionRepo.create({
         userId: owner.id,
-        planId: plans.monthly.id,
+        organizationId: org.id,
+        planId: advanceMonthly.id,
         paystackSubscriptionCode: `seed-sub-${owner.id.replace(/-/g, "").slice(0, 16)}`,
         authorizationCode: `AUTH_seed_${companyIndex}`,
         email_token: `seed-email-token-${companyIndex}`,

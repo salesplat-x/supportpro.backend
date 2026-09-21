@@ -12,6 +12,7 @@ import { BillingInterval, Currency } from "../types/enums.js";
 const planRepo = () => AppDataSource.getRepository(Plan);
 
 export interface PlanPayload {
+  planKey: string;
   name: string;
   amount: number;
   interval: BillingInterval;
@@ -23,9 +24,9 @@ export interface PlanPayload {
 export const create = async (payload: PlanPayload): Promise<Plan> => {
   const existingPlan = await planRepo().findOne({
     where: {
-      name: payload.name,
+      planKey: payload.planKey,
       interval: payload.interval,
-      currency: payload.currency,
+      isDeleted: false,
     },
   });
   if (existingPlan) {
@@ -37,6 +38,7 @@ export const create = async (payload: PlanPayload): Promise<Plan> => {
 
   const plan = planRepo().create({
     ...paystackConfig,
+    planKey: payload.planKey,
     amount: monthlyAmount!,
     paystackAmount: paystackConfig.amount,
     features: payload.features ?? null,
@@ -78,12 +80,12 @@ export const update = async (
   }
 
   if (payload.name) {
-    const name = payload.name.toLowerCase();
-    const existing = await planRepo().findOne({ where: { name } });
+    const existing = await planRepo().findOne({
+      where: { planKey: plan.planKey, interval: plan.interval, isDeleted: false },
+    });
     if (existing && existing.id !== plan.id) {
-      throw new ConflictError("A plan already exists with this name");
+      throw new ConflictError("A plan already exists for this key and interval");
     }
-    payload.name = name;
   }
 
   const planCode = plan.paystackPlanCode ?? "";
