@@ -25,6 +25,7 @@ export enum Currency {
 
 export enum JobStatus {
   Draft = "draft",
+  PendingPayment = "pending_payment",
   Active = "active",
   Suspended = "suspended",
   Closed = "closed",
@@ -100,10 +101,10 @@ export enum PaymentStatus {
   Completed = "completed",
 }
 
-export enum BillingPlan {
-  Free = "free",
-  Paid = "paid",
-}
+/** Billing plans are catalogue-driven (see config/pricing.yaml), not a fixed set — plan
+ * identity is a free-form slug looked up against the catalogue, plus this one sentinel. */
+export const FREE_PLAN_KEY = "free";
+export type BillingPlanKey = string;
 
 export enum BillingStatus {
   Active = "active",

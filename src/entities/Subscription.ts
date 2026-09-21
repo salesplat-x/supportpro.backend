@@ -11,18 +11,29 @@ import {
 import { SubscriptionStatus } from "../types/enums.js";
 import type { User } from "./User.js";
 import type { Plan } from "./Plan.js";
+import type { Organization } from "./Organization.js";
 
 @Entity("subscriptions")
 export class Subscription {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
 
+  /** Who purchased/manages this on the organization's behalf — audit trail, not the entitlement key. */
   @Column({ type: "uuid", name: "user_id" })
   userId!: string;
 
   @ManyToOne("User", { eager: false })
   @JoinColumn({ name: "user_id" })
   user!: User;
+
+  /** The organization this subscription actually belongs to — billing is company-wide, not per-user. */
+  @Column({ type: "uuid", name: "organization_id" })
+  @Index("IDX_subscriptions_organization_id")
+  organizationId!: string;
+
+  @ManyToOne("Organization", { eager: false })
+  @JoinColumn({ name: "organization_id" })
+  organization!: Organization;
 
   @Column({ type: "uuid", name: "plan_id" })
   planId!: string;
