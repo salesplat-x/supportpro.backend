@@ -4,13 +4,22 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  Index,
 } from "typeorm";
 import { BillingInterval, Currency } from "../types/enums.js";
 
 @Entity("plans")
+@Index("UQ_plans_key_interval", ["planKey", "interval"], {
+  unique: true,
+  where: `"isDeleted" = false`,
+})
 export class Plan {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
+
+  /** Stable slug matching config/pricing.yaml's plan `key` — links this billing row back to the marketing catalogue. */
+  @Column({ type: "varchar", length: 64, name: "plan_key" })
+  planKey!: string;
 
   @Column({ type: "varchar" })
   name!: string;

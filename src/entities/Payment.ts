@@ -11,6 +11,7 @@ import {
 import { BillingInterval, PaymentStatus } from "../types/enums.js";
 import type { User } from "./User.js";
 import type { Plan } from "./Plan.js";
+import type { Organization } from "./Organization.js";
 
 @Entity("payments")
 @Index("UQ_payments_reference", ["reference"], {
@@ -38,6 +39,14 @@ export class Payment {
   @ManyToOne("Plan", { nullable: true, eager: false })
   @JoinColumn({ name: "plan_id" })
   plan!: Plan | null;
+
+  /** The organization this payment is for — the entitlement key. `userId` above is just who paid. */
+  @Column({ type: "uuid", nullable: true, default: null, name: "organization_id" })
+  organizationId!: string | null;
+
+  @ManyToOne("Organization", { nullable: true, eager: false })
+  @JoinColumn({ name: "organization_id" })
+  organization!: Organization | null;
 
   @Column({ type: "float" })
   amount!: number;

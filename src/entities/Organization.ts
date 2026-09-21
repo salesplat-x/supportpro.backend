@@ -8,7 +8,7 @@ import {
   UpdateDateColumn,
   Index,
 } from "typeorm";
-import { OrganizationStatus } from "../types/enums.js";
+import { BillingInterval, BillingStatus, FREE_PLAN_KEY, OrganizationStatus } from "../types/enums.js";
 import type { User } from "./User.js";
 
 @Entity("organizations")
@@ -67,6 +67,30 @@ export class Organization {
 
   @Column({ type: "enum", enum: OrganizationStatus, default: OrganizationStatus.Pending })
   status!: OrganizationStatus;
+
+  /** The plan is purchased for the whole company — shared by every recruiter who's a member. */
+  @Column({ type: "varchar", length: 64, default: FREE_PLAN_KEY, name: "billing_plan" })
+  @Index("IDX_organizations_billing_plan")
+  billingPlan!: string;
+
+  @Column({
+    type: "enum",
+    enum: BillingInterval,
+    enumName: "plans_interval_enum",
+    nullable: true,
+    default: null,
+    name: "billing_interval",
+  })
+  billingInterval!: BillingInterval | null;
+
+  @Column({
+    type: "enum",
+    enum: BillingStatus,
+    enumName: "users_billingstatus_enum",
+    default: BillingStatus.Active,
+    name: "billing_status",
+  })
+  billingStatus!: BillingStatus;
 
   @Column({ type: "timestamp", nullable: true, default: null, name: "verified_at" })
   verifiedAt!: Date | null;
