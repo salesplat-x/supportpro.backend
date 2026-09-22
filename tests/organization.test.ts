@@ -10,8 +10,7 @@ import {
   clearAllTables,
   testDataSource,
 } from "./helpers/db.js";
-import { Job, OrganizationMember, User } from "../src/entities";
-import { BillingPlan, BillingStatus } from "../src/types/enums.js";
+import { Job, Organization, OrganizationMember, User } from "../src/entities";
 import {
   createTalent,
   createRecruiter,
@@ -887,28 +886,15 @@ describe("Organization invites", () => {
     expect(accept.body.error.message).toMatch(/6 recruiters plus the creator/i);
   });
 
-  it("Rejects invite when invitee is on a paid plan", async () => {
-    const { org, token } = await createOwnedOrg();
-    await createRecruiter({
-      email: "paid@invitecorp.com",
-      billingPlan: BillingPlan.Paid,
-      billingStatus: BillingStatus.Active,
-    });
-
-    const res = await request(app)
-      .post(`/v1/organizations/${org.id}/invites`)
-      .set("Authorization", `Bearer ${token}`)
-      .send({ email: "paid@invitecorp.com" });
-    expect(res.status).toBe(400);
-    expect(res.body.error.message).toMatch(/paid plan/i);
-  });
-
-  it("Inherits owner billing plan when invite is accepted", async () => {
-    const { org, token: ownerToken, user: owner } = await createOwnedOrg();
-    await testDataSource.getRepository(User).update(owner.id, {
-      billingPlan: BillingPlan.Paid,
-      billingStatus: BillingStatus.Active,
-    });
+  // Billing moved from a per-user field to a single org-wide Organization.billingPlan
+  // (see migration OrgScopedBilling / commit "move billing ownership from user to
+  // organization"), so there's no longer a per-invitee "paid plan" to reject and nothing
+  // to inherit on accept — every member of a company already shares the same plan by
+  // construction. The old per-user gating tests this block used to have were removed
+  // along with that dead code path.
+  it("Invite/accept does not touch billing — every member shares the org's single plan", async () => {
+    const { org, token: ownerToken } = await createOwnedOrg();
+    await testDataSource.getRepository(Organization).update(org.id, { billingPlan: "pro" });
 
     await request(app)
       .post(`/v1/organizations/${org.id}/invites`)
@@ -917,7 +903,7 @@ describe("Organization invites", () => {
       .expect(201);
 
     const inviteToken = inviteTokenFromEmail();
-    const { user: joiner, token: joinerToken } = await createRecruiter({
+    const { token: joinerToken } = await createRecruiter({
       email: "billing@invitecorp.com",
     });
 
@@ -926,11 +912,11 @@ describe("Organization invites", () => {
       .set("Authorization", `Bearer ${joinerToken}`)
       .expect(200);
 
-    const refreshed = await testDataSource.getRepository(User).findOne({
-      where: { id: joiner.id },
-    });
-    expect(refreshed?.billingPlan).toBe(BillingPlan.Paid);
-    expect(refreshed?.billingStatus).toBe(BillingStatus.Active);
+    // The joiner is now scoped to the org, which still carries the one plan for everyone.
+    const refreshedOrg = await testDataSource
+      .getRepository(Organization)
+      .findOne({ where: { id: org.id } });
+    expect(refreshedOrg?.billingPlan).toBe("pro");
   });
 });
 

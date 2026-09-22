@@ -676,3 +676,164 @@ describe("PATCH /v1/jobs/:_id — update job", () => {
     expect(res.status).toBe(200);
   });
 });
+
+// ---------------------------------------------------------------------------
+// PATCH /v1/jobs/:_id — plan gating on activation (see services/entitlements.ts,
+// services/job.ts updateJob). Activating a job is the only place job_listings gating
+// is actually enforced today — see also tests/entitlements.test.ts for direct
+// unit coverage of the underlying assertWithinLimit logic.
+// ---------------------------------------------------------------------------
+describe("PATCH /v1/jobs/:_id — plan gating on activation", () => {
+  async function setOrgPlan(recruiter: User, billingPlan: string): Promise<string> {
+    const orgId = recruiter.activeOrganizationId!;
+    await testDataSource.getRepository(Organization).update(orgId, { billingPlan });
+    return orgId;
+  }
+
+  it("sme_basic org at its job_listings limit (2 active) → activating a 3rd → 402 PLAN_LIMIT_REACHED", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const orgId = await setOrgPlan(recruiter, "sme_basic");
+    const role = await createRole();
+    const config = await createAIConfig(recruiter);
+
+    await createJob(recruiter, role, {
+      organizationId: orgId,
+      status: JobStatus.Active,
+      aiConfigId: config.id,
+    });
+    await createJob(recruiter, role, {
+      organizationId: orgId,
+      status: JobStatus.Active,
+      aiConfigId: config.id,
+    });
+    const draft = await createJob(recruiter, role, {
+      organizationId: orgId,
+      status: JobStatus.Draft,
+      aiConfigId: config.id,
+    });
+
+    const res = await request(app)
+      .patch(`/v1/jobs/${draft.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: "active" });
+
+    expect(res.status).toBe(402);
+    expect(res.body.error.code).toBe("PLAN_LIMIT_REACHED");
+    expect(res.body.error.featureKey).toBe("job_listings");
+    expect(res.body.error.planKey).toBe("sme_basic");
+  });
+
+  it("sme_basic org under its limit (1 active) → activating a 2nd → 200", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const orgId = await setOrgPlan(recruiter, "sme_basic");
+    const role = await createRole();
+    const config = await createAIConfig(recruiter);
+
+    await createJob(recruiter, role, {
+      organizationId: orgId,
+      status: JobStatus.Active,
+      aiConfigId: config.id,
+    });
+    const draft = await createJob(recruiter, role, {
+      organizationId: orgId,
+      status: JobStatus.Draft,
+      aiConfigId: config.id,
+    });
+
+    const res = await request(app)
+      .patch(`/v1/jobs/${draft.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: "active" });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("Re-saving an already-Active job doesn't re-check the limit (no double counting)", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const orgId = await setOrgPlan(recruiter, "sme_basic");
+    const role = await createRole();
+    const config = await createAIConfig(recruiter);
+
+    // Org already at the limit purely from other jobs.
+    await createJob(recruiter, role, {
+      organizationId: orgId,
+      status: JobStatus.Active,
+      aiConfigId: config.id,
+    });
+    const alreadyActive = await createJob(recruiter, role, {
+      organizationId: orgId,
+      status: JobStatus.Active,
+      aiConfigId: config.id,
+    });
+
+    const res = await request(app)
+      .patch(`/v1/jobs/${alreadyActive.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: "active", jobBrief: "Tweaked brief" });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("pay_per_use org: activation defers to PendingPayment instead of being counted against a limit", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const orgId = await setOrgPlan(recruiter, "pay_per_use");
+    const role = await createRole();
+    const config = await createAIConfig(recruiter);
+    const draft = await createJob(recruiter, role, {
+      organizationId: orgId,
+      status: JobStatus.Draft,
+      aiConfigId: config.id,
+    });
+
+    const res = await request(app)
+      .patch(`/v1/jobs/${draft.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: "active" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.job.status).toBe("pending_payment");
+  });
+
+  // LOOPHOLE: brand-new organizations default to billingPlan "free", and pricing.yaml
+  // has no "free" plan entry — so assertWithinLimit's getPlanFeature lookup returns
+  // undefined and silently no-ops. A company that has never subscribed to anything can
+  // activate unlimited job listings, well past what even the *paid* tiers allow.
+  it("LOOPHOLE: an org on the default free plan can activate unlimited jobs — no gating applies", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const orgId = recruiter.activeOrganizationId!;
+    const role = await createRole();
+    const config = await createAIConfig(recruiter);
+
+    for (let i = 0; i < 5; i += 1) {
+      const draft = await createJob(recruiter, role, {
+        organizationId: orgId,
+        status: JobStatus.Draft,
+        aiConfigId: config.id,
+      });
+      const res = await request(app)
+        .patch(`/v1/jobs/${draft.id}`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({ status: "active" });
+      expect(res.status).toBe(200);
+    }
+  });
+
+  it("Job with no organizationId skips gating entirely (pre-tenancy data)", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const config = await createAIConfig(recruiter);
+    const draft = await createJob(recruiter, role, {
+      organizationId: null,
+      status: JobStatus.Draft,
+      aiConfigId: config.id,
+      postedById: recruiter.id,
+    });
+
+    const res = await request(app)
+      .patch(`/v1/jobs/${draft.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: "active" });
+
+    expect(res.status).toBe(200);
+  });
+});

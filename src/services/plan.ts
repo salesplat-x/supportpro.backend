@@ -72,16 +72,18 @@ export const fetchOne = async (planId: string): Promise<Plan> => {
 
 export const update = async (
   planId: string,
-  payload: Partial<IPlanUpdateConfig>
+  payload: Partial<IPlanUpdateConfig> & { planKey?: string }
 ): Promise<Plan> => {
   const plan = await planRepo().findOne({ where: { id: planId } });
   if (!plan || plan.isDeleted) {
     throw new NotFoundError("Plan not found or deleted");
   }
 
-  if (payload.name) {
+  if (payload.planKey || payload.interval) {
+    const nextPlanKey = payload.planKey ?? plan.planKey;
+    const nextInterval = (payload.interval as BillingInterval | undefined) ?? plan.interval;
     const existing = await planRepo().findOne({
-      where: { planKey: plan.planKey, interval: plan.interval, isDeleted: false },
+      where: { planKey: nextPlanKey, interval: nextInterval, isDeleted: false },
     });
     if (existing && existing.id !== plan.id) {
       throw new ConflictError("A plan already exists for this key and interval");

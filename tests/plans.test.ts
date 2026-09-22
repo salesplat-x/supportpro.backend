@@ -62,6 +62,7 @@ afterEach(async () => {
 });
 
 const validPlanBody = {
+  planKey: "sme_basic",
   name: "Basic Plan",
   amount: 5000,
   interval: BillingInterval.Monthly,
@@ -127,6 +128,112 @@ describe("POST /v1/plans/ — create plan (Admin only)", () => {
       .send({ name: "Incomplete" });
     expect(res.status).toBe(400);
   });
+
+  // Regression guard: planKey used to be entirely unvalidated (not even required), so any
+  // POST here 500'd on a NOT NULL "plan_key" DB violation instead of cleanly rejecting.
+  it("Missing planKey → 400, not a 500 from a NOT NULL DB violation", async () => {
+    const { token } = await createAdmin();
+    const { planKey: _omit, ...bodyWithoutPlanKey } = validPlanBody;
+    const res = await request(app)
+      .post("/v1/plans/")
+      .set("Authorization", `Bearer ${token}`)
+      .send(bodyWithoutPlanKey);
+    expect(res.status).toBe(400);
+  });
+
+  it("planKey not in the pricing catalogue → 400", async () => {
+    const { token } = await createAdmin();
+    const res = await request(app)
+      .post("/v1/plans/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ ...validPlanBody, planKey: "made_up_plan" });
+    expect(res.status).toBe(400);
+  });
+
+  it("Duplicate planKey + interval (not yet deleted) → 409", async () => {
+    const { token } = await createAdmin();
+    const first = await request(app)
+      .post("/v1/plans/")
+      .set("Authorization", `Bearer ${token}`)
+      .send(validPlanBody);
+    expect(first.status).toBe(201);
+
+    const second = await request(app)
+      .post("/v1/plans/")
+      .set("Authorization", `Bearer ${token}`)
+      .send(validPlanBody);
+    expect(second.status).toBe(409);
+  });
+
+  it("Same planKey but a different interval is not a duplicate → 201", async () => {
+    const { token } = await createAdmin();
+    const first = await request(app)
+      .post("/v1/plans/")
+      .set("Authorization", `Bearer ${token}`)
+      .send(validPlanBody);
+    expect(first.status).toBe(201);
+
+    const second = await request(app)
+      .post("/v1/plans/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ ...validPlanBody, interval: BillingInterval.Annually });
+    expect(second.status).toBe(201);
+  });
+
+  it("Re-creating a planKey + interval whose only prior row was soft-deleted → 201", async () => {
+    const { token } = await createAdmin();
+    const first = await request(app)
+      .post("/v1/plans/")
+      .set("Authorization", `Bearer ${token}`)
+      .send(validPlanBody);
+    expect(first.status).toBe(201);
+
+    await request(app)
+      .delete(`/v1/plans/${first.body.data.plan.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    const second = await request(app)
+      .post("/v1/plans/")
+      .set("Authorization", `Bearer ${token}`)
+      .send(validPlanBody);
+    expect(second.status).toBe(201);
+  });
+
+  it("Zero amount → 400", async () => {
+    const { token } = await createAdmin();
+    const res = await request(app)
+      .post("/v1/plans/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ ...validPlanBody, amount: 0 });
+    expect(res.status).toBe(400);
+  });
+
+  it("Negative amount → 400", async () => {
+    const { token } = await createAdmin();
+    const res = await request(app)
+      .post("/v1/plans/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ ...validPlanBody, amount: -5000 });
+    expect(res.status).toBe(400);
+  });
+
+  it("Invalid currency → 400", async () => {
+    const { token } = await createAdmin();
+    const res = await request(app)
+      .post("/v1/plans/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ ...validPlanBody, currency: "USD_FAKE" });
+    expect(res.status).toBe(400);
+  });
+
+  it("Invalid interval → 400", async () => {
+    const { token } = await createAdmin();
+    const res = await request(app)
+      .post("/v1/plans/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ ...validPlanBody, interval: "biweekly" });
+    expect(res.status).toBe(400);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -149,6 +256,30 @@ describe("GET /v1/plans/ — list plans (public)", () => {
   it("Unauthenticated can access (public endpoint)", async () => {
     const res = await request(app).get("/v1/plans/");
     expect(res.status).toBe(200);
+  });
+
+  it("Filters by interval", async () => {
+    await createPlan({ name: "Monthly Plan", interval: BillingInterval.Monthly });
+    await createPlan({ name: "Annual Plan", interval: BillingInterval.Annually });
+
+    const res = await request(app).get("/v1/plans/").query({ interval: BillingInterval.Annually });
+    expect(res.status).toBe(200);
+    const names = res.body.data.plans.map((p: Plan) => p.name);
+    expect(names).toContain("Annual Plan");
+    expect(names).not.toContain("Monthly Plan");
+  });
+
+  it("Filters by currency", async () => {
+    await createPlan({ name: "NGN Plan", currency: Currency.NGN });
+    const res = await request(app).get("/v1/plans/").query({ currency: Currency.NGN });
+    expect(res.status).toBe(200);
+    const names = res.body.data.plans.map((p: Plan) => p.name);
+    expect(names).toContain("NGN Plan");
+  });
+
+  it("Invalid interval query value → 400", async () => {
+    const res = await request(app).get("/v1/plans/").query({ interval: "fortnightly" });
+    expect(res.status).toBe(400);
   });
 });
 
@@ -204,6 +335,66 @@ describe("PATCH /v1/plans/:_id — update plan (Admin only)", () => {
       .set("Authorization", `Bearer ${token}`)
       .send({ description: "Hack" });
     expect(res.status).toBe(403);
+  });
+
+  // LOOPHOLE regression guard: the conflict check used to query the plan's own *existing*
+  // planKey/interval rather than the *incoming* ones, so retargeting a plan's planKey to
+  // collide with another plan's key+interval slipped past the app-level check entirely and
+  // hit the DB's unique index directly — a raw 500 instead of a clean 409.
+  it("Retargeting planKey+interval to collide with another plan → 409, not a raw 500", async () => {
+    const { token } = await createAdmin();
+    const other = await createPlan({ planKey: "pro", interval: BillingInterval.Monthly });
+    const mine = await createPlan({ planKey: "advance", interval: BillingInterval.Monthly });
+
+    const res = await request(app)
+      .patch(`/v1/plans/${mine.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ planKey: other.planKey });
+
+    expect(res.status).toBe(409);
+  });
+
+  it("Changing only the interval to collide with another plan's key+interval → 409", async () => {
+    const { token } = await createAdmin();
+    const other = await createPlan({ planKey: "pro", interval: BillingInterval.Annually });
+    const mine = await createPlan({ planKey: "pro", interval: BillingInterval.Monthly });
+
+    const res = await request(app)
+      .patch(`/v1/plans/${mine.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ interval: other.interval });
+
+    expect(res.status).toBe(409);
+  });
+
+  it("Retargeting planKey to a value not in the pricing catalogue → 400", async () => {
+    const { token } = await createAdmin();
+    const plan = await createPlan();
+    const res = await request(app)
+      .patch(`/v1/plans/${plan.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ planKey: "made_up_plan" });
+    expect(res.status).toBe(400);
+  });
+
+  it("Updating an already soft-deleted plan → 404", async () => {
+    const { token } = await createAdmin();
+    const plan = await createPlan({ isDeleted: true });
+    const res = await request(app)
+      .patch(`/v1/plans/${plan.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ description: "Should not apply" });
+    expect(res.status).toBe(404);
+  });
+
+  it("Negative amount → 400", async () => {
+    const { token } = await createAdmin();
+    const plan = await createPlan();
+    const res = await request(app)
+      .patch(`/v1/plans/${plan.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ amount: -1 });
+    expect(res.status).toBe(400);
   });
 });
 
