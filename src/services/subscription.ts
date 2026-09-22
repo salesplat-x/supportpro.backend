@@ -35,6 +35,13 @@ export const fetchByMatch = async (payload: {
   userId?: string;
   planId?: string;
 }): Promise<Subscription> => {
+  if (!payload.userId && !payload.planId) {
+    // Guards the service itself, not just the HTTP validator — an unfiltered query
+    // builder with no where/orWhere clauses at all would otherwise return an
+    // arbitrary row from the whole table instead of a clean "not found".
+    throw new ValidationError("At least one of userId or planId must be provided");
+  }
+
   const qb = subscriptionRepo()
     .createQueryBuilder("sub")
     .leftJoinAndSelect("sub.user", "user")

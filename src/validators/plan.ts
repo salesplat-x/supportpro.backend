@@ -1,7 +1,11 @@
 import { body, param, query } from "express-validator";
 import { BillingInterval, Currency } from "../types/enums.js";
+import { getSubscriptionPlanKeys } from "../config/pricingCatalog.js";
 
 export const createPlanValidator = [
+  body("planKey")
+    .custom((value) => getSubscriptionPlanKeys().includes(value))
+    .withMessage(`planKey must be one of: ${getSubscriptionPlanKeys().join(", ")}`),
   body("name").notEmpty().trim().withMessage("Plan name is required"),
   body("amount").isFloat({ min: 0.01 }).toFloat().withMessage("Amount must be a positive number"),
   body("interval")
@@ -18,6 +22,10 @@ export const createPlanValidator = [
 
 export const updatePlanValidator = [
   param("_id").notEmpty().withMessage("Plan ID is required"),
+  body("planKey")
+    .optional()
+    .custom((value) => getSubscriptionPlanKeys().includes(value))
+    .withMessage(`planKey must be one of: ${getSubscriptionPlanKeys().join(", ")}`),
   body("name").optional().trim(),
   body("interval").optional().isIn(Object.values(BillingInterval)).withMessage("Invalid interval"),
   body("amount").optional().isFloat({ min: 0.01 }).toFloat(),

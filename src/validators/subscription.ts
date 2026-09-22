@@ -5,11 +5,11 @@ export const subscriptionIdParamValidator = [
 ];
 
 export const findSubscriptionValidator = [
-  body("user").optional().isString(),
-  body("plan").optional().isString(),
-  body().custom((value: { user?: string; plan?: string }) => {
-    if (!value.user && !value.plan) {
-      throw new Error("At least one of user or plan must be provided");
+  body("userId").optional().isString(),
+  body("planId").optional().isString(),
+  body().custom((value: { userId?: string; planId?: string }) => {
+    if (!value.userId && !value.planId) {
+      throw new Error("At least one of userId or planId must be provided");
     }
     return true;
   }),

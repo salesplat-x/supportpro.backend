@@ -186,6 +186,7 @@ export async function createApplication(
 export async function createPlan(overrides: Partial<Plan> = {}): Promise<Plan> {
   const repo = testDataSource.getRepository(Plan);
   const plan = repo.create({
+    planKey: `plan_${++_userCounter}_${Date.now()}`,
     name: `Plan_${Date.now()}`,
     amount: 5000,
     paystackAmount: 500000,
