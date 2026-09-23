@@ -26,6 +26,9 @@ export interface PricingPlan {
   purchasable?: boolean;
   monthlyAmountNgn: number;
   yearlyAmountNgn: number | null;
+  /** Display-only USD; billing remains NGN via Paystack. */
+  monthlyAmountUsd: number;
+  yearlyAmountUsd: number | null;
   featuresIntro: string | null;
   features: PricingFeature[];
 }
