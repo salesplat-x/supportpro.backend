@@ -1,5 +1,6 @@
 # Single source of truth for recruiter pricing, features, and comparison.
-# Amounts are in NGN (naira). The API converts to kobo for Paystack.
+# Amounts are in NGN (naira) for Paystack billing. USD fields are display-only
+# on the marketing pricing UI (monthlyAmountUsd / yearlyAmountUsd).
 # Real Paystack plan codes for the subscription tiers are stored on the DB-backed
 # `plans` table (see src/entities/Plan.ts / src/services/planSync.ts) — this file
 # describes the marketing catalogue, not the checkout mechanics.
@@ -16,6 +17,36 @@ hero:
   subtitle: Simple, transparent pricing that grows with you. Try any plan free for 30 days.
 
 plans:
+  - key: prod_test
+    name: Production Test
+    description: Low-cost plan for verifying Paystack charges in production.
+    priceCaption: Internal testing only
+    cta: Get started
+    secondaryCta: Chat to sales
+    badge: Production testing
+    highlighted: false
+    monthlyAmountNgn: 2000
+    yearlyAmountNgn: 19200
+    monthlyAmountUsd: 1
+    yearlyAmountUsd: 10
+    featuresIntro: null
+    features:
+      - {
+          key: job_listings,
+          label: "1 active job listing",
+          kind: metered,
+          limit: 1,
+          period: concurrent,
+        }
+      - {
+          key: candidate_views,
+          label: "Up to 10 candidate profile views/month",
+          kind: metered,
+          limit: 10,
+          period: monthly,
+        }
+      - { text: "Paystack production charge verification", included: true }
+
   - key: sme_basic
     name: SME Basic
     description: Basic features free for 7 days, then a flat monthly rate.
@@ -25,6 +56,8 @@ plans:
     highlighted: false
     monthlyAmountNgn: 150000
     yearlyAmountNgn: 1440000
+    monthlyAmountUsd: 98
+    yearlyAmountUsd: 941
     featuresIntro: null
     features:
       - {
@@ -55,6 +88,8 @@ plans:
     highlighted: false
     monthlyAmountNgn: 75000
     yearlyAmountNgn: null
+    monthlyAmountUsd: 50
+    yearlyAmountUsd: null
     featuresIntro: null
     features:
       - {
@@ -85,6 +120,8 @@ plans:
     highlighted: true
     monthlyAmountNgn: 300000
     yearlyAmountNgn: 2880000
+    monthlyAmountUsd: 195
+    yearlyAmountUsd: 1872
     featuresIntro: "Everything in SME Basic, plus:"
     features:
       - {
@@ -125,6 +162,8 @@ plans:
     highlighted: false
     monthlyAmountNgn: 500000
     yearlyAmountNgn: 4800000
+    monthlyAmountUsd: 325
+    yearlyAmountUsd: 3120
     featuresIntro: "Everything in Pro, plus:"
     features:
       - {
@@ -160,6 +199,8 @@ plans:
     highlighted: false
     monthlyAmountNgn: 1000000
     yearlyAmountNgn: 9600000
+    monthlyAmountUsd: 645
+    yearlyAmountUsd: 6192
     featuresIntro: "Everything in Advance, plus:"
     features:
       - {
@@ -201,6 +242,8 @@ plans:
     purchasable: false
     monthlyAmountNgn: 550000
     yearlyAmountNgn: 5500000
+    monthlyAmountUsd: 359
+    yearlyAmountUsd: 3446
     featuresIntro: null
     features: []
 
