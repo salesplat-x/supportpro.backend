@@ -61,6 +61,16 @@ jobs:
               salesplat/supportpro-backend:latest \
               dist/scripts/seedAdmin.js
 
+            # Upsert Paystack plan codes from pricing.yaml into the plans table.
+            # Must succeed before cutover so checkout against new catalog keys works.
+            echo "==> Syncing subscription plans to Paystack"
+            docker run --rm \
+              --network app-network \
+              --env-file .env \
+              --entrypoint node \
+              salesplat/supportpro-backend:latest \
+              dist/scripts/syncPlans.js
+
             echo "==> Replacing running server"
 
             unique_ids() {
