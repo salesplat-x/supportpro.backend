@@ -26,6 +26,7 @@ import {
   extractWebsiteDomain,
   isCorporateEmail,
   isPublicEmailDomain,
+  isValidLinkedinUrl,
   normalizeCompanyDomain,
 } from "../utils/emailDomain.js";
 import { createNotification } from "./notification.js";
@@ -73,7 +74,7 @@ const validateEmail = (email: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.t
 
 export interface OrganizationPayload {
   name: string;
-  domain: string;
+  domain?: string | null;
   email?: string | null;
   phone?: string | null;
   address?: string | null;
@@ -204,35 +205,43 @@ export const createOrganization = async (
   ownerId: string,
   payload: OrganizationPayload
 ): Promise<Organization> => {
-  if (!payload.domain?.trim()) {
-    throw new ValidationError("Company domain is required");
+  if (!payload.linkedin?.trim()) {
+    throw new ValidationError("LinkedIn URL is required");
   }
-  let domain: string;
-  try {
-    domain = normalizeCompanyDomain(payload.domain);
-  } catch {
-    throw new ValidationError("Domain must start with @ and include a dot (e.g. @acme.com)");
-  }
-
-  if (isPublicEmailDomain(`placeholder@${domain}`)) {
+  if (!isValidLinkedinUrl(payload.linkedin)) {
     throw new ValidationError(
-      "Please use a corporate domain (e.g. @acme.com), not a personal email provider."
+      "Enter a valid LinkedIn URL (e.g. https://linkedin.com/company/acme)"
     );
   }
 
-  const domainExists = await orgRepo().findOne({ where: { domain } });
-  if (domainExists) {
-    throw new ConflictError("A company with this domain already exists");
-  }
+  let domain: string | null = null;
+  if (payload.domain?.trim()) {
+    try {
+      domain = normalizeCompanyDomain(payload.domain);
+    } catch {
+      throw new ValidationError("Domain must start with @ and include a dot (e.g. @acme.com)");
+    }
 
-  const owner = await userRepo().findOne({ where: { id: ownerId } });
-  if (!owner) {
-    throw new NotFoundError("User not found");
-  }
-  if (!emailMatchesCompanyDomain(owner.email, domain)) {
-    throw new ValidationError(
-      `Your profile email must use the same domain as the company (@${domain}).`
-    );
+    if (isPublicEmailDomain(`placeholder@${domain}`)) {
+      throw new ValidationError(
+        "Please use a corporate domain (e.g. @acme.com), not a personal email provider."
+      );
+    }
+
+    const domainExists = await orgRepo().findOne({ where: { domain } });
+    if (domainExists) {
+      throw new ConflictError("A company with this domain already exists");
+    }
+
+    const owner = await userRepo().findOne({ where: { id: ownerId } });
+    if (!owner) {
+      throw new NotFoundError("User not found");
+    }
+    if (!emailMatchesCompanyDomain(owner.email, domain)) {
+      throw new ValidationError(
+        `Your profile email must use the same domain as the company (@${domain}).`
+      );
+    }
   }
 
   if (!payload.email) {
@@ -243,7 +252,7 @@ export const createOrganization = async (
   }
   const email = payload.email.toLowerCase();
 
-  if (!emailMatchesCompanyDomain(email, domain)) {
+  if (domain && !emailMatchesCompanyDomain(email, domain)) {
     throw new ValidationError(`Contact email must use the company domain (@${domain}).`);
   }
 
@@ -259,13 +268,13 @@ export const createOrganization = async (
     }
   }
 
-  if (isPublicEmailDomain(email)) {
+  if (domain && isPublicEmailDomain(email)) {
     throw new ValidationError(
       "Please use a corporate work email address (e.g. name@company.com), not a personal email."
     );
   }
 
-  if (payload.website) {
+  if (domain && payload.website) {
     if (!emailDomainMatchesWebsite(email, payload.website)) {
       const websiteDomain = extractWebsiteDomain(payload.website);
       throw new ValidationError(

@@ -92,6 +92,7 @@ const validOrgBody = {
   address: "123 Tech Street, Lagos",
   industry: "Technology",
   website: "https://techcorp.com",
+  linkedin: "https://linkedin.com/company/techcorp",
 };
 
 const recruiterForTechCorp = () => createRecruiter({ email: "creator@techcorp.com" });
@@ -153,13 +154,22 @@ describe("POST /v1/organizations/ — create organization (Recruiter only)", () 
     expect(res.status).toBe(400);
   });
 
-  it("Missing both website and LinkedIn → 400", async () => {
+  it("Missing LinkedIn → 400", async () => {
     const { token } = await recruiterForTechCorp();
-    const { website: _website, ...bodyWithoutWebsite } = validOrgBody;
+    const { linkedin: _linkedin, ...bodyWithoutLinkedin } = validOrgBody;
     const res = await request(app)
       .post("/v1/organizations/")
       .set("Authorization", `Bearer ${token}`)
-      .send(bodyWithoutWebsite);
+      .send(bodyWithoutLinkedin);
+    expect(res.status).toBe(400);
+  });
+
+  it("Invalid LinkedIn URL → 400", async () => {
+    const { token } = await recruiterForTechCorp();
+    const res = await request(app)
+      .post("/v1/organizations/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ ...validOrgBody, linkedin: "not-a-linkedin-url" });
     expect(res.status).toBe(400);
   });
 
@@ -169,7 +179,7 @@ describe("POST /v1/organizations/ — create organization (Recruiter only)", () 
     const res = await request(app)
       .post("/v1/organizations/")
       .set("Authorization", `Bearer ${token}`)
-      .send({ ...bodyWithoutWebsite, linkedin: "https://linkedin.com/company/techcorp" });
+      .send(bodyWithoutWebsite);
     expect(res.status).toBe(201);
   });
 
@@ -653,6 +663,7 @@ describe("Organization invites", () => {
     address: "1 Invite Street",
     industry: "Technology",
     website: "https://invitecorp.com",
+    linkedin: "https://linkedin.com/company/invitecorp",
   };
 
   // Seats are plan-driven and count the owner, so invite-mechanics tests put the company

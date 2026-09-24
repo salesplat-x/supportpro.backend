@@ -364,6 +364,7 @@ describe("POST /v1/auth/verify-email — company invite auto-accept", () => {
         address: "1 Auto Street",
         industry: "Technology",
         website: "https://autoinvite.com",
+        linkedin: "https://linkedin.com/company/autoinvite",
       });
     expect(orgRes.status).toBe(201);
     const orgId = orgRes.body.data.organization.id as string;
