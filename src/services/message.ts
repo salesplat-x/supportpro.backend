@@ -4,12 +4,14 @@ import { Message } from "../entities/Message.js";
 import { Conversation } from "../entities/Conversation.js";
 import { User } from "../entities/User.js";
 import { Application } from "../entities/Application.js";
-import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
+import { NotFoundError, AuthorizationError, ValidationError, PlanLimitError } from "../utils/errors";
 import { sortDirection, stripHtmlToText } from "../utils/text.js";
 import { UserRole, ApplicationStatus } from "../types/enums.js";
 import { createNotification } from "./notification.js";
 import logger from "../utils/logger.js";
 import { assertCompanyResourceAccess, getActiveOrganizationId } from "./organizationScope.js";
+import { Organization } from "../entities/Organization.js";
+import { ensureOrganizationBillingCurrent, hasFlag } from "./entitlements.js";
 
 const messageRepo = () => AppDataSource.getRepository(Message);
 
@@ -209,6 +211,23 @@ export const broadcastMessage = async (
     targetApplication.job.organizationId,
     targetApplication.job.postedById
   );
+
+  const orgId =
+    targetApplication.job.organizationId ?? (await getActiveOrganizationId(senderId));
+  if (orgId) {
+    const orgRepo = AppDataSource.getRepository(Organization);
+    let org = await orgRepo.findOne({ where: { id: orgId } });
+    if (org) {
+      org = await ensureOrganizationBillingCurrent(org);
+      if (!hasFlag(org, "bulk_broadcast_tools")) {
+        throw new PlanLimitError(
+          "Broadcast messaging requires a Pro plan or higher. Ask your organization owner to upgrade.",
+          "bulk_broadcast_tools",
+          org.billingPlan
+        );
+      }
+    }
+  }
 
   const sender = await userRepo().findOne({ where: { id: senderId } });
   if (!sender) {

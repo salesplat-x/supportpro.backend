@@ -21,6 +21,9 @@ import {
   durableFailureUpdate,
   selectDueIds,
 } from "../utils/durableJobs.js";
+import { Organization } from "../entities/Organization.js";
+import { assertWithinLimit, recordUsage } from "./entitlements.js";
+import { getActiveOrganizationId } from "./organizationScope.js";
 
 // mammoth (used by extractText) only supports .docx, not legacy binary .doc —
 // keep this in sync with what extractText can actually parse.
@@ -554,7 +557,22 @@ export type TalentCvFile =
  * Talents uploaded before Spaces storage shipped only have cvText, so this falls
  * back to a regenerated PDF for them; anyone with a stored cvUrl gets the real file.
  */
-export const getTalentCvFile = async (talentId: string): Promise<TalentCvFile> => {
+export const getTalentCvFile = async (
+  talentId: string,
+  viewer?: { id: string; userRole: UserRole }
+): Promise<TalentCvFile> => {
+  if (viewer?.userRole === UserRole.Recruiter) {
+    const orgId = await getActiveOrganizationId(viewer.id);
+    if (orgId) {
+      const orgRepo = AppDataSource.getRepository(Organization);
+      const org = await orgRepo.findOne({ where: { id: orgId } });
+      if (org) {
+        await assertWithinLimit(org, "candidate_views");
+        await recordUsage(org, "candidate_views");
+      }
+    }
+  }
+
   const user = await userRepo()
     .createQueryBuilder("user")
     .addSelect("user.cvText")

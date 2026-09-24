@@ -46,7 +46,10 @@ export const viewProfile = async (req: Request, res: Response) => {
 };
 
 export const downloadTalentCv = async (req: Request, res: Response) => {
-  const file = await userService.getTalentCvFile(req.params["_id"]!);
+  const file = await userService.getTalentCvFile(req.params["_id"]!, {
+    id: req.user.id,
+    userRole: req.user.userRole,
+  });
   if (file.type === "redirect") {
     res.redirect(302, file.url);
     return;
