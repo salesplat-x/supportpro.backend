@@ -8,7 +8,7 @@ import {
   testDataSource,
 } from "./helpers/db.js";
 import { User } from "../src/entities/User.js";
-import { JobStatus, UserRole } from "../src/types/enums.js";
+import { DEFAULT_BILLING_PLAN_KEY, JobStatus, UserRole } from "../src/types/enums.js";
 import { generateHashedPassword, signToken } from "../src/utils/crypto.js";
 import {
   createJob,
@@ -794,17 +794,21 @@ describe("PATCH /v1/jobs/:_id — plan gating on activation", () => {
     expect(res.body.data.job.status).toBe("pending_payment");
   });
 
-  // LOOPHOLE: brand-new organizations default to billingPlan "free", and pricing.yaml
-  // has no "free" plan entry — so assertWithinLimit's getPlanFeature lookup returns
-  // undefined and silently no-ops. A company that has never subscribed to anything can
-  // activate unlimited job listings, well past what even the *paid* tiers allow.
-  it("LOOPHOLE: an org on the default free plan can activate unlimited jobs — no gating applies", async () => {
+  // Brand-new organizations default to pay_per_use, so activation can never quietly go
+  // live for free the way it did under the old "free" default (which had no catalogue
+  // entry, and therefore no gating at all).
+  it("a brand-new org defaults to pay_per_use, so every activation needs payment", async () => {
     const { user: recruiter, token } = await createRecruiter();
     const orgId = recruiter.activeOrganizationId!;
     const role = await createRole();
     const config = await createAIConfig(recruiter);
 
-    for (let i = 0; i < 5; i += 1) {
+    const org = await testDataSource
+      .getRepository(Organization)
+      .findOne({ where: { id: orgId } });
+    expect(org!.billingPlan).toBe(DEFAULT_BILLING_PLAN_KEY);
+
+    for (let i = 0; i < 3; i += 1) {
       const draft = await createJob(recruiter, role, {
         organizationId: orgId,
         status: JobStatus.Draft,
@@ -815,7 +819,13 @@ describe("PATCH /v1/jobs/:_id — plan gating on activation", () => {
         .set("Authorization", `Bearer ${token}`)
         .send({ status: "active" });
       expect(res.status).toBe(200);
+      expect(res.body.data.job.status).toBe("pending_payment");
     }
+
+    const active = await testDataSource
+      .getRepository(Job)
+      .count({ where: { organizationId: orgId, status: JobStatus.Active } });
+    expect(active).toBe(0);
   });
 
   it("Job with no organizationId skips gating entirely (pre-tenancy data)", async () => {

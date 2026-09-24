@@ -228,8 +228,9 @@ export async function createSubscription(
   const repo = testDataSource.getRepository(Subscription);
   const sub = repo.create({
     userId: user.id,
+    organizationId: user.activeOrganizationId ?? undefined,
     planId: plan.id,
-    paystackSubscriptionCode: `SUB_${Date.now()}`,
+    paystackSubscriptionCode: `SUB_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     status: SubscriptionStatus.Active,
     ...overrides,
   });

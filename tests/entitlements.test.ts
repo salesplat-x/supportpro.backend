@@ -23,7 +23,7 @@ import {
 import { PlanLimitError } from "../src/utils/errors/PlanLimitError.js";
 import { FeatureUsageCounter } from "../src/entities/FeatureUsageCounter.js";
 import { Organization } from "../src/entities/Organization.js";
-import { FREE_PLAN_KEY } from "../src/types/enums.js";
+import { DEFAULT_BILLING_PLAN_KEY } from "../src/types/enums.js";
 
 beforeAll(async () => {
   await startTestDatabase();
@@ -186,17 +186,14 @@ describe("assertWithinLimit — non-metered / unknown inputs are no-ops", () => 
     await expect(assertWithinLimit(org, "totally_made_up_feature")).resolves.toBeUndefined();
   });
 
-  // LOOPHOLE: every new organization defaults to FREE_PLAN_KEY ("free"), but pricing.yaml
-  // has no plan entry keyed "free" — getPlanByKey("free") is undefined, so every metered
-  // feature no-ops. A brand-new, never-subscribed org is completely ungated: unlimited
-  // active jobs, unlimited candidate views, unlimited team members. See also
-  // job.test.ts's "plan gating on activation" block, which exercises this through the
-  // real HTTP path.
-  it("LOOPHOLE: orgs on the default free plan are never limited (pricing.yaml has no 'free' entry)", async () => {
-    const org = await orgOnPlan(FREE_PLAN_KEY);
-    await expect(assertWithinLimit(org, "job_listings", async () => 999)).resolves.toBeUndefined();
+  // The default plan is a real catalogue entry, so a brand-new org is gated rather than
+  // silently unlimited the way the old "free" default was.
+  it("orgs on the default pay_per_use plan are gated by the catalogue", async () => {
+    const org = await orgOnPlan(DEFAULT_BILLING_PLAN_KEY);
     await expect(assertWithinLimit(org, "candidate_views")).resolves.toBeUndefined();
-    await expect(assertWithinLimit(org, "team_members", async () => 999)).resolves.toBeUndefined();
+    await expect(assertWithinLimit(org, "team_members", async () => 999)).rejects.toThrow(
+      PlanLimitError
+    );
   });
 
   // Same class of loophole: any garbage billingPlan value (a typo, a stale/removed plan
@@ -246,8 +243,8 @@ describe("recordUsage", () => {
     expect(counter).toBeNull();
   });
 
-  it("no-ops for orgs on the free/unknown plan (nothing to meter)", async () => {
-    const org = await orgOnPlan(FREE_PLAN_KEY);
+  it("no-ops for orgs on an unknown plan (nothing to meter)", async () => {
+    const org = await orgOnPlan("not_a_real_plan_key");
     await recordUsage(org, "candidate_views");
     const counter = await testDataSource
       .getRepository(FeatureUsageCounter)

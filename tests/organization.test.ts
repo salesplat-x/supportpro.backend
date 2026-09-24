@@ -19,6 +19,7 @@ import {
   createRole,
   createJob,
 } from "./helpers/fixtures.js";
+import { DEFAULT_BILLING_PLAN_KEY } from "../src/types/enums.js";
 import { uploadToSpaces, deleteFromSpaces } from "../src/utils/integrations/spaces.js";
 
 const mockUploadToSpaces = uploadToSpaces as jest.Mock;
@@ -654,14 +655,18 @@ describe("Organization invites", () => {
     website: "https://invitecorp.com",
   };
 
-  async function createOwnedOrg() {
+  // Seats are plan-driven and count the owner, so invite-mechanics tests put the company
+  // on a plan with room; the seat-limit tests below pick a plan deliberately.
+  async function createOwnedOrg(billingPlan = "enterprise") {
     const { token, user } = await createRecruiter({ email: "owner@invitecorp.com" });
     const res = await request(app)
       .post("/v1/organizations/")
       .set("Authorization", `Bearer ${token}`)
       .send(corporateOrgBody);
     expect(res.status).toBe(201);
-    return { org: res.body.data.organization, token, user };
+    const org = res.body.data.organization;
+    await testDataSource.getRepository(Organization).update(org.id, { billingPlan });
+    return { org, token, user };
   }
 
   it("Owner sends invite → 201, lists pending invite", async () => {
@@ -833,10 +838,12 @@ describe("Organization invites", () => {
     expect(list.body.data.invites).toHaveLength(0);
   });
 
-  it("Rejects a seventh teammate invite when 6 recruiters plus the creator already occupy seats", async () => {
-    const { org, token } = await createOwnedOrg();
+  // Seats come from the plan catalogue, not a fixed constant: "pro" allows 3 team members
+  // and the owner occupies one of them, so two invites fill the company.
+  it("Rejects the invite that would exceed the plan's team_members limit", async () => {
+    const { org, token } = await createOwnedOrg("pro");
 
-    for (let i = 1; i <= 6; i += 1) {
+    for (let i = 1; i <= 2; i += 1) {
       const send = await request(app)
         .post(`/v1/organizations/${org.id}/invites`)
         .set("Authorization", `Bearer ${token}`)
@@ -844,16 +851,30 @@ describe("Organization invites", () => {
       expect(send.status).toBe(201);
     }
 
-    const seventh = await request(app)
+    const overLimit = await request(app)
       .post(`/v1/organizations/${org.id}/invites`)
       .set("Authorization", `Bearer ${token}`)
-      .send({ email: "teammate7@invitecorp.com" });
-    expect(seventh.status).toBe(400);
-    expect(seventh.body.error.message).toMatch(/6 recruiters plus the creator/i);
+      .send({ email: "teammate3@invitecorp.com" });
+    expect(overLimit.status).toBe(402);
+    expect(overLimit.body.error.code).toBe("PLAN_LIMIT_REACHED");
+    expect(overLimit.body.error.featureKey).toBe("team_members");
   });
 
-  it("Rejects invite accept when the company already has 6 teammates", async () => {
-    const { org, token } = await createOwnedOrg();
+  // The default plan is a single-seat company: the owner fills it, so there is no room to
+  // invite anyone until they upgrade.
+  it("Rejects any invite on the default pay_per_use plan — the owner is the only seat", async () => {
+    const { org, token } = await createOwnedOrg(DEFAULT_BILLING_PLAN_KEY);
+
+    const send = await request(app)
+      .post(`/v1/organizations/${org.id}/invites`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ email: "teammate@invitecorp.com" });
+    expect(send.status).toBe(402);
+    expect(send.body.error.featureKey).toBe("team_members");
+  });
+
+  it("Rejects invite accept when the seats filled up while the invite was pending", async () => {
+    const { org, token } = await createOwnedOrg("pro");
 
     const send = await request(app)
       .post(`/v1/organizations/${org.id}/invites`)
@@ -863,8 +884,10 @@ describe("Organization invites", () => {
 
     const inviteToken = inviteTokenFromEmail();
 
+    // Two more members land before the invite is accepted — with the owner that is the
+    // whole of "pro"'s 3 seats.
     const memberRepo = testDataSource.getRepository(OrganizationMember);
-    for (let i = 1; i <= 6; i += 1) {
+    for (let i = 1; i <= 2; i += 1) {
       const { user } = await createRecruiter({ email: `filled${i}@invitecorp.com` });
       await memberRepo.save(
         memberRepo.create({
@@ -882,8 +905,8 @@ describe("Organization invites", () => {
     const accept = await request(app)
       .post(`/v1/organizations/invites/${inviteToken}/accept`)
       .set("Authorization", `Bearer ${joinerToken}`);
-    expect(accept.status).toBe(400);
-    expect(accept.body.error.message).toMatch(/6 recruiters plus the creator/i);
+    expect(accept.status).toBe(402);
+    expect(accept.body.error.featureKey).toBe("team_members");
   });
 
   // Billing moved from a per-user field to a single org-wide Organization.billingPlan
