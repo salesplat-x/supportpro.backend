@@ -1,5 +1,6 @@
 import { body, param } from "express-validator";
 import { idParam, phoneRule } from "./shared.js";
+import { isValidLinkedinUrl } from "../utils/emailDomain.js";
 
 export const switchOrganizationValidator = [idParam("_id")];
 
@@ -43,8 +44,7 @@ export const revokeOrganizationInviteValidator = [
 
 export const createOrganizationValidator = [
   body("domain")
-    .notEmpty()
-    .withMessage("Company domain is required")
+    .optional()
     .matches(/^@[^\s@]+\.[^\s@]+$/)
     .withMessage("Domain must start with @ and include a dot (e.g. @acme.com)"),
   body("email").isEmail().normalizeEmail().withMessage("Valid email is required"),
@@ -54,12 +54,10 @@ export const createOrganizationValidator = [
   body("address").notEmpty().withMessage("Address is required"),
   body("industry").notEmpty().withMessage("Industry is required").isString(),
   body("twitter").optional().isString(),
-  body("linkedin").optional().isString(),
+  body("linkedin")
+    .notEmpty()
+    .withMessage("LinkedIn URL is required")
+    .custom((value) => isValidLinkedinUrl(value))
+    .withMessage("Enter a valid LinkedIn URL (e.g. https://linkedin.com/company/acme)"),
   body("facebook").optional().isString(),
-  body("website").custom((value, { req }) => {
-    if (!value && !req.body.linkedin) {
-      throw new Error("Provide either a website or a LinkedIn URL");
-    }
-    return true;
-  }),
 ];
