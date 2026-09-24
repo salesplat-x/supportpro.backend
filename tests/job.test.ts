@@ -803,9 +803,7 @@ describe("PATCH /v1/jobs/:_id — plan gating on activation", () => {
     const role = await createRole();
     const config = await createAIConfig(recruiter);
 
-    const org = await testDataSource
-      .getRepository(Organization)
-      .findOne({ where: { id: orgId } });
+    const org = await testDataSource.getRepository(Organization).findOne({ where: { id: orgId } });
     expect(org!.billingPlan).toBe(DEFAULT_BILLING_PLAN_KEY);
 
     for (let i = 0; i < 3; i += 1) {

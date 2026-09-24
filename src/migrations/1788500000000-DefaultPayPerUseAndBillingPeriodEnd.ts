@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class DefaultPayPerUseAndBillingPeriodEnd1788500000000
-  implements MigrationInterface
-{
+export class DefaultPayPerUseAndBillingPeriodEnd1788500000000 implements MigrationInterface {
   name = "DefaultPayPerUseAndBillingPeriodEnd1788500000000";
 
   public async up(queryRunner: QueryRunner): Promise<void> {

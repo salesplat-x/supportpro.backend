@@ -22,10 +22,7 @@ import {
   createJob,
   createAIConfig,
 } from "./helpers/fixtures.js";
-import {
-  computeBillingPeriodEnd,
-  setOrganizationBilling,
-} from "../src/services/billingState.js";
+import { computeBillingPeriodEnd, setOrganizationBilling } from "../src/services/billingState.js";
 import {
   ensureOrganizationBillingCurrent,
   getOrganizationUsage,
@@ -565,9 +562,7 @@ describe("default plan", () => {
       .send({ reference: initiated.body.data.reference })
       .expect(200);
 
-    const paid = await testDataSource
-      .getRepository(Job)
-      .findOne({ where: { id: draft.id } });
+    const paid = await testDataSource.getRepository(Job).findOne({ where: { id: draft.id } });
     expect(paid!.status).toBe(JobStatus.Active);
 
     // A per-job charge must never move the org off pay per use.
@@ -612,9 +607,7 @@ describe("upgrade", () => {
     const onOldPlan = await reloadOrg(orgId);
     await recordUsage(onOldPlan, "candidate_views", 40);
     const before = await getOrganizationUsage(orgId);
-    expect(
-      before.meters.find((m) => m.key === "candidate_views")?.used
-    ).toBe(40);
+    expect(before.meters.find((m) => m.key === "candidate_views")?.used).toBe(40);
     expect(before.meters.find((m) => m.key === "candidate_views")?.limit).toBe(50);
 
     await buyPlan(token, "pro");
@@ -624,9 +617,7 @@ describe("upgrade", () => {
     const views = after.meters.find((m) => m.key === "candidate_views");
     expect(views?.used).toBe(0);
     expect(views?.limit).toBe(250);
-    expect(after.flags.some((f) => f.key === "bulk_broadcast_tools" && f.included)).toBe(
-      true
-    );
+    expect(after.flags.some((f) => f.key === "bulk_broadcast_tools" && f.included)).toBe(true);
   });
 
   it("verifying the same reference twice is a no-op", async () => {
@@ -988,9 +979,7 @@ describe("usage counters", () => {
     });
     const org = await reloadOrg(orgId);
 
-    await Promise.all(
-      Array.from({ length: 12 }, () => recordUsage(org, "candidate_views"))
-    );
+    await Promise.all(Array.from({ length: 12 }, () => recordUsage(org, "candidate_views")));
 
     const counter = await testDataSource
       .getRepository(FeatureUsageCounter)

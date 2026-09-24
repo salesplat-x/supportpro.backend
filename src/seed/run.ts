@@ -329,9 +329,7 @@ export async function runSeed(ds: DataSource, options: SeedCliOptions): Promise<
         billingPlan: paid ? "advance" : DEFAULT_BILLING_PLAN_KEY,
         billingInterval: paid ? BillingInterval.Monthly : null,
         billingStatus: BillingStatus.Active,
-        billingPeriodEnd: paid
-          ? computeBillingPeriodEnd(now, BillingInterval.Monthly)
-          : null,
+        billingPeriodEnd: paid ? computeBillingPeriodEnd(now, BillingInterval.Monthly) : null,
       })
     );
   }

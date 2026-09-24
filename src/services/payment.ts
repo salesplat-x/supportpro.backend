@@ -400,10 +400,7 @@ export const paystackWebhook = async (payload: {
   // already-processed check silently drops all of them.
   const eventKey = [
     event,
-    reference ??
-      (data.invoice_code as string | undefined) ??
-      subscriptionCodeOf(data) ??
-      "none",
+    reference ?? (data.invoice_code as string | undefined) ?? subscriptionCodeOf(data) ?? "none",
     paystackId,
     (data.period_end as string | undefined) ?? "",
   ].join(":");
@@ -489,10 +486,7 @@ export const paystackWebhook = async (payload: {
         where: { paystackSubscriptionCode: subscriptionCode },
       });
       if (subscription) {
-        await setOrganizationBillingStatus(
-          subscription.organizationId,
-          BillingStatus.PastDue
-        );
+        await setOrganizationBillingStatus(subscription.organizationId, BillingStatus.PastDue);
       }
     }
     await finish();
@@ -524,10 +518,7 @@ export const paystackWebhook = async (payload: {
         // check and the write are one statement, so the race cannot be lost.
         const disabledPlanKey = subscription.plan?.planKey;
         if (disabledPlanKey) {
-          await revertToPayPerUseIfStillOnPlan(
-            subscription.organizationId,
-            disabledPlanKey
-          );
+          await revertToPayPerUseIfStillOnPlan(subscription.organizationId, disabledPlanKey);
         }
       }
     }
@@ -598,8 +589,7 @@ export const paystackWebhook = async (payload: {
             billingInterval: plan.interval,
             billingStatus: BillingStatus.Active,
             billingPeriodEnd:
-              subscription.expiryDate ??
-              computeBillingPeriodEnd(new Date(), plan.interval),
+              subscription.expiryDate ?? computeBillingPeriodEnd(new Date(), plan.interval),
           });
         }
       }

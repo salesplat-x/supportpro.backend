@@ -368,9 +368,7 @@ describe("POST /v1/auth/verify-email — company invite auto-accept", () => {
     expect(orgRes.status).toBe(201);
     const orgId = orgRes.body.data.organization.id as string;
     // Seats are plan-driven and the owner occupies one, so the company needs room to invite.
-    await testDataSource
-      .getRepository(Organization)
-      .update(orgId, { billingPlan: "enterprise" });
+    await testDataSource.getRepository(Organization).update(orgId, { billingPlan: "enterprise" });
 
     const inviteRes = await request(app)
       .post(`/v1/organizations/${orgId}/invites`)

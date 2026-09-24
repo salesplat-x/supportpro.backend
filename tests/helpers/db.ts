@@ -104,15 +104,22 @@ export async function clearAllTables(): Promise<void> {
   const { drainInFlightMatchVerdicts } = await import("../../src/services/applicationStage.js");
   await drainInFlightMatchVerdicts();
   const tableNames = testDataSource.entityMetadatas.map((e) => `"${e.tableName}"`).join(", ");
-  // TRUNCATE ... RESTART IDENTITY CASCADE handles FK dependencies in one shot
-  try {
-    await testDataSource.query(`TRUNCATE TABLE ${tableNames} RESTART IDENTITY CASCADE`);
-  } catch {
-    for (const entity of testDataSource.entityMetadatas) {
-      await testDataSource
-        .getRepository(entity.name)
-        .clear()
-        .catch(() => {});
+  // TRUNCATE ... RESTART IDENTITY CASCADE handles FK dependencies in one shot, but it needs
+  // ACCESS EXCLUSIVE on every table — so background work that outlives a test (pre-screening
+  // generation, notification fan-out) can hold a row lock and make it fail. Swallowing that
+  // used to leave a partially-populated database, which surfaced as inexplicable 401s/404s
+  // in whichever test ran next, so retry instead and fail loudly if it never succeeds.
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      await testDataSource.query(`TRUNCATE TABLE ${tableNames} RESTART IDENTITY CASCADE`);
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 50 * (attempt + 1)));
     }
   }
+  throw new Error(
+    `clearAllTables: could not truncate after 5 attempts — tests would run against a dirty database. Last error: ${String(lastError)}`
+  );
 }

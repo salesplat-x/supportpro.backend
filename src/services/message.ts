@@ -4,7 +4,12 @@ import { Message } from "../entities/Message.js";
 import { Conversation } from "../entities/Conversation.js";
 import { User } from "../entities/User.js";
 import { Application } from "../entities/Application.js";
-import { NotFoundError, AuthorizationError, ValidationError, PlanLimitError } from "../utils/errors";
+import {
+  NotFoundError,
+  AuthorizationError,
+  ValidationError,
+  PlanLimitError,
+} from "../utils/errors";
 import { sortDirection, stripHtmlToText } from "../utils/text.js";
 import { UserRole, ApplicationStatus } from "../types/enums.js";
 import { createNotification } from "./notification.js";
@@ -212,8 +217,7 @@ export const broadcastMessage = async (
     targetApplication.job.postedById
   );
 
-  const orgId =
-    targetApplication.job.organizationId ?? (await getActiveOrganizationId(senderId));
+  const orgId = targetApplication.job.organizationId ?? (await getActiveOrganizationId(senderId));
   if (orgId) {
     const orgRepo = AppDataSource.getRepository(Organization);
     let org = await orgRepo.findOne({ where: { id: orgId } });

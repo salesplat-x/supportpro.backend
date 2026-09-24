@@ -16,10 +16,7 @@ import {
 } from "../types/enums.js";
 import { NotFoundError } from "../utils/errors";
 import { PlanLimitError } from "../utils/errors";
-import {
-  extendOrganizationBillingPeriod,
-  revertToPayPerUseIfExpired,
-} from "./billingState.js";
+import { extendOrganizationBillingPeriod, revertToPayPerUseIfExpired } from "./billingState.js";
 
 const counterRepo = () => AppDataSource.getRepository(FeatureUsageCounter);
 const organizationRepo = () => AppDataSource.getRepository(Organization);
@@ -45,15 +42,10 @@ export const hasFlag = (organization: Organization, featureKey: string): boolean
 
 export const currentPeriodStart = (): string => {
   const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-    .toISOString()
-    .slice(0, 10);
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10);
 };
 
-const readCounter = async (
-  organizationId: string,
-  featureKey: string
-): Promise<number> => {
+const readCounter = async (organizationId: string, featureKey: string): Promise<number> => {
   const counter = await counterRepo().findOne({
     where: { organizationId, featureKey, periodStart: currentPeriodStart() },
   });
@@ -76,9 +68,7 @@ export const resetPeriodUsage = async (organizationId: string): Promise<void> =>
  * billingPeriodEnd. billingPeriodEnd is only a cache of the subscription's schedule, so a
  * renewal webhook that never arrived must not cost a paying customer their plan.
  */
-const findLiveSubscriptionPeriodEnd = async (
-  organizationId: string
-): Promise<Date | null> => {
+const findLiveSubscriptionPeriodEnd = async (organizationId: string): Promise<Date | null> => {
   const now = new Date();
   const live = await subscriptionRepo().find({
     where: [
@@ -140,9 +130,7 @@ export const ensureOrganizationBillingCurrent = async (
 
   // Nothing changed, so someone else won the race — an upgrade landed, a renewal extended
   // the period, or a parallel request already reverted. This snapshot is stale either way.
-  return (
-    (await organizationRepo().findOne({ where: { id: organization.id } })) ?? organization
-  );
+  return (await organizationRepo().findOne({ where: { id: organization.id } })) ?? organization;
 };
 
 /**
