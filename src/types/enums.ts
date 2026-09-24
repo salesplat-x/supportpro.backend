@@ -102,8 +102,9 @@ export enum PaymentStatus {
 }
 
 /** Billing plans are catalogue-driven (see config/pricing.yaml), not a fixed set — plan
- * identity is a free-form slug looked up against the catalogue, plus this one sentinel. */
-export const FREE_PLAN_KEY = "free";
+ * identity is a free-form slug looked up against the catalogue.
+ * Default for every new organization — pay when activating a job listing. */
+export const DEFAULT_BILLING_PLAN_KEY = "pay_per_use";
 export type BillingPlanKey = string;
 
 export enum BillingStatus {

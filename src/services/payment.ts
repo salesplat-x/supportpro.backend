@@ -18,7 +18,7 @@ import { NotFoundError, ValidationError, ConflictError, AuthorizationError } fro
 import {
   BillingInterval,
   BillingStatus,
-  FREE_PLAN_KEY,
+  DEFAULT_BILLING_PLAN_KEY,
   JobStatus,
   PaymentStatus,
   SubscriptionStatus,
@@ -30,7 +30,13 @@ import {
   createCustomer,
   isDummyPaystack,
 } from "../utils/integrations/paystack.js";
-import { disable as disableSubscription } from "./subscription.js";
+import {
+  computeBillingPeriodEnd,
+  revertToPayPerUseIfStillOnPlan,
+  setOrganizationBilling,
+  setOrganizationBillingStatus,
+} from "./billingState.js";
+import { ensureOrganizationBillingCurrent, resetPeriodUsage } from "./entitlements.js";
 import { generateReference } from "../utils/crypto.js";
 import EmailService from "../utils/integrations/email/emailService.js";
 
@@ -92,15 +98,6 @@ const resolveOrganizationForBilling = async (user: User): Promise<Organization> 
   return organization;
 };
 
-const setOrganizationBilling = async (
-  organizationId: string,
-  patch: Partial<Pick<Organization, "billingPlan" | "billingInterval" | "billingStatus">>
-): Promise<void> => {
-  const organization = await organizationRepo().findOne({ where: { id: organizationId } });
-  if (!organization) return;
-  await organizationRepo().save({ ...organization, ...patch });
-};
-
 const sendPaymentReceipt = async (payment: Payment): Promise<void> => {
   const user = await userRepo().findOne({ where: { id: payment.userId } });
   if (!user) return;
@@ -141,6 +138,7 @@ const sendPaymentReceipt = async (payment: Payment): Promise<void> => {
  */
 const fulfillPayment = async (payment: Payment, authorizationCode?: string): Promise<boolean> => {
   let newlyCompleted = false;
+  let upgradedOrganizationId: string | null = null;
   await AppDataSource.manager.transaction(async (manager) => {
     const locked = await manager.findOne(Payment, {
       where: { id: payment.id },
@@ -170,20 +168,55 @@ const fulfillPayment = async (payment: Payment, authorizationCode?: string): Pro
       const plan = locked.planId
         ? await manager.findOne(Plan, { where: { id: locked.planId } })
         : null;
-      const organization = await manager.findOne(Organization, {
-        where: { id: locked.organizationId },
-        lock: { mode: "pessimistic_write" },
-      });
-      if (organization) {
-        organization.billingPlan = plan?.planKey ?? "paid";
-        organization.billingInterval = locked.billingInterval;
-        organization.billingStatus = BillingStatus.Active;
-        await manager.save(organization);
+      // No resolvable plan means we cannot say what was bought — leave billing alone
+      // rather than writing a placeholder tier that the catalogue does not gate.
+      if (plan) {
+        const paidAt = locked.paidAt ?? new Date();
+        const interval = locked.billingInterval;
+        const organization = await setOrganizationBilling(
+          locked.organizationId,
+          {
+            billingPlan: plan.planKey,
+            billingInterval: interval,
+            billingStatus: BillingStatus.Active,
+            billingPeriodEnd: computeBillingPeriodEnd(paidAt, interval),
+          },
+          manager
+        );
+        if (organization) {
+          upgradedOrganizationId = organization.id;
+
+          // Cancel other active subscriptions for this org without touching billing —
+          // billing was just set to the new plan above.
+          const otherSubs = await manager.find(Subscription, {
+            where: {
+              organizationId: organization.id,
+              status: SubscriptionStatus.Active,
+            },
+          });
+          for (const sub of otherSubs) {
+            if (sub.planId === plan.id) continue;
+            sub.status = SubscriptionStatus.Cancelled;
+            sub.history = [
+              ...(sub.history ?? []),
+              {
+                description: "Replaced by plan upgrade",
+                author: locked.userId,
+                date: new Date(),
+              },
+            ];
+            await manager.save(sub);
+          }
+        }
       }
     }
 
     newlyCompleted = true;
   });
+
+  if (newlyCompleted && upgradedOrganizationId) {
+    await resetPeriodUsage(upgradedOrganizationId);
+  }
   return newlyCompleted;
 };
 
@@ -199,6 +232,82 @@ const markFailed = async (payment: Payment, reason: string): Promise<void> => {
     locked.history = appendHistory(locked, reason);
     await manager.save(locked);
   });
+};
+
+/**
+ * Extends an organization's paid window when Paystack renews a subscription. Month 2+
+ * charges arrive under a Paystack-generated reference we never stored, so without this the
+ * paid period is never moved and the lazy expiry check downgrades a paying customer.
+ *
+ * Idempotent and monotonic: renewal webhooks are retried and can arrive out of order, so
+ * every date only ever moves forward. Returns the organization id when it was extended.
+ */
+const applySubscriptionRenewal = async (
+  subscriptionCode: string,
+  nextPaymentDate: Date | null
+): Promise<string | null> => {
+  const found = await subscriptionRepo().findOne({
+    where: { paystackSubscriptionCode: subscriptionCode },
+  });
+  if (!found) return null;
+
+  const plan = await planRepo().findOne({ where: { id: found.planId } });
+  const periodEnd =
+    nextPaymentDate ??
+    computeBillingPeriodEnd(new Date(), plan?.interval ?? BillingInterval.Monthly);
+
+  let extendedOrganizationId: string | null = null;
+
+  await AppDataSource.manager.transaction(async (manager) => {
+    // Organization first, then subscription — fulfillPayment takes the same order, and the
+    // reverse here would deadlock a renewal against a concurrent upgrade for the same org.
+    const organization = await manager.findOne(Organization, {
+      where: { id: found.organizationId },
+      lock: { mode: "pessimistic_write" },
+    });
+    if (!organization) return;
+
+    const locked = await manager.findOne(Subscription, {
+      where: { id: found.id },
+      lock: { mode: "pessimistic_write" },
+    });
+    if (!locked) return;
+    // A subscription an upgrade already cancelled must not be resurrected by a late webhook.
+    if (locked.status === SubscriptionStatus.Cancelled) return;
+
+    const forward = (current: Date | null): Date =>
+      current && current.getTime() > periodEnd.getTime() ? current : periodEnd;
+
+    locked.status = SubscriptionStatus.Active;
+    locked.nextPaymentDate = forward(locked.nextPaymentDate);
+    locked.expiryDate = forward(locked.expiryDate);
+    locked.history = [
+      ...(locked.history ?? []),
+      {
+        description: `Renewed until ${periodEnd.toISOString()}`,
+        author: locked.userId,
+        date: new Date(),
+      },
+    ];
+    await manager.save(locked);
+
+    // A newer upgrade must not be clobbered by a late renewal for the plan it replaced.
+    if (plan && organization.billingPlan !== plan.planKey) return;
+
+    await setOrganizationBilling(
+      organization.id,
+      {
+        billingPlan: plan?.planKey ?? organization.billingPlan,
+        billingInterval: plan?.interval ?? organization.billingInterval,
+        billingStatus: BillingStatus.Active,
+        billingPeriodEnd: forward(organization.billingPeriodEnd),
+      },
+      manager
+    );
+    extendedOrganizationId = organization.id;
+  });
+
+  return extendedOrganizationId;
 };
 
 export const verify = async (user: User, payload: { reference: string }): Promise<void> => {
@@ -275,6 +384,10 @@ const findPaymentByReference = async (reference: string): Promise<Payment | null
   });
 };
 
+const subscriptionCodeOf = (data: Record<string, unknown>): string | undefined =>
+  (data.subscription as Record<string, string> | undefined)?.subscription_code ??
+  (data.subscription_code as string | undefined);
+
 export const paystackWebhook = async (payload: {
   event: string;
   data: Record<string, unknown>;
@@ -282,7 +395,18 @@ export const paystackWebhook = async (payload: {
   const { event, data } = payload;
   const reference = (data.reference as string | undefined) ?? null;
   const paystackId = data.id != null ? String(data.id) : "";
-  const eventKey = `${event}:${reference ?? (data.subscription_code as string | undefined) ?? "none"}:${paystackId}`;
+  // Invoice events carry no top-level reference and nest the subscription code, so the key
+  // has to reach for those too — otherwise every renewal collapses onto one key and the
+  // already-processed check silently drops all of them.
+  const eventKey = [
+    event,
+    reference ??
+      (data.invoice_code as string | undefined) ??
+      subscriptionCodeOf(data) ??
+      "none",
+    paystackId,
+    (data.period_end as string | undefined) ?? "",
+  ].join(":");
 
   const alreadyProcessed = await eventRepo().findOne({ where: { eventKey } });
   if (alreadyProcessed) return;
@@ -335,18 +459,40 @@ export const paystackWebhook = async (payload: {
     return;
   }
 
+  // Recurring renewals (month 2+). Paystack fires invoice.create (unpaid) -> charge.success
+  // (under a reference we never stored) -> invoice.update (settled, carrying the new
+  // next_payment_date). invoice.update is the only event that both names the subscription
+  // and carries the new period, so it is the authoritative extender and invoice.create is
+  // deliberately a no-op until the invoice is actually paid.
+  if (event === "invoice.create" || event === "invoice.update") {
+    const subscriptionCode = subscriptionCodeOf(data);
+    const settled = data.paid === true || data.status === "success";
+    if (subscriptionCode && settled) {
+      const subscription = data.subscription as Record<string, unknown> | undefined;
+      const next =
+        (subscription?.next_payment_date as string | undefined) ??
+        (data.period_end as string | undefined);
+      const renewedOrganizationId = await applySubscriptionRenewal(
+        subscriptionCode,
+        next ? new Date(next) : null
+      );
+      if (renewedOrganizationId) await resetPeriodUsage(renewedOrganizationId);
+    }
+    await finish();
+    return;
+  }
+
   if (event === "invoice.payment_failed") {
-    const subscriptionCode =
-      (data.subscription as Record<string, string> | undefined)?.subscription_code ??
-      (data.subscription_code as string | undefined);
+    const subscriptionCode = subscriptionCodeOf(data);
     if (subscriptionCode) {
       const subscription = await subscriptionRepo().findOne({
         where: { paystackSubscriptionCode: subscriptionCode },
       });
       if (subscription) {
-        await setOrganizationBilling(subscription.organizationId, {
-          billingStatus: BillingStatus.PastDue,
-        });
+        await setOrganizationBillingStatus(
+          subscription.organizationId,
+          BillingStatus.PastDue
+        );
       }
     }
     await finish();
@@ -358,6 +504,7 @@ export const paystackWebhook = async (payload: {
     if (code) {
       const subscription = await subscriptionRepo().findOne({
         where: { paystackSubscriptionCode: code },
+        relations: { plan: true },
       });
       if (subscription) {
         await subscriptionRepo().save({
@@ -372,11 +519,16 @@ export const paystackWebhook = async (payload: {
             },
           ],
         });
-        await setOrganizationBilling(subscription.organizationId, {
-          billingPlan: FREE_PLAN_KEY,
-          billingInterval: null,
-          billingStatus: BillingStatus.Cancelled,
-        });
+        // Revert immediately, but only while this sub still matches the org's plan — an
+        // upgrade that disabled the old sub after writing the new plan must survive. The
+        // check and the write are one statement, so the race cannot be lost.
+        const disabledPlanKey = subscription.plan?.planKey;
+        if (disabledPlanKey) {
+          await revertToPayPerUseIfStillOnPlan(
+            subscription.organizationId,
+            disabledPlanKey
+          );
+        }
       }
     }
     await finish();
@@ -396,19 +548,25 @@ export const paystackWebhook = async (payload: {
         where: { paystackSubscriptionCode: code },
       });
       if (existing) {
+        const plan = await planRepo().findOne({ where: { id: existing.planId } });
+        const periodEnd = data.next_payment_date
+          ? new Date(data.next_payment_date as string)
+          : computeBillingPeriodEnd(new Date(), plan?.interval ?? BillingInterval.Monthly);
         await subscriptionRepo().save({
           ...existing,
           status: SubscriptionStatus.Active,
           email_token: (data.email_token as string) ?? existing.email_token,
-          nextPaymentDate: data.next_payment_date
-            ? new Date(data.next_payment_date as string)
-            : existing.nextPaymentDate,
+          nextPaymentDate: periodEnd,
+          expiryDate: periodEnd,
         });
-        const plan = await planRepo().findOne({ where: { id: existing.planId } });
-        await setOrganizationBilling(existing.organizationId, {
-          billingPlan: plan?.planKey ?? "paid",
-          billingStatus: BillingStatus.Active,
-        });
+        if (plan) {
+          await setOrganizationBilling(existing.organizationId, {
+            billingPlan: plan.planKey,
+            billingInterval: plan.interval,
+            billingStatus: BillingStatus.Active,
+            billingPeriodEnd: periodEnd,
+          });
+        }
       } else {
         const customerData = data.customer as Record<string, string> | undefined;
         const user = customerData?.email
@@ -424,22 +582,24 @@ export const paystackWebhook = async (payload: {
             organizationId: user.activeOrganizationId,
             planId: plan.id,
             paystackSubscriptionCode: code,
-            authorizationCode:
-              (data.authorization as Record<string, string> | undefined)?.authorization_code ??
-              null,
+            email_token: (data.email_token as string) ?? null,
             status: SubscriptionStatus.Active,
             startDate: new Date(),
             nextPaymentDate: data.next_payment_date
               ? new Date(data.next_payment_date as string)
               : null,
-            cron_expression: (data.cron_expression as string) ?? null,
-            email_token: (data.email_token as string) ?? null,
+            expiryDate: data.next_payment_date
+              ? new Date(data.next_payment_date as string)
+              : computeBillingPeriodEnd(new Date(), plan.interval),
           });
           await subscriptionRepo().save(subscription);
           await setOrganizationBilling(user.activeOrganizationId, {
             billingPlan: plan.planKey,
             billingInterval: plan.interval,
             billingStatus: BillingStatus.Active,
+            billingPeriodEnd:
+              subscription.expiryDate ??
+              computeBillingPeriodEnd(new Date(), plan.interval),
           });
         }
       }
@@ -468,17 +628,15 @@ export const initiateTransaction = async (
       : BillingInterval.Monthly;
   const planRow = await resolvePlanRow(planKey, interval);
 
-  // Tier changes auto-swap: the old subscription is disabled and the new one takes its
-  // place immediately (product decision — the org loses the old plan's benefits until
-  // the new payment completes, which the frontend warns about before this is called).
+  // Do not disable the existing subscription before payment completes — that
+  // caused a race where subscription.disable briefly reset the org to free/PPU
+  // while checkout was still pending. Old subs are cancelled inside fulfillPayment
+  // after the new plan is written. Still reject identical-plan re-purchases.
   const existingSubscription = await subscriptionRepo().findOne({
     where: { organizationId: organization.id, status: SubscriptionStatus.Active },
   });
-  if (existingSubscription) {
-    if (existingSubscription.planId === planRow.id) {
-      throw new ConflictError("Your company is already on this plan");
-    }
-    await disableSubscription(existingSubscription.id);
+  if (existingSubscription && existingSubscription.planId === planRow.id) {
+    throw new ConflictError("Your company is already on this plan");
   }
 
   const amountKobo = Math.round(planRow.paystackAmount);
@@ -552,15 +710,18 @@ export const initiateJobPayment = async (
     throw new AuthorizationError("You are not authorized to pay for this job");
   }
 
-  const organization = await organizationRepo().findOne({ where: { id: job.organizationId } });
-  if (!organization) {
+  const stored = await organizationRepo().findOne({ where: { id: job.organizationId } });
+  if (!stored) {
     throw new NotFoundError("Organization not found");
   }
-  if (organization.billingPlan !== "pay_per_use") {
+  // An org whose paid period lapsed is still on the old plan in the DB until some read path
+  // notices, which would reject per-job checkout for a company that is back on pay per use.
+  const organization = await ensureOrganizationBillingCurrent(stored);
+  if (organization.billingPlan !== DEFAULT_BILLING_PLAN_KEY) {
     throw new ValidationError("This job's organization is not on the Pay per Use plan");
   }
 
-  const plan = getPlanByKey("pay_per_use");
+  const plan = getPlanByKey(DEFAULT_BILLING_PLAN_KEY);
   if (!plan) {
     throw new NotFoundError("Pay per Use plan not found in catalogue");
   }
@@ -579,7 +740,7 @@ export const initiateJobPayment = async (
       userId: user.id,
       organizationId: organization.id,
       jobId: job.id,
-      planKey: "pay_per_use",
+      planKey: DEFAULT_BILLING_PLAN_KEY,
     },
   });
 
