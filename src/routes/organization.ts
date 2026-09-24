@@ -1,5 +1,6 @@
 import { Router } from "express";
 import * as organization from "../controllers/organization.js";
+import * as usage from "../controllers/usage.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { validateAccess, requireVerifiedEmail } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
@@ -70,6 +71,14 @@ router.get(
   requireVerifiedEmail,
   validate(switchOrganizationValidator),
   asyncHandler(organization.listOrganizationMembers)
+);
+
+router.get(
+  "/:_id/usage",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(switchOrganizationValidator),
+  asyncHandler(usage.getOrganizationUsage)
 );
 
 router.get(

@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import yaml from "js-yaml";
-import { BillingInterval, FREE_PLAN_KEY } from "../types/enums.js";
+import { BillingInterval, DEFAULT_BILLING_PLAN_KEY } from "../types/enums.js";
 
 export interface PricingFeature {
   key?: string;
@@ -89,13 +89,10 @@ export const getPurchasablePlans = (): PricingPlan[] =>
 
 /** Subscription-billed plans only (excludes pay_per_use, which has no recurring Paystack plan). */
 export const getSubscriptionPlans = (): PricingPlan[] =>
-  getPurchasablePlans().filter((plan) => plan.key !== "pay_per_use");
+  getPurchasablePlans().filter((plan) => plan.key !== DEFAULT_BILLING_PLAN_KEY);
 
 export const getSubscriptionPlanKeys = (): string[] =>
   getSubscriptionPlans().map((plan) => plan.key);
-
-export const isKnownPlanKey = (key: string): boolean =>
-  key === FREE_PLAN_KEY || loadPricingCatalog().plans.some((plan) => plan.key === key);
 
 /** Monthly-equivalent NGN amount for a plan+interval — matches Plan.amount's existing contract. */
 export const monthlyEquivalentNgn = (plan: PricingPlan, interval: BillingInterval): number => {

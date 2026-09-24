@@ -1,5 +1,4 @@
 import crypto from "crypto";
-import { Not } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { Organization } from "../entities/Organization.js";
 import { User } from "../entities/User.js";
@@ -13,6 +12,7 @@ import { OrganizationStatus, UserRole } from "../types/enums.js";
 import env from "../config/env.js";
 import EmailService from "../utils/integrations/email/emailService.js";
 import { AuthorizationError, ConflictError, NotFoundError, ValidationError } from "../utils/errors";
+import { assertWithinLimit } from "./entitlements.js";
 import {
   uploadToSpaces,
   deleteSpacesObjectQuietly,
@@ -40,11 +40,17 @@ const inviteRepo = () => AppDataSource.getRepository(OrganizationInvite);
 
 const INVITE_EXPIRY_DAYS = 7;
 
-/** Recruiters who can sit on a company in addition to the creator. */
-export const MAX_COMPANY_TEAMMATES = 6;
-
-const TEAM_FULL_MESSAGE =
-  "This company already has 6 recruiters plus the creator. Remove a teammate before adding another.";
+const assertCompanyHasOpenSeat = async (organizationId: string): Promise<void> => {
+  const org = await orgRepo().findOne({ where: { id: organizationId } });
+  if (!org) {
+    throw new NotFoundError("Organization not found");
+  }
+  const pendingInvites = await countPendingInvites(organizationId);
+  await assertWithinLimit(org, "team_members", async () => {
+    const members = await memberRepo().count({ where: { organizationId } });
+    return members + pendingInvites;
+  });
+};
 
 export interface OrganizationInviteView {
   id: string;
@@ -148,12 +154,6 @@ export const loadOrganizationMembers = async (
   });
 };
 
-const countCompanyTeammates = async (organizationId: string): Promise<number> => {
-  return memberRepo().count({
-    where: { organizationId, role: Not("owner") },
-  });
-};
-
 const countPendingInvites = async (organizationId: string): Promise<number> => {
   const invites = await inviteRepo().find({
     where: {
@@ -162,13 +162,6 @@ const countPendingInvites = async (organizationId: string): Promise<number> => {
     },
   });
   return invites.filter((invite) => invite.expiresAt.getTime() >= Date.now()).length;
-};
-
-const assertCompanyHasOpenSeat = async (organizationId: string): Promise<void> => {
-  const teammates = await countCompanyTeammates(organizationId);
-  if (teammates >= MAX_COMPANY_TEAMMATES) {
-    throw new ValidationError(TEAM_FULL_MESSAGE);
-  }
 };
 
 const assertCompanyAllowsJoinRequests = (org: Organization): void => {
@@ -727,12 +720,7 @@ export const sendOrganizationInvite = async (
   const org = await assertOwnership(ownerId, organizationId);
   assertCompanyAllowsJoinRequests(org);
   assertRecruiterWorkEmailMatchesCompany(org, email);
-
-  const teammates = await countCompanyTeammates(org.id);
-  const pendingInvites = await countPendingInvites(org.id);
-  if (teammates + pendingInvites >= MAX_COMPANY_TEAMMATES) {
-    throw new ValidationError(TEAM_FULL_MESSAGE);
-  }
+  await assertCompanyHasOpenSeat(org.id);
 
   const existingUser = await userRepo().findOne({ where: { email } });
   if (existingUser) {

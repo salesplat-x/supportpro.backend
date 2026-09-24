@@ -35,7 +35,7 @@ import {
   Currency,
   CvEmbeddingStatus,
   ExperienceLevel,
-  FREE_PLAN_KEY,
+  DEFAULT_BILLING_PLAN_KEY,
   GenerationStatus,
   JobStatus,
   MatchRecommendation,
@@ -51,6 +51,7 @@ import {
   WorkMode,
   WorkType,
 } from "../types/enums.js";
+import { computeBillingPeriodEnd } from "../services/billingState.js";
 import { syncPlansFromCatalog } from "../services/planSync.js";
 import { generateHashedPassword } from "../utils/crypto.js";
 import logger from "../utils/logger.js";
@@ -325,9 +326,10 @@ export async function runSeed(ds: DataSource, options: SeedCliOptions): Promise<
         status: OrganizationStatus.Verified,
         verifiedAt: now,
         verifiedById: admin?.id ?? null,
-        billingPlan: paid ? "advance" : FREE_PLAN_KEY,
+        billingPlan: paid ? "advance" : DEFAULT_BILLING_PLAN_KEY,
         billingInterval: paid ? BillingInterval.Monthly : null,
         billingStatus: BillingStatus.Active,
+        billingPeriodEnd: paid ? computeBillingPeriodEnd(now, BillingInterval.Monthly) : null,
       })
     );
   }

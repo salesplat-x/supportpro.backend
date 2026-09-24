@@ -2,7 +2,8 @@ import { In } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { Application } from "../entities/Application.js";
 import { Notification } from "../entities/Notification.js";
-import { NotFoundError } from "../utils/errors";
+import { Organization } from "../entities/Organization.js";
+import { NotFoundError, PlanLimitError } from "../utils/errors";
 import {
   UserRole,
   ApplicationType,
@@ -22,10 +23,13 @@ import {
 } from "./applicationStage.js";
 import logger from "../utils/logger.js";
 import { assertCompanyResourceAccess, getActiveOrganizationId } from "./organizationScope.js";
+import { ensureOrganizationBillingCurrent, hasFlag } from "./entitlements.js";
 
 const notificationRepo = () => AppDataSource.getRepository(Notification);
 
 const applicationRepo = () => AppDataSource.getRepository(Application);
+
+const organizationRepo = () => AppDataSource.getRepository(Organization);
 
 const MAX_PAGE_SIZE = 100;
 
@@ -195,12 +199,26 @@ export const bulkUpdateStatus = async (
     status: ApplicationStatus.Rejected | ApplicationStatus.Shortlisted;
   }
 ): Promise<{ updated: number }> => {
+  const activeOrgId = await getActiveOrganizationId(userId);
+  if (activeOrgId) {
+    let org = await organizationRepo().findOne({ where: { id: activeOrgId } });
+    if (org) {
+      org = await ensureOrganizationBillingCurrent(org);
+      if (!hasFlag(org, "bulk_broadcast_tools")) {
+        throw new PlanLimitError(
+          "Bulk pipeline actions require a Pro plan or higher. Ask your organization owner to upgrade.",
+          "bulk_broadcast_tools",
+          org.billingPlan
+        );
+      }
+    }
+  }
+
   const applications = await applicationRepo().find({
     where: { id: In(payload.applicationIds) },
     relations: { job: { role: true, organization: true } },
   });
 
-  const activeOrgId = await getActiveOrganizationId(userId);
   const owned = applications.filter((application) =>
     application.job.organizationId
       ? application.job.organizationId === activeOrgId

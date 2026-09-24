@@ -12,7 +12,7 @@ import { Scout } from "../entities/Scout.js";
 import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
 import { purgeJobCascade } from "./cascadeDelete.js";
 import { assertCompanyResourceAccess, getActiveOrganizationId } from "./organizationScope.js";
-import { assertWithinLimit } from "./entitlements.js";
+import { assertWithinLimit, ensureOrganizationBillingCurrent } from "./entitlements.js";
 import {
   UserRole,
   JobStatus,
@@ -22,6 +22,7 @@ import {
   ScreeningStage,
   CompensationPeriod,
   MatchVerdictStatus,
+  DEFAULT_BILLING_PLAN_KEY,
 } from "../types/enums.js";
 import {
   createEmbedding,
@@ -274,9 +275,14 @@ export const updateJob = async (
     // applies the first time a job goes live (re-saving an already-Active job or
     // reactivating shouldn't re-charge/re-count it).
     if (existingJob.status !== JobStatus.Active && existingJob.organizationId) {
-      const org = await organizationRepo().findOne({ where: { id: existingJob.organizationId } });
-      if (org) {
-        if (org.billingPlan === "pay_per_use") {
+      const stored = await organizationRepo().findOne({
+        where: { id: existingJob.organizationId },
+      });
+      if (stored) {
+        // Re-check expiry first: a lapsed subscription must fall back to per-job
+        // payment rather than keep spending the old plan's listing allowance.
+        const org = await ensureOrganizationBillingCurrent(stored);
+        if (org.billingPlan === DEFAULT_BILLING_PLAN_KEY) {
           // Pay per Use has no subscription/limit — every activation is a fresh
           // one-time charge instead. The payment-fulfillment path sets status to
           // Active directly (bypassing updateJob), so this only fires for the

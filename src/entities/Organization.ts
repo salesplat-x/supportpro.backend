@@ -11,7 +11,7 @@ import {
 import {
   BillingInterval,
   BillingStatus,
-  FREE_PLAN_KEY,
+  DEFAULT_BILLING_PLAN_KEY,
   OrganizationStatus,
 } from "../types/enums.js";
 import type { User } from "./User.js";
@@ -74,7 +74,12 @@ export class Organization {
   status!: OrganizationStatus;
 
   /** The plan is purchased for the whole company — shared by every recruiter who's a member. */
-  @Column({ type: "varchar", length: 64, default: FREE_PLAN_KEY, name: "billing_plan" })
+  @Column({
+    type: "varchar",
+    length: 64,
+    default: DEFAULT_BILLING_PLAN_KEY,
+    name: "billing_plan",
+  })
   @Index("IDX_organizations_billing_plan")
   billingPlan!: string;
 
@@ -96,6 +101,10 @@ export class Organization {
     name: "billing_status",
   })
   billingStatus!: BillingStatus;
+
+  /** When the current paid subscription period ends; null on pay_per_use. */
+  @Column({ type: "timestamp", nullable: true, default: null, name: "billing_period_end" })
+  billingPeriodEnd!: Date | null;
 
   @Column({ type: "timestamp", nullable: true, default: null, name: "verified_at" })
   verifiedAt!: Date | null;
