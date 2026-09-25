@@ -205,26 +205,17 @@ export const createOrganization = async (
   ownerId: string,
   payload: OrganizationPayload
 ): Promise<Organization> => {
-  if (!payload.linkedin?.trim()) {
-    throw new ValidationError("LinkedIn URL is required");
-  }
-  if (!isValidLinkedinUrl(payload.linkedin)) {
-    throw new ValidationError(
-      "Enter a valid LinkedIn URL (e.g. https://linkedin.com/company/acme)"
-    );
-  }
-
   let domain: string | null = null;
   if (payload.domain?.trim()) {
     try {
       domain = normalizeCompanyDomain(payload.domain);
     } catch {
-      throw new ValidationError("Domain must start with @ and include a dot (e.g. @acme.com)");
+      throw new ValidationError("Domain must include a dot (e.g. acme.com)");
     }
 
     if (isPublicEmailDomain(`placeholder@${domain}`)) {
       throw new ValidationError(
-        "Please use a corporate domain (e.g. @acme.com), not a personal email provider."
+        "Please use a corporate domain (e.g. acme.com), not a personal email provider."
       );
     }
 
@@ -242,6 +233,15 @@ export const createOrganization = async (
         `Your profile email must use the same domain as the company (@${domain}).`
       );
     }
+  }
+
+  if (!domain && !payload.linkedin?.trim()) {
+    throw new ValidationError("LinkedIn URL is required when no company domain is provided");
+  }
+  if (payload.linkedin?.trim() && !isValidLinkedinUrl(payload.linkedin)) {
+    throw new ValidationError(
+      "Enter a valid LinkedIn URL (e.g. https://linkedin.com/company/acme)"
+    );
   }
 
   if (!payload.email) {

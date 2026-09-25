@@ -45,8 +45,8 @@ export const revokeOrganizationInviteValidator = [
 export const createOrganizationValidator = [
   body("domain")
     .optional()
-    .matches(/^@[^\s@]+\.[^\s@]+$/)
-    .withMessage("Domain must start with @ and include a dot (e.g. @acme.com)"),
+    .matches(/^@?[^\s@]+\.[^\s@]+$/)
+    .withMessage("Domain must include a dot (e.g. acme.com)"),
   body("email").isEmail().normalizeEmail().withMessage("Valid email is required"),
   body("name").notEmpty().withMessage("Organization name is required"),
   phoneRule("phone"),
@@ -55,9 +55,13 @@ export const createOrganizationValidator = [
   body("industry").notEmpty().withMessage("Industry is required").isString(),
   body("twitter").optional().isString(),
   body("linkedin")
-    .notEmpty()
-    .withMessage("LinkedIn URL is required")
-    .custom((value) => isValidLinkedinUrl(value))
+    .custom((value, { req }) => {
+      if (!req.body.domain?.trim() && !value?.trim()) {
+        throw new Error("LinkedIn URL is required when no company domain is provided");
+      }
+      return true;
+    })
+    .custom((value) => !value || isValidLinkedinUrl(value))
     .withMessage("Enter a valid LinkedIn URL (e.g. https://linkedin.com/company/acme)"),
   body("facebook").optional().isString(),
 ];
