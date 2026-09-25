@@ -44,7 +44,7 @@ export const revokeOrganizationInviteValidator = [
 
 export const createOrganizationValidator = [
   body("domain")
-    .optional()
+    .optional({ values: "falsy" })
     .matches(/^@?[^\s@]+\.[^\s@]+$/)
     .withMessage("Domain must include a dot (e.g. acme.com)"),
   body("email").isEmail().normalizeEmail().withMessage("Valid email is required"),

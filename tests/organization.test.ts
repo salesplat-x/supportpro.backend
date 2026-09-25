@@ -184,6 +184,20 @@ describe("POST /v1/organizations/ — create organization (Recruiter only)", () 
     expect(res.status).toBe(201);
   });
 
+  // The real create-company form always sends domain: "" when the field is left
+  // blank (Formik never omits the key), not an absent key like the test above —
+  // express-validator's default .optional() only skips `undefined`, not "", so
+  // this exact shape is what regressed in production.
+  it("Empty-string domain (as the form actually sends it) → 201, not a format error", async () => {
+    const { token } = await createRecruiter({ email: "founder@gmail.com" });
+    const { domain: _domain, ...bodyWithoutDomain } = validOrgBody;
+    const res = await request(app)
+      .post("/v1/organizations/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ ...bodyWithoutDomain, domain: "", email: "founder@gmail.com" });
+    expect(res.status).toBe(201);
+  });
+
   it("Invalid LinkedIn URL → 400", async () => {
     const { token } = await recruiterForTechCorp();
     const res = await request(app)
