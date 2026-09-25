@@ -154,14 +154,34 @@ describe("POST /v1/organizations/ — create organization (Recruiter only)", () 
     expect(res.status).toBe(400);
   });
 
-  it("Missing LinkedIn → 400", async () => {
+  it("LinkedIn is optional when a domain is provided → 201", async () => {
     const { token } = await recruiterForTechCorp();
     const { linkedin: _linkedin, ...bodyWithoutLinkedin } = validOrgBody;
     const res = await request(app)
       .post("/v1/organizations/")
       .set("Authorization", `Bearer ${token}`)
       .send(bodyWithoutLinkedin);
+    expect(res.status).toBe(201);
+  });
+
+  it("Missing both domain and LinkedIn → 400", async () => {
+    const { token } = await recruiterForTechCorp();
+    const { domain: _domain, linkedin: _linkedin, ...bodyWithoutDomainOrLinkedin } = validOrgBody;
+    const res = await request(app)
+      .post("/v1/organizations/")
+      .set("Authorization", `Bearer ${token}`)
+      .send(bodyWithoutDomainOrLinkedin);
     expect(res.status).toBe(400);
+  });
+
+  it("No domain, but a valid LinkedIn URL → 201, and email is not required to be corporate", async () => {
+    const { token } = await createRecruiter({ email: "founder@gmail.com" });
+    const { domain: _domain, ...bodyWithoutDomain } = validOrgBody;
+    const res = await request(app)
+      .post("/v1/organizations/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ ...bodyWithoutDomain, email: "founder@gmail.com" });
+    expect(res.status).toBe(201);
   });
 
   it("Invalid LinkedIn URL → 400", async () => {
@@ -969,7 +989,16 @@ describe("Organization domain field", () => {
     const res = await request(app)
       .post("/v1/organizations/")
       .set("Authorization", `Bearer ${token}`)
-      .send({ ...validOrgBody, domain: "acme.com" });
+      .send({ ...validOrgBody, domain: "not-a-domain" });
     expect(res.status).toBe(400);
+  });
+
+  it("Accepts a domain without a leading @ → 201", async () => {
+    const { token } = await recruiterForTechCorp();
+    const res = await request(app)
+      .post("/v1/organizations/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ ...validOrgBody, domain: "techcorp.com" });
+    expect(res.status).toBe(201);
   });
 });
