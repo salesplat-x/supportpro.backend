@@ -266,6 +266,72 @@ describe("POST /v1/jobs/", () => {
     expect(res.status).toBe(400);
   });
 
+  describe("server-owned fields cannot be set by the client", () => {
+    const jobBody = {
+      role: "software-engineer",
+      jobBrief: "Looking for a great engineer",
+      experienceLevel: "4-6 years",
+      maxSalary: 100000,
+      minSalary: 50000,
+      compensationPeriod: "yearly",
+      workMode: ["remote"],
+    };
+
+    it.each(["active", "pending_payment", "closed"])(
+      "a client-supplied status of %s is ignored — the job is created as a draft",
+      async (status) => {
+        const { user: recruiter, token } = await createRecruiter();
+        const config = await createAIConfig(recruiter);
+
+        const res = await request(app)
+          .post("/v1/jobs/")
+          .set("Authorization", `Bearer ${token}`)
+          .send({ ...jobBody, status, aiConfigId: config.id });
+
+        expect(res.status).toBe(201);
+        expect(res.body.data.job.status).toBe(JobStatus.Draft);
+        const stored = await testDataSource
+          .getRepository(Job)
+          .findOne({ where: { id: res.body.data.job.id } });
+        expect(stored!.status).toBe(JobStatus.Draft);
+      }
+    );
+
+    it("a pay_per_use org cannot get a live job without paying by posting status: active", async () => {
+      const { user: recruiter, token } = await createRecruiter();
+      const config = await createAIConfig(recruiter);
+
+      await request(app)
+        .post("/v1/jobs/")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ ...jobBody, status: "active", aiConfigId: config.id })
+        .expect(201);
+
+      const live = await testDataSource.getRepository(Job).count({
+        where: { organizationId: recruiter.activeOrganizationId!, status: JobStatus.Active },
+      });
+      expect(live).toBe(0);
+    });
+
+    it("a client-supplied organizationId and postedById are ignored", async () => {
+      const { user: recruiter, token } = await createRecruiter();
+      const { user: other } = await createRecruiter();
+
+      const res = await request(app)
+        .post("/v1/jobs/")
+        .set("Authorization", `Bearer ${token}`)
+        .send({
+          ...jobBody,
+          organizationId: other.activeOrganizationId,
+          postedById: other.id,
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.job.organizationId).toBe(recruiter.activeOrganizationId);
+      expect(res.body.data.job.postedById).toBe(recruiter.id);
+    });
+  });
+
   it("stamps the created job with the recruiter's active company", async () => {
     const { user: recruiter, token } = await createRecruiter();
 
@@ -661,6 +727,31 @@ describe("PATCH /v1/jobs/:_id — update job", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.data.job.status).toBe("active");
+  });
+
+  it("PATCH cannot move a job to another company or poster", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const { user: other } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role, {
+      status: JobStatus.Draft,
+      organizationId: recruiter.activeOrganizationId,
+    });
+
+    const res = await request(app)
+      .patch(`/v1/jobs/${job.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        jobBrief: "Updated brief",
+        organizationId: other.activeOrganizationId,
+        postedById: other.id,
+      });
+
+    expect(res.status).toBe(200);
+    const stored = await testDataSource.getRepository(Job).findOne({ where: { id: job.id } });
+    expect(stored!.jobBrief).toBe("Updated brief");
+    expect(stored!.organizationId).toBe(recruiter.activeOrganizationId);
+    expect(stored!.postedById).toBe(recruiter.id);
   });
 
   it("Non-status updates on a job with no aiConfigId still succeed", async () => {

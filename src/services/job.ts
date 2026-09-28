@@ -120,6 +120,40 @@ export interface UpdateJobPayload extends Partial<CreateJobPayload> {
   status?: JobStatus;
 }
 
+type EditableJobField = Exclude<keyof CreateJobPayload, "role">;
+
+/**
+ * Request bodies are not stripped by validation, so only these fields may be copied onto a
+ * job. Status, ownership and organization are server-owned: a client-supplied status would
+ * skip payment and plan limits, and a client-supplied organizationId would move the job.
+ */
+const EDITABLE_JOB_FIELDS: readonly EditableJobField[] = [
+  "aiConfigId",
+  "jobBrief",
+  "maxSalary",
+  "minSalary",
+  "compensationPeriod",
+  "experienceLevel",
+  "locationCity",
+  "locationState",
+  "locationCountry",
+  "workMode",
+  "currency",
+  "requirements",
+  "skills",
+  "goals",
+];
+
+const pickEditableJobFields = (
+  payload: Partial<CreateJobPayload>
+): Partial<Pick<CreateJobPayload, EditableJobField>> => {
+  const picked: Partial<Record<EditableJobField, unknown>> = {};
+  for (const field of EDITABLE_JOB_FIELDS) {
+    if (payload[field] !== undefined) picked[field] = payload[field];
+  }
+  return picked as Partial<Pick<CreateJobPayload, EditableJobField>>;
+};
+
 export interface FetchJobsParams {
   roleId?: string;
   status?: JobStatus;
@@ -193,11 +227,10 @@ export const createJob = async (userId: string, payload: CreateJobPayload): Prom
     throw new ValidationError("Unable to create vector embedding for JD");
   }
 
-  // Exclude the 'role' string field (used only for lookup) to avoid type conflict
-  const { role: _role, ...jobData } = payload;
   const job = jobRepo().create({
-    ...jobData,
+    ...pickEditableJobFields(payload),
     ...location,
+    status: JobStatus.Draft,
     roleId,
     postedById: userId,
     organizationId,
@@ -297,13 +330,13 @@ export const updateJob = async (
     }
   }
 
+  let roleId: string | undefined;
   if (update.role) {
     const existingRole = await roleRepo().findOne({ where: { id: update.role } });
     if (!existingRole) {
       throw new NotFoundError("Role does not exist");
     }
-    (update as Record<string, unknown>)["roleId"] = existingRole.id;
-    delete (update as Record<string, unknown>)["role"];
+    roleId = existingRole.id;
   }
 
   // Notify applicants when job status changes — fire and forget, chunked to avoid bulk write timeouts
@@ -333,8 +366,11 @@ export const updateJob = async (
     );
   }
 
-  // Exclude 'role' string field to avoid type conflict with Role entity
-  const { role: _role2, ...updateData } = update;
+  const updateData = {
+    ...pickEditableJobFields(update),
+    ...(update.status !== undefined ? { status: update.status } : {}),
+    ...(roleId !== undefined ? { roleId } : {}),
+  };
   const nextWorkMode = updateData.workMode ?? existingJob.workMode;
   const located = locationFieldsForWorkMode({
     workMode: nextWorkMode,
