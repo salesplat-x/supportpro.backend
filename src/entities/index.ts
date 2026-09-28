@@ -24,3 +24,4 @@ export { OrganizationMember } from "./OrganizationMember.js";
 export { OrganizationJoinRequest } from "./OrganizationJoinRequest.js";
 export { OrganizationInvite } from "./OrganizationInvite.js";
 export { FeatureUsageCounter } from "./FeatureUsageCounter.js";
+export { OnboardingEmail } from "./OnboardingEmail.js";

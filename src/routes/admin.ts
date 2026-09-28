@@ -7,6 +7,8 @@ import { UserRole } from "../types/enums.js";
 import {
   adminIdParamValidator,
   adminJobsQueryValidator,
+  adminOnboardingEmailValidator,
+  adminUserIdParamValidator,
   adminOrganizationsQueryValidator,
   adminRecruitersQueryValidator,
   adminTalentsQueryValidator,
@@ -93,6 +95,28 @@ router.delete(
   requireVerifiedEmail,
   validate(adminIdParamValidator),
   asyncHandler(admin.deleteOrganization)
+);
+
+router.get(
+  "/users/:_id/onboarding",
+  validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(adminUserIdParamValidator),
+  asyncHandler(admin.userOnboarding)
+);
+router.post(
+  "/users/:_id/onboarding/draft",
+  validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(adminUserIdParamValidator),
+  asyncHandler(admin.draftOnboardingEmail)
+);
+router.post(
+  "/users/:_id/onboarding/emails",
+  validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(adminOnboardingEmailValidator),
+  asyncHandler(admin.sendOnboardingEmail)
 );
 
 export default (app: Router) => app.use("/admin", router);

@@ -13,7 +13,9 @@ import {
   applyValidator,
   jobApplicationsQueryValidator,
   generateJobContentValidator,
+  generateJobFieldValidator,
 } from "../validators/job.js";
+import { jobDescriptionUpload } from "../middleware/multer.js";
 
 const router = Router();
 
@@ -23,6 +25,20 @@ router.post(
   requireVerifiedEmail,
   validate(generateJobContentValidator),
   asyncHandler(job.generateContent)
+);
+router.post(
+  "/generate/file",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  jobDescriptionUpload.single("file"),
+  asyncHandler(job.generateContentFromFile)
+);
+router.post(
+  "/generate/field",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(generateJobFieldValidator),
+  asyncHandler(job.generateField)
 );
 router.post(
   "/",

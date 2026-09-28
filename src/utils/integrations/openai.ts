@@ -563,18 +563,32 @@ ${context.cvContent}`;
 };
 
 export interface GenerateJobContentContext {
-  role: string;
+  role?: string;
   experienceLevel?: string;
   keywords?: string[];
+  prompt?: string;
+  sourceText?: string;
 }
 
 export const generateJobContent = async (
   context: GenerateJobContentContext
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
-  const system = `You are an expert technical recruiter and copywriter. Generate compelling, well-structured job posting content for the given role.
+  const system = `You are an expert technical recruiter and copywriter. Turn the recruiter's input into a complete, compelling job posting.
+
+The input may be a role name, a short free-text description of the job, or the text of an existing job description. Use every fact the input gives you. Never invent a location, salary, currency or pay period that the input does not state — use null instead.
 
 Output a JSON object in this exact format:
 {
+  "role": "<the job title, short and in title case, e.g. 'Backend Engineer'>",
+  "experienceLevel": <one of "1-3 years", "4-6 years", "7-10 years", "11-15 years", "16 years and above", or null>,
+  "workMode": [<zero or more of "remote", "hybrid", "onSite">],
+  "locationCountry": <country name or null>,
+  "locationState": <state or province name or null>,
+  "locationCity": <city name or null>,
+  "currency": <"NGN", "USD", "GBP", "EUR" or null>,
+  "minSalary": <number or null>,
+  "maxSalary": <number or null>,
+  "compensationPeriod": <"monthly", "yearly" or null>,
   "jobBrief": "<a well-structured job description under 600 words, written in plain text with clear section headers such as 'About the Role:', 'Responsibilities:', and 'Benefits:'>",
   "requirements": "<a well-structured requirements section, written in plain text with clear section headers such as 'Qualifications:' and 'Nice to Have:'>",
   "skills": ["<skill1>", "<skill2>", "..."],
@@ -583,14 +597,152 @@ Output a JSON object in this exact format:
 
 Do not use markdown symbols (no "#", "*", "-") — use plain text with line breaks and the section headers described above.`;
 
-  const userPrompt = `Role: ${context.role}
-Experience Level: ${context.experienceLevel ?? "Not specified"}
-Key skills/keywords to emphasize: ${context.keywords?.length ? context.keywords.join(", ") : "Not specified"}`;
+  const lines = [
+    context.role ? `Role: ${context.role}` : null,
+    context.experienceLevel ? `Experience Level: ${context.experienceLevel}` : null,
+    context.keywords?.length
+      ? `Key skills/keywords to emphasize: ${context.keywords.join(", ")}`
+      : null,
+    context.prompt ? `Recruiter's description of the job:\n${context.prompt}` : null,
+    context.sourceText ? `Existing job description:\n${context.sourceText}` : null,
+  ].filter(Boolean);
+
+  const completion = await runCompletion({
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: lines.join("\n\n") },
+    ],
+    model: "gpt-4o",
+    response_format: { type: "json_object" },
+  });
+  return completion.choices[0];
+};
+
+export type JobTextField = "jobBrief" | "requirements" | "recruiterGuide";
+export type JobListField = "skills" | "goals";
+export type JobFieldAction = "regenerate" | "shorter" | "detailed" | "friendlier";
+
+export interface GenerateJobFieldContext {
+  field: JobTextField | JobListField;
+  action?: JobFieldAction;
+  currentText?: string;
+  job: {
+    role?: string;
+    experienceLevel?: string;
+    jobBrief?: string;
+    requirements?: string;
+    skills?: string[];
+    goals?: string[];
+  };
+}
+
+const FIELD_TASKS: Record<GenerateJobFieldContext["field"], string> = {
+  jobBrief:
+    "Write the job brief: what the candidate reads first. Plain text with section headers such as 'About the Role:', 'Responsibilities:' and 'Benefits:', under 600 words.",
+  requirements:
+    "Write the requirements section. Plain text with section headers such as 'Qualifications:' and 'Nice to Have:'.",
+  recruiterGuide:
+    "Write private notes for an AI grader describing what a strong hire looks like for this job: must-have skills, experience bar, and red flags. 4 to 8 short plain-text lines. Candidates never see this.",
+  skills:
+    "Suggest up to 8 additional skills a strong candidate needs. Each is 1 to 4 words. Do not repeat skills already listed.",
+  goals:
+    "Suggest up to 5 goals the new hire should achieve in their first year. Each is one short sentence. Do not repeat goals already listed.",
+};
+
+const ACTION_INSTRUCTIONS: Record<JobFieldAction, string> = {
+  regenerate: "Write a fresh version.",
+  shorter: "Rewrite the current text to be about half as long, keeping every key fact.",
+  detailed: "Rewrite the current text with more concrete detail, keeping it under 600 words.",
+  friendlier:
+    "Rewrite the current text in a warmer, more inclusive tone that welcomes a diverse range of candidates.",
+};
+
+export const generateJobField = async (
+  context: GenerateJobFieldContext
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const isList = context.field === "skills" || context.field === "goals";
+  const outputFormat = isList
+    ? '{ "items": ["<item1>", "<item2>", "..."] }'
+    : '{ "text": "<the written text>" }';
+
+  const system = `You are an expert technical recruiter and copywriter helping a recruiter fill in one field of a job posting.
+
+Task: ${FIELD_TASKS[context.field]}
+${!isList && context.action ? ACTION_INSTRUCTIONS[context.action] : ""}
+
+Do not use markdown symbols (no "#", "*", "-"). Output a JSON object in this exact format:
+${outputFormat}`;
+
+  const { job } = context;
+  const userPrompt = [
+    `Role: ${job.role || "Not specified"}`,
+    `Experience Level: ${job.experienceLevel || "Not specified"}`,
+    job.skills?.length ? `Skills: ${job.skills.join(", ")}` : null,
+    job.goals?.length ? `Goals: ${job.goals.join("; ")}` : null,
+    job.jobBrief && context.field !== "jobBrief" ? `Job brief:\n${job.jobBrief}` : null,
+    job.requirements && context.field !== "requirements"
+      ? `Requirements:\n${job.requirements}`
+      : null,
+    context.currentText ? `Current text:\n${context.currentText}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 
   const completion = await runCompletion({
     messages: [
       { role: "system", content: system },
       { role: "user", content: userPrompt },
+    ],
+    model: "gpt-4o",
+    response_format: { type: "json_object" },
+  });
+  return completion.choices[0];
+};
+
+export interface ComposeOnboardingEmailContext {
+  firstName: string;
+  role: "talent" | "recruiter";
+  stage: string;
+  nextSteps: string[];
+  ctaLabel: string;
+  daysSinceSignup: number;
+  previousEmails: Array<{ subject: string; sentAt: string }>;
+}
+
+export const composeOnboardingEmail = async (
+  context: ComposeOnboardingEmailContext
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const audience =
+    context.role === "recruiter"
+      ? "a recruiter who signed up to hire with Auxhr, an AI-assisted hiring platform"
+      : "a job seeker who signed up to find work through Auxhr, an AI-assisted hiring platform";
+
+  const system = `You write short, warm marketing emails that bring people back to Auxhr to finish getting started.
+
+The reader is ${audience}. They have not finished setting up yet. Write one email that:
+- greets them by first name,
+- reminds them in one or two sentences what they get from Auxhr,
+- tells them exactly what to do next, using the next steps provided (you may reword them, but do not add or drop steps),
+- is friendly and encouraging, never guilt-tripping or pushy,
+- is under 150 words, in plain text with short paragraphs and no markdown symbols.
+If earlier emails were sent, write it as a gentle follow-up and do not repeat their subject lines.
+Do not include links, a signature block, or placeholders like [Name] — a button to the right page is added below your text.
+
+Output a JSON object in this exact format:
+{ "subject": "<under 70 characters>", "body": "<the email text>" }`;
+
+  const user = JSON.stringify({
+    firstName: context.firstName,
+    nextSteps: context.nextSteps,
+    buttonLabel: context.ctaLabel,
+    daysSinceSignup: context.daysSinceSignup,
+    previousEmails: context.previousEmails,
+  });
+
+  const completion = await runCompletion({
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
     ],
     model: "gpt-4o",
     response_format: { type: "json_object" },

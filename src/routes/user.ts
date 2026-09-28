@@ -43,6 +43,9 @@ router.patch(
 );
 router.delete("/avatar", loginRequired, requireVerifiedEmail, asyncHandler(user.removeAvatar));
 router.get("/me", loginRequired, asyncHandler(user.me));
+// No email-verification gate: the tour runs on a new user's first dashboard visit,
+// which can happen before they verify.
+router.post("/me/tour", loginRequired, asyncHandler(user.completeTour));
 router.get(
   "/profile/",
   validateAccess([UserRole.Admin, UserRole.Recruiter]),

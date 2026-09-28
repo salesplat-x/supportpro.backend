@@ -1,6 +1,24 @@
-import { query } from "express-validator";
+import { body, param, query } from "express-validator";
 import { ExperienceLevel, JobStatus, OrganizationStatus } from "../types/enums.js";
+import {
+  FOLLOW_UP_STATUSES,
+  MAX_BODY_LENGTH,
+  MAX_SUBJECT_LENGTH,
+  RECRUITER_STAGES,
+  TALENT_STAGES,
+} from "../services/onboardingRules.js";
 import { idParam, paginationRules } from "./shared.js";
+
+const onboardingQueryRules = (stages: readonly string[]) => [
+  query("onboardingStage")
+    .optional()
+    .isIn(stages)
+    .withMessage(`onboardingStage must be one of: ${stages.join(", ")}`),
+  query("followUp")
+    .optional()
+    .isIn(FOLLOW_UP_STATUSES)
+    .withMessage(`followUp must be one of: ${FOLLOW_UP_STATUSES.join(", ")}`),
+];
 
 export const adminTalentsQueryValidator = [
   ...paginationRules,
@@ -10,11 +28,36 @@ export const adminTalentsQueryValidator = [
     .isIn(Object.values(ExperienceLevel))
     .withMessage(`experience must be one of: ${Object.values(ExperienceLevel).join(", ")}`),
   query("roleId").optional().isUUID().withMessage("roleId must be a valid UUID"),
+  ...onboardingQueryRules(TALENT_STAGES),
 ];
 
 export const adminRecruitersQueryValidator = [
   ...paginationRules,
   query("search").optional().trim().isLength({ max: 200 }),
+  ...onboardingQueryRules(RECRUITER_STAGES),
+];
+
+export const adminUserIdParamValidator = [
+  param("_id").isUUID().withMessage("_id must be a valid UUID"),
+];
+
+export const adminOnboardingEmailValidator = [
+  ...adminUserIdParamValidator,
+  body("subject")
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage("Add a subject")
+    .isLength({ max: MAX_SUBJECT_LENGTH })
+    .withMessage(`Subject must be at most ${MAX_SUBJECT_LENGTH} characters`),
+  body("body")
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage("Add a message")
+    .isLength({ max: MAX_BODY_LENGTH })
+    .withMessage(`Message must be at most ${MAX_BODY_LENGTH} characters`),
+  body("confirm").optional().isBoolean().toBoolean(),
 ];
 
 export const adminJobsQueryValidator = [

@@ -26,6 +26,7 @@ import { ErrorLog } from "../entities/ErrorLog.js";
 import { AiRecommendation } from "../entities/AiRecommendation.js";
 import { OrganizationMember } from "../entities/OrganizationMember.js";
 import { OrganizationJoinRequest } from "../entities/OrganizationJoinRequest.js";
+import { OnboardingEmail } from "../entities/OnboardingEmail.js";
 
 const ALL_ENTITIES = [
   User,
@@ -50,6 +51,7 @@ const ALL_ENTITIES = [
   AiRecommendation,
   OrganizationMember,
   OrganizationJoinRequest,
+  OnboardingEmail,
 ];
 
 async function run(): Promise<void> {

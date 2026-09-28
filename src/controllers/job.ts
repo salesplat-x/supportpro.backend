@@ -14,6 +14,16 @@ export const generateContent = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Job content generated", { content: result });
 };
 
+export const generateContentFromFile = async (req: Request, res: Response) => {
+  const result = await jobService.generateJobContentFromFile(req.file);
+  sendSuccessResponse(res, "Job content generated", { content: result });
+};
+
+export const generateField = async (req: Request, res: Response) => {
+  const result = await jobService.generateJobField({ ...req.body, job: req.body.job ?? {} });
+  sendSuccessResponse(res, "Job field generated", result);
+};
+
 export const update = async (req: Request, res: Response) => {
   const result = await jobService.updateJob(req.user.id, req.user.userRole, {
     id: req.params["_id"]!,

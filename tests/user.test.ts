@@ -118,6 +118,59 @@ describe("GET /v1/user/me", () => {
   });
 });
 
+describe("POST /v1/user/me/tour", () => {
+  it("new users have not finished the tour", async () => {
+    const { token } = await createTalentWithToken();
+
+    const res = await request(app).get("/v1/user/me").set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.user.tourCompletedAt).toBeNull();
+  });
+
+  it("marks the tour finished, and GET /me reflects it", async () => {
+    const { token } = await createTalentWithToken();
+
+    const res = await request(app).post("/v1/user/me/tour").set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.tourCompletedAt).toBeTruthy();
+
+    const me = await request(app).get("/v1/user/me").set("Authorization", `Bearer ${token}`);
+    expect(me.body.data.user.tourCompletedAt).toBe(res.body.data.tourCompletedAt);
+  });
+
+  it("keeps the first completion time when called again", async () => {
+    const { token } = await createTalentWithToken();
+
+    const first = await request(app)
+      .post("/v1/user/me/tour")
+      .set("Authorization", `Bearer ${token}`);
+    const second = await request(app)
+      .post("/v1/user/me/tour")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(second.status).toBe(200);
+    expect(second.body.data.tourCompletedAt).toBe(first.body.data.tourCompletedAt);
+  });
+
+  it("works before the email is verified", async () => {
+    const { user } = await createTalentWithToken();
+    await testDataSource.getRepository(User).update(user.id, { emailVerifiedAt: null });
+
+    const res = await request(app)
+      .post("/v1/user/me/tour")
+      .set("Authorization", `Bearer ${signToken(user)}`);
+
+    expect(res.status).toBe(200);
+  });
+
+  it("returns 401 without a token", async () => {
+    const res = await request(app).post("/v1/user/me/tour");
+    expect(res.status).toBe(401);
+  });
+});
+
 describe("PATCH /v1/user/me", () => {
   it("updates user name fields", async () => {
     const { token } = await createTalentWithToken();

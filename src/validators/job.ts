@@ -11,10 +11,57 @@ import {
 import { workModeNeedsLocation } from "../utils/workMode.js";
 
 export const generateJobContentValidator = [
-  body("role").notEmpty().trim().withMessage("Role is required"),
+  body("role").optional().isString().trim(),
+  body("prompt")
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 4000 })
+    .withMessage("Description must be at most 4000 characters"),
+  body("sourceText")
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 30000 })
+    .withMessage("Job description must be at most 30000 characters"),
   body("experienceLevel").optional().isString(),
   body("keywords").optional().isArray(),
   body("keywords.*").optional().isString(),
+  body().custom((value) => {
+    if (!value?.role && !value?.prompt && !value?.sourceText) {
+      throw new Error("Provide a role, a description of the job, or an existing job description");
+    }
+    return true;
+  }),
+];
+
+const JOB_TEXT_FIELDS = ["jobBrief", "requirements", "recruiterGuide"];
+const JOB_LIST_FIELDS = ["skills", "goals"];
+
+export const generateJobFieldValidator = [
+  body("field")
+    .isIn([...JOB_TEXT_FIELDS, ...JOB_LIST_FIELDS])
+    .withMessage(`field must be one of: ${[...JOB_TEXT_FIELDS, ...JOB_LIST_FIELDS].join(", ")}`),
+  body("action")
+    .optional()
+    .isIn(["regenerate", "shorter", "detailed", "friendlier"])
+    .withMessage("action must be one of: regenerate, shorter, detailed, friendlier"),
+  body("currentText").optional().isString().isLength({ max: 30000 }),
+  body("job").optional().isObject(),
+  body("job.role").optional().isString(),
+  body("job.experienceLevel").optional().isString(),
+  body("job.jobBrief").optional().isString().isLength({ max: 30000 }),
+  body("job.requirements").optional().isString().isLength({ max: 30000 }),
+  body("job.skills").optional().isArray(),
+  body("job.skills.*").optional().isString(),
+  body("job.goals").optional().isArray(),
+  body("job.goals.*").optional().isString(),
+  body().custom((value) => {
+    if (!value?.job?.role && !value?.job?.jobBrief) {
+      throw new Error("Give the AI a role or a job brief to work from");
+    }
+    return true;
+  }),
 ];
 
 export const createJobValidator = [

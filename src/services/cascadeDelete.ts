@@ -9,6 +9,7 @@ import {
   Job,
   Message,
   Notification,
+  OnboardingEmail,
   Organization,
   Payment,
   PreScreening,
@@ -229,6 +230,7 @@ export async function purgeTalentCascade(manager: EntityManager, userId: string)
     }
   }
 
+  await manager.delete(OnboardingEmail, { userId });
   await manager.query(`DELETE FROM user_roles WHERE user_id = $1`, [userId]);
   await manager.delete(User, { id: userId });
 }
@@ -324,6 +326,7 @@ export async function purgeRecruiterCascade(manager: EntityManager, userId: stri
     }
   }
 
+  await manager.delete(OnboardingEmail, { userId });
   await manager.query(`DELETE FROM user_roles WHERE user_id = $1`, [userId]);
   await manager.delete(User, { id: userId });
 }
