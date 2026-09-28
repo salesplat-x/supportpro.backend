@@ -165,6 +165,7 @@ plans:
     monthlyAmountUsd: 325
     yearlyAmountUsd: 3120
     featuresIntro: "Everything in Pro, plus:"
+    inherits: pro
     features:
       - {
           key: job_listings,
@@ -202,6 +203,7 @@ plans:
     monthlyAmountUsd: 645
     yearlyAmountUsd: 6192
     featuresIntro: "Everything in Advance, plus:"
+    inherits: advance
     features:
       - {
           key: job_listings,

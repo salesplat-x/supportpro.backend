@@ -30,6 +30,8 @@ export interface PricingPlan {
   monthlyAmountUsd: number;
   yearlyAmountUsd: number | null;
   featuresIntro: string | null;
+  /** Plan whose keyed features this plan also grants ("Everything in X, plus"). */
+  inherits?: string;
   features: PricingFeature[];
 }
 
@@ -82,6 +84,27 @@ export const publicCatalog = (): PricingCatalog => {
 
 export const getPlanByKey = (key: string): PricingPlan | undefined =>
   loadPricingCatalog().plans.find((plan) => plan.key === key);
+
+/**
+ * Keyed features a plan grants, including those inherited from the plans it builds on. The
+ * plan's own entry wins over an inherited one with the same key, so a tier can raise a limit.
+ */
+export const getEffectivePlanFeatures = (key: string): PricingFeature[] => {
+  const features: PricingFeature[] = [];
+  const seenKeys = new Set<string>();
+  const visitedPlans = new Set<string>();
+  let plan = getPlanByKey(key);
+  while (plan && !visitedPlans.has(plan.key)) {
+    visitedPlans.add(plan.key);
+    for (const feature of plan.features) {
+      if (!feature.key || seenKeys.has(feature.key)) continue;
+      seenKeys.add(feature.key);
+      features.push(feature);
+    }
+    plan = plan.inherits ? getPlanByKey(plan.inherits) : undefined;
+  }
+  return features;
+};
 
 /** Plans a customer can actually check out (excludes hidden/legacy, includes pay_per_use). */
 export const getPurchasablePlans = (): PricingPlan[] =>

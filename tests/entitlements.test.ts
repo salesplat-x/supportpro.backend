@@ -16,6 +16,7 @@ import {
 import { createRecruiter, createOrganization } from "./helpers/fixtures.js";
 import {
   assertWithinLimit,
+  getOrganizationUsage,
   hasFlag,
   recordUsage,
   getPlanFeature,
@@ -84,6 +85,53 @@ describe("hasFlag", () => {
   it("false for an unknown feature key", async () => {
     const org = await orgOnPlan("pro");
     expect(hasFlag(org, "not_a_real_feature")).toBe(false);
+  });
+});
+
+// "Everything in Pro, plus" must hold for gating, not just for the pricing page copy.
+describe("plan inheritance", () => {
+  it.each(["advance", "enterprise"])("%s includes Pro's bulk tools", async (plan) => {
+    const org = await orgOnPlan(plan);
+    expect(hasFlag(org, "bulk_broadcast_tools")).toBe(true);
+  });
+
+  it("enterprise includes Advance's flags as well as its own", async () => {
+    const org = await orgOnPlan("enterprise");
+    expect(hasFlag(org, "job_board_distribution")).toBe(true);
+    expect(hasFlag(org, "dedicated_support")).toBe(true);
+    expect(hasFlag(org, "hr_assistant")).toBe(true);
+  });
+
+  it("a plan's own limit wins over the one it inherits", async () => {
+    const org = await orgOnPlan("advance");
+    expect(getPlanFeature(org, "job_listings")?.limit).toBe(30);
+    expect(getPlanFeature(org, "candidate_views")?.limit).toBeNull();
+  });
+
+  it("inheritance only flows upward — Pro does not get Advance's or Enterprise's flags", async () => {
+    const org = await orgOnPlan("pro");
+    expect(hasFlag(org, "job_board_distribution")).toBe(false);
+    expect(hasFlag(org, "hr_assistant")).toBe(false);
+  });
+
+  it("the usage snapshot lists inherited flags once", async () => {
+    const org = await orgOnPlan("enterprise");
+    const usage = await getOrganizationUsage(org.id);
+    const keys = usage.flags.map((flag) => flag.key);
+    expect(keys).toEqual(
+      expect.arrayContaining([
+        "bulk_broadcast_tools",
+        "job_board_distribution",
+        "dedicated_support",
+        "hr_assistant",
+      ])
+    );
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(usage.meters.map((meter) => meter.key)).toEqual([
+      "job_listings",
+      "candidate_views",
+      "team_members",
+    ]);
   });
 });
 
