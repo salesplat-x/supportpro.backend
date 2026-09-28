@@ -109,7 +109,11 @@ const sendPaymentReceipt = async (payment: Payment): Promise<void> => {
   const metadataPlanKey = (payment.initialConfig as { metadata?: { planKey?: string } } | null)
     ?.metadata?.planKey;
   const planName = planRecord?.name ?? getPlanByKey(metadataPlanKey ?? "")?.name ?? "Your plan";
-  const interval = payment.billingInterval === BillingInterval.Annually ? "Annually" : "Monthly";
+  const interval = !payment.billingInterval
+    ? "One-time"
+    : payment.billingInterval === BillingInterval.Annually
+      ? "Annually"
+      : "Monthly";
   const paidAt = payment.paidAt ?? new Date();
   const origin = (env.website ?? "").replace(/\/$/, "");
 
@@ -310,7 +314,13 @@ const applySubscriptionRenewal = async (
   return extendedOrganizationId;
 };
 
-export const verify = async (user: User, payload: { reference: string }): Promise<void> => {
+const paidJobId = (payment: Payment): string | null =>
+  (payment.initialConfig as { metadata?: { jobId?: string } } | null)?.metadata?.jobId ?? null;
+
+export const verify = async (
+  user: User,
+  payload: { reference: string }
+): Promise<{ jobId: string | null }> => {
   const payment = await paymentRepo().findOne({
     where: [{ paystackRef: payload.reference }, { reference: payload.reference }],
   });
@@ -321,7 +331,7 @@ export const verify = async (user: User, payload: { reference: string }): Promis
     throw new AuthorizationError("You cannot verify this payment");
   }
   if (payment.status === PaymentStatus.Completed) {
-    return;
+    return { jobId: paidJobId(payment) };
   }
 
   const response = await verifyTransaction(payment.paystackRef ?? payment.reference ?? "");
@@ -350,7 +360,7 @@ export const verify = async (user: User, payload: { reference: string }): Promis
       const completed = await paymentRepo().findOne({ where: { id: payment.id } });
       if (completed) await sendPaymentReceipt(completed);
     }
-    return;
+    return { jobId: paidJobId(payment) };
   }
 
   if (status === "failed" || status === "abandoned") {
@@ -696,8 +706,14 @@ export const initiateJobPayment = async (
   if (job.status === JobStatus.Active) {
     throw new ConflictError("This job is already active");
   }
+  if (job.status !== JobStatus.Draft && job.status !== JobStatus.PendingPayment) {
+    throw new ValidationError("Only draft jobs can be paid for");
+  }
   if (user.activeOrganizationId !== job.organizationId) {
     throw new AuthorizationError("You are not authorized to pay for this job");
+  }
+  if (!job.aiConfigId) {
+    throw new ValidationError("This job cannot be activated until an AI configuration is added");
   }
 
   const stored = await organizationRepo().findOne({ where: { id: job.organizationId } });
