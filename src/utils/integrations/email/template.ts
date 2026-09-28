@@ -11,6 +11,7 @@ const TEMPLATE_TITLES: Record<string, string> = {
   "verify-email": "Verify your email address",
   "password-reset": "Reset your password",
   "payment-confirmation": "Payment confirmed",
+  "onboarding-follow-up": "Finish getting started on Auxhr",
 };
 
 const TEMPLATE_PREHEADERS: Record<string, string> = {
@@ -20,6 +21,7 @@ const TEMPLATE_PREHEADERS: Record<string, string> = {
   "password-reset": "Use this link to reset your Auxhr password.",
   "payment-confirmation": "Your Auxhr subscription payment was successful.",
   "company-invite": "Accept your team invitation on Auxhr.",
+  "onboarding-follow-up": "A couple of quick steps and you're all set.",
 };
 
 export const renderTemplate = (templateName: string, data: Record<string, unknown>): string => {

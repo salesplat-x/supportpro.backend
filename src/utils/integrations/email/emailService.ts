@@ -30,6 +30,28 @@ class EmailService {
     }
   }
 
+  /** Sends an admin's onboarding follow-up. Unlike sendEmail it throws, so failures can be recorded. */
+  async sendOnboardingFollowUp(details: {
+    to: string;
+    subject: string;
+    paragraphs: string[];
+    ctaLabel: string;
+    ctaUrl: string;
+  }): Promise<void> {
+    const html = renderTemplate("onboarding-follow-up", {
+      paragraphs: details.paragraphs,
+      ctaLabel: details.ctaLabel,
+      ctaUrl: details.ctaUrl,
+    });
+    await this.provider.send({
+      to: details.to,
+      subject: details.subject,
+      html,
+      text: [...details.paragraphs, `${details.ctaLabel}: ${details.ctaUrl}`].join("\n\n"),
+      tags: [{ name: "category", value: "onboarding-follow-up" }],
+    });
+  }
+
   async sendWelcome(user: UserLike): Promise<void> {
     const template = user.userRole === UserRole.Recruiter ? "welcomeRecruiter" : "welcome";
     const html = renderTemplate(template, { firstName: user.firstName });

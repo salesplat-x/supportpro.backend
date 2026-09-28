@@ -699,6 +699,57 @@ ${outputFormat}`;
   return completion.choices[0];
 };
 
+export interface ComposeOnboardingEmailContext {
+  firstName: string;
+  role: "talent" | "recruiter";
+  stage: string;
+  nextSteps: string[];
+  ctaLabel: string;
+  daysSinceSignup: number;
+  previousEmails: Array<{ subject: string; sentAt: string }>;
+}
+
+export const composeOnboardingEmail = async (
+  context: ComposeOnboardingEmailContext
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const audience =
+    context.role === "recruiter"
+      ? "a recruiter who signed up to hire with Auxhr, an AI-assisted hiring platform"
+      : "a job seeker who signed up to find work through Auxhr, an AI-assisted hiring platform";
+
+  const system = `You write short, warm marketing emails that bring people back to Auxhr to finish getting started.
+
+The reader is ${audience}. They have not finished setting up yet. Write one email that:
+- greets them by first name,
+- reminds them in one or two sentences what they get from Auxhr,
+- tells them exactly what to do next, using the next steps provided (you may reword them, but do not add or drop steps),
+- is friendly and encouraging, never guilt-tripping or pushy,
+- is under 150 words, in plain text with short paragraphs and no markdown symbols.
+If earlier emails were sent, write it as a gentle follow-up and do not repeat their subject lines.
+Do not include links, a signature block, or placeholders like [Name] — a button to the right page is added below your text.
+
+Output a JSON object in this exact format:
+{ "subject": "<under 70 characters>", "body": "<the email text>" }`;
+
+  const user = JSON.stringify({
+    firstName: context.firstName,
+    nextSteps: context.nextSteps,
+    buttonLabel: context.ctaLabel,
+    daysSinceSignup: context.daysSinceSignup,
+    previousEmails: context.previousEmails,
+  });
+
+  const completion = await runCompletion({
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+    model: "gpt-4o",
+    response_format: { type: "json_object" },
+  });
+  return completion.choices[0];
+};
+
 export const scorePreScreeningAssessment = async (
   context: PreScreeningScoringContext
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {

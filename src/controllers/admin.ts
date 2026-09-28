@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import * as adminService from "../services/admin.js";
+import * as onboardingService from "../services/onboarding.js";
 import { OrganizationStatus } from "../types/enums.js";
 import { sendSuccessResponse } from "../utils/response.js";
 
@@ -64,4 +65,23 @@ export const rejectOrganization = async (req: Request, res: Response) => {
 export const deleteOrganization = async (req: Request, res: Response) => {
   await adminService.deleteOrganizationAsAdmin(req.params["_id"]!);
   sendSuccessResponse(res, "Company permanently deleted");
+};
+
+export const userOnboarding = async (req: Request, res: Response) => {
+  const result = await onboardingService.getUserOnboarding(req.params["_id"]!);
+  sendSuccessResponse(res, "Onboarding fetched", { onboarding: result });
+};
+
+export const draftOnboardingEmail = async (req: Request, res: Response) => {
+  const result = await onboardingService.draftOnboardingEmail(req.params["_id"]!);
+  sendSuccessResponse(res, "Email drafted", { draft: result });
+};
+
+export const sendOnboardingEmail = async (req: Request, res: Response) => {
+  const result = await onboardingService.sendOnboardingEmail(req.user.id, req.params["_id"]!, {
+    subject: req.body.subject,
+    body: req.body.body,
+    confirm: req.body.confirm === true,
+  });
+  sendSuccessResponse(res, "Email sent", { email: result }, 201);
 };

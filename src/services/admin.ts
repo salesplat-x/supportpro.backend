@@ -9,6 +9,7 @@ import {
   purgeRecruiterCascade,
   purgeTalentCascade,
 } from "./cascadeDelete.js";
+import { applyOnboardingFilters, OnboardingSummary, onboardingSummaries } from "./onboarding.js";
 import { loadOrganizationMembers, OrganizationMemberView } from "./organization.js";
 
 const userRepo = () => AppDataSource.getRepository(User);
@@ -16,6 +17,8 @@ const jobRepo = () => AppDataSource.getRepository(Job);
 const orgRepo = () => AppDataSource.getRepository(Organization);
 
 export interface AdminListParams {
+  onboardingStage?: string;
+  followUp?: string;
   search?: string;
   experience?: string;
   roleId?: string;
@@ -26,9 +29,22 @@ export interface AdminListParams {
   sort?: string;
 }
 
+type WithOnboarding = User & { onboarding: OnboardingSummary | null };
+
+const withOnboarding = async (
+  role: UserRole.Talent | UserRole.Recruiter,
+  users: User[]
+): Promise<WithOnboarding[]> => {
+  const summaries = await onboardingSummaries(
+    role,
+    users.map((user) => user.id)
+  );
+  return users.map((user) => Object.assign(user, { onboarding: summaries.get(user.id) ?? null }));
+};
+
 export const listTalents = async (
   params: AdminListParams
-): Promise<{ users: User[]; total: number }> => {
+): Promise<{ users: WithOnboarding[]; total: number }> => {
   const limit = Math.min(Number(params.limit) || 50, 200);
   const offset = Number(params.offset) || 0;
   const order = sortDirection(params.sort ?? "desc");
@@ -51,6 +67,7 @@ export const listTalents = async (
   if (params.roleId) {
     qb.andWhere("userRoles.id = :roleId", { roleId: params.roleId });
   }
+  applyOnboardingFilters(qb, UserRole.Talent, params);
 
   const [users, total] = await qb
     .orderBy("user.createdAt", order)
@@ -58,7 +75,7 @@ export const listTalents = async (
     .take(limit)
     .getManyAndCount();
 
-  return { users, total };
+  return { users: await withOnboarding(UserRole.Talent, users), total };
 };
 
 export const deleteTalent = async (talentId: string): Promise<void> => {
@@ -69,7 +86,7 @@ export const deleteTalent = async (talentId: string): Promise<void> => {
 
 export const listRecruiters = async (
   params: AdminListParams
-): Promise<{ users: User[]; total: number }> => {
+): Promise<{ users: WithOnboarding[]; total: number }> => {
   const limit = Math.min(Number(params.limit) || 50, 200);
   const offset = Number(params.offset) || 0;
   const order = sortDirection(params.sort ?? "desc");
@@ -85,6 +102,7 @@ export const listRecruiters = async (
       { term }
     );
   }
+  applyOnboardingFilters(qb, UserRole.Recruiter, params);
 
   const [users, total] = await qb
     .orderBy("user.createdAt", order)
@@ -92,7 +110,7 @@ export const listRecruiters = async (
     .take(limit)
     .getManyAndCount();
 
-  return { users, total };
+  return { users: await withOnboarding(UserRole.Recruiter, users), total };
 };
 
 export const deleteRecruiter = async (recruiterId: string): Promise<void> => {
