@@ -6,7 +6,7 @@ import { Job } from "../entities/Job.js";
 import { Organization } from "../entities/Organization.js";
 import { OrganizationMember } from "../entities/OrganizationMember.js";
 import { Subscription } from "../entities/Subscription.js";
-import { getPlanByKey, PricingFeature } from "../config/pricingCatalog.js";
+import { getEffectivePlanFeatures, PricingFeature } from "../config/pricingCatalog.js";
 import {
   BillingInterval,
   BillingStatus,
@@ -31,8 +31,9 @@ export const getPlanFeature = (
   organization: Organization,
   featureKey: string
 ): PricingFeature | undefined => {
-  const plan = getPlanByKey(organization.billingPlan);
-  return plan?.features.find((feature) => feature.key === featureKey);
+  return getEffectivePlanFeatures(organization.billingPlan).find(
+    (feature) => feature.key === featureKey
+  );
 };
 
 export const hasFlag = (organization: Organization, featureKey: string): boolean => {
@@ -217,8 +218,7 @@ export const getOrganizationUsage = async (
   }
   organization = await ensureOrganizationBillingCurrent(organization);
 
-  const plan = getPlanByKey(organization.billingPlan);
-  const features = plan?.features ?? [];
+  const features = getEffectivePlanFeatures(organization.billingPlan);
   const meters: UsageMeter[] = [];
   const flags: Array<{ key: string; label: string; included: boolean }> = [];
 
