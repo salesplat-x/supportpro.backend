@@ -45,6 +45,10 @@ export const hasFlag = (organization: Organization, featureKey: string): boolean
   return feature?.kind === "flag" && feature.included === true;
 };
 
+/** Live count behind the concurrent job_listings limit. */
+export const countActiveJobs = (organizationId: string): Promise<number> =>
+  jobRepo().count({ where: { organizationId, status: JobStatus.Active } });
+
 const readCounter = async (organizationId: string, featureKey: string): Promise<number> => {
   const counter = await counterRepo().findOne({
     where: { organizationId, featureKey, periodStart: currentPeriodStart() },
@@ -122,6 +126,47 @@ export const ensureOrganizationBillingCurrent = async (
   return (await organizationRepo().findOne({ where: { id: organization.id } })) ?? organization;
 };
 
+type LimitCheck = {
+  organization: Organization;
+  feature: PricingFeature & { limit: number };
+  reached: boolean;
+};
+
+const checkLimit = async (
+  organization: Organization,
+  featureKey: string,
+  currentConcurrentCount?: () => Promise<number>
+): Promise<LimitCheck | null> => {
+  const org = await ensureOrganizationBillingCurrent(organization);
+  const feature = getPlanFeature(org, featureKey);
+  if (!feature || feature.kind !== "metered") return null;
+  if (feature.limit == null) return null;
+
+  let used: number;
+  if (feature.period === "concurrent") {
+    if (!currentConcurrentCount) {
+      throw new Error(`checkLimit: ${featureKey} requires currentConcurrentCount`);
+    }
+    used = await currentConcurrentCount();
+  } else {
+    used = await readCounter(org.id, featureKey);
+  }
+
+  return {
+    organization: org,
+    feature: feature as PricingFeature & { limit: number },
+    reached: used >= feature.limit,
+  };
+};
+
+/** True when the organization is at/over its plan's limit for this feature. False for unlimited or ungated features. */
+export const isAtLimit = async (
+  organization: Organization,
+  featureKey: string,
+  currentConcurrentCount?: () => Promise<number>
+): Promise<boolean> =>
+  (await checkLimit(organization, featureKey, currentConcurrentCount))?.reached ?? false;
+
 /**
  * Throws PlanLimitError if the organization is at/over its plan's limit for this feature.
  * No-ops for unlimited plans or features the catalogue doesn't gate.
@@ -131,28 +176,15 @@ export const assertWithinLimit = async (
   featureKey: string,
   currentConcurrentCount?: () => Promise<number>
 ): Promise<void> => {
-  const org = await ensureOrganizationBillingCurrent(organization);
-  const feature = getPlanFeature(org, featureKey);
-  if (!feature || feature.kind !== "metered") return;
-  if (feature.limit == null) return; // unlimited
+  const check = await checkLimit(organization, featureKey, currentConcurrentCount);
+  if (!check?.reached) return;
 
-  let used: number;
-  if (feature.period === "concurrent") {
-    if (!currentConcurrentCount) {
-      throw new Error(`assertWithinLimit: ${featureKey} requires currentConcurrentCount`);
-    }
-    used = await currentConcurrentCount();
-  } else {
-    used = await readCounter(org.id, featureKey);
-  }
-
-  if (used >= feature.limit) {
-    throw new PlanLimitError(
-      `Your company has reached its plan limit for ${feature.label ?? featureKey} (${feature.limit}). Ask your organization owner to upgrade.`,
-      featureKey,
-      org.billingPlan
-    );
-  }
+  const { feature, organization: org } = check;
+  throw new PlanLimitError(
+    `Your company has reached its plan limit for ${feature.label ?? featureKey} (${feature.limit}). Ask your organization owner to upgrade.`,
+    featureKey,
+    org.billingPlan
+  );
 };
 
 /** Increments the current-month usage counter. No-op for 'concurrent' features. */
@@ -225,9 +257,7 @@ export const getOrganizationUsage = async (
     let used = 0;
     if (feature.period === "concurrent") {
       if (feature.key === "job_listings") {
-        used = await jobRepo().count({
-          where: { organizationId, status: JobStatus.Active },
-        });
+        used = await countActiveJobs(organizationId);
       } else if (feature.key === "team_members") {
         used = await memberRepo().count({ where: { organizationId } });
       }

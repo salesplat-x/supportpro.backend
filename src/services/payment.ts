@@ -39,7 +39,7 @@ import {
   setOrganizationBilling,
   setOrganizationBillingStatus,
 } from "./billingState.js";
-import { ensureOrganizationBillingCurrent } from "./entitlements.js";
+import { countActiveJobs, ensureOrganizationBillingCurrent, isAtLimit } from "./entitlements.js";
 import logger from "../utils/logger.js";
 import { generateReference } from "../utils/crypto.js";
 import EmailService from "../utils/integrations/email/emailService.js";
@@ -779,7 +779,12 @@ export const initiateJobPayment = async (
   // notices, which would reject per-job checkout for a company that is back on pay per use.
   const organization = await ensureOrganizationBillingCurrent(stored);
   if (organization.billingPlan !== DEFAULT_BILLING_PLAN_KEY) {
-    throw new ValidationError("This job's organization is not on the Pay per Use plan");
+    const listingsFull = await isAtLimit(organization, "job_listings", () =>
+      countActiveJobs(organization.id)
+    );
+    if (!listingsFull) {
+      throw new ValidationError("Your plan still has job slots available");
+    }
   }
 
   const plan = getPlanByKey(DEFAULT_BILLING_PLAN_KEY);

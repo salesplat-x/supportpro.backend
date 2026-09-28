@@ -781,37 +781,115 @@ describe("PATCH /v1/jobs/:_id — plan gating on activation", () => {
     return orgId;
   }
 
-  it("sme_basic org at its job_listings limit (2 active) → activating a 3rd → 402 PLAN_LIMIT_REACHED", async () => {
-    const { user: recruiter, token } = await createRecruiter();
-    const orgId = await setOrgPlan(recruiter, "sme_basic");
+  async function fillListings(recruiter: User, orgId: string, count: number) {
     const role = await createRole();
     const config = await createAIConfig(recruiter);
-
-    await createJob(recruiter, role, {
-      organizationId: orgId,
-      status: JobStatus.Active,
-      aiConfigId: config.id,
-    });
-    await createJob(recruiter, role, {
-      organizationId: orgId,
-      status: JobStatus.Active,
-      aiConfigId: config.id,
-    });
+    const active: Job[] = [];
+    for (let i = 0; i < count; i += 1) {
+      active.push(
+        await createJob(recruiter, role, {
+          organizationId: orgId,
+          status: JobStatus.Active,
+          aiConfigId: config.id,
+        })
+      );
+    }
     const draft = await createJob(recruiter, role, {
       organizationId: orgId,
       status: JobStatus.Draft,
       aiConfigId: config.id,
     });
+    return { active, draft };
+  }
+
+  const countActive = (orgId: string) =>
+    testDataSource
+      .getRepository(Job)
+      .count({ where: { organizationId: orgId, status: JobStatus.Active } });
+
+  it("sme_basic org at its job_listings limit (2 active) → a 3rd activation overflows to pay-per-use instead of 402", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const orgId = await setOrgPlan(recruiter, "sme_basic");
+    const { draft } = await fillListings(recruiter, orgId, 2);
 
     const res = await request(app)
       .patch(`/v1/jobs/${draft.id}`)
       .set("Authorization", `Bearer ${token}`)
       .send({ status: "active" });
 
-    expect(res.status).toBe(402);
-    expect(res.body.error.code).toBe("PLAN_LIMIT_REACHED");
-    expect(res.body.error.featureKey).toBe("job_listings");
-    expect(res.body.error.planKey).toBe("sme_basic");
+    expect(res.status).toBe(200);
+    expect(res.body.data.job.status).toBe("pending_payment");
+    expect(await countActive(orgId)).toBe(2);
+
+    // Overflowing a single job never takes the subscription away.
+    const org = await testDataSource.getRepository(Organization).findOne({ where: { id: orgId } });
+    expect(org!.billingPlan).toBe("sme_basic");
+  });
+
+  it("an org somehow over its limit also overflows rather than going live", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const orgId = await setOrgPlan(recruiter, "sme_basic");
+    const { draft } = await fillListings(recruiter, orgId, 3);
+
+    const res = await request(app)
+      .patch(`/v1/jobs/${draft.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: "active" });
+
+    expect(res.body.data.job.status).toBe("pending_payment");
+    expect(await countActive(orgId)).toBe(3);
+  });
+
+  it("once a listing slot frees up, activation goes live on the plan again", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const orgId = await setOrgPlan(recruiter, "sme_basic");
+    const { active, draft } = await fillListings(recruiter, orgId, 2);
+
+    await request(app)
+      .patch(`/v1/jobs/${active[0]!.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: "closed" })
+      .expect(200);
+
+    const res = await request(app)
+      .patch(`/v1/jobs/${draft.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: "active" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.job.status).toBe("active");
+  });
+
+  it("an unlimited plan never overflows", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const orgId = await setOrgPlan(recruiter, "enterprise");
+    const { draft } = await fillListings(recruiter, orgId, 40);
+
+    const res = await request(app)
+      .patch(`/v1/jobs/${draft.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: "active" });
+
+    expect(res.body.data.job.status).toBe("active");
+  });
+
+  it("each plan's limit is enforced at its own number (pro: 10)", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const orgId = await setOrgPlan(recruiter, "pro");
+    const { draft } = await fillListings(recruiter, orgId, 9);
+
+    const tenth = await request(app)
+      .patch(`/v1/jobs/${draft.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: "active" });
+    expect(tenth.body.data.job.status).toBe("active");
+
+    const { draft: eleventh } = await fillListings(recruiter, orgId, 0);
+    const res = await request(app)
+      .patch(`/v1/jobs/${eleventh.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: "active" });
+    expect(res.body.data.job.status).toBe("pending_payment");
   });
 
   it("sme_basic org under its limit (1 active) → activating a 2nd → 200", async () => {

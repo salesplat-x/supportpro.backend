@@ -18,6 +18,7 @@ import {
   assertWithinLimit,
   getOrganizationUsage,
   hasFlag,
+  isAtLimit,
   recordUsage,
   getPlanFeature,
 } from "../src/services/entitlements.js";
@@ -132,6 +133,35 @@ describe("plan inheritance", () => {
       "candidate_views",
       "team_members",
     ]);
+  });
+});
+
+describe("isAtLimit", () => {
+  it("false below the limit and true exactly at it", async () => {
+    const org = await orgOnPlan("sme_basic"); // job_listings limit 2
+    await expect(isAtLimit(org, "job_listings", async () => 1)).resolves.toBe(false);
+    await expect(isAtLimit(org, "job_listings", async () => 2)).resolves.toBe(true);
+  });
+
+  it("false for an unlimited feature however much is used", async () => {
+    const org = await orgOnPlan("enterprise");
+    await expect(isAtLimit(org, "job_listings", async () => 10_000)).resolves.toBe(false);
+  });
+
+  it("false for a flag or undeclared feature", async () => {
+    const org = await orgOnPlan("pro");
+    await expect(isAtLimit(org, "bulk_broadcast_tools")).resolves.toBe(false);
+    await expect(isAtLimit(org, "not_a_real_feature")).resolves.toBe(false);
+  });
+
+  it("uses the plan the org is actually on after an expired period reverts", async () => {
+    const { user } = await createRecruiter();
+    const org = await createOrganization(user, {
+      billingPlan: "enterprise",
+      billingPeriodEnd: new Date(Date.now() - 3600_000),
+    });
+    // pay_per_use allows 1 concurrent listing; enterprise would be unlimited.
+    await expect(isAtLimit(org, "job_listings", async () => 1)).resolves.toBe(true);
   });
 });
 
