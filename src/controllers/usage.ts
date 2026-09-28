@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import * as entitlements from "../services/entitlements.js";
+import * as planHistory from "../services/planHistory.js";
 import { sendSuccessResponse } from "../utils/response.js";
 import { AuthorizationError, NotFoundError, ValidationError } from "../utils/errors";
 import { AppDataSource } from "../database/dataSource.js";
@@ -28,4 +29,14 @@ export const getOrganizationUsage = async (req: Request, res: Response) => {
   await assertOrgMember(req.user.id, organizationId);
   const usage = await entitlements.getOrganizationUsage(organizationId);
   sendSuccessResponse(res, "Usage fetched", { usage });
+};
+
+export const getOrganizationPlanHistory = async (req: Request, res: Response) => {
+  const organizationId = req.params["_id"];
+  if (!organizationId) {
+    throw new ValidationError("Organization id is required");
+  }
+  await assertOrgMember(req.user.id, organizationId);
+  const history = await planHistory.getOrganizationPlanHistory(organizationId);
+  sendSuccessResponse(res, "Plan history fetched", { history });
 };

@@ -22,7 +22,12 @@ import {
   createJob,
   createAIConfig,
 } from "./helpers/fixtures.js";
-import { computeBillingPeriodEnd, setOrganizationBilling } from "../src/services/billingState.js";
+import {
+  computeBillingPeriodEnd,
+  currentPeriodStart,
+  revertToPayPerUseIfExpired,
+  setOrganizationBilling,
+} from "../src/services/billingState.js";
 import {
   ensureOrganizationBillingCurrent,
   getOrganizationUsage,
@@ -32,6 +37,9 @@ import { FeatureUsageCounter } from "../src/entities/FeatureUsageCounter.js";
 import { Job } from "../src/entities/Job.js";
 import { Payment } from "../src/entities/Payment.js";
 import { Organization } from "../src/entities/Organization.js";
+import { OrganizationMember } from "../src/entities/OrganizationMember.js";
+import { Plan } from "../src/entities/Plan.js";
+import { OrganizationPlanHistory } from "../src/entities/OrganizationPlanHistory.js";
 import { Subscription } from "../src/entities/Subscription.js";
 import { User } from "../src/entities/User.js";
 import {
@@ -41,6 +49,7 @@ import {
   DEFAULT_BILLING_PLAN_KEY,
   JobStatus,
   PaymentStatus,
+  PlanChangeReason,
   SubscriptionStatus,
 } from "../src/types/enums.js";
 
@@ -54,6 +63,8 @@ jest.mock("../src/utils/integrations/email/emailService.js", () => ({
 }));
 
 const WEBHOOK_PATH = "/v1/payments/webhook";
+
+const PURCHASED = { reason: PlanChangeReason.Purchase };
 
 const signBody = (body: object): string =>
   createHmac("sha512", process.env.PAYSTACK_SECRET_KEY ?? "")
@@ -652,12 +663,16 @@ describe("default plan", () => {
         status: JobStatus.Draft,
         aiConfigId: config.id,
       });
-      await setOrganizationBilling(orgId, {
-        billingPlan: "pro",
-        billingInterval: BillingInterval.Monthly,
-        billingStatus: BillingStatus.Active,
-        billingPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      });
+      await setOrganizationBilling(
+        orgId,
+        {
+          billingPlan: "pro",
+          billingInterval: BillingInterval.Monthly,
+          billingStatus: BillingStatus.Active,
+          billingPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        },
+        PURCHASED
+      );
 
       await request(app)
         .post(`/v1/jobs/${draft.id}/activate-payment`)
@@ -785,12 +800,16 @@ describe("renewal", () => {
       paystackAmount: 30_000_000,
     });
     const nearlyOver = new Date(Date.now() + 60_000);
-    await setOrganizationBilling(orgId, {
-      billingPlan: "pro",
-      billingInterval: BillingInterval.Monthly,
-      billingStatus: BillingStatus.Active,
-      billingPeriodEnd: nearlyOver,
-    });
+    await setOrganizationBilling(
+      orgId,
+      {
+        billingPlan: "pro",
+        billingInterval: BillingInterval.Monthly,
+        billingStatus: BillingStatus.Active,
+        billingPeriodEnd: nearlyOver,
+      },
+      PURCHASED
+    );
     const sub = await createSubscription(user, plan, {
       organizationId: orgId,
       status: SubscriptionStatus.Active,
@@ -838,12 +857,16 @@ describe("renewal", () => {
       paystackAmount: 30_000_000,
     });
     const periodEnd = new Date(Date.now() + 60_000);
-    await setOrganizationBilling(orgId, {
-      billingPlan: "pro",
-      billingInterval: BillingInterval.Monthly,
-      billingStatus: BillingStatus.Active,
-      billingPeriodEnd: periodEnd,
-    });
+    await setOrganizationBilling(
+      orgId,
+      {
+        billingPlan: "pro",
+        billingInterval: BillingInterval.Monthly,
+        billingStatus: BillingStatus.Active,
+        billingPeriodEnd: periodEnd,
+      },
+      PURCHASED
+    );
     const sub = await createSubscription(user, plan, {
       organizationId: orgId,
       status: SubscriptionStatus.Active,
@@ -885,12 +908,16 @@ describe("renewal", () => {
 
     // The org has already moved on to a richer plan.
     const upgradedUntil = computeBillingPeriodEnd(new Date(), BillingInterval.Monthly);
-    await setOrganizationBilling(orgId, {
-      billingPlan: "pro",
-      billingInterval: BillingInterval.Monthly,
-      billingStatus: BillingStatus.Active,
-      billingPeriodEnd: upgradedUntil,
-    });
+    await setOrganizationBilling(
+      orgId,
+      {
+        billingPlan: "pro",
+        billingInterval: BillingInterval.Monthly,
+        billingStatus: BillingStatus.Active,
+        billingPeriodEnd: upgradedUntil,
+      },
+      PURCHASED
+    );
 
     const body = {
       event: "invoice.update",
@@ -920,12 +947,16 @@ describe("renewal", () => {
 
 describe("expiry", () => {
   const expirePlan = async (orgId: string, planKey = "pro") => {
-    await setOrganizationBilling(orgId, {
-      billingPlan: planKey,
-      billingInterval: BillingInterval.Monthly,
-      billingStatus: BillingStatus.Active,
-      billingPeriodEnd: new Date(Date.now() - 3600_000),
-    });
+    await setOrganizationBilling(
+      orgId,
+      {
+        billingPlan: planKey,
+        billingInterval: BillingInterval.Monthly,
+        billingStatus: BillingStatus.Active,
+        billingPeriodEnd: new Date(Date.now() - 3600_000),
+      },
+      PURCHASED
+    );
   };
 
   it("reverts to pay_per_use once the paid period has passed", async () => {
@@ -940,6 +971,49 @@ describe("expiry", () => {
     expect(org.billingInterval).toBeNull();
     expect(org.billingStatus).toBe(BillingStatus.Cancelled);
     expect(org.billingPeriodEnd).toBeNull();
+  });
+
+  // Minutes, not hours, from the boundary: comparing the stored timestamps with the database's
+  // own clock is off by the server's UTC offset, which these would fall inside.
+  describe("right at the edge of the paid period", () => {
+    it("a period that ended minutes ago is reverted", async () => {
+      const { orgId } = await createBillableRecruiter();
+      await setOrganizationBilling(
+        orgId,
+        {
+          billingPlan: "pro",
+          billingInterval: BillingInterval.Monthly,
+          billingStatus: BillingStatus.Active,
+          billingPeriodEnd: new Date(Date.now() - 10 * 60_000),
+        },
+        PURCHASED
+      );
+
+      const checked = await ensureOrganizationBillingCurrent(await reloadOrg(orgId));
+
+      expect(checked.billingPlan).toBe(DEFAULT_BILLING_PLAN_KEY);
+      expect((await reloadOrg(orgId)).billingPlan).toBe(DEFAULT_BILLING_PLAN_KEY);
+    });
+
+    it("a subscription renewing in minutes still keeps the plan", async () => {
+      const { user, orgId } = await createBillableRecruiter();
+      const plan = await createPlan({
+        planKey: "pro",
+        interval: BillingInterval.Monthly,
+        currency: Currency.NGN,
+        paystackAmount: 30_000_000,
+      });
+      await expirePlan(orgId);
+      await createSubscription(user, plan, {
+        organizationId: orgId,
+        status: SubscriptionStatus.Active,
+        nextPaymentDate: new Date(Date.now() + 10 * 60_000),
+      });
+
+      await revertToPayPerUseIfExpired(orgId);
+
+      expect((await reloadOrg(orgId)).billingPlan).toBe("pro");
+    });
   });
 
   it("does NOT downgrade an org whose subscription is still live (dropped renewal webhook)", async () => {
@@ -994,12 +1068,16 @@ describe("expiry", () => {
       currency: Currency.NGN,
       paystackAmount: 30_000_000,
     });
-    await setOrganizationBilling(orgId, {
-      billingPlan: "pro",
-      billingInterval: BillingInterval.Monthly,
-      billingStatus: BillingStatus.Active,
-      billingPeriodEnd: computeBillingPeriodEnd(new Date(), BillingInterval.Monthly),
-    });
+    await setOrganizationBilling(
+      orgId,
+      {
+        billingPlan: "pro",
+        billingInterval: BillingInterval.Monthly,
+        billingStatus: BillingStatus.Active,
+        billingPeriodEnd: computeBillingPeriodEnd(new Date(), BillingInterval.Monthly),
+      },
+      PURCHASED
+    );
     const sub = await createSubscription(user, plan, {
       organizationId: orgId,
       status: SubscriptionStatus.Active,
@@ -1040,12 +1118,16 @@ describe("expiry", () => {
       status: SubscriptionStatus.Active,
     });
     const upgradedUntil = computeBillingPeriodEnd(new Date(), BillingInterval.Monthly);
-    await setOrganizationBilling(orgId, {
-      billingPlan: "pro",
-      billingInterval: BillingInterval.Monthly,
-      billingStatus: BillingStatus.Active,
-      billingPeriodEnd: upgradedUntil,
-    });
+    await setOrganizationBilling(
+      orgId,
+      {
+        billingPlan: "pro",
+        billingInterval: BillingInterval.Monthly,
+        billingStatus: BillingStatus.Active,
+        billingPeriodEnd: upgradedUntil,
+      },
+      PURCHASED
+    );
 
     const body = {
       event: "subscription.disable",
@@ -1067,12 +1149,16 @@ describe("expiry", () => {
 describe("usage counters", () => {
   it("concurrent increments are not lost", async () => {
     const { orgId } = await createBillableRecruiter();
-    await setOrganizationBilling(orgId, {
-      billingPlan: "advance",
-      billingInterval: BillingInterval.Monthly,
-      billingStatus: BillingStatus.Active,
-      billingPeriodEnd: computeBillingPeriodEnd(new Date(), BillingInterval.Monthly),
-    });
+    await setOrganizationBilling(
+      orgId,
+      {
+        billingPlan: "advance",
+        billingInterval: BillingInterval.Monthly,
+        billingStatus: BillingStatus.Active,
+        billingPeriodEnd: computeBillingPeriodEnd(new Date(), BillingInterval.Monthly),
+      },
+      PURCHASED
+    );
     const org = await reloadOrg(orgId);
 
     await Promise.all(Array.from({ length: 12 }, () => recordUsage(org, "candidate_views")));
@@ -1110,5 +1196,413 @@ describe("GET /v1/organizations/:id/usage", () => {
   it("requires authentication", async () => {
     const { orgId } = await createBillableRecruiter();
     await request(app).get(`/v1/organizations/${orgId}/usage`).expect(401);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Job payment helpers.
+// ---------------------------------------------------------------------------
+
+const jobRepo = () => testDataSource.getRepository(Job);
+
+const inAMonth = () => computeBillingPeriodEnd(new Date(), BillingInterval.Monthly);
+
+const onPlan = (orgId: string, billingPlan: string, billingPeriodEnd: Date = inAMonth()) =>
+  setOrganizationBilling(
+    orgId,
+    {
+      billingPlan,
+      billingInterval: BillingInterval.Monthly,
+      billingStatus: BillingStatus.Active,
+      billingPeriodEnd,
+    },
+    PURCHASED
+  );
+
+async function payableDraft(user: User, orgId: string): Promise<Job> {
+  const role = await createRole();
+  const config = await createAIConfig(user);
+  return createJob(user, role, {
+    organizationId: orgId,
+    status: JobStatus.Draft,
+    aiConfigId: config.id,
+  });
+}
+
+async function payForJob(token: string, jobId: string): Promise<string> {
+  const initiated = await request(app)
+    .post(`/v1/jobs/${jobId}/activate-payment`)
+    .set("Authorization", `Bearer ${token}`)
+    .expect(200);
+  return initiated.body.data.reference as string;
+}
+
+const verifyReference = (token: string, reference: string) =>
+  request(app)
+    .post("/v1/payments/verify")
+    .set("Authorization", `Bearer ${token}`)
+    .send({ reference });
+
+// ---------------------------------------------------------------------------
+// Switching plans: usage and billing from the old plan must not leak into the new one.
+// ---------------------------------------------------------------------------
+
+const viewsUsed = async (orgId: string): Promise<number> =>
+  (await getOrganizationUsage(orgId)).meters.find((m) => m.key === "candidate_views")?.used ?? 0;
+
+const sendWebhook = (body: object) =>
+  request(app)
+    .post(WEBHOOK_PATH)
+    .set("x-paystack-signature", signBody(body))
+    .send(body)
+    .expect(200);
+
+const monthlyPlanRow = (planKey: string, paystackAmount: number) =>
+  createPlan({
+    planKey,
+    interval: BillingInterval.Monthly,
+    currency: Currency.NGN,
+    paystackAmount,
+    paystackPlanCode: `PLN_${planKey}_${Date.now()}`,
+  });
+
+describe("plan switching keeps plans separate", () => {
+  it("expiring back to pay_per_use starts with zero monthly usage", async () => {
+    const { orgId } = await createBillableRecruiter();
+    await onPlan(orgId, "pro", new Date(Date.now() - 3600_000));
+    // Seeded directly: recordUsage would itself notice the expiry and revert first.
+    await testDataSource.getRepository(FeatureUsageCounter).save({
+      organizationId: orgId,
+      featureKey: "candidate_views",
+      periodStart: currentPeriodStart(),
+      count: 200,
+    });
+
+    await ensureOrganizationBillingCurrent(await reloadOrg(orgId));
+
+    const usage = await getOrganizationUsage(orgId);
+    expect(usage.billingPlan).toBe(DEFAULT_BILLING_PLAN_KEY);
+    const views = usage.meters.find((m) => m.key === "candidate_views");
+    expect(views?.used).toBe(0);
+    expect(views?.limit).toBe(25);
+  });
+
+  it("subscription.disable back to pay_per_use starts with zero monthly usage", async () => {
+    const { user, orgId } = await createBillableRecruiter();
+    const plan = await monthlyPlanRow("pro", 30_000_000);
+    await onPlan(orgId, "pro");
+    await recordUsage(await reloadOrg(orgId), "candidate_views", 200);
+    const sub = await createSubscription(user, plan, { organizationId: orgId });
+
+    await sendWebhook({
+      event: "subscription.disable",
+      data: { id: 501, subscription_code: sub.paystackSubscriptionCode },
+    });
+
+    expect((await reloadOrg(orgId)).billingPlan).toBe(DEFAULT_BILLING_PLAN_KEY);
+    expect(await viewsUsed(orgId)).toBe(0);
+  });
+
+  it("subscription.enable onto a different plan applies it and resets usage", async () => {
+    const { user, orgId } = await createBillableRecruiter();
+    const plan = await monthlyPlanRow("pro", 30_000_000);
+    await onPlan(orgId, "sme_basic");
+    await recordUsage(await reloadOrg(orgId), "candidate_views", 45);
+    const sub = await createSubscription(user, plan, {
+      organizationId: orgId,
+      status: SubscriptionStatus.Cancelled,
+    });
+
+    await sendWebhook({
+      event: "subscription.enable",
+      data: { id: 502, subscription_code: sub.paystackSubscriptionCode },
+    });
+
+    const usage = await getOrganizationUsage(orgId);
+    expect(usage.billingPlan).toBe("pro");
+    expect(usage.meters.find((m) => m.key === "candidate_views")?.used).toBe(0);
+  });
+
+  it("subscription.enable for the plan the org is already on keeps its usage", async () => {
+    const { user, orgId } = await createBillableRecruiter();
+    const plan = await monthlyPlanRow("pro", 30_000_000);
+    await onPlan(orgId, "pro");
+    await recordUsage(await reloadOrg(orgId), "candidate_views", 120);
+    const sub = await createSubscription(user, plan, { organizationId: orgId });
+
+    await sendWebhook({
+      event: "subscription.enable",
+      data: { id: 503, subscription_code: sub.paystackSubscriptionCode },
+    });
+
+    expect(await viewsUsed(orgId)).toBe(120);
+  });
+
+  it("subscription.create for a new plan applies it and resets usage", async () => {
+    const { user, orgId } = await createBillableRecruiter();
+    const plan = await monthlyPlanRow("pro", 30_000_000);
+    await onPlan(orgId, "sme_basic");
+    await recordUsage(await reloadOrg(orgId), "candidate_views", 45);
+
+    await sendWebhook({
+      event: "subscription.create",
+      data: {
+        id: 504,
+        subscription_code: "SUB_brand_new",
+        plan: { plan_code: plan.paystackPlanCode },
+        customer: { email: user.email },
+      },
+    });
+
+    const usage = await getOrganizationUsage(orgId);
+    expect(usage.billingPlan).toBe("pro");
+    expect(usage.meters.find((m) => m.key === "candidate_views")?.used).toBe(0);
+  });
+
+});
+
+// ---------------------------------------------------------------------------
+// Plan history
+// ---------------------------------------------------------------------------
+
+const historyRepo = () => testDataSource.getRepository(OrganizationPlanHistory);
+
+const historyOf = (orgId: string) =>
+  historyRepo().find({ where: { organizationId: orgId }, order: { createdAt: "ASC" } });
+
+describe("plan history — what gets recorded", () => {
+  beforeEach(async () => {
+    await monthlyPlanRow("sme_basic", 15_000_000);
+    await monthlyPlanRow("pro", 30_000_000);
+  });
+
+  it("a new organization has no history", async () => {
+    const { orgId } = await createBillableRecruiter();
+    expect(await historyOf(orgId)).toEqual([]);
+  });
+
+  it("a purchase records the move off pay_per_use and the payment behind it", async () => {
+    const { token, orgId } = await createBillableRecruiter();
+    await buyPlan(token, "sme_basic");
+
+    const payment = await testDataSource
+      .getRepository(Payment)
+      .findOne({ where: { organizationId: orgId } });
+    const history = await historyOf(orgId);
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({
+      fromPlan: DEFAULT_BILLING_PLAN_KEY,
+      toPlan: "sme_basic",
+      billingInterval: BillingInterval.Monthly,
+      reason: PlanChangeReason.Purchase,
+      paymentId: payment!.id,
+    });
+  });
+
+  it("an upgrade then an expiry are both recorded, in order", async () => {
+    const { token, orgId } = await createBillableRecruiter();
+    await buyPlan(token, "sme_basic");
+    await buyPlan(token, "pro");
+    await testDataSource
+      .getRepository(Organization)
+      .update(orgId, { billingPeriodEnd: new Date(Date.now() - 3600_000) });
+    await ensureOrganizationBillingCurrent(await reloadOrg(orgId));
+
+    const history = await historyOf(orgId);
+    expect(history.map((h) => [h.fromPlan, h.toPlan, h.reason])).toEqual([
+      [DEFAULT_BILLING_PLAN_KEY, "sme_basic", PlanChangeReason.Purchase],
+      ["sme_basic", "pro", PlanChangeReason.Purchase],
+      ["pro", DEFAULT_BILLING_PLAN_KEY, PlanChangeReason.Expired],
+    ]);
+    expect(history[2]!.billingInterval).toBeNull();
+    expect(history[2]!.paymentId).toBeNull();
+  });
+
+  it("an expiry check that finds nothing expired records nothing", async () => {
+    const { token, orgId } = await createBillableRecruiter();
+    await buyPlan(token, "pro");
+    await ensureOrganizationBillingCurrent(await reloadOrg(orgId));
+    await ensureOrganizationBillingCurrent(await reloadOrg(orgId));
+
+    expect(await historyOf(orgId)).toHaveLength(1);
+  });
+
+  it("subscription.disable records the revert", async () => {
+    const { user, orgId } = await createBillableRecruiter();
+    const plan = await monthlyPlanRow("advance", 50_000_000);
+    await onPlan(orgId, "advance");
+    const sub = await createSubscription(user, plan, { organizationId: orgId });
+    await historyRepo().clear();
+
+    await sendWebhook({
+      event: "subscription.disable",
+      data: { id: 601, subscription_code: sub.paystackSubscriptionCode },
+    });
+
+    const history = await historyOf(orgId);
+    expect(history.map((h) => [h.fromPlan, h.toPlan, h.reason])).toEqual([
+      ["advance", DEFAULT_BILLING_PLAN_KEY, PlanChangeReason.SubscriptionDisabled],
+    ]);
+  });
+
+  it("subscription.enable records the change", async () => {
+    const { user, orgId } = await createBillableRecruiter();
+    const plan = await monthlyPlanRow("advance", 50_000_000);
+    const sub = await createSubscription(user, plan, {
+      organizationId: orgId,
+      status: SubscriptionStatus.Cancelled,
+    });
+
+    await sendWebhook({
+      event: "subscription.enable",
+      data: { id: 602, subscription_code: sub.paystackSubscriptionCode },
+    });
+
+    const history = await historyOf(orgId);
+    expect(history.map((h) => [h.fromPlan, h.toPlan, h.reason])).toEqual([
+      [DEFAULT_BILLING_PLAN_KEY, "advance", PlanChangeReason.SubscriptionEnabled],
+    ]);
+  });
+
+  it("a renewal of the same plan is not a plan change", async () => {
+    const { user, token, orgId } = await createBillableRecruiter();
+    await buyPlan(token, "pro");
+    const plan = await testDataSource
+      .getRepository(Plan)
+      .findOne({ where: { planKey: "pro", interval: BillingInterval.Monthly } });
+    const sub = await createSubscription(user, plan!, { organizationId: orgId });
+
+    await sendWebhook({
+      event: "invoice.update",
+      data: {
+        id: 603,
+        invoice_code: "INV_history_renewal",
+        paid: true,
+        status: "success",
+        subscription: {
+          subscription_code: sub.paystackSubscriptionCode,
+          next_payment_date: new Date(Date.now() + 60 * 24 * 3600 * 1000).toISOString(),
+        },
+      },
+    });
+
+    expect(await historyOf(orgId)).toHaveLength(1);
+  });
+
+  it("paying for a single job is not a plan change", async () => {
+    const { user, token, orgId } = await createBillableRecruiter();
+    const draft = await payableDraft(user, orgId);
+    await verifyReference(token, await payForJob(token, draft.id)).expect(200);
+
+    expect(await historyOf(orgId)).toEqual([]);
+  });
+
+  it("a failed payment records nothing", async () => {
+    const { token, orgId } = await createBillableRecruiter();
+    const initiated = await request(app)
+      .post("/v1/payments/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ planKey: "pro", interval: "monthly" })
+      .expect(200);
+
+    await sendWebhook({
+      event: "charge.failed",
+      data: { id: 604, reference: initiated.body.data.reference, status: "failed" },
+    });
+
+    expect(await historyOf(orgId)).toEqual([]);
+  });
+});
+
+describe("GET /v1/organizations/:id/plan-history", () => {
+  beforeEach(async () => {
+    await monthlyPlanRow("sme_basic", 15_000_000);
+    await monthlyPlanRow("pro", 30_000_000);
+  });
+
+  it("returns the owner's history newest first", async () => {
+    const { token, orgId } = await createBillableRecruiter();
+    await buyPlan(token, "sme_basic");
+    await buyPlan(token, "pro");
+
+    const res = await request(app)
+      .get(`/v1/organizations/${orgId}/plan-history`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+
+    const history = res.body.data.history as Array<{ fromPlan: string; toPlan: string }>;
+    expect(history.map((h) => h.toPlan)).toEqual(["pro", "sme_basic"]);
+    expect(history[0]).toMatchObject({
+      fromPlan: "sme_basic",
+      reason: PlanChangeReason.Purchase,
+      billingInterval: BillingInterval.Monthly,
+    });
+  });
+
+  it("an organization that never changed plan gets an empty list", async () => {
+    const { token, orgId } = await createBillableRecruiter();
+    const res = await request(app)
+      .get(`/v1/organizations/${orgId}/plan-history`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+    expect(res.body.data.history).toEqual([]);
+  });
+
+  it("only returns the requested organization's rows", async () => {
+    const { token, orgId } = await createBillableRecruiter();
+    const other = await createBillableRecruiter();
+    await buyPlan(other.token, "pro");
+
+    const res = await request(app)
+      .get(`/v1/organizations/${orgId}/plan-history`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+    expect(res.body.data.history).toEqual([]);
+  });
+
+  it("a team member who is not the owner can read it", async () => {
+    const { token: ownerToken, orgId } = await createBillableRecruiter();
+    await buyPlan(ownerToken, "pro");
+    const { user: member, token: memberToken } = await createRecruiter();
+    await testDataSource
+      .getRepository(OrganizationMember)
+      .save({ organizationId: orgId, userId: member.id, workEmail: member.email });
+
+    const res = await request(app)
+      .get(`/v1/organizations/${orgId}/plan-history`)
+      .set("Authorization", `Bearer ${memberToken}`)
+      .expect(200);
+    expect(res.body.data.history).toHaveLength(1);
+  });
+
+  it("a recruiter outside the company → 403", async () => {
+    const { orgId } = await createBillableRecruiter();
+    const { token: outsiderToken } = await createRecruiter();
+    await request(app)
+      .get(`/v1/organizations/${orgId}/plan-history`)
+      .set("Authorization", `Bearer ${outsiderToken}`)
+      .expect(403);
+  });
+
+  it("an unknown organization → 404", async () => {
+    const { token } = await createBillableRecruiter();
+    await request(app)
+      .get(`/v1/organizations/00000000-0000-4000-8000-000000000000/plan-history`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(404);
+  });
+
+  it("a talent → 403", async () => {
+    const { orgId } = await createBillableRecruiter();
+    const { token } = await createTalent();
+    await request(app)
+      .get(`/v1/organizations/${orgId}/plan-history`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(403);
+  });
+
+  it("unauthenticated → 401", async () => {
+    const { orgId } = await createBillableRecruiter();
+    await request(app).get(`/v1/organizations/${orgId}/plan-history`).expect(401);
   });
 });

@@ -118,6 +118,13 @@ export enum BillingInterval {
   Annually = "annually",
 }
 
+export enum PlanChangeReason {
+  Purchase = "purchase",
+  Expired = "expired",
+  SubscriptionDisabled = "subscription_disabled",
+  SubscriptionEnabled = "subscription_enabled",
+}
+
 export enum SubscriptionStatus {
   Active = "active",
   Pending = "pending",
