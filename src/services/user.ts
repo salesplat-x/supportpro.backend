@@ -489,6 +489,19 @@ export const reconcileDueCvEmbeddings = async (): Promise<{
   return { scanned: ids.length, healed, failed };
 };
 
+export const completeTour = async (userId: string): Promise<Date> => {
+  const user = await userRepo().findOne({ where: { id: userId } });
+  if (!user) {
+    throw new NotFoundError("Authenticated user no longer exists");
+  }
+  if (user.tourCompletedAt) {
+    return user.tourCompletedAt;
+  }
+  const tourCompletedAt = new Date();
+  await userRepo().update(userId, { tourCompletedAt });
+  return tourCompletedAt;
+};
+
 export const me = async (userId: string): Promise<User> => {
   const user = await userRepo().findOne({
     where: { id: userId },
