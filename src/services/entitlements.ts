@@ -16,7 +16,11 @@ import {
 } from "../types/enums.js";
 import { NotFoundError } from "../utils/errors";
 import { PlanLimitError } from "../utils/errors";
-import { extendOrganizationBillingPeriod, revertToPayPerUseIfExpired } from "./billingState.js";
+import {
+  currentPeriodStart,
+  extendOrganizationBillingPeriod,
+  revertToPayPerUseIfExpired,
+} from "./billingState.js";
 
 const counterRepo = () => AppDataSource.getRepository(FeatureUsageCounter);
 const organizationRepo = () => AppDataSource.getRepository(Organization);
@@ -41,27 +45,11 @@ export const hasFlag = (organization: Organization, featureKey: string): boolean
   return feature?.kind === "flag" && feature.included === true;
 };
 
-export const currentPeriodStart = (): string => {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10);
-};
-
 const readCounter = async (organizationId: string, featureKey: string): Promise<number> => {
   const counter = await counterRepo().findOne({
     where: { organizationId, featureKey, periodStart: currentPeriodStart() },
   });
   return counter?.count ?? 0;
-};
-
-/** Zero monthly meters for the current calendar period after a plan change. */
-export const resetPeriodUsage = async (organizationId: string): Promise<void> => {
-  await counterRepo()
-    .createQueryBuilder()
-    .update(FeatureUsageCounter)
-    .set({ count: 0 })
-    .where(`"organization_id" = :organizationId`, { organizationId })
-    .andWhere(`"period_start" = :periodStart`, { periodStart: currentPeriodStart() })
-    .execute();
 };
 
 /**

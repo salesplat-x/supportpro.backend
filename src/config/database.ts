@@ -27,6 +27,7 @@ import { OrganizationMember } from "../entities/OrganizationMember.js";
 import { OrganizationJoinRequest } from "../entities/OrganizationJoinRequest.js";
 import { OrganizationInvite } from "../entities/OrganizationInvite.js";
 import { FeatureUsageCounter } from "../entities/FeatureUsageCounter.js";
+import { OrganizationPlanHistory } from "../entities/OrganizationPlanHistory.js";
 
 const databaseConfig: DataSourceOptions = {
   type: "postgres",
@@ -62,6 +63,7 @@ const databaseConfig: DataSourceOptions = {
     OrganizationJoinRequest,
     OrganizationInvite,
     FeatureUsageCounter,
+    OrganizationPlanHistory,
   ],
   migrations: [path.join(__dirname, "../migrations/*.{js,ts}")],
   synchronize: false,

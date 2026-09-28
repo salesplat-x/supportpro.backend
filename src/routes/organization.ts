@@ -82,6 +82,14 @@ router.get(
 );
 
 router.get(
+  "/:_id/plan-history",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(switchOrganizationValidator),
+  asyncHandler(usage.getOrganizationPlanHistory)
+);
+
+router.get(
   "/:_id/invites",
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,

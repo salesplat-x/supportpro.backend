@@ -21,6 +21,7 @@ import {
   DEFAULT_BILLING_PLAN_KEY,
   JobStatus,
   PaymentStatus,
+  PlanChangeReason,
   SubscriptionStatus,
 } from "../types/enums.js";
 import {
@@ -32,11 +33,12 @@ import {
 } from "../utils/integrations/paystack.js";
 import {
   computeBillingPeriodEnd,
+  resetPeriodUsage,
   revertToPayPerUseIfStillOnPlan,
   setOrganizationBilling,
   setOrganizationBillingStatus,
 } from "./billingState.js";
-import { ensureOrganizationBillingCurrent, resetPeriodUsage } from "./entitlements.js";
+import { ensureOrganizationBillingCurrent } from "./entitlements.js";
 import { generateReference } from "../utils/crypto.js";
 import EmailService from "../utils/integrations/email/emailService.js";
 
@@ -142,7 +144,6 @@ const sendPaymentReceipt = async (payment: Payment): Promise<void> => {
  */
 const fulfillPayment = async (payment: Payment, authorizationCode?: string): Promise<boolean> => {
   let newlyCompleted = false;
-  let upgradedOrganizationId: string | null = null;
   await AppDataSource.manager.transaction(async (manager) => {
     const locked = await manager.findOne(Payment, {
       where: { id: payment.id },
@@ -185,11 +186,10 @@ const fulfillPayment = async (payment: Payment, authorizationCode?: string): Pro
             billingStatus: BillingStatus.Active,
             billingPeriodEnd: computeBillingPeriodEnd(paidAt, interval),
           },
+          { reason: PlanChangeReason.Purchase, paymentId: locked.id },
           manager
         );
         if (organization) {
-          upgradedOrganizationId = organization.id;
-
           // Cancel other active subscriptions for this org without touching billing —
           // billing was just set to the new plan above.
           const otherSubs = await manager.find(Subscription, {
@@ -218,9 +218,6 @@ const fulfillPayment = async (payment: Payment, authorizationCode?: string): Pro
     newlyCompleted = true;
   });
 
-  if (newlyCompleted && upgradedOrganizationId) {
-    await resetPeriodUsage(upgradedOrganizationId);
-  }
   return newlyCompleted;
 };
 
@@ -306,6 +303,7 @@ const applySubscriptionRenewal = async (
         billingStatus: BillingStatus.Active,
         billingPeriodEnd: forward(organization.billingPeriodEnd),
       },
+      { reason: PlanChangeReason.Purchase },
       manager
     );
     extendedOrganizationId = organization.id;
@@ -561,12 +559,16 @@ export const paystackWebhook = async (payload: {
           expiryDate: periodEnd,
         });
         if (plan) {
-          await setOrganizationBilling(existing.organizationId, {
-            billingPlan: plan.planKey,
-            billingInterval: plan.interval,
-            billingStatus: BillingStatus.Active,
-            billingPeriodEnd: periodEnd,
-          });
+          await setOrganizationBilling(
+            existing.organizationId,
+            {
+              billingPlan: plan.planKey,
+              billingInterval: plan.interval,
+              billingStatus: BillingStatus.Active,
+              billingPeriodEnd: periodEnd,
+            },
+            { reason: PlanChangeReason.SubscriptionEnabled }
+          );
         }
       } else {
         const customerData = data.customer as Record<string, string> | undefined;
@@ -594,13 +596,17 @@ export const paystackWebhook = async (payload: {
               : computeBillingPeriodEnd(new Date(), plan.interval),
           });
           await subscriptionRepo().save(subscription);
-          await setOrganizationBilling(user.activeOrganizationId, {
-            billingPlan: plan.planKey,
-            billingInterval: plan.interval,
-            billingStatus: BillingStatus.Active,
-            billingPeriodEnd:
-              subscription.expiryDate ?? computeBillingPeriodEnd(new Date(), plan.interval),
-          });
+          await setOrganizationBilling(
+            user.activeOrganizationId,
+            {
+              billingPlan: plan.planKey,
+              billingInterval: plan.interval,
+              billingStatus: BillingStatus.Active,
+              billingPeriodEnd:
+                subscription.expiryDate ?? computeBillingPeriodEnd(new Date(), plan.interval),
+            },
+            { reason: PlanChangeReason.SubscriptionEnabled }
+          );
         }
       }
     }
