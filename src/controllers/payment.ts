@@ -15,8 +15,8 @@ export const getPaymentRecords = async (req: Request, res: Response) => {
 };
 
 export const verify = async (req: Request, res: Response) => {
-  await paymentService.verify(req.user, req.body);
-  sendSuccessResponse(res, "Verification successful");
+  const result = await paymentService.verify(req.user, req.body);
+  sendSuccessResponse(res, "Verification successful", result);
 };
 
 export const paystackWebhook = async (req: Request, res: Response) => {

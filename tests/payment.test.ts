@@ -569,6 +569,102 @@ describe("default plan", () => {
     const org = await reloadOrg(orgId);
     expect(org.billingPlan).toBe(DEFAULT_BILLING_PLAN_KEY);
   });
+
+  describe("paying for a job directly", () => {
+    it("a draft job with an AI config can be paid for without going through activation", async () => {
+      const { user, token, orgId } = await createBillableRecruiter();
+      const role = await createRole();
+      const config = await createAIConfig(user);
+      const draft = await createJob(user, role, {
+        organizationId: orgId,
+        status: JobStatus.Draft,
+        aiConfigId: config.id,
+      });
+
+      const initiated = await request(app)
+        .post(`/v1/jobs/${draft.id}/activate-payment`)
+        .set("Authorization", `Bearer ${token}`)
+        .expect(200);
+
+      const verified = await request(app)
+        .post("/v1/payments/verify")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ reference: initiated.body.data.reference })
+        .expect(200);
+      expect(verified.body.data.jobId).toBe(draft.id);
+
+      const paid = await testDataSource.getRepository(Job).findOne({ where: { id: draft.id } });
+      expect(paid!.status).toBe(JobStatus.Active);
+    });
+
+    it("a draft job without an AI config cannot be paid for", async () => {
+      const { user, token, orgId } = await createBillableRecruiter();
+      const role = await createRole();
+      const draft = await createJob(user, role, {
+        organizationId: orgId,
+        status: JobStatus.Draft,
+      });
+
+      await request(app)
+        .post(`/v1/jobs/${draft.id}/activate-payment`)
+        .set("Authorization", `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it("a closed job cannot be paid for", async () => {
+      const { user, token, orgId } = await createBillableRecruiter();
+      const role = await createRole();
+      const config = await createAIConfig(user);
+      const closed = await createJob(user, role, {
+        organizationId: orgId,
+        status: JobStatus.Closed,
+        aiConfigId: config.id,
+      });
+
+      await request(app)
+        .post(`/v1/jobs/${closed.id}/activate-payment`)
+        .set("Authorization", `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it("an already active job cannot be paid for again", async () => {
+      const { user, token, orgId } = await createBillableRecruiter();
+      const role = await createRole();
+      const config = await createAIConfig(user);
+      const active = await createJob(user, role, {
+        organizationId: orgId,
+        status: JobStatus.Active,
+        aiConfigId: config.id,
+      });
+
+      await request(app)
+        .post(`/v1/jobs/${active.id}/activate-payment`)
+        .set("Authorization", `Bearer ${token}`)
+        .expect(409);
+    });
+
+    it("an organization on a subscription plan cannot pay per job", async () => {
+      const { user, token, orgId } = await createBillableRecruiter();
+      const role = await createRole();
+      const config = await createAIConfig(user);
+      const draft = await createJob(user, role, {
+        organizationId: orgId,
+        status: JobStatus.Draft,
+        aiConfigId: config.id,
+      });
+      await setOrganizationBilling(orgId, {
+        billingPlan: "pro",
+        billingInterval: BillingInterval.Monthly,
+        billingStatus: BillingStatus.Active,
+        billingPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      });
+
+      await request(app)
+        .post(`/v1/jobs/${draft.id}/activate-payment`)
+        .set("Authorization", `Bearer ${token}`)
+        .expect(400);
+    });
+  });
 });
 
 describe("upgrade", () => {
