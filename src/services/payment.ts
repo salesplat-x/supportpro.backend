@@ -29,6 +29,7 @@ import {
   verifyTransaction,
   generatePaymentObject,
   createCustomer,
+  disableSubscription as paystackDisableSubscription,
   isDummyPaystack,
 } from "../utils/integrations/paystack.js";
 import {
@@ -39,6 +40,7 @@ import {
   setOrganizationBillingStatus,
 } from "./billingState.js";
 import { ensureOrganizationBillingCurrent } from "./entitlements.js";
+import logger from "../utils/logger.js";
 import { generateReference } from "../utils/crypto.js";
 import EmailService from "../utils/integrations/email/emailService.js";
 
@@ -144,6 +146,7 @@ const sendPaymentReceipt = async (payment: Payment): Promise<void> => {
  */
 const fulfillPayment = async (payment: Payment, authorizationCode?: string): Promise<boolean> => {
   let newlyCompleted = false;
+  const replacedSubscriptions: Subscription[] = [];
   await AppDataSource.manager.transaction(async (manager) => {
     const locked = await manager.findOne(Payment, {
       where: { id: payment.id },
@@ -210,6 +213,7 @@ const fulfillPayment = async (payment: Payment, authorizationCode?: string): Pro
               },
             ];
             await manager.save(sub);
+            replacedSubscriptions.push(sub);
           }
         }
       }
@@ -218,7 +222,35 @@ const fulfillPayment = async (payment: Payment, authorizationCode?: string): Pro
     newlyCompleted = true;
   });
 
+  if (newlyCompleted) {
+    await disableReplacedSubscriptions(replacedSubscriptions);
+  }
   return newlyCompleted;
+};
+
+/**
+ * Stops Paystack from charging for subscriptions an upgrade replaced. Best effort: the upgrade
+ * has already committed, so a Paystack failure is logged for follow-up rather than surfaced.
+ */
+const disableReplacedSubscriptions = async (subscriptions: Subscription[]): Promise<void> => {
+  for (const sub of subscriptions) {
+    if (!sub.paystackSubscriptionCode) continue;
+    try {
+      const response = await paystackDisableSubscription({
+        code: sub.paystackSubscriptionCode,
+        token: sub.email_token ?? "",
+      });
+      if (!response.status) {
+        logger.error(
+          `Paystack refused to disable replaced subscription ${sub.id}: ${response.message}`
+        );
+      }
+    } catch (err) {
+      logger.error(
+        `Failed to disable replaced subscription ${sub.id} on Paystack: ${(err as Error).message}`
+      );
+    }
+  }
 };
 
 const markFailed = async (payment: Payment, reason: string): Promise<void> => {
@@ -558,7 +590,20 @@ export const paystackWebhook = async (payload: {
           nextPaymentDate: periodEnd,
           expiryDate: periodEnd,
         });
-        if (plan) {
+        // A late enable for a subscription an upgrade has since replaced must not take the
+        // newer plan away.
+        const superseded = await subscriptionRepo()
+          .createQueryBuilder("s")
+          .where("s.organizationId = :organizationId", {
+            organizationId: existing.organizationId,
+          })
+          .andWhere("s.status = :active", { active: SubscriptionStatus.Active })
+          .andWhere("s.id <> :subscriptionId", { subscriptionId: existing.id })
+          .andWhere(
+            `s.createdAt > (SELECT "createdAt" FROM "subscriptions" WHERE "id" = :subscriptionId)`
+          )
+          .getExists();
+        if (plan && !superseded) {
           await setOrganizationBilling(
             existing.organizationId,
             {
