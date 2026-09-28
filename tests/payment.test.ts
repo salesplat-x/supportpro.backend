@@ -40,6 +40,7 @@ import { Organization } from "../src/entities/Organization.js";
 import { OrganizationMember } from "../src/entities/OrganizationMember.js";
 import { Plan } from "../src/entities/Plan.js";
 import { OrganizationPlanHistory } from "../src/entities/OrganizationPlanHistory.js";
+import * as paystack from "../src/utils/integrations/paystack.js";
 import { Subscription } from "../src/entities/Subscription.js";
 import { User } from "../src/entities/User.js";
 import {
@@ -1267,6 +1268,10 @@ const monthlyPlanRow = (planKey: string, paystackAmount: number) =>
   });
 
 describe("plan switching keeps plans separate", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it("expiring back to pay_per_use starts with zero monthly usage", async () => {
     const { orgId } = await createBillableRecruiter();
     await onPlan(orgId, "pro", new Date(Date.now() - 3600_000));
@@ -1359,6 +1364,99 @@ describe("plan switching keeps plans separate", () => {
     expect(usage.meters.find((m) => m.key === "candidate_views")?.used).toBe(0);
   });
 
+  it("a late subscription.enable for a replaced subscription does not overwrite the newer plan", async () => {
+    const { user, orgId } = await createBillableRecruiter();
+    const oldPlan = await monthlyPlanRow("sme_basic", 15_000_000);
+    const newPlan = await monthlyPlanRow("pro", 30_000_000);
+    const oldSub = await createSubscription(user, oldPlan, {
+      organizationId: orgId,
+      status: SubscriptionStatus.Cancelled,
+    });
+    const newSub = await createSubscription(user, newPlan, { organizationId: orgId });
+    await testDataSource
+      .getRepository(Subscription)
+      .update(oldSub.id, { createdAt: new Date(Date.now() - 24 * 3600 * 1000) });
+    await testDataSource.getRepository(Subscription).update(newSub.id, { createdAt: new Date() });
+    await onPlan(orgId, "pro");
+    await recordUsage(await reloadOrg(orgId), "candidate_views", 10);
+
+    await sendWebhook({
+      event: "subscription.enable",
+      data: { id: 505, subscription_code: oldSub.paystackSubscriptionCode },
+    });
+
+    const org = await reloadOrg(orgId);
+    expect(org.billingPlan).toBe("pro");
+    expect(await viewsUsed(orgId)).toBe(10);
+  });
+
+  it("an upgrade stops Paystack charging for the subscription it replaced", async () => {
+    const disable = jest.spyOn(paystack, "disableSubscription");
+    const { user, token, orgId } = await createBillableRecruiter();
+    const oldPlan = await monthlyPlanRow("sme_basic", 15_000_000);
+    await monthlyPlanRow("pro", 30_000_000);
+    await onPlan(orgId, "sme_basic");
+    const oldSub = await createSubscription(user, oldPlan, {
+      organizationId: orgId,
+      email_token: "tok_old",
+    });
+
+    await buyPlan(token, "pro");
+
+    expect(disable).toHaveBeenCalledTimes(1);
+    expect(disable).toHaveBeenCalledWith({
+      code: oldSub.paystackSubscriptionCode,
+      token: "tok_old",
+    });
+    const cancelled = await testDataSource
+      .getRepository(Subscription)
+      .findOne({ where: { id: oldSub.id } });
+    expect(cancelled!.status).toBe(SubscriptionStatus.Cancelled);
+  });
+
+  it("the first purchase has nothing to disable on Paystack", async () => {
+    const disable = jest.spyOn(paystack, "disableSubscription");
+    const { token } = await createBillableRecruiter();
+    await monthlyPlanRow("pro", 30_000_000);
+
+    await buyPlan(token, "pro");
+
+    expect(disable).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["throws", () => Promise.reject(new Error("Paystack is down"))],
+    ["refuses", () => Promise.resolve({ status: false, message: "Subscription not found" })],
+  ])("an upgrade still succeeds when Paystack %s the disable", async (_label, outcome) => {
+    jest.spyOn(paystack, "disableSubscription").mockImplementation(outcome as never);
+    const { user, token, orgId } = await createBillableRecruiter();
+    const oldPlan = await monthlyPlanRow("sme_basic", 15_000_000);
+    await monthlyPlanRow("pro", 30_000_000);
+    await onPlan(orgId, "sme_basic");
+    await createSubscription(user, oldPlan, { organizationId: orgId });
+
+    await buyPlan(token, "pro");
+
+    expect((await reloadOrg(orgId)).billingPlan).toBe("pro");
+  });
+
+  it("the subscription.disable Paystack sends for the replaced subscription does not undo the upgrade", async () => {
+    const { user, token, orgId } = await createBillableRecruiter();
+    const oldPlan = await monthlyPlanRow("sme_basic", 15_000_000);
+    await monthlyPlanRow("pro", 30_000_000);
+    await onPlan(orgId, "sme_basic");
+    const oldSub = await createSubscription(user, oldPlan, { organizationId: orgId });
+    await buyPlan(token, "pro");
+    await recordUsage(await reloadOrg(orgId), "candidate_views", 5);
+
+    await sendWebhook({
+      event: "subscription.disable",
+      data: { id: 506, subscription_code: oldSub.paystackSubscriptionCode },
+    });
+
+    expect((await reloadOrg(orgId)).billingPlan).toBe("pro");
+    expect(await viewsUsed(orgId)).toBe(5);
+  });
 });
 
 // ---------------------------------------------------------------------------
