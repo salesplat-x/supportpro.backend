@@ -21,16 +21,24 @@ import {
   ApplicationStatus,
   ScreeningStage,
   CompensationPeriod,
+  ExperienceLevel,
   MatchVerdictStatus,
   DEFAULT_BILLING_PLAN_KEY,
 } from "../types/enums.js";
 import {
   createEmbedding,
   generateJobContent as generateJobContentAI,
+  generateJobField as generateJobFieldAI,
+  GenerateJobFieldContext,
   assessTalentFit,
 } from "../utils/integrations/openai.js";
 import { TalentEmbedding } from "../entities/TalentEmbedding.js";
-import { convertSimilarityToPercentage, preprocessText, sortDirection } from "../utils/text.js";
+import {
+  convertSimilarityToPercentage,
+  extractText,
+  preprocessText,
+  sortDirection,
+} from "../utils/text.js";
 import { workModeNeedsLocation } from "../utils/workMode.js";
 import { createStages } from "./aiConfig.js";
 import {
@@ -252,32 +260,157 @@ export const createJob = async (userId: string, payload: CreateJobPayload): Prom
 };
 
 export interface GenerateJobContentPayload {
-  role: string;
+  role?: string;
   experienceLevel?: string;
   keywords?: string[];
+  prompt?: string;
+  sourceText?: string;
 }
 
 export interface GeneratedJobContent {
+  role: string;
+  experienceLevel: ExperienceLevel | null;
+  workMode: WorkMode[];
+  locationCountry: string | null;
+  locationState: string | null;
+  locationCity: string | null;
+  currency: JobCurrency | null;
+  minSalary: number | null;
+  maxSalary: number | null;
+  compensationPeriod: CompensationPeriod | null;
   jobBrief: string;
   requirements: string;
   skills: string[];
   goals: string[];
 }
 
+// Job posts take the same currencies the recruiter form offers, wider than the profile Currency enum.
+const JOB_CURRENCIES = ["NGN", "USD", "GBP", "EUR"] as const;
+type JobCurrency = (typeof JOB_CURRENCIES)[number];
+
+const oneOf = <T extends string>(values: readonly T[], value: unknown): T | null =>
+  values.includes(value as T) ? (value as T) : null;
+
+const nonEmptyString = (value: unknown): string | null =>
+  typeof value === "string" && value.trim() ? value.trim() : null;
+
+const positiveNumber = (value: unknown): number | null => {
+  const num = typeof value === "string" ? Number(value) : value;
+  return typeof num === "number" && Number.isFinite(num) && num > 0 ? num : null;
+};
+
+const stringList = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && !!item.trim())
+    : [];
+
+const parseLlmJson = (response: { message: { content: string | null } } | undefined) => {
+  if (!response?.message.content) {
+    throw new ValidationError("Error with LLM");
+  }
+  try {
+    return JSON.parse(response.message.content) as Record<string, unknown>;
+  } catch {
+    throw new ValidationError("The AI returned an unreadable response. Please try again.");
+  }
+};
+
 export const generateJobContent = async (
   payload: GenerateJobContentPayload
 ): Promise<GeneratedJobContent> => {
-  const response = await generateJobContentAI(payload);
-  if (!response || !response.message.content) {
-    throw new ValidationError("Error with LLM");
+  const content = parseLlmJson(await generateJobContentAI(payload));
+
+  const minSalary = positiveNumber(content.minSalary);
+  let maxSalary = positiveNumber(content.maxSalary);
+  if (minSalary !== null && maxSalary !== null && maxSalary <= minSalary) {
+    maxSalary = null;
   }
-  const content = JSON.parse(response.message.content);
+
   return {
-    jobBrief: content.jobBrief ?? "",
-    requirements: content.requirements ?? "",
-    skills: Array.isArray(content.skills) ? content.skills : [],
-    goals: Array.isArray(content.goals) ? content.goals : [],
+    role: nonEmptyString(payload.role) ?? nonEmptyString(content.role) ?? "",
+    experienceLevel: oneOf(Object.values(ExperienceLevel), content.experienceLevel),
+    workMode: stringList(content.workMode).filter((mode): mode is WorkMode =>
+      Object.values(WorkMode).includes(mode as WorkMode)
+    ),
+    locationCountry: nonEmptyString(content.locationCountry),
+    locationState: nonEmptyString(content.locationState),
+    locationCity: nonEmptyString(content.locationCity),
+    currency: oneOf(JOB_CURRENCIES, content.currency),
+    minSalary,
+    maxSalary,
+    compensationPeriod: oneOf(Object.values(CompensationPeriod), content.compensationPeriod),
+    jobBrief: nonEmptyString(content.jobBrief) ?? "",
+    requirements: nonEmptyString(content.requirements) ?? "",
+    skills: stringList(content.skills),
+    goals: stringList(content.goals),
   };
+};
+
+// mammoth (used by extractText) only supports .docx, not legacy binary .doc.
+const JOB_DESCRIPTION_FILE_TYPES = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "text/plain",
+];
+
+const MAX_SOURCE_TEXT_LENGTH = 30000;
+
+export const generateJobContentFromFile = async (
+  file: Express.Multer.File | undefined
+): Promise<GeneratedJobContent> => {
+  if (!file) {
+    throw new ValidationError("Upload a job description file");
+  }
+  if (!JOB_DESCRIPTION_FILE_TYPES.includes(file.mimetype)) {
+    throw new ValidationError("Upload a PDF, DOCX or TXT file");
+  }
+  if (file.size === 0) {
+    throw new ValidationError("File is empty");
+  }
+
+  let text: string;
+  try {
+    text =
+      file.mimetype === "text/plain"
+        ? file.buffer.toString("utf8")
+        : await extractText(file.buffer, file.mimetype);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error(`Job description extraction failed: ${message}`);
+    throw new ValidationError("We couldn't read this file. Please upload a PDF, DOCX or TXT file.");
+  }
+  if (!text?.trim()) {
+    throw new ValidationError("We couldn't find any text in this file");
+  }
+
+  return generateJobContent({ sourceText: text.trim().slice(0, MAX_SOURCE_TEXT_LENGTH) });
+};
+
+export type GenerateJobFieldPayload = GenerateJobFieldContext;
+
+export interface GeneratedJobField {
+  text?: string;
+  suggestions?: string[];
+}
+
+export const generateJobField = async (
+  payload: GenerateJobFieldPayload
+): Promise<GeneratedJobField> => {
+  const content = parseLlmJson(await generateJobFieldAI(payload));
+
+  if (payload.field === "skills" || payload.field === "goals") {
+    const existing = new Set((payload.job[payload.field] ?? []).map((item) => item.toLowerCase()));
+    const suggestions = stringList(content.items)
+      .map((item) => item.trim())
+      .filter((item) => !existing.has(item.toLowerCase()));
+    return { suggestions: [...new Set(suggestions)] };
+  }
+
+  const text = nonEmptyString(content.text);
+  if (!text) {
+    throw new ValidationError("The AI returned an empty response. Please try again.");
+  }
+  return { text };
 };
 
 export const updateJob = async (

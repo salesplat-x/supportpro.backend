@@ -30,6 +30,7 @@ import {
   MatchVerdictStatus,
   ScreeningStage,
 } from "../src/types/enums.js";
+import { generateJobContent, generateJobField } from "../src/utils/integrations/openai.js";
 
 jest.mock("../src/utils/integrations/openai.js", () => ({
   createEmbedding: jest.fn().mockResolvedValue([{ embedding: new Array(512).fill(0.1) }]),
@@ -45,6 +46,9 @@ jest.mock("../src/utils/integrations/openai.js", () => ({
         goals: ["Ship the new API", "Mentor junior engineers"],
       }),
     },
+  }),
+  generateJobField: jest.fn().mockResolvedValue({
+    message: { content: JSON.stringify({ text: "A shorter brief." }) },
   }),
   assessTalentFit: jest.fn().mockResolvedValue({
     message: {
@@ -68,6 +72,9 @@ jest.mock("../src/utils/integrations/openai.js", () => ({
     },
   }),
 }));
+
+const mockGenerateJobContent = generateJobContent as jest.Mock;
+const mockGenerateJobField = generateJobField as jest.Mock;
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
   __esModule: true,
@@ -370,13 +377,92 @@ describe("POST /v1/jobs/generate — AI-generated job content", () => {
     expect(res.body.data.content.goals).toEqual(["Ship the new API", "Mentor junior engineers"]);
   });
 
-  it("Missing role → 400", async () => {
+  it("No role, description or existing job description → 400", async () => {
     const { token } = await createRecruiter();
 
     const res = await request(app)
       .post("/v1/jobs/generate")
       .set("Authorization", `Bearer ${token}`)
       .send({});
+
+    expect(res.status).toBe(400);
+  });
+
+  it("Free-text description → 200 with every job field extracted and invalid values dropped", async () => {
+    const { token } = await createRecruiter();
+    mockGenerateJobContent.mockResolvedValueOnce({
+      message: {
+        content: JSON.stringify({
+          role: "Backend Engineer",
+          experienceLevel: "4-6 years",
+          workMode: ["hybrid", "on the moon"],
+          locationCountry: "Nigeria",
+          locationState: "Lagos",
+          locationCity: null,
+          currency: "JPY",
+          minSalary: 800000,
+          maxSalary: 500000,
+          compensationPeriod: "monthly",
+          jobBrief: "About the Role: ...",
+          requirements: "Qualifications: ...",
+          skills: ["Go", 42, ""],
+          goals: ["Ship payments v2"],
+        }),
+      },
+    });
+
+    const res = await request(app)
+      .post("/v1/jobs/generate")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ prompt: "Backend engineer, hybrid in Lagos, fintech, 800k a month" });
+
+    expect(res.status).toBe(200);
+    expect(mockGenerateJobContent).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        prompt: "Backend engineer, hybrid in Lagos, fintech, 800k a month",
+      })
+    );
+    expect(res.body.data.content).toEqual({
+      role: "Backend Engineer",
+      experienceLevel: "4-6 years",
+      workMode: ["hybrid"],
+      locationCountry: "Nigeria",
+      locationState: "Lagos",
+      locationCity: null,
+      currency: null,
+      minSalary: 800000,
+      maxSalary: null,
+      compensationPeriod: "monthly",
+      jobBrief: "About the Role: ...",
+      requirements: "Qualifications: ...",
+      skills: ["Go"],
+      goals: ["Ship payments v2"],
+    });
+  });
+
+  it("Keeps the role the recruiter picked over the AI's guess", async () => {
+    const { token } = await createRecruiter();
+    mockGenerateJobContent.mockResolvedValueOnce({
+      message: { content: JSON.stringify({ role: "Software Developer", jobBrief: "..." }) },
+    });
+
+    const res = await request(app)
+      .post("/v1/jobs/generate")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ role: "Software Engineer" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.content.role).toBe("Software Engineer");
+  });
+
+  it("Unreadable AI response → 400 instead of a crash", async () => {
+    const { token } = await createRecruiter();
+    mockGenerateJobContent.mockResolvedValueOnce({ message: { content: "not json" } });
+
+    const res = await request(app)
+      .post("/v1/jobs/generate")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ role: "Software Engineer" });
 
     expect(res.status).toBe(400);
   });
@@ -407,6 +493,114 @@ describe("POST /v1/jobs/generate — AI-generated job content", () => {
   it("Unauthenticated → 401", async () => {
     const res = await request(app).post("/v1/jobs/generate").send({ role: "Software Engineer" });
     expect(res.status).toBe(401);
+  });
+});
+
+describe("POST /v1/jobs/generate/file — job draft from an uploaded job description", () => {
+  it("Text file → 200 and its contents are sent to the AI as the source", async () => {
+    const { token } = await createRecruiter();
+
+    const res = await request(app)
+      .post("/v1/jobs/generate/file")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("file", Buffer.from("We are hiring a Product Designer in Abuja."), {
+        filename: "jd.txt",
+        contentType: "text/plain",
+      });
+
+    expect(res.status).toBe(200);
+    expect(mockGenerateJobContent).toHaveBeenLastCalledWith({
+      sourceText: "We are hiring a Product Designer in Abuja.",
+    });
+    expect(res.body.data.content.jobBrief).toContain("About the Role");
+  });
+
+  it("Unsupported file type → 400", async () => {
+    const { token } = await createRecruiter();
+
+    const res = await request(app)
+      .post("/v1/jobs/generate/file")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("file", Buffer.from("fake"), { filename: "jd.png", contentType: "image/png" });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("No file → 400", async () => {
+    const { token } = await createRecruiter();
+
+    const res = await request(app)
+      .post("/v1/jobs/generate/file")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /v1/jobs/generate/field — AI help for a single job field", () => {
+  it("Text field rewrite → 200 with the new text", async () => {
+    const { token } = await createRecruiter();
+
+    const res = await request(app)
+      .post("/v1/jobs/generate/field")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        field: "jobBrief",
+        action: "shorter",
+        currentText: "A very long brief.",
+        job: { role: "Backend Engineer" },
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ text: "A shorter brief." });
+  });
+
+  it("Skill suggestions → 200 without skills the job already has", async () => {
+    const { token } = await createRecruiter();
+    mockGenerateJobField.mockResolvedValueOnce({
+      message: { content: JSON.stringify({ items: ["Go", "PostgreSQL", "go", "Kafka"] }) },
+    });
+
+    const res = await request(app)
+      .post("/v1/jobs/generate/field")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ field: "skills", job: { role: "Backend Engineer", skills: ["Go"] } });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ suggestions: ["PostgreSQL", "Kafka"] });
+  });
+
+  it("Unknown field → 400", async () => {
+    const { token } = await createRecruiter();
+
+    const res = await request(app)
+      .post("/v1/jobs/generate/field")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ field: "salary", job: { role: "Backend Engineer" } });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("Nothing to work from → 400", async () => {
+    const { token } = await createRecruiter();
+
+    const res = await request(app)
+      .post("/v1/jobs/generate/field")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ field: "jobBrief" });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("Talent cannot access → 403", async () => {
+    const { token: talentToken } = await createTalent({ email: "talent-field@example.com" });
+
+    const res = await request(app)
+      .post("/v1/jobs/generate/field")
+      .set("Authorization", `Bearer ${talentToken}`)
+      .send({ field: "jobBrief", job: { role: "Backend Engineer" } });
+
+    expect(res.status).toBe(403);
   });
 });
 
