@@ -655,7 +655,7 @@ describe("default plan", () => {
         .expect(409);
     });
 
-    it("an organization on a subscription plan cannot pay per job", async () => {
+    it("an organization on a subscription plan cannot pay per job while it still has job slots", async () => {
       const { user, token, orgId } = await createBillableRecruiter();
       const role = await createRole();
       const config = await createAIConfig(user);
@@ -1321,6 +1321,83 @@ describe("per-job payment — edge and error cases", () => {
     expect(payment!.amount).toBe(75_000);
     expect(payment!.planId).toBeNull();
     expect(payment!.billingInterval).toBeNull();
+  });
+});
+
+describe("quota overflow — a full subscription pays per job for extra listings", () => {
+  async function fullSmeBasic() {
+    const billable = await createBillableRecruiter();
+    await onPlan(billable.orgId, "sme_basic");
+    const role = await createRole();
+    const config = await createAIConfig(billable.user);
+    for (let i = 0; i < 2; i += 1) {
+      await createJob(billable.user, role, {
+        organizationId: billable.orgId,
+        status: JobStatus.Active,
+        aiConfigId: config.id,
+      });
+    }
+    return billable;
+  }
+
+  it("activation → pending_payment → pay → live, and the subscription is kept", async () => {
+    const { user, token, orgId } = await fullSmeBasic();
+    const draft = await payableDraft(user, orgId);
+
+    const activated = await request(app)
+      .patch(`/v1/jobs/${draft.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: "active" })
+      .expect(200);
+    expect(activated.body.data.job.status).toBe("pending_payment");
+
+    const reference = await payForJob(token, draft.id);
+    const verified = await verifyReference(token, reference).expect(200);
+    expect(verified.body.data.jobId).toBe(draft.id);
+
+    expect((await jobRepo().findOne({ where: { id: draft.id } }))!.status).toBe(JobStatus.Active);
+    const org = await reloadOrg(orgId);
+    expect(org.billingPlan).toBe("sme_basic");
+    expect(org.billingStatus).toBe(BillingStatus.Active);
+    expect(
+      await jobRepo().count({ where: { organizationId: orgId, status: JobStatus.Active } })
+    ).toBe(3);
+  });
+
+  it("paying for an overflow job does not reset the plan's monthly usage", async () => {
+    const { user, token, orgId } = await fullSmeBasic();
+    await recordUsage(await reloadOrg(orgId), "candidate_views", 30);
+    const draft = await payableDraft(user, orgId);
+
+    await verifyReference(token, await payForJob(token, draft.id)).expect(200);
+
+    const usage = await getOrganizationUsage(orgId);
+    expect(usage.meters.find((m) => m.key === "candidate_views")?.used).toBe(30);
+  });
+
+  it("per-job checkout is refused again once a listing slot frees up", async () => {
+    const { user, token, orgId } = await fullSmeBasic();
+    const draft = await payableDraft(user, orgId);
+    const [first] = await jobRepo().find({
+      where: { organizationId: orgId, status: JobStatus.Active },
+    });
+    await jobRepo().update(first!.id, { status: JobStatus.Closed });
+
+    await request(app)
+      .post(`/v1/jobs/${draft.id}/activate-payment`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(400);
+  });
+
+  it("an unlimited plan never needs per-job checkout", async () => {
+    const { user, token, orgId } = await createBillableRecruiter();
+    await onPlan(orgId, "enterprise");
+    const draft = await payableDraft(user, orgId);
+
+    await request(app)
+      .post(`/v1/jobs/${draft.id}/activate-payment`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(400);
   });
 });
 

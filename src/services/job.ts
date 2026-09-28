@@ -12,7 +12,7 @@ import { Scout } from "../entities/Scout.js";
 import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
 import { purgeJobCascade } from "./cascadeDelete.js";
 import { assertCompanyResourceAccess, getActiveOrganizationId } from "./organizationScope.js";
-import { assertWithinLimit, ensureOrganizationBillingCurrent } from "./entitlements.js";
+import { countActiveJobs, ensureOrganizationBillingCurrent, isAtLimit } from "./entitlements.js";
 import {
   UserRole,
   JobStatus,
@@ -315,16 +315,15 @@ export const updateJob = async (
         // Re-check expiry first: a lapsed subscription must fall back to per-job
         // payment rather than keep spending the old plan's listing allowance.
         const org = await ensureOrganizationBillingCurrent(stored);
-        if (org.billingPlan === DEFAULT_BILLING_PLAN_KEY) {
-          // Pay per Use has no subscription/limit — every activation is a fresh
-          // one-time charge instead. The payment-fulfillment path sets status to
-          // Active directly (bypassing updateJob), so this only fires for the
-          // recruiter-driven "activate" action.
+        // Pay per Use charges every activation, and a subscription whose listing allowance
+        // is used up overflows to the same one-time charge instead of being refused. The
+        // payment-fulfillment path sets status to Active directly (bypassing updateJob), so
+        // this only fires for the recruiter-driven "activate" action.
+        const mustPay =
+          org.billingPlan === DEFAULT_BILLING_PLAN_KEY ||
+          (await isAtLimit(org, "job_listings", () => countActiveJobs(org.id)));
+        if (mustPay) {
           update.status = JobStatus.PendingPayment;
-        } else {
-          await assertWithinLimit(org, "job_listings", async () =>
-            jobRepo().count({ where: { organizationId: org.id, status: JobStatus.Active } })
-          );
         }
       }
     }
