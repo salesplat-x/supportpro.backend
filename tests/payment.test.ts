@@ -1201,7 +1201,7 @@ describe("GET /v1/organizations/:id/usage", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Job payment helpers.
+// Per-job payment: edge and error cases, and overflow from a full subscription.
 // ---------------------------------------------------------------------------
 
 const jobRepo = () => testDataSource.getRepository(Job);
@@ -1243,6 +1243,86 @@ const verifyReference = (token: string, reference: string) =>
     .post("/v1/payments/verify")
     .set("Authorization", `Bearer ${token}`)
     .send({ reference });
+
+describe("per-job payment — edge and error cases", () => {
+  it("a recruiter from another company cannot pay for the job → 403", async () => {
+    const { user, orgId } = await createBillableRecruiter();
+    const { token: outsiderToken } = await createBillableRecruiter();
+    const draft = await payableDraft(user, orgId);
+
+    await request(app)
+      .post(`/v1/jobs/${draft.id}/activate-payment`)
+      .set("Authorization", `Bearer ${outsiderToken}`)
+      .expect(403);
+  });
+
+  it("paying for a job that does not exist → 404", async () => {
+    const { token } = await createBillableRecruiter();
+    await request(app)
+      .post(`/v1/jobs/00000000-0000-4000-8000-000000000000/activate-payment`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(404);
+  });
+
+  it("unauthenticated → 401", async () => {
+    const { user, orgId } = await createBillableRecruiter();
+    const draft = await payableDraft(user, orgId);
+    await request(app).post(`/v1/jobs/${draft.id}/activate-payment`).expect(401);
+  });
+
+  it("a job closed while its payment was pending is not reactivated when the payment lands", async () => {
+    const { user, token, orgId } = await createBillableRecruiter();
+    const draft = await payableDraft(user, orgId);
+    const reference = await payForJob(token, draft.id);
+
+    await jobRepo().update(draft.id, { status: JobStatus.Closed });
+    await verifyReference(token, reference).expect(200);
+
+    const job = await jobRepo().findOne({ where: { id: draft.id } });
+    expect(job!.status).toBe(JobStatus.Closed);
+  });
+
+  it("verifying the same job payment twice activates it once and reports the job both times", async () => {
+    const { user, token, orgId } = await createBillableRecruiter();
+    const draft = await payableDraft(user, orgId);
+    const reference = await payForJob(token, draft.id);
+
+    const first = await verifyReference(token, reference).expect(200);
+    const second = await verifyReference(token, reference).expect(200);
+
+    expect(first.body.data.jobId).toBe(draft.id);
+    expect(second.body.data.jobId).toBe(draft.id);
+    const completed = await testDataSource
+      .getRepository(Payment)
+      .count({ where: { organizationId: orgId, status: PaymentStatus.Completed } });
+    expect(completed).toBe(1);
+    expect((await jobRepo().findOne({ where: { id: draft.id } }))!.status).toBe(JobStatus.Active);
+  });
+
+  it("an expired subscription falls back to paying per job", async () => {
+    const { user, token, orgId } = await createBillableRecruiter();
+    await onPlan(orgId, "pro", new Date(Date.now() - 3600_000));
+    const draft = await payableDraft(user, orgId);
+
+    await payForJob(token, draft.id);
+
+    const org = await reloadOrg(orgId);
+    expect(org.billingPlan).toBe(DEFAULT_BILLING_PLAN_KEY);
+  });
+
+  it("a per-job charge is for the pay-per-use price", async () => {
+    const { user, token, orgId } = await createBillableRecruiter();
+    const draft = await payableDraft(user, orgId);
+    await payForJob(token, draft.id);
+
+    const payment = await testDataSource
+      .getRepository(Payment)
+      .findOne({ where: { organizationId: orgId } });
+    expect(payment!.amount).toBe(75_000);
+    expect(payment!.planId).toBeNull();
+    expect(payment!.billingInterval).toBeNull();
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Switching plans: usage and billing from the old plan must not leak into the new one.

@@ -1,4 +1,4 @@
-import { QueryFailedError } from "typeorm";
+import { In, QueryFailedError } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { Payment } from "../entities/Payment.js";
 import { PaymentWebhookEvent } from "../entities/PaymentWebhookEvent.js";
@@ -171,7 +171,11 @@ const fulfillPayment = async (payment: Payment, authorizationCode?: string): Pro
     const jobId = metadata?.jobId;
 
     if (jobId) {
-      await manager.update(Job, { id: jobId }, { status: JobStatus.Active });
+      await manager.update(
+        Job,
+        { id: jobId, status: In([JobStatus.Draft, JobStatus.PendingPayment]) },
+        { status: JobStatus.Active }
+      );
     } else if (locked.organizationId) {
       const plan = locked.planId
         ? await manager.findOne(Plan, { where: { id: locked.planId } })
