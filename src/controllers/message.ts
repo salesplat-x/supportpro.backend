@@ -9,8 +9,8 @@ export const create = async (req: Request, res: Response) => {
 };
 
 export const broadcastMessage = async (req: Request, res: Response) => {
-  await messageService.broadcastMessage(req.user.id, req.body);
-  sendSuccessResponse(res, "Broadcast sent");
+  const result = await messageService.broadcastMessage(req.user.id, req.body);
+  sendSuccessResponse(res, "Broadcast sent", result);
 };
 
 export const acknowledge = async (req: Request, res: Response) => {

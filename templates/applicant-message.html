@@ -1,0 +1,8 @@
+<p class="kicker">{{jobTitle}}{{#if companyName}} · {{companyName}}{{/if}}</p>
+<h1>{{recruiterFirstName}} sent you a message</h1>
+{{#each paragraphs}}
+<p{{#if @first}} class="lead"{{/if}}>{{this}}</p>
+{{/each}}
+<p><a class="button" href="{{ctaUrl}}">{{ctaLabel}}</a></p>
+<p class="muted">Reply from your Auxhr inbox — {{recruiterFirstName}} will see it there.</p>
+<p class="signoff muted">The Auxhr team</p>

@@ -29,7 +29,7 @@ const clampScore = (value: unknown, fallback: number): number => {
   return Math.min(100, Math.max(0, Math.round(n)));
 };
 
-const scoreFromVerdict = (verdict: string): number => {
+export const scoreFromVerdict = (verdict: string): number => {
   if (verdict === "high") return 85;
   if (verdict === "medium") return 65;
   if (verdict === "low") return 35;

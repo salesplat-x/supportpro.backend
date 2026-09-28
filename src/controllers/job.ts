@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import * as jobService from "../services/job.js";
 import * as paymentService from "../services/payment.js";
+import { draftApplicantMessages } from "../services/applicantMessaging.js";
+import { generateSingleFitReport, generateBulkFitReport } from "../services/fitReport.js";
 import { JobStatus, UserRole } from "../types/enums.js";
 import { sendSuccessResponse } from "../utils/response.js";
 
@@ -88,8 +90,49 @@ export const applications = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Applications fetched", result);
 };
 
+export const draftApplicantMessagesController = async (req: Request, res: Response) => {
+  const drafts = await draftApplicantMessages(
+    req.user.id,
+    req.user.userRole,
+    req.params["jobId"]!,
+    req.body.applicationIds,
+    req.body.intent
+  );
+  sendSuccessResponse(res, "Drafted applicant messages", { drafts });
+};
+
+export const singleFitReport = async (req: Request, res: Response) => {
+  const { buffer, fileName } = await generateSingleFitReport(
+    req.user.id,
+    req.user.userRole,
+    req.params["jobId"]!,
+    req.params["applicationId"]!
+  );
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+  res.setHeader("Content-Length", String(buffer.length));
+  res.send(buffer);
+};
+
+export const bulkFitReport = async (req: Request, res: Response) => {
+  const { buffer, fileName } = await generateBulkFitReport(
+    req.user.id,
+    req.user.userRole,
+    req.params["jobId"]!,
+    req.body.applicationIds
+  );
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+  res.setHeader("Content-Length", String(buffer.length));
+  res.send(buffer);
+};
+
 export const retryVerdicts = async (req: Request, res: Response) => {
-  const result = await jobService.retryMissingVerdicts(req.user.id, req.params["jobId"]!);
+  const result = await jobService.retryMissingVerdicts(
+    req.user.id,
+    req.params["jobId"]!,
+    req.body?.applicationIds
+  );
   sendSuccessResponse(res, "Retried missing AI matches", result);
 };
 
