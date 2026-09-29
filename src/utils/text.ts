@@ -109,6 +109,29 @@ export function stripHtmlToText(html: string): string {
     .trim();
 }
 
+/**
+ * Splits a message into paragraphs for the plain-paragraph email templates.
+ * Handles both rich-text HTML (from the composer — <p>/<br> become breaks
+ * before tags are stripped) and plain text with literal newlines (from an
+ * AI-drafted body) — unlike stripHtmlToText, which collapses all whitespace
+ * including newlines into single spaces and would flatten either into one
+ * paragraph.
+ */
+export function htmlToParagraphs(content: string): string[] {
+  return content
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .split(/\n\s*\n|\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 export function handleFilename(filename: string): { name: string; ext: string | undefined } {
   const parts = filename.split(".");
   const oldName = parts.length > 1 ? parts.slice(0, parts.length - 1).join("_") : filename;

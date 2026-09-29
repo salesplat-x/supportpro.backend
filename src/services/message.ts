@@ -10,7 +10,7 @@ import {
   ValidationError,
   PlanLimitError,
 } from "../utils/errors";
-import { sortDirection, stripHtmlToText } from "../utils/text.js";
+import { sortDirection, stripHtmlToText, htmlToParagraphs } from "../utils/text.js";
 import { UserRole, ApplicationStatus } from "../types/enums.js";
 import { createNotification } from "./notification.js";
 import logger from "../utils/logger.js";
@@ -311,10 +311,7 @@ export const broadcastMessage = async (
           recruiterFirstName,
           jobTitle,
           companyName,
-          paragraphs: stripHtmlToText(messageContent)
-            .split(/\n\s*\n|\n/)
-            .map((line) => line.trim())
-            .filter(Boolean),
+          paragraphs: htmlToParagraphs(messageContent),
           ctaUrl: `${env.website || "https://auxhr.com"}/talentDashboard/chat`,
         });
         emailed += 1;
