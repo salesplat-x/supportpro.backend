@@ -30,7 +30,11 @@ import {
   MatchVerdictStatus,
   ScreeningStage,
 } from "../src/types/enums.js";
-import { generateJobContent, generateJobField } from "../src/utils/integrations/openai.js";
+import {
+  generateJobContent,
+  generateJobField,
+  assessApplicationMatch,
+} from "../src/utils/integrations/openai.js";
 
 jest.mock("../src/utils/integrations/openai.js", () => ({
   createEmbedding: jest.fn().mockResolvedValue([{ embedding: new Array(512).fill(0.1) }]),
@@ -75,6 +79,7 @@ jest.mock("../src/utils/integrations/openai.js", () => ({
 
 const mockGenerateJobContent = generateJobContent as jest.Mock;
 const mockGenerateJobField = generateJobField as jest.Mock;
+const mockAssessApplicationMatch = assessApplicationMatch as jest.Mock;
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
   __esModule: true,
@@ -846,6 +851,229 @@ describe("GET /v1/jobs/applications/:jobId — applicant list includes jobId", (
     expect(returned.matchVerdict).toBe(MatchVerdict.High);
     expect(returned.matchVerdictReasoning).toBe("Strong fit despite the drifted column.");
   });
+
+  it("requires auth and blocks a talent/admin-of-another-org from a recruiter's applicant list", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { token: talentToken } = await createTalent();
+    const { user: otherRecruiter, token: otherToken } = await createRecruiter();
+    expect(otherRecruiter).toBeDefined();
+
+    expect((await request(app).get(`/v1/jobs/applications/${job.id}`)).status).toBe(401);
+    expect(
+      (
+        await request(app)
+          .get(`/v1/jobs/applications/${job.id}`)
+          .set("Authorization", `Bearer ${talentToken}`)
+      ).status
+    ).toBe(403);
+    expect(
+      (
+        await request(app)
+          .get(`/v1/jobs/applications/${job.id}`)
+          .set("Authorization", `Bearer ${otherToken}`)
+      ).status
+    ).toBe(403);
+  });
+
+  it("404s for a job that doesn't exist", async () => {
+    const { token } = await createRecruiter();
+    const res = await request(app)
+      .get("/v1/jobs/applications/00000000-0000-0000-0000-000000000000")
+      .set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("GET /v1/jobs/applications/:jobId — default sort is best AI match first (item: AI Match column fix)", () => {
+  it("orders high > medium > low > no-verdict, tie-broken by overallFitScore desc, still-screening applicants last", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+
+    const low = await createApplication((await createTalent()).user, job, {
+      currentStage: ScreeningStage.Completed,
+      matchVerdict: MatchVerdict.Low,
+      overallFitScore: 30,
+    });
+    const highLower = await createApplication((await createTalent()).user, job, {
+      currentStage: ScreeningStage.Completed,
+      matchVerdict: MatchVerdict.High,
+      overallFitScore: 70,
+    });
+    const highHigher = await createApplication((await createTalent()).user, job, {
+      currentStage: ScreeningStage.Completed,
+      matchVerdict: MatchVerdict.High,
+      overallFitScore: 95,
+    });
+    const stillScreening = await createApplication((await createTalent()).user, job, {
+      currentStage: ScreeningStage.Personalized,
+      matchVerdict: null,
+    });
+    const medium = await createApplication((await createTalent()).user, job, {
+      currentStage: ScreeningStage.Completed,
+      matchVerdict: MatchVerdict.Medium,
+      overallFitScore: 60,
+    });
+    // Completed but the verdict generation failed outright — no verdict, but
+    // still "further along" than one still mid-screening, per verdictRank.
+    const failedVerdict = await createApplication((await createTalent()).user, job, {
+      currentStage: ScreeningStage.Completed,
+      matchVerdict: null,
+      matchVerdictStatus: MatchVerdictStatus.Failed,
+    });
+
+    const res = await request(app)
+      .get(`/v1/jobs/applications/${job.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const ids = res.body.data.applications.map((a: { id: string }) => a.id);
+    expect(ids).toEqual([
+      highHigher.id,
+      highLower.id,
+      medium.id,
+      low.id,
+      failedVerdict.id,
+      stillScreening.id,
+    ]);
+  });
+
+  it("sort=dateApplied orders by most recently applied, ignoring AI match entirely", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+
+    const older = await createApplication((await createTalent()).user, job, {
+      matchVerdict: MatchVerdict.High,
+      overallFitScore: 99,
+    });
+    await testDataSource
+      .getRepository(Application)
+      .update(older.id, { createdAt: new Date(Date.now() - 60_000) });
+    const newer = await createApplication((await createTalent()).user, job, {
+      matchVerdict: MatchVerdict.Low,
+      overallFitScore: 10,
+    });
+
+    const res = await request(app)
+      .get(`/v1/jobs/applications/${job.id}?sort=dateApplied`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.applications.map((a: { id: string }) => a.id)).toEqual([
+      newer.id,
+      older.id,
+    ]);
+  });
+
+  it("sort=cvSimilarity keeps the legacy CV-score-first ordering", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+
+    const lowCv = await createApplication((await createTalent()).user, job, {
+      cvSimilarityScore: 40,
+      matchVerdict: MatchVerdict.High, // deliberately the opposite of AI-match order
+      overallFitScore: 99,
+    });
+    const highCv = await createApplication((await createTalent()).user, job, {
+      cvSimilarityScore: 90,
+      matchVerdict: MatchVerdict.Low,
+      overallFitScore: 10,
+    });
+
+    const res = await request(app)
+      .get(`/v1/jobs/applications/${job.id}?sort=cvSimilarity`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.body.data.applications.map((a: { id: string }) => a.id)).toEqual([
+      highCv.id,
+      lowCv.id,
+    ]);
+  });
+
+  it("minMatchScore filters out applicants below the given overallFitScore", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const belowBar = await createApplication((await createTalent()).user, job, {
+      overallFitScore: 40,
+    });
+    const atBar = await createApplication((await createTalent()).user, job, {
+      overallFitScore: 60,
+    });
+    const aboveBar = await createApplication((await createTalent()).user, job, {
+      overallFitScore: 85,
+    });
+    expect(belowBar).toBeDefined();
+
+    const res = await request(app)
+      .get(`/v1/jobs/applications/${job.id}?minMatchScore=60`)
+      .set("Authorization", `Bearer ${token}`);
+
+    const ids = res.body.data.applications.map((a: { id: string }) => a.id).sort();
+    expect(ids).toEqual([atBar.id, aboveBar.id].sort());
+  });
+
+  it("matchVerdict filters to only that verdict", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    await createApplication((await createTalent()).user, job, { matchVerdict: MatchVerdict.High });
+    const medium = await createApplication((await createTalent()).user, job, {
+      matchVerdict: MatchVerdict.Medium,
+    });
+    await createApplication((await createTalent()).user, job, { matchVerdict: MatchVerdict.Low });
+
+    const res = await request(app)
+      .get(`/v1/jobs/applications/${job.id}?matchVerdict=medium`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.body.data.applications.map((a: { id: string }) => a.id)).toEqual([medium.id]);
+  });
+
+  it.each([
+    ["an unknown sort value", "sort=nonsense"],
+    ["an unknown matchVerdict", "matchVerdict=excellent"],
+    ["a minMatchScore below 0", "minMatchScore=-1"],
+    ["a minMatchScore above 100", "minMatchScore=101"],
+    ["a limit of 0", "limit=0"],
+    ["a limit above 200", "limit=201"],
+  ])("400s for %s", async (_label, query) => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+
+    const res = await request(app)
+      .get(`/v1/jobs/applications/${job.id}?${query}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(400);
+  });
+
+  it("accepts the boundary values 1 and 200 for limit", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    await createApplication((await createTalent()).user, job);
+
+    expect(
+      (
+        await request(app)
+          .get(`/v1/jobs/applications/${job.id}?limit=1`)
+          .set("Authorization", `Bearer ${token}`)
+      ).status
+    ).toBe(200);
+    expect(
+      (
+        await request(app)
+          .get(`/v1/jobs/applications/${job.id}?limit=200`)
+          .set("Authorization", `Bearer ${token}`)
+      ).status
+    ).toBe(200);
+  });
 });
 
 describe("POST /v1/jobs/:jobId/retry-verdicts", () => {
@@ -887,6 +1115,151 @@ describe("POST /v1/jobs/:jobId/retry-verdicts", () => {
       .getRepository(Application)
       .find({ where: { id: In([neverProcessed.id, failed.id]) } });
     expect(refetched.every((a) => a.matchVerdict === MatchVerdict.High)).toBe(true);
+  });
+
+  it("with applicationIds, retries only the given candidate — a per-row 'Regenerate' click", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const target = await createApplication((await createTalent()).user, job, {
+      currentStage: ScreeningStage.Completed,
+      matchVerdict: null,
+    });
+    const untouched = await createApplication((await createTalent()).user, job, {
+      currentStage: ScreeningStage.Completed,
+      matchVerdict: null,
+    });
+
+    const res = await request(app)
+      .post(`/v1/jobs/${job.id}/retry-verdicts`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ applicationIds: [target.id] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.attempted).toBe(1);
+    const [targetRow, untouchedRow] = await testDataSource
+      .getRepository(Application)
+      .find({ where: { id: In([target.id, untouched.id]) } });
+    expect([targetRow, untouchedRow].find((a) => a?.id === target.id)?.matchVerdict).toBe(
+      MatchVerdict.High
+    );
+    expect([targetRow, untouchedRow].find((a) => a?.id === untouched.id)?.matchVerdict).toBeNull();
+  });
+
+  it("an explicit empty applicationIds array retries nothing — distinct from omitting the field", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const application = await createApplication((await createTalent()).user, job, {
+      currentStage: ScreeningStage.Completed,
+      matchVerdict: null,
+    });
+
+    const res = await request(app)
+      .post(`/v1/jobs/${job.id}/retry-verdicts`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ applicationIds: [] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ attempted: 0, succeeded: 0, failed: 0 });
+    const reloaded = await testDataSource
+      .getRepository(Application)
+      .findOne({ where: { id: application.id } });
+    expect(reloaded?.matchVerdict).toBeNull();
+  });
+
+  it("ignores an applicationId that belongs to a different job", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const jobA = await createJob(recruiter, role);
+    const jobB = await createJob(recruiter, role);
+    const foreignApplication = await createApplication((await createTalent()).user, jobB, {
+      currentStage: ScreeningStage.Completed,
+      matchVerdict: null,
+    });
+
+    const res = await request(app)
+      .post(`/v1/jobs/${jobA.id}/retry-verdicts`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ applicationIds: [foreignApplication.id] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.attempted).toBe(0);
+    const reloaded = await testDataSource
+      .getRepository(Application)
+      .findOne({ where: { id: foreignApplication.id } });
+    expect(reloaded?.matchVerdict).toBeNull();
+    expect(mockAssessApplicationMatch).not.toHaveBeenCalled();
+  });
+
+  it("ignores an applicationId that already has a succeeded verdict — recommendations are generated once", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const succeeded = await createApplication((await createTalent()).user, job, {
+      currentStage: ScreeningStage.Completed,
+      matchVerdict: MatchVerdict.Low,
+      matchVerdictStatus: MatchVerdictStatus.Succeeded,
+      matchVerdictReasoning: "Original reasoning",
+    });
+
+    const res = await request(app)
+      .post(`/v1/jobs/${job.id}/retry-verdicts`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ applicationIds: [succeeded.id] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.attempted).toBe(0);
+    const reloaded = await testDataSource
+      .getRepository(Application)
+      .findOne({ where: { id: succeeded.id } });
+    expect(reloaded?.matchVerdict).toBe(MatchVerdict.Low);
+    expect(reloaded?.matchVerdictReasoning).toBe("Original reasoning");
+  });
+
+  it("400s for a non-UUID entry in applicationIds", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+
+    const res = await request(app)
+      .post(`/v1/jobs/${job.id}/retry-verdicts`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ applicationIds: ["not-a-uuid"] });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("requires auth and ownership", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { token: talentToken } = await createTalent();
+    const { token: otherRecruiterToken } = await createRecruiter();
+
+    expect((await request(app).post(`/v1/jobs/${job.id}/retry-verdicts`)).status).toBe(401);
+    expect(
+      (
+        await request(app)
+          .post(`/v1/jobs/${job.id}/retry-verdicts`)
+          .set("Authorization", `Bearer ${talentToken}`)
+      ).status
+    ).toBe(403);
+    expect(
+      (
+        await request(app)
+          .post(`/v1/jobs/${job.id}/retry-verdicts`)
+          .set("Authorization", `Bearer ${otherRecruiterToken}`)
+      ).status
+    ).toBe(403);
+  });
+
+  it("404s for a job that doesn't exist", async () => {
+    const { token } = await createRecruiter();
+    const res = await request(app)
+      .post("/v1/jobs/00000000-0000-0000-0000-000000000000/retry-verdicts")
+      .set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(404);
   });
 });
 

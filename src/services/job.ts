@@ -1132,11 +1132,18 @@ export const retryMissingVerdicts = async (
   }
   await assertRecruiterJobAccess(userId, UserRole.Recruiter, job);
 
+  // An explicit empty list means "retry nothing" — distinct from omitting
+  // applicationIds entirely, which means "sweep every missing/failed verdict
+  // on this job." Don't let `[]` silently fall through to a full sweep.
+  if (applicationIds && applicationIds.length === 0) {
+    return { attempted: 0, succeeded: 0, failed: 0 };
+  }
+
   // Recommendations are generated once and never overwritten (see
   // persistRecommendation), so retrying only ever does something for a
   // candidate that's missing a verdict or whose generation failed — scope to
   // those even when applicationIds narrows to a single "Regenerate" click.
-  const idScope = applicationIds && applicationIds.length > 0 ? { id: In(applicationIds) } : {};
+  const idScope = applicationIds ? { id: In(applicationIds) } : {};
   const applications = await applicationRepo().find({
     where: [
       { jobId, ...idScope, currentStage: ScreeningStage.Completed, matchVerdict: IsNull() },
