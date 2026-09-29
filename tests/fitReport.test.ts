@@ -128,7 +128,7 @@ describe("GET /v1/jobs/:jobId/applications/:applicationId/report — single cand
     const job = await createJob(recruiter, role);
 
     const res = await request(app)
-      .get(`/v1/jobs/${job.id}/applications/00000000-0000-0000-0000-000000000000/report`)
+      .get(`/v1/jobs/${job.id}/applications/00000000-0000-4000-8000-000000000000/report`)
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(404);
@@ -138,7 +138,7 @@ describe("GET /v1/jobs/:jobId/applications/:applicationId/report — single cand
     const { token } = await createRecruiter();
     const res = await request(app)
       .get(
-        "/v1/jobs/00000000-0000-0000-0000-000000000000/applications/00000000-0000-0000-0000-000000000001/report"
+        "/v1/jobs/00000000-0000-4000-8000-000000000000/applications/00000000-0000-4000-8000-000000000001/report"
       )
       .set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(404);
@@ -286,7 +286,7 @@ describe("POST /v1/jobs/:jobId/applications/report — bulk/shortlisted set", ()
     const job = await createJob(recruiter, role);
     const tooMany = Array.from({ length: 51 }, (_, i) => {
       const hex = i.toString(16).padStart(12, "0");
-      return `00000000-0000-0000-0000-${hex}`;
+      return `00000000-0000-4000-8000-${hex}`;
     });
 
     const res = await request(app)

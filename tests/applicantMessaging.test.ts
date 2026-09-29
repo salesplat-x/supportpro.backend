@@ -114,6 +114,7 @@ describe("POST /v1/jobs/:jobId/applicants/messages/draft — happy paths", () =>
     });
     await createAiRecommendation(application, {
       analysis: buildMatchAnalysis({
+        overallFitScore: 91,
         whyHire: "Shipped three production Kubernetes migrations solo.",
         strongestQualifications: ["Kubernetes migrations", "On-call leadership"],
         keyEvidence: ["CV: led K8s migration at Acme, 2022"],
@@ -281,8 +282,8 @@ describe("POST /v1/jobs/:jobId/applicants/messages/draft — validation and acce
 
   it("404s for a job that doesn't exist", async () => {
     const { token } = await createRecruiter();
-    const res = await draftAs(token, "00000000-0000-0000-0000-000000000000", {
-      applicationIds: ["00000000-0000-0000-0000-000000000001"],
+    const res = await draftAs(token, "00000000-0000-4000-8000-000000000000", {
+      applicationIds: ["00000000-0000-4000-8000-000000000001"],
     });
     expect(res.status).toBe(404);
   });
@@ -353,7 +354,7 @@ describe("POST /v1/jobs/:jobId/applicants/messages/draft — caps batch size", (
     const job = await createJob(recruiter, role);
     const tooMany = Array.from({ length: 51 }, (_, i) => {
       const hex = i.toString(16).padStart(12, "0");
-      return `00000000-0000-0000-0000-${hex}`;
+      return `00000000-0000-4000-8000-${hex}`;
     });
 
     const res = await draftAs(token, job.id, { applicationIds: tooMany });
