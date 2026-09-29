@@ -123,7 +123,7 @@ router.post(
 );
 router.post(
   "/:jobId/applicants/messages/draft",
-  validateAccess([UserRole.Recruiter]),
+  validateAccess([UserRole.Recruiter, UserRole.Admin]),
   requireVerifiedEmail,
   validate(draftApplicantMessagesValidator),
   asyncHandler(job.draftApplicantMessagesController)
