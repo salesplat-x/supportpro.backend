@@ -99,6 +99,12 @@ export class Application {
   @Column({ type: "enum", enum: MatchVerdict, nullable: true, default: null })
   matchVerdict!: MatchVerdict | null;
 
+  // The LLM's overall fit score (0-100) — the number the "AI Match" column and
+  // ring should show. Distinct from cvSimilarityScore/averageScore, which are
+  // earlier-stage pipeline scores that don't reflect the finished AI verdict.
+  @Column({ type: "float", nullable: true, default: null })
+  overallFitScore!: number | null;
+
   @Column({ type: "enum", enum: MatchVerdictStatus, nullable: true, default: null })
   matchVerdictStatus!: MatchVerdictStatus | null;
 

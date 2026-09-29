@@ -10,13 +10,15 @@ import {
   ValidationError,
   PlanLimitError,
 } from "../utils/errors";
-import { sortDirection, stripHtmlToText } from "../utils/text.js";
+import { sortDirection, stripHtmlToText, htmlToParagraphs } from "../utils/text.js";
 import { UserRole, ApplicationStatus } from "../types/enums.js";
 import { createNotification } from "./notification.js";
 import logger from "../utils/logger.js";
 import { assertCompanyResourceAccess, getActiveOrganizationId } from "./organizationScope.js";
 import { Organization } from "../entities/Organization.js";
 import { ensureOrganizationBillingCurrent, hasFlag } from "./entitlements.js";
+import EmailService from "../utils/integrations/email/emailService.js";
+import env from "../config/env.js";
 
 const messageRepo = () => AppDataSource.getRepository(Message);
 
@@ -197,15 +199,32 @@ export const acknowledge = async (
   return messageRepo().save(message);
 };
 
+export interface BroadcastMessagePayload {
+  application: string;
+  /** Same message to every targeted talent (legacy path). */
+  content?: string;
+  talentIds?: string[];
+  /** One drafted message per recipient — used by the AI mass-messaging flow instead of `content`. */
+  messages?: { applicationId: string; subject?: string; content: string }[];
+  /** Also email each recipient (in addition to the in-app message), using their personalized subject/content. */
+  sendEmail?: boolean;
+}
+
+export interface BroadcastMessageResult {
+  sent: number;
+  emailed: number;
+  emailFailures: { applicationId: string; error: string }[];
+}
+
 export const broadcastMessage = async (
   senderId: string,
-  payload: { application: string; content: string; talentIds?: string[] }
-): Promise<{ content: string }> => {
-  const { application, content, talentIds } = payload;
+  payload: BroadcastMessagePayload
+): Promise<BroadcastMessageResult> => {
+  const { application, content, talentIds, messages, sendEmail } = payload;
 
   const targetApplication = await applicationRepo().findOne({
     where: { id: application },
-    relations: { job: true },
+    relations: { job: { role: true, organization: true } },
   });
   if (!targetApplication) {
     throw new NotFoundError("Application not found");
@@ -238,17 +257,36 @@ export const broadcastMessage = async (
     throw new NotFoundError("Sender not found");
   }
 
+  const messageByApplicationId = new Map((messages ?? []).map((m) => [m.applicationId, m]));
+
   // All applicants for the job, or — when the recruiter selected a subset via
-  // the bulk-actions UI — just those talents (item 5).
+  // the bulk-actions UI, or supplied personalized per-candidate drafts —
+  // just those talents.
+  const scopeIds = messageByApplicationId.size > 0 ? [...messageByApplicationId.keys()] : talentIds;
   const applications = await applicationRepo().find({
-    where: talentIds?.length
-      ? { jobId: targetApplication.jobId, talentId: In(talentIds) }
-      : { jobId: targetApplication.jobId },
+    where:
+      messageByApplicationId.size > 0
+        ? { jobId: targetApplication.jobId, id: In(scopeIds as string[]) }
+        : talentIds?.length
+          ? { jobId: targetApplication.jobId, talentId: In(talentIds) }
+          : { jobId: targetApplication.jobId },
     relations: { talent: true },
   });
 
+  const jobTitle = targetApplication.job.role?.name ?? "the role";
+  const companyName = targetApplication.job.organization?.name;
+  const recruiterFirstName = sender.firstName;
+
+  let sent = 0;
+  let emailed = 0;
+  const emailFailures: { applicationId: string; error: string }[] = [];
+
   for (const app of applications) {
     if (!app.talent) continue;
+    const personalized = messageByApplicationId.get(app.id);
+    const messageContent = personalized?.content ?? content;
+    if (!messageContent) continue;
+
     let conversation = await findConversation(senderId, app.talentId);
     if (!conversation) {
       conversation = await createConversation(sender, app.talent);
@@ -257,15 +295,35 @@ export const broadcastMessage = async (
       conversationId: conversation.id,
       senderId,
       recipientId: app.talentId,
-      content,
+      content: messageContent,
       applicationId: app.id,
     });
     const savedMessage = await messageRepo().save(message);
     await conversationRepo().save({ ...conversation, lastMessageId: savedMessage.id });
-    await notifyMessageRecipient(app.talentId, content);
+    await notifyMessageRecipient(app.talentId, messageContent);
+    sent += 1;
+
+    if (sendEmail) {
+      try {
+        await new EmailService().sendApplicantMessage({
+          to: app.talent.email,
+          subject: personalized?.subject || `Message from ${recruiterFirstName} about ${jobTitle}`,
+          recruiterFirstName,
+          jobTitle,
+          companyName,
+          paragraphs: htmlToParagraphs(messageContent),
+          ctaUrl: `${env.website || "https://auxhr.com"}/talentDashboard/chat`,
+        });
+        emailed += 1;
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        logger.error(`Applicant message email to application ${app.id} failed: ${errorMessage}`);
+        emailFailures.push({ applicationId: app.id, error: errorMessage });
+      }
+    }
   }
 
-  return { content };
+  return { sent, emailed, emailFailures };
 };
 
 export const getMessages = async (

@@ -26,7 +26,7 @@ describe("EmailService.sendOnboardingFollowUp", () => {
     expect(sent).toHaveLength(1);
     expect(sent[0]!.to).toBe("ada@example.com");
     expect(sent[0]!.subject).toBe("One quick step");
-    expect(sent[0]!.html).toContain("<p>Hi Ada,</p>");
+    expect(sent[0]!.html).toContain('<p class="lead">Hi Ada,</p>');
     expect(sent[0]!.html).toContain("<p>Upload your CV to start matching.</p>");
     expect(sent[0]!.html).toContain('href="https://auxhr.com/talentDashboard/talentProfile"');
     expect(sent[0]!.text).toContain(
@@ -67,5 +67,82 @@ describe("EmailService.sendOnboardingFollowUp", () => {
         ctaUrl: "https://auxhr.com/login",
       })
     ).rejects.toThrow("Resend is down");
+  });
+});
+
+describe("EmailService.sendApplicantMessage", () => {
+  const baseDetails = {
+    to: "ada@example.com",
+    subject: "You're shortlisted!",
+    recruiterFirstName: "Jane",
+    jobTitle: "Senior Backend Engineer",
+    companyName: "Acme Corp",
+    paragraphs: ["Hi Ada,", "We'd love to move you to the next round."],
+    ctaUrl: "https://auxhr.com/talentDashboard/chat",
+  };
+
+  it("renders the job/company context, each paragraph, and the CTA link", async () => {
+    const { sent, provider } = captureProvider();
+
+    await new EmailService(provider).sendApplicantMessage(baseDetails);
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.to).toBe("ada@example.com");
+    expect(sent[0]!.subject).toBe("You're shortlisted!");
+    expect(sent[0]!.html).toContain("Senior Backend Engineer");
+    expect(sent[0]!.html).toContain("Acme Corp");
+    expect(sent[0]!.html).toContain('<p class="lead">Hi Ada,</p>');
+    expect(sent[0]!.html).toContain("We&#x27;d love to move you to the next round.");
+    expect(sent[0]!.html).toContain('href="https://auxhr.com/talentDashboard/chat"');
+    expect(sent[0]!.html).toContain("Jane");
+    expect(sent[0]!.text).toContain("View and reply: https://auxhr.com/talentDashboard/chat");
+    expect(sent[0]!.tags).toEqual([{ name: "category", value: "applicant-message" }]);
+  });
+
+  it("renders without a company name when the job has none (e.g. no active organization)", async () => {
+    const { sent, provider } = captureProvider();
+
+    await new EmailService(provider).sendApplicantMessage({
+      ...baseDetails,
+      companyName: undefined,
+    });
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.html).toContain("Senior Backend Engineer");
+    expect(sent[0]!.html).not.toContain("undefined");
+  });
+
+  it("escapes HTML in the recruiter's message so it cannot inject markup", async () => {
+    const { sent, provider } = captureProvider();
+
+    await new EmailService(provider).sendApplicantMessage({
+      ...baseDetails,
+      paragraphs: ['<script>alert("x")</script>', '<a href="https://evil.test">click</a>'],
+    });
+
+    expect(sent[0]!.html).not.toContain("<script>");
+    expect(sent[0]!.html).not.toContain('href="https://evil.test"');
+    expect(sent[0]!.html).toContain("&lt;script&gt;");
+  });
+
+  it("falls back to an empty preheader rather than throwing when there are no paragraphs", async () => {
+    const { sent, provider } = captureProvider();
+
+    await new EmailService(provider).sendApplicantMessage({ ...baseDetails, paragraphs: [] });
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.html).toBeTruthy();
+  });
+
+  it("lets a provider failure through so the caller can record a per-recipient failure", async () => {
+    const provider: EmailProvider = {
+      send: async () => {
+        throw new Error("Resend is down");
+      },
+    };
+
+    await expect(new EmailService(provider).sendApplicantMessage(baseDetails)).rejects.toThrow(
+      "Resend is down"
+    );
   });
 });

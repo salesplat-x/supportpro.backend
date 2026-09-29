@@ -26,7 +26,11 @@ import {
 } from "../utils/durableJobs.js";
 import { ValidationError } from "../utils/errors";
 import { assessApplicationMatch } from "../utils/integrations/openai.js";
-import { parseMatchAnalysis, type MatchAnalysis } from "../utils/matchAnalysis.js";
+import {
+  parseMatchAnalysis,
+  scoreFromVerdict,
+  type MatchAnalysis,
+} from "../utils/matchAnalysis.js";
 import { isPrescreeningScoreValid } from "./prescreening.js";
 import {
   answerTextForQuestion,
@@ -101,6 +105,11 @@ const persistRecommendation = async (
     analysis: MatchAnalysis | null;
   }
 ): Promise<void> => {
+  // The AI Match column/ring shows this — fall back to a verdict-derived score
+  // (same mapping parseMatchAnalysis uses) so it's never blank when a verdict
+  // exists but structured analysis doesn't (e.g. the legacy direct-write path).
+  const overallFitScore = payload.analysis?.overallFitScore ?? scoreFromVerdict(payload.verdict);
+
   // Both writes must land together — a partial write here is exactly what lets
   // ai_recommendations and the denormalized Application columns drift apart.
   await AppDataSource.transaction(async (manager) => {
@@ -124,6 +133,7 @@ const persistRecommendation = async (
       matchStrengths: payload.strengths,
       matchWeaknesses: payload.weaknesses,
       matchRisks: payload.risks,
+      overallFitScore,
       matchVerdictLockedAt: null,
       matchVerdictNextRetryAt: null,
       matchVerdictLastError: null,
@@ -147,6 +157,8 @@ export const overlayVerdictFromRecommendation = <T extends Application>(
   application.matchStrengths = recommendation.strengths;
   application.matchWeaknesses = recommendation.weaknesses;
   application.matchRisks = recommendation.risks;
+  application.overallFitScore =
+    recommendation.analysis?.overallFitScore ?? scoreFromVerdict(recommendation.verdict);
   Object.assign(application, { matchAnalysis: recommendation.analysis ?? null });
   return application;
 };
@@ -313,6 +325,7 @@ const overlayExistingRecommendation = async (
     matchStrengths: existing.strengths,
     matchWeaknesses: existing.weaknesses,
     matchRisks: existing.risks,
+    overallFitScore: existing.analysis?.overallFitScore ?? scoreFromVerdict(existing.verdict),
     matchVerdictLockedAt: null,
     matchVerdictNextRetryAt: null,
     matchVerdictLastError: null,

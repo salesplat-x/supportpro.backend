@@ -7,6 +7,7 @@ import {
   ApplicationType,
   ApplicationStatus,
   CompensationPeriod,
+  MatchVerdict,
 } from "../types/enums.js";
 import { workModeNeedsLocation } from "../utils/workMode.js";
 
@@ -191,11 +192,44 @@ export const matchJobValidator = [
 
 export const applyValidator = [param("jobId").notEmpty().withMessage("Job ID is required")];
 
+export const retryVerdictsValidator = [
+  param("jobId").notEmpty().withMessage("Job ID is required"),
+  body("applicationIds").optional().isArray().withMessage("applicationIds must be an array"),
+  body("applicationIds.*").optional().isUUID().withMessage("Invalid applicationId"),
+];
+
+export const draftApplicantMessagesValidator = [
+  param("jobId").notEmpty().withMessage("Job ID is required"),
+  body("applicationIds").isArray({ min: 1 }).withMessage("Select at least one candidate"),
+  body("applicationIds.*").isUUID().withMessage("Invalid applicationId"),
+  body("intent").optional().isString().isLength({ max: 500 }),
+];
+
+export const singleFitReportValidator = [
+  param("jobId").notEmpty().withMessage("Job ID is required"),
+  param("applicationId").isUUID().withMessage("Invalid applicationId"),
+];
+
+export const bulkFitReportValidator = [
+  param("jobId").notEmpty().withMessage("Job ID is required"),
+  body("applicationIds").isArray({ min: 1 }).withMessage("Select at least one candidate"),
+  body("applicationIds.*").isUUID().withMessage("Invalid applicationId"),
+];
+
 export const jobApplicationsQueryValidator = [
   param("jobId").notEmpty().withMessage("Job ID is required"),
   query("experience").optional().isString(),
   query("minCvSimilarityScore").optional().isFloat({ min: 0, max: 100 }).toFloat(),
   query("minPersonalizedScore").optional().isFloat({ min: 0, max: 100 }).toFloat(),
+  query("minMatchScore").optional().isFloat({ min: 0, max: 100 }).toFloat(),
+  query("matchVerdict")
+    .optional()
+    .isIn(Object.values(MatchVerdict))
+    .withMessage("Invalid matchVerdict"),
+  query("sort")
+    .optional()
+    .isIn(["aiMatch", "dateApplied", "cvSimilarity"])
+    .withMessage("Invalid sort"),
   query("applicationType")
     .optional()
     .isIn(Object.values(ApplicationType))
@@ -207,4 +241,5 @@ export const jobApplicationsQueryValidator = [
   query("maxSalary").optional().isFloat().toFloat(),
   query("offset").optional().isInt({ min: 0 }).toInt(),
   query("skip").optional().isInt({ min: 0 }).toInt(),
+  query("limit").optional().isInt({ min: 1, max: 200 }).toInt(),
 ];

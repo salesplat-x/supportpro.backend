@@ -52,6 +52,35 @@ class EmailService {
     });
   }
 
+  /** Sends a recruiter's message to a shortlisted applicant. Unlike sendEmail it throws, so the caller can record a per-recipient failure without failing the whole batch. */
+  async sendApplicantMessage(details: {
+    to: string;
+    subject: string;
+    recruiterFirstName: string;
+    jobTitle: string;
+    companyName?: string;
+    paragraphs: string[];
+    ctaUrl: string;
+  }): Promise<void> {
+    const html = renderTemplate("applicant-message", {
+      title: details.subject,
+      preheader: details.paragraphs[0] ?? "",
+      recruiterFirstName: details.recruiterFirstName,
+      jobTitle: details.jobTitle,
+      companyName: details.companyName,
+      paragraphs: details.paragraphs,
+      ctaLabel: "View and reply",
+      ctaUrl: details.ctaUrl,
+    });
+    await this.provider.send({
+      to: details.to,
+      subject: details.subject,
+      html,
+      text: [...details.paragraphs, `View and reply: ${details.ctaUrl}`].join("\n\n"),
+      tags: [{ name: "category", value: "applicant-message" }],
+    });
+  }
+
   async sendWelcome(user: UserLike): Promise<void> {
     const template = user.userRole === UserRole.Recruiter ? "welcomeRecruiter" : "welcome";
     const html = renderTemplate(template, { firstName: user.firstName });

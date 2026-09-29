@@ -12,6 +12,10 @@ import {
   matchJobValidator,
   applyValidator,
   jobApplicationsQueryValidator,
+  retryVerdictsValidator,
+  draftApplicantMessagesValidator,
+  singleFitReportValidator,
+  bulkFitReportValidator,
   generateJobContentValidator,
   generateJobFieldValidator,
 } from "../validators/job.js";
@@ -114,7 +118,29 @@ router.post(
   "/:jobId/retry-verdicts",
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
+  validate(retryVerdictsValidator),
   asyncHandler(job.retryVerdicts)
+);
+router.post(
+  "/:jobId/applicants/messages/draft",
+  validateAccess([UserRole.Recruiter, UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(draftApplicantMessagesValidator),
+  asyncHandler(job.draftApplicantMessagesController)
+);
+router.get(
+  "/:jobId/applications/:applicationId/report",
+  validateAccess([UserRole.Recruiter, UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(singleFitReportValidator),
+  asyncHandler(job.singleFitReport)
+);
+router.post(
+  "/:jobId/applications/report",
+  validateAccess([UserRole.Recruiter, UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(bulkFitReportValidator),
+  asyncHandler(job.bulkFitReport)
 );
 router.post(
   "/:jobId/activate-payment",

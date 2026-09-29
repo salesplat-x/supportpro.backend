@@ -24,12 +24,17 @@ const asStringArray = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 
 const clampScore = (value: unknown, fallback: number): number => {
+  // Number(null) === 0 and Number(undefined) is NaN-but-easy-to-mistreat —
+  // handle both explicitly so a missing/null score falls back to the
+  // verdict-derived score instead of silently reading as a literal 0 (which
+  // would misreport as "no fit at all" rather than "not scored").
+  if (value === null || value === undefined) return fallback;
   const n = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(n)) return fallback;
   return Math.min(100, Math.max(0, Math.round(n)));
 };
 
-const scoreFromVerdict = (verdict: string): number => {
+export const scoreFromVerdict = (verdict: string): number => {
   if (verdict === "high") return 85;
   if (verdict === "medium") return 65;
   if (verdict === "low") return 35;

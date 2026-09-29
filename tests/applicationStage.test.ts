@@ -344,6 +344,84 @@ describe("triggerMatchVerdict — AI verdict is advisory and recruiter-facing on
     expect(stored?.reasoning).toContain("Strong CV match");
   });
 
+  it("persists the LLM's own overallFitScore onto the application — the number the AI Match column shows", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const application = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+      cvSimilarityScore: 40, // deliberately different from overallFitScore, to prove it isn't reused
+    });
+    mockAssessApplicationMatch.mockResolvedValueOnce({
+      message: {
+        content: JSON.stringify({
+          verdict: "medium",
+          reasoning: "Solid but not exceptional.",
+          recommendation: "interview_further",
+          overallFitScore: 71,
+        }),
+      },
+    } as unknown as Awaited<ReturnType<typeof assessApplicationMatch>>);
+
+    await triggerMatchVerdict(talent, application);
+
+    const reloaded = await testDataSource.getRepository(Application).findOne({
+      where: { id: application.id },
+    });
+    expect(reloaded?.overallFitScore).toBe(71);
+    expect(reloaded?.overallFitScore).not.toBe(reloaded?.cvSimilarityScore);
+  });
+
+  it("falls back to a verdict-derived overallFitScore when the LLM omits it", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const application = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+    });
+    // The default mock (top of file) doesn't include overallFitScore at all.
+
+    await triggerMatchVerdict(talent, application);
+
+    const reloaded = await testDataSource.getRepository(Application).findOne({
+      where: { id: application.id },
+    });
+    // verdict is "high" per the default mock → scoreFromVerdict("high") = 85.
+    expect(reloaded?.overallFitScore).toBe(85);
+  });
+
+  it("falls back to a verdict-derived overallFitScore when the LLM returns null for it", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const application = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+    });
+    mockAssessApplicationMatch.mockResolvedValueOnce({
+      message: {
+        content: JSON.stringify({
+          verdict: "low",
+          reasoning: "Notable gaps.",
+          overallFitScore: null,
+        }),
+      },
+    } as unknown as Awaited<ReturnType<typeof assessApplicationMatch>>);
+
+    await triggerMatchVerdict(talent, application);
+
+    const reloaded = await testDataSource.getRepository(Application).findOne({
+      where: { id: application.id },
+    });
+    // Must NOT be the literal 0 a naive Number(null) coercion would produce.
+    expect(reloaded?.overallFitScore).toBe(35);
+  });
+
   it("passes null prescreeningScore to the LLM when the stored score has expired", async () => {
     const expiredDate = new Date();
     expiredDate.setDate(expiredDate.getDate() - 91);
@@ -769,6 +847,41 @@ describe("verdict overlay helpers — ai_recommendations is the source of truth 
     const application = { matchVerdict: null } as unknown as Application;
     const result = overlayVerdictFromRecommendation(application, null);
     expect(result.matchVerdict).toBeNull();
+    expect(result.overallFitScore).toBeUndefined();
+  });
+
+  it("overlayVerdictFromRecommendation prefers the stored analysis's overallFitScore", () => {
+    const application = { matchVerdict: null } as unknown as Application;
+    const recommendation = {
+      verdict: MatchVerdict.Medium,
+      reasoning: "ok",
+      recommendation: null,
+      strengths: null,
+      weaknesses: null,
+      risks: null,
+      analysis: { overallFitScore: 77 },
+    } as unknown as AiRecommendation;
+
+    const result = overlayVerdictFromRecommendation(application, recommendation);
+
+    expect(result.overallFitScore).toBe(77);
+  });
+
+  it("overlayVerdictFromRecommendation falls back to the verdict-derived score when analysis is null", () => {
+    const application = { matchVerdict: null } as unknown as Application;
+    const recommendation = {
+      verdict: MatchVerdict.Low,
+      reasoning: "ok",
+      recommendation: null,
+      strengths: null,
+      weaknesses: null,
+      risks: null,
+      analysis: null,
+    } as unknown as AiRecommendation;
+
+    const result = overlayVerdictFromRecommendation(application, recommendation);
+
+    expect(result.overallFitScore).toBe(35);
   });
 
   it("loadApplicationWithMatch repairs a drifted row (recommendation exists, matchVerdict is null)", async () => {
@@ -779,6 +892,7 @@ describe("verdict overlay helpers — ai_recommendations is the source of truth 
     const application = await createApplication(talent, job, {
       currentStage: ScreeningStage.Completed,
       matchVerdict: null,
+      overallFitScore: null,
     });
     await testDataSource.getRepository(AiRecommendation).save(
       testDataSource.getRepository(AiRecommendation).create({
@@ -789,6 +903,7 @@ describe("verdict overlay helpers — ai_recommendations is the source of truth 
         strengths: null,
         weaknesses: null,
         risks: null,
+        analysis: { overallFitScore: 93 },
       })
     );
 
@@ -797,6 +912,7 @@ describe("verdict overlay helpers — ai_recommendations is the source of truth 
     expect(loaded?.matchVerdict).toBe(MatchVerdict.High);
     expect(loaded?.matchVerdictStatus).toBe(MatchVerdictStatus.Succeeded);
     expect(loaded?.matchVerdictReasoning).toBe("Repaired from ai_recommendations.");
+    expect(loaded?.overallFitScore).toBe(93);
   });
 
   it("loadApplicationWithMatch returns null for a non-existent application", async () => {

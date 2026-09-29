@@ -23,6 +23,17 @@ import {
 import { Message } from "../src/entities/Message.js";
 import { ApplicationStatus } from "../src/types/enums.js";
 
+const mockSendApplicantMessage = jest.fn().mockResolvedValue(undefined);
+
+jest.mock("../src/utils/integrations/email/emailService.js", () => ({
+  __esModule: true,
+  default: jest.fn().mockImplementation(() => ({
+    sendWelcome: jest.fn().mockResolvedValue(undefined),
+    sendVerificationEmail: jest.fn().mockResolvedValue(undefined),
+    sendApplicantMessage: mockSendApplicantMessage,
+  })),
+}));
+
 let app: ReturnType<typeof createApp>;
 
 beforeAll(async () => {
@@ -36,6 +47,7 @@ afterAll(async () => {
 
 afterEach(async () => {
   await clearAllTables();
+  mockSendApplicantMessage.mockClear().mockResolvedValue(undefined);
 });
 
 describe("POST /v1/messages/broadcast — bulk message (item 5)", () => {
@@ -95,6 +107,195 @@ describe("POST /v1/messages/broadcast — bulk message (item 5)", () => {
     expect(res.status).toBe(200);
     const messages = await testDataSource.getRepository(Message).find();
     expect(messages).toHaveLength(1);
+  });
+});
+
+describe("POST /v1/messages/broadcast — personalized per-candidate AI messages", () => {
+  it("sends each recipient their own drafted content, not one shared message", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { user: talentA } = await createTalent();
+    const { user: talentB } = await createTalent();
+    const appA = await createApplication(talentA, job);
+    const appB = await createApplication(talentB, job);
+
+    const res = await request(app)
+      .post("/v1/messages/broadcast")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        application: appA.id,
+        messages: [
+          { applicationId: appA.id, subject: "For A", content: "Hi A, congrats!" },
+          { applicationId: appB.id, subject: "For B", content: "Hi B, you're shortlisted!" },
+        ],
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ sent: 2, emailed: 0, emailFailures: [] });
+    const messages = await testDataSource.getRepository(Message).find();
+    expect(messages.map((m) => m.content).sort()).toEqual(
+      ["Hi A, congrats!", "Hi B, you're shortlisted!"].sort()
+    );
+    expect(mockSendApplicantMessage).not.toHaveBeenCalled();
+  });
+
+  it("with sendEmail, also emails each recipient their own subject/body and reports how many were emailed", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { user: talent } = await createTalent({ email: "ada@example.com" });
+    const application = await createApplication(talent, job);
+
+    const res = await request(app)
+      .post("/v1/messages/broadcast")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        application: application.id,
+        messages: [
+          {
+            applicationId: application.id,
+            subject: "You're shortlisted!",
+            content: "Hi Ada,\n\nGreat news.",
+          },
+        ],
+        sendEmail: true,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ sent: 1, emailed: 1, emailFailures: [] });
+    expect(mockSendApplicantMessage).toHaveBeenCalledTimes(1);
+    expect(mockSendApplicantMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "ada@example.com",
+        subject: "You're shortlisted!",
+        paragraphs: ["Hi Ada,", "Great news."],
+      })
+    );
+  });
+
+  it("records a per-recipient email failure without failing the whole request or losing the in-app message", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { user: talentA } = await createTalent();
+    const { user: talentB } = await createTalent();
+    const appA = await createApplication(talentA, job);
+    const appB = await createApplication(talentB, job);
+    mockSendApplicantMessage.mockRejectedValueOnce(new Error("Resend is down"));
+
+    const res = await request(app)
+      .post("/v1/messages/broadcast")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        application: appA.id,
+        messages: [
+          { applicationId: appA.id, content: "Hi A" },
+          { applicationId: appB.id, content: "Hi B" },
+        ],
+        sendEmail: true,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.sent).toBe(2);
+    expect(res.body.data.emailed).toBe(1);
+    expect(res.body.data.emailFailures).toEqual([
+      { applicationId: appA.id, error: "Resend is down" },
+    ]);
+    // The in-app message still went out for the one whose email failed.
+    const messages = await testDataSource.getRepository(Message).find();
+    expect(messages).toHaveLength(2);
+  });
+
+  it("skips a recipient whose drafted content is blank rather than sending an empty message", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { user: talent } = await createTalent();
+    const application = await createApplication(talent, job);
+
+    const res = await request(app)
+      .post("/v1/messages/broadcast")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        application: application.id,
+        messages: [{ applicationId: application.id, content: "" }],
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.sent).toBe(0);
+    expect(await testDataSource.getRepository(Message).count()).toBe(0);
+  });
+
+  it("ignores a messages entry for an applicationId on a different job", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const jobA = await createJob(recruiter, role);
+    const jobB = await createJob(recruiter, role);
+    const { user: talentA } = await createTalent();
+    const { user: talentB } = await createTalent();
+    const appA = await createApplication(talentA, jobA);
+    const foreignApp = await createApplication(talentB, jobB);
+
+    const res = await request(app)
+      .post("/v1/messages/broadcast")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        application: appA.id,
+        messages: [
+          { applicationId: appA.id, content: "Hi A" },
+          { applicationId: foreignApp.id, content: "Hi wrong job" },
+        ],
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.sent).toBe(1);
+    const messages = await testDataSource.getRepository(Message).find();
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.recipientId).toBe(talentA.id);
+  });
+
+  it("messages takes priority over content/talentIds when both are supplied", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { user: talentA } = await createTalent();
+    const { user: talentB } = await createTalent();
+    const appA = await createApplication(talentA, job);
+    await createApplication(talentB, job);
+
+    const res = await request(app)
+      .post("/v1/messages/broadcast")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        application: appA.id,
+        content: "Generic message to everyone",
+        messages: [{ applicationId: appA.id, content: "Personalized for A only" }],
+      });
+
+    expect(res.status).toBe(200);
+    const messages = await testDataSource.getRepository(Message).find();
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.content).toBe("Personalized for A only");
+  });
+
+  it.each([
+    ["neither content nor messages", {}],
+    ["an empty messages array", { messages: [] }],
+  ])("400s when given %s", async (_label, extra) => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { user: talent } = await createTalent();
+    const application = await createApplication(talent, job);
+
+    const res = await request(app)
+      .post("/v1/messages/broadcast")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ application: application.id, ...extra });
+
+    expect(res.status).toBe(400);
+    expect(mockSendApplicantMessage).not.toHaveBeenCalled();
   });
 });
 

@@ -33,11 +33,14 @@ import {
   PlanChangeReason,
 } from "../src/types/enums.js";
 
+const mockSendApplicantMessage = jest.fn().mockResolvedValue(undefined);
+
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
   __esModule: true,
   default: jest.fn().mockImplementation(() => ({
     sendWelcome: jest.fn().mockResolvedValue(undefined),
     sendVerificationEmail: jest.fn().mockResolvedValue(undefined),
+    sendApplicantMessage: mockSendApplicantMessage,
   })),
 }));
 
@@ -54,6 +57,7 @@ afterAll(async () => {
 
 afterEach(async () => {
   await clearAllTables();
+  mockSendApplicantMessage.mockClear();
 });
 
 const inAMonth = () => new Date(Date.now() + 30 * 24 * 3600 * 1000);
@@ -211,6 +215,24 @@ describe("bulk_broadcast_tools — broadcast messaging", () => {
     expect(await testDataSource.getRepository(Message).count()).toBe(0);
   });
 
+  it("sme_basic cannot use the AI-personalized/email broadcast path either, and no email is sent", async () => {
+    const { user, token, org } = await recruiterOnPlan("sme_basic");
+    const { appA } = await jobWithApplicants(user, org);
+
+    const res = await request(app)
+      .post("/v1/messages/broadcast")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        application: appA.id,
+        messages: [{ applicationId: appA.id, content: "Hello" }],
+        sendEmail: true,
+      });
+
+    expect(res.status).toBe(402);
+    expect(await testDataSource.getRepository(Message).count()).toBe(0);
+    expect(mockSendApplicantMessage).not.toHaveBeenCalled();
+  });
+
   it("pro can broadcast to every applicant", async () => {
     const { user, token, org } = await recruiterOnPlan("pro");
     const { appA } = await jobWithApplicants(user, org);
@@ -222,6 +244,23 @@ describe("bulk_broadcast_tools — broadcast messaging", () => {
 
     expect(res.status).toBe(200);
     expect(await testDataSource.getRepository(Message).count()).toBe(2);
+  });
+
+  it("pro can use the AI-personalized/email broadcast path", async () => {
+    const { user, token, org } = await recruiterOnPlan("pro");
+    const { appA } = await jobWithApplicants(user, org);
+
+    const res = await request(app)
+      .post("/v1/messages/broadcast")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        application: appA.id,
+        messages: [{ applicationId: appA.id, content: "Hello" }],
+        sendEmail: true,
+      });
+
+    expect(res.status).toBe(200);
+    expect(mockSendApplicantMessage).toHaveBeenCalledTimes(1);
   });
 });
 

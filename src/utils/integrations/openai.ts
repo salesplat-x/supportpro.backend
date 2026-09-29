@@ -750,6 +750,66 @@ Output a JSON object in this exact format:
   return completion.choices[0];
 };
 
+export interface DraftApplicantMessageContext {
+  talentFirstName: string;
+  jobTitle: string;
+  companyName?: string;
+  recruiterFirstName: string;
+  /** What the recruiter wants this message to do, e.g. "invite to interview", or a free-text instruction. Defaults to a general shortlist outreach. */
+  intent?: string;
+  verdict: string | null;
+  overallFitScore: number | null;
+  whyHire?: string;
+  strongestQualifications?: string[];
+  keyEvidence?: string[];
+}
+
+// One personalized outreach draft per shortlisted candidate — grounded in
+// that candidate's own AI match evidence so it reads like the recruiter
+// actually reviewed their application, not a form letter.
+export const draftApplicantMessage = async (
+  context: DraftApplicantMessageContext
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const system = `You draft a short, warm outreach email from a recruiter to a candidate they've shortlisted for a role, on behalf of Auxhr, an AI-assisted hiring platform.
+
+Write one email that:
+- greets the candidate by first name,
+- opens by referencing 1-2 specific, concrete reasons they stood out — draw only from the evidence provided (whyHire, strongestQualifications, keyEvidence), never invent details,
+- states what happens next, matching the recruiter's stated intent,
+- is warm, professional, and specific — never generic ("we were impressed with your profile") without naming the actual reason,
+- is under 130 words, plain text, short paragraphs, no markdown symbols.
+Do not include links, a signature block, or placeholders like [Name] — a button is added below your text.
+
+Output a JSON object in this exact format:
+{ "subject": "<under 70 characters>", "body": "<the email text>" }`;
+
+  const user = JSON.stringify({
+    talentFirstName: context.talentFirstName,
+    jobTitle: context.jobTitle,
+    companyName: context.companyName,
+    recruiterFirstName: context.recruiterFirstName,
+    intent:
+      context.intent || "Let them know they've been shortlisted and invite them to the next step.",
+    evidence: {
+      verdict: context.verdict,
+      overallFitScore: context.overallFitScore,
+      whyHire: context.whyHire,
+      strongestQualifications: context.strongestQualifications,
+      keyEvidence: context.keyEvidence,
+    },
+  });
+
+  const completion = await runCompletion({
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+    model: "gpt-4o",
+    response_format: { type: "json_object" },
+  });
+  return completion.choices[0];
+};
+
 export const scorePreScreeningAssessment = async (
   context: PreScreeningScoringContext
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {

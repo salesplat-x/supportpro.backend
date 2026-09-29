@@ -12,12 +12,14 @@ import {
   PreScreeningStatus,
   ErrorLogLevel,
   JobStatus,
+  MatchVerdict,
 } from "../../src/types/enums.js";
 import { User } from "../../src/entities/User.js";
 import { Role } from "../../src/entities/Role.js";
 import { Job } from "../../src/entities/Job.js";
 import { AIConfig } from "../../src/entities/AIConfig.js";
 import { Application } from "../../src/entities/Application.js";
+import { AiRecommendation } from "../../src/entities/AiRecommendation.js";
 import { Plan } from "../../src/entities/Plan.js";
 import { Payment } from "../../src/entities/Payment.js";
 import { Subscription } from "../../src/entities/Subscription.js";
@@ -31,6 +33,7 @@ import { Conversation } from "../../src/entities/Conversation.js";
 import { Message } from "../../src/entities/Message.js";
 import { ErrorLog } from "../../src/entities/ErrorLog.js";
 import { generateHashedPassword, signToken } from "../../src/utils/crypto.js";
+import type { MatchAnalysis } from "../../src/utils/matchAnalysis.js";
 
 const PLAIN_PASSWORD = "Password1!";
 
@@ -181,6 +184,51 @@ export async function createApplication(
     ...overrides,
   });
   return repo.save(app);
+}
+
+// A realistic, fully-populated MatchAnalysis — the evidence-based report and
+// AI-drafted messaging both read from this shape.
+export function buildMatchAnalysis(overrides: Partial<MatchAnalysis> = {}): MatchAnalysis {
+  return {
+    overallFitScore: 82,
+    whyFit: "Five years of relevant backend experience per the CV.",
+    whyHire: "Consistently strong answers with concrete, cited evidence.",
+    strongestQualifications: ["Deep TypeScript experience", "Led a team of 4 engineers"],
+    relevantExperience: ["3 years building payment infrastructure at Acme"],
+    prescreeningInsights: { strengths: ["Clear communicator"], weaknesses: [] },
+    questionFeedback: [
+      {
+        question: "How do you handle a failed production deploy?",
+        whatTheyAnswered: "Freeze deploys, isolate the canary, run a blameless review.",
+        whatItDemonstrates: "Structured incident judgment under pressure.",
+        experienceLink: "CV lists on-call ownership of a payments rollback playbook.",
+      },
+    ],
+    missingRequirements: ["No direct leadership experience mentioned"],
+    conflictingRequirements: ["Claims 5 years experience but CV timeline shows 3"],
+    keyEvidence: ["CV: 'Led migration of payments service to Kubernetes, 2021-2023'"],
+    hiringRationale: "Strong technical fit with one experience-timeline discrepancy to probe.",
+    ...overrides,
+  };
+}
+
+export async function createAiRecommendation(
+  application: Application,
+  overrides: Partial<AiRecommendation> = {}
+): Promise<AiRecommendation> {
+  const repo = testDataSource.getRepository(AiRecommendation);
+  const rec = repo.create({
+    applicationId: application.id,
+    verdict: MatchVerdict.High,
+    reasoning: "Strong CV match and consistent scores across the pipeline.",
+    recommendation: null,
+    strengths: ["Great CV match"],
+    weaknesses: null,
+    risks: null,
+    analysis: buildMatchAnalysis(),
+    ...overrides,
+  });
+  return repo.save(rec);
 }
 
 export async function createPlan(overrides: Partial<Plan> = {}): Promise<Plan> {

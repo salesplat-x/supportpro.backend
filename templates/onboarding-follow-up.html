@@ -1,5 +1,7 @@
-{{#each paragraphs}}
+{{#each paragraphs}} {{#if @first}}
+<p class="lead">{{this}}</p>
+{{else}}
 <p>{{this}}</p>
-{{/each}}
+{{/if}} {{/each}}
 <p><a class="button" href="{{ctaUrl}}">{{ctaLabel}}</a></p>
 <p class="signoff muted">The Auxhr team</p>

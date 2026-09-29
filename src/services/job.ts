@@ -22,6 +22,7 @@ import {
   ScreeningStage,
   CompensationPeriod,
   ExperienceLevel,
+  MatchVerdict,
   MatchVerdictStatus,
   DEFAULT_BILLING_PLAN_KEY,
 } from "../types/enums.js";
@@ -996,10 +997,14 @@ export interface JobApplicationsParams {
   applicationStatus?: ApplicationStatus;
   minCvSimilarityScore?: string | number;
   minPersonalizedScore?: string | number;
+  minMatchScore?: string | number;
+  matchVerdict?: MatchVerdict;
   experience?: string;
   maxSalary?: string | number;
   offset?: number | string;
   limit?: number | string;
+  /** Defaults to "aiMatch" — best AI match first, matching what the applicant table shows. */
+  sort?: "aiMatch" | "dateApplied" | "cvSimilarity";
 }
 
 export interface JobApplicationsResult {
@@ -1047,6 +1052,18 @@ export const jobApplications = async (
     });
   }
 
+  if (payload.minMatchScore) {
+    qb.andWhere("application.overallFitScore >= :minMatchScore", {
+      minMatchScore: Number(payload.minMatchScore),
+    });
+  }
+
+  if (payload.matchVerdict) {
+    qb.andWhere("application.matchVerdict = :matchVerdict", {
+      matchVerdict: payload.matchVerdict,
+    });
+  }
+
   if (payload.experience) {
     qb.andWhere("talent.experience = :experience", { experience: payload.experience });
   }
@@ -1058,13 +1075,38 @@ export const jobApplications = async (
   const offset = Number(payload.offset) || 0;
   const limit = Math.min(Number(payload.limit) || 50, MAX_PAGE_SIZE);
 
-  const applications = await qb
-    .orderBy("application.cvSimilarityScore", "DESC")
-    .addOrderBy("application.personalizedScore", "DESC")
-    .addOrderBy("application.createdAt", "DESC")
-    .skip(offset)
-    .take(limit)
-    .getMany();
+  // "aiMatch" (the default) mirrors the applicant table's own default sort —
+  // best verdict first, then fit score, then most recent. Still-screening
+  // applications (no verdict yet) sort last, below a completed-but-failed one.
+  if (payload.sort === "cvSimilarity") {
+    qb.orderBy("application.cvSimilarityScore", "DESC").addOrderBy(
+      "application.personalizedScore",
+      "DESC"
+    );
+  } else if (payload.sort === "dateApplied") {
+    qb.orderBy("application.createdAt", "DESC");
+  } else {
+    // A raw multi-line CASE string passed straight to .orderBy() trips
+    // TypeORM's alias-resolution parser (it mistakes the quoted "application"
+    // inside the expression for an unjoined alias reference and throws).
+    // Selecting it as an aliased computed column and ordering by that plain
+    // alias sidesteps the parser entirely.
+    qb.addSelect(
+      `CASE
+        WHEN "application"."currentStage" != 'completed' THEN 4
+        WHEN "application"."matchVerdict" = 'high' THEN 0
+        WHEN "application"."matchVerdict" = 'medium' THEN 1
+        WHEN "application"."matchVerdict" = 'low' THEN 2
+        ELSE 3
+      END`,
+      "verdict_rank"
+    )
+      .orderBy("verdict_rank", "ASC")
+      .addOrderBy("application.overallFitScore", "DESC", "NULLS LAST");
+  }
+  qb.addOrderBy("application.createdAt", "DESC");
+
+  const applications = await qb.skip(offset).take(limit).getMany();
 
   const recommendations = await loadRecommendationsByApplicationIds(applications.map((a) => a.id));
   return {
@@ -1088,7 +1130,8 @@ export interface RetryVerdictsResult {
 
 export const retryMissingVerdicts = async (
   userId: string,
-  jobId: string
+  jobId: string,
+  applicationIds?: string[]
 ): Promise<RetryVerdictsResult> => {
   const job = await jobRepo().findOne({ where: { id: jobId } });
   if (!job) {
@@ -1096,11 +1139,24 @@ export const retryMissingVerdicts = async (
   }
   await assertRecruiterJobAccess(userId, UserRole.Recruiter, job);
 
+  // An explicit empty list means "retry nothing" — distinct from omitting
+  // applicationIds entirely, which means "sweep every missing/failed verdict
+  // on this job." Don't let `[]` silently fall through to a full sweep.
+  if (applicationIds && applicationIds.length === 0) {
+    return { attempted: 0, succeeded: 0, failed: 0 };
+  }
+
+  // Recommendations are generated once and never overwritten (see
+  // persistRecommendation), so retrying only ever does something for a
+  // candidate that's missing a verdict or whose generation failed — scope to
+  // those even when applicationIds narrows to a single "Regenerate" click.
+  const idScope = applicationIds ? { id: In(applicationIds) } : {};
   const applications = await applicationRepo().find({
     where: [
-      { jobId, currentStage: ScreeningStage.Completed, matchVerdict: IsNull() },
+      { jobId, ...idScope, currentStage: ScreeningStage.Completed, matchVerdict: IsNull() },
       {
         jobId,
+        ...idScope,
         currentStage: ScreeningStage.Completed,
         matchVerdictStatus: MatchVerdictStatus.Failed,
       },
