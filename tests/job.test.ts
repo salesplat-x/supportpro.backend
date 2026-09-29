@@ -949,13 +949,17 @@ describe("GET /v1/jobs/applications/:jobId — default sort is best AI match fir
       matchVerdict: MatchVerdict.High,
       overallFitScore: 99,
     });
-    await testDataSource
-      .getRepository(Application)
-      .update(older.id, { createdAt: new Date(Date.now() - 60_000) });
     const newer = await createApplication((await createTalent()).user, job, {
       matchVerdict: MatchVerdict.Low,
       overallFitScore: 10,
     });
+    // Set both explicitly via the same code path (a raw .update(), which
+    // round-trips through UTC correctly) rather than comparing one explicit
+    // timestamp against the other's auto-populated @CreateDateColumn default
+    // — the latter is skewed by the local system timezone in this environment.
+    const applicationRepo = testDataSource.getRepository(Application);
+    await applicationRepo.update(older.id, { createdAt: new Date(Date.now() - 60_000) });
+    await applicationRepo.update(newer.id, { createdAt: new Date() });
 
     const res = await request(app)
       .get(`/v1/jobs/applications/${job.id}?sort=dateApplied`)

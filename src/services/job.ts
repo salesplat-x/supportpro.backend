@@ -1086,7 +1086,12 @@ export const jobApplications = async (
   } else if (payload.sort === "dateApplied") {
     qb.orderBy("application.createdAt", "DESC");
   } else {
-    qb.orderBy(
+    // A raw multi-line CASE string passed straight to .orderBy() trips
+    // TypeORM's alias-resolution parser (it mistakes the quoted "application"
+    // inside the expression for an unjoined alias reference and throws).
+    // Selecting it as an aliased computed column and ordering by that plain
+    // alias sidesteps the parser entirely.
+    qb.addSelect(
       `CASE
         WHEN "application"."currentStage" != 'completed' THEN 4
         WHEN "application"."matchVerdict" = 'high' THEN 0
@@ -1094,8 +1099,10 @@ export const jobApplications = async (
         WHEN "application"."matchVerdict" = 'low' THEN 2
         ELSE 3
       END`,
-      "ASC"
-    ).addOrderBy("application.overallFitScore", "DESC", "NULLS LAST");
+      "verdict_rank"
+    )
+      .orderBy("verdict_rank", "ASC")
+      .addOrderBy("application.overallFitScore", "DESC", "NULLS LAST");
   }
   qb.addOrderBy("application.createdAt", "DESC");
 
