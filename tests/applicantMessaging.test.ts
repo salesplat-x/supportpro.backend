@@ -46,9 +46,11 @@ afterAll(async () => {
 
 afterEach(async () => {
   await clearAllTables();
-  mockDraft.mockReset().mockResolvedValue(
-    aiReply({ subject: "You're shortlisted!", body: "Hi there,\n\nGreat news." })
-  );
+  mockDraft
+    .mockReset()
+    .mockResolvedValue(
+      aiReply({ subject: "You're shortlisted!", body: "Hi there,\n\nGreat news." })
+    );
 });
 
 const draftPath = (jobId: string) => `/v1/jobs/${jobId}/applicants/messages/draft`;
@@ -82,10 +84,20 @@ describe("POST /v1/jobs/:jobId/applicants/messages/draft — happy paths", () =>
       ])
     );
     expect(byApp[appA.id]).toEqual(
-      expect.objectContaining({ talentId: talentA.id, talentName: "Ada User", subject: "For Ada", body: "Hi Ada, congrats!" })
+      expect.objectContaining({
+        talentId: talentA.id,
+        talentName: "Ada User",
+        subject: "For Ada",
+        body: "Hi Ada, congrats!",
+      })
     );
     expect(byApp[appB.id]).toEqual(
-      expect.objectContaining({ talentId: talentB.id, talentName: "Bola User", subject: "For Bola", body: "Hi Bola, congrats!" })
+      expect.objectContaining({
+        talentId: talentB.id,
+        talentName: "Bola User",
+        subject: "For Bola",
+        body: "Hi Bola, congrats!",
+      })
     );
   });
 
@@ -108,7 +120,10 @@ describe("POST /v1/jobs/:jobId/applicants/messages/draft — happy paths", () =>
       }),
     });
 
-    await draftAs(token, job.id, { applicationIds: [application.id], intent: "Invite to interview" });
+    await draftAs(token, job.id, {
+      applicationIds: [application.id],
+      intent: "Invite to interview",
+    });
 
     expect(mockDraft).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -207,12 +222,12 @@ describe("POST /v1/jobs/:jobId/applicants/messages/draft — partial failures do
 
     expect(res.status).toBe(200);
     const drafts = res.body.data.drafts;
-    const byApp = Object.fromEntries(drafts.map((d: { applicationId: string }) => [d.applicationId, d]));
+    const byApp = Object.fromEntries(
+      drafts.map((d: { applicationId: string }) => [d.applicationId, d])
+    );
     expect(byApp[appA.id].error).toMatch(/couldn't draft a message/i);
     expect(byApp[appA.id].subject).toBeUndefined();
-    expect(byApp[appB.id]).toEqual(
-      expect.objectContaining({ subject: "For B", body: "Hi B" })
-    );
+    expect(byApp[appB.id]).toEqual(expect.objectContaining({ subject: "For B", body: "Hi B" }));
   });
 
   it("returns a per-candidate error when the AI returns unparsable JSON for one candidate", async () => {
@@ -315,12 +330,15 @@ describe("POST /v1/jobs/:jobId/applicants/messages/draft — validation and acce
     const { token: otherRecruiterToken } = await createRecruiter();
 
     expect(
-      (await request(app).post(draftPath(job.id)).send({ applicationIds: [application.id] }))
-        .status
+      (
+        await request(app)
+          .post(draftPath(job.id))
+          .send({ applicationIds: [application.id] })
+      ).status
     ).toBe(401);
-    expect(
-      (await draftAs(talentToken, job.id, { applicationIds: [application.id] })).status
-    ).toBe(403);
+    expect((await draftAs(talentToken, job.id, { applicationIds: [application.id] })).status).toBe(
+      403
+    );
     expect(
       (await draftAs(otherRecruiterToken, job.id, { applicationIds: [application.id] })).status
     ).toBe(403);

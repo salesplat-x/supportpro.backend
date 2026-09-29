@@ -152,7 +152,13 @@ describe("POST /v1/messages/broadcast — personalized per-candidate AI messages
       .set("Authorization", `Bearer ${token}`)
       .send({
         application: application.id,
-        messages: [{ applicationId: application.id, subject: "You're shortlisted!", content: "Hi Ada,\n\nGreat news." }],
+        messages: [
+          {
+            applicationId: application.id,
+            subject: "You're shortlisted!",
+            content: "Hi Ada,\n\nGreat news.",
+          },
+        ],
         sendEmail: true,
       });
 
@@ -211,7 +217,10 @@ describe("POST /v1/messages/broadcast — personalized per-candidate AI messages
     const res = await request(app)
       .post("/v1/messages/broadcast")
       .set("Authorization", `Bearer ${token}`)
-      .send({ application: application.id, messages: [{ applicationId: application.id, content: "" }] });
+      .send({
+        application: application.id,
+        messages: [{ applicationId: application.id, content: "" }],
+      });
 
     expect(res.status).toBe(200);
     expect(res.body.data.sent).toBe(0);

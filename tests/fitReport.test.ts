@@ -196,7 +196,10 @@ describe("POST /v1/jobs/:jobId/applications/report — bulk/shortlisted set", ()
     });
     await createAiRecommendation(appB, {
       verdict: MatchVerdict.Low,
-      analysis: buildMatchAnalysis({ overallFitScore: 20, whyHire: "Limited relevant experience." }),
+      analysis: buildMatchAnalysis({
+        overallFitScore: 20,
+        whyHire: "Limited relevant experience.",
+      }),
     });
 
     const res = await asPdfBuffer(

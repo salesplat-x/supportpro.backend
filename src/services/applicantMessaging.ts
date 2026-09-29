@@ -8,7 +8,10 @@ import { NotFoundError, ValidationError } from "../utils/errors";
 import { draftApplicantMessage } from "../utils/integrations/openai.js";
 import { sanitizeDraft } from "./onboardingRules.js";
 import { assertRecruiterJobAccess } from "./job.js";
-import { loadRecommendationsByApplicationIds, overlayVerdictFromRecommendation } from "./applicationStage.js";
+import {
+  loadRecommendationsByApplicationIds,
+  overlayVerdictFromRecommendation,
+} from "./applicationStage.js";
 import logger from "../utils/logger.js";
 
 const applicationRepo = () => AppDataSource.getRepository(Application);
@@ -40,7 +43,10 @@ export const draftApplicantMessages = async (
     throw new ValidationError("Draft messages for at most 50 candidates at a time");
   }
 
-  const job = await jobRepo().findOne({ where: { id: jobId }, relations: { role: true, organization: true } });
+  const job = await jobRepo().findOne({
+    where: { id: jobId },
+    relations: { role: true, organization: true },
+  });
   if (!job) {
     throw new NotFoundError("Job not found");
   }
@@ -79,7 +85,8 @@ export const draftApplicantMessages = async (
         intent,
         verdict: application.matchVerdict,
         overallFitScore: application.overallFitScore,
-        whyHire: typeof analysis?.["whyHire"] === "string" ? (analysis["whyHire"] as string) : undefined,
+        whyHire:
+          typeof analysis?.["whyHire"] === "string" ? (analysis["whyHire"] as string) : undefined,
         strongestQualifications: Array.isArray(analysis?.["strongestQualifications"])
           ? (analysis["strongestQualifications"] as string[])
           : (application.matchStrengths ?? undefined),

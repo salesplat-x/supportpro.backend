@@ -82,7 +82,8 @@ function drawCandidate(
   candidate: FitReportCandidate,
   contentWidth: number
 ): void {
-  const accent = (candidate.verdict ? VERDICT_COLORS[candidate.verdict] : undefined) ?? FALLBACK_COLOR;
+  const accent =
+    (candidate.verdict ? VERDICT_COLORS[candidate.verdict] : undefined) ?? FALLBACK_COLOR;
 
   doc.fillColor(INK).font("Helvetica-Bold").fontSize(20).text(candidate.talentName, {
     width: contentWidth,
@@ -120,10 +121,15 @@ function drawCandidate(
       .fillColor(accent)
       .font("Helvetica-Bold")
       .fontSize(24)
-      .text(`${Math.round(candidate.overallFitScore)}`, PAGE_MARGIN + contentWidth - 110, boxTop + 16, {
-        width: 90,
-        align: "right",
-      });
+      .text(
+        `${Math.round(candidate.overallFitScore)}`,
+        PAGE_MARGIN + contentWidth - 110,
+        boxTop + 16,
+        {
+          width: 90,
+          align: "right",
+        }
+      );
     doc
       .fillColor(MUTED)
       .font("Helvetica")
@@ -148,8 +154,20 @@ function drawCandidate(
   }
 
   drawList(doc, "Strengths", candidate.strengths, "#1b7b44", contentWidth);
-  drawList(doc, "Gaps against requirements", candidate.missingRequirements, "#b54708", contentWidth);
-  drawList(doc, "Conflicting or inconsistent answers", candidate.conflictingRequirements, "#c4320a", contentWidth);
+  drawList(
+    doc,
+    "Gaps against requirements",
+    candidate.missingRequirements,
+    "#b54708",
+    contentWidth
+  );
+  drawList(
+    doc,
+    "Conflicting or inconsistent answers",
+    candidate.conflictingRequirements,
+    "#c4320a",
+    contentWidth
+  );
   drawList(doc, "Risks to weigh", candidate.risks, "#c4320a", contentWidth);
   drawList(doc, "Evidence cited", candidate.keyEvidence, "#3c6fd4", contentWidth);
 

@@ -200,9 +200,7 @@ export const retryVerdictsValidator = [
 
 export const draftApplicantMessagesValidator = [
   param("jobId").notEmpty().withMessage("Job ID is required"),
-  body("applicationIds")
-    .isArray({ min: 1 })
-    .withMessage("Select at least one candidate"),
+  body("applicationIds").isArray({ min: 1 }).withMessage("Select at least one candidate"),
   body("applicationIds.*").isUUID().withMessage("Invalid applicationId"),
   body("intent").optional().isString().isLength({ max: 500 }),
 ];

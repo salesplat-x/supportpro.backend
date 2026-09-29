@@ -26,7 +26,11 @@ import {
 } from "../utils/durableJobs.js";
 import { ValidationError } from "../utils/errors";
 import { assessApplicationMatch } from "../utils/integrations/openai.js";
-import { parseMatchAnalysis, scoreFromVerdict, type MatchAnalysis } from "../utils/matchAnalysis.js";
+import {
+  parseMatchAnalysis,
+  scoreFromVerdict,
+  type MatchAnalysis,
+} from "../utils/matchAnalysis.js";
 import { isPrescreeningScoreValid } from "./prescreening.js";
 import {
   answerTextForQuestion,

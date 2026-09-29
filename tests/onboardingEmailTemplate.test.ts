@@ -95,9 +95,7 @@ describe("EmailService.sendApplicantMessage", () => {
     expect(sent[0]!.html).toContain("We&#x27;d love to move you to the next round.");
     expect(sent[0]!.html).toContain('href="https://auxhr.com/talentDashboard/chat"');
     expect(sent[0]!.html).toContain("Jane");
-    expect(sent[0]!.text).toContain(
-      "View and reply: https://auxhr.com/talentDashboard/chat"
-    );
+    expect(sent[0]!.text).toContain("View and reply: https://auxhr.com/talentDashboard/chat");
     expect(sent[0]!.tags).toEqual([{ name: "category", value: "applicant-message" }]);
   });
 

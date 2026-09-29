@@ -6,7 +6,10 @@ import { UserRole } from "../types/enums.js";
 import { NotFoundError, ValidationError } from "../utils/errors";
 import { generateFitReportPdf, type FitReportCandidate } from "../utils/fitReportPdf.js";
 import { assertRecruiterJobAccess } from "./job.js";
-import { loadRecommendationsByApplicationIds, overlayVerdictFromRecommendation } from "./applicationStage.js";
+import {
+  loadRecommendationsByApplicationIds,
+  overlayVerdictFromRecommendation,
+} from "./applicationStage.js";
 import type { MatchAnalysis } from "../utils/matchAnalysis.js";
 
 const applicationRepo = () => AppDataSource.getRepository(Application);
@@ -55,7 +58,10 @@ const loadCandidates = async (
   jobId: string,
   applicationIds: string[]
 ): Promise<{ candidates: FitReportCandidate[]; job: Job }> => {
-  const job = await jobRepo().findOne({ where: { id: jobId }, relations: { role: true, organization: true } });
+  const job = await jobRepo().findOne({
+    where: { id: jobId },
+    relations: { role: true, organization: true },
+  });
   if (!job) {
     throw new NotFoundError("Job not found");
   }
@@ -109,7 +115,9 @@ export const generateBulkFitReport = async (
     throw new ValidationError("Select at least one candidate");
   }
   if (applicationIds.length > MAX_CANDIDATES_PER_REPORT) {
-    throw new ValidationError(`Reports are limited to ${MAX_CANDIDATES_PER_REPORT} candidates at a time`);
+    throw new ValidationError(
+      `Reports are limited to ${MAX_CANDIDATES_PER_REPORT} candidates at a time`
+    );
   }
   const { candidates, job } = await loadCandidates(userId, userRole, jobId, applicationIds);
   const buffer = await generateFitReportPdf(candidates);

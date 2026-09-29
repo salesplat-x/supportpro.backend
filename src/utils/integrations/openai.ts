@@ -788,7 +788,8 @@ Output a JSON object in this exact format:
     jobTitle: context.jobTitle,
     companyName: context.companyName,
     recruiterFirstName: context.recruiterFirstName,
-    intent: context.intent || "Let them know they've been shortlisted and invite them to the next step.",
+    intent:
+      context.intent || "Let them know they've been shortlisted and invite them to the next step.",
     evidence: {
       verdict: context.verdict,
       overallFitScore: context.overallFitScore,
