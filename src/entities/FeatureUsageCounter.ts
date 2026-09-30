@@ -31,7 +31,10 @@ export class FeatureUsageCounter {
   organizationId!: string;
 
   @ManyToOne("Organization", { eager: false })
-  @JoinColumn({ name: "organization_id" })
+  @JoinColumn({
+    name: "organization_id",
+    foreignKeyConstraintName: "FK_feature_usage_counters_organization",
+  })
   organization!: Organization;
 
   @Column({ type: "varchar", length: 64, name: "feature_key" })
