@@ -18,6 +18,8 @@ import { Question } from "../../src/entities/Question.js";
 import { Answer } from "../../src/entities/Answer.js";
 import { ScoutJob } from "../../src/entities/ScoutJob.js";
 import { Scout } from "../../src/entities/Scout.js";
+import { ScoutRun } from "../../src/entities/ScoutRun.js";
+import { ScoutCandidate } from "../../src/entities/ScoutCandidate.js";
 import { TalentEmbedding } from "../../src/entities/TalentEmbedding.js";
 import { ErrorLog } from "../../src/entities/ErrorLog.js";
 import { AiRecommendation } from "../../src/entities/AiRecommendation.js";
@@ -51,6 +53,8 @@ const ALL_ENTITIES = [
   Answer,
   ScoutJob,
   Scout,
+  ScoutRun,
+  ScoutCandidate,
   TalentEmbedding,
   ErrorLog,
   AiRecommendation,
@@ -92,9 +96,24 @@ export async function startTestDatabase(): Promise<void> {
   Object.assign(AppDataSource, testDataSource);
 }
 
-export async function stopTestDatabase(): Promise<void> {
-  const { drainInFlightMatchVerdicts } = await import("../../src/services/applicationStage.js");
+/**
+ * Fire-and-forget work that can outlive the test that started it — it holds row
+ * locks that make TRUNCATE fail, and it mutates rows a later test then asserts on.
+ */
+async function drainBackgroundWork(): Promise<void> {
+  const [{ drainInFlightMatchVerdicts }, { drainInFlightScoutRuns }, { drainInFlightCandidateEmbeddings }] =
+    await Promise.all([
+      import("../../src/services/applicationStage.js"),
+      import("../../src/services/scoutRun.js"),
+      import("../../src/services/scoutCandidate.js"),
+    ]);
+  await drainInFlightScoutRuns();
+  await drainInFlightCandidateEmbeddings();
   await drainInFlightMatchVerdicts();
+}
+
+export async function stopTestDatabase(): Promise<void> {
+  await drainBackgroundWork();
   if (testDataSource?.isInitialized) {
     await testDataSource.destroy();
   }
@@ -105,8 +124,7 @@ export async function stopTestDatabase(): Promise<void> {
 
 export async function clearAllTables(): Promise<void> {
   if (!testDataSource?.isInitialized) return;
-  const { drainInFlightMatchVerdicts } = await import("../../src/services/applicationStage.js");
-  await drainInFlightMatchVerdicts();
+  await drainBackgroundWork();
   const tableNames = testDataSource.entityMetadatas.map((e) => `"${e.tableName}"`).join(", ");
   // TRUNCATE ... RESTART IDENTITY CASCADE handles FK dependencies in one shot, but it needs
   // ACCESS EXCLUSIVE on every table — so background work that outlives a test (pre-screening

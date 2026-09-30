@@ -21,11 +21,18 @@ import { Question } from "../entities/Question.js";
 import { Answer } from "../entities/Answer.js";
 import { ScoutJob } from "../entities/ScoutJob.js";
 import { Scout } from "../entities/Scout.js";
+import { ScoutRun } from "../entities/ScoutRun.js";
+import { ScoutCandidate } from "../entities/ScoutCandidate.js";
 import { TalentEmbedding } from "../entities/TalentEmbedding.js";
 import { ErrorLog } from "../entities/ErrorLog.js";
 import { AiRecommendation } from "../entities/AiRecommendation.js";
+import { Feedback } from "../entities/Feedback.js";
+import { PaymentWebhookEvent } from "../entities/PaymentWebhookEvent.js";
 import { OrganizationMember } from "../entities/OrganizationMember.js";
 import { OrganizationJoinRequest } from "../entities/OrganizationJoinRequest.js";
+import { OrganizationInvite } from "../entities/OrganizationInvite.js";
+import { FeatureUsageCounter } from "../entities/FeatureUsageCounter.js";
+import { OrganizationPlanHistory } from "../entities/OrganizationPlanHistory.js";
 import { OnboardingEmail } from "../entities/OnboardingEmail.js";
 
 const ALL_ENTITIES = [
@@ -46,11 +53,18 @@ const ALL_ENTITIES = [
   Answer,
   ScoutJob,
   Scout,
+  ScoutRun,
+  ScoutCandidate,
   TalentEmbedding,
   ErrorLog,
   AiRecommendation,
+  Feedback,
+  PaymentWebhookEvent,
   OrganizationMember,
   OrganizationJoinRequest,
+  OrganizationInvite,
+  FeatureUsageCounter,
+  OrganizationPlanHistory,
   OnboardingEmail,
 ];
 

@@ -80,6 +80,20 @@ export enum GenerationStatus {
   Failed = "failed",
 }
 
+export enum ScoutRunStatus {
+  Processing = "processing",
+  Completed = "completed",
+  CompletedWithErrors = "completed_with_errors",
+  Failed = "failed",
+}
+
+export enum ScoutCvStatus {
+  Queued = "queued",
+  Processing = "processing",
+  Scored = "scored",
+  Failed = "failed",
+}
+
 export enum MatchRecommendation {
   Hire = "hire",
   InterviewFurther = "interview_further",
