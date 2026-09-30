@@ -13,6 +13,8 @@ import {
   ErrorLogLevel,
   JobStatus,
   MatchVerdict,
+  ScoutCvStatus,
+  ScoutRunStatus,
 } from "../../src/types/enums.js";
 import { User } from "../../src/entities/User.js";
 import { Role } from "../../src/entities/Role.js";
@@ -28,6 +30,8 @@ import { PreScreening } from "../../src/entities/PreScreening.js";
 import { Organization } from "../../src/entities/Organization.js";
 import { ScoutJob } from "../../src/entities/ScoutJob.js";
 import { Scout } from "../../src/entities/Scout.js";
+import { ScoutRun } from "../../src/entities/ScoutRun.js";
+import { ScoutCandidate } from "../../src/entities/ScoutCandidate.js";
 import { Notification } from "../../src/entities/Notification.js";
 import { Conversation } from "../../src/entities/Conversation.js";
 import { Message } from "../../src/entities/Message.js";
@@ -392,9 +396,45 @@ export async function createScout(
     cvName: "candidate_cv.pdf",
     cvScore: 75,
     evaluationScore: 70,
+    status: ScoutCvStatus.Scored,
     ...overrides,
   });
   return repo.save(scout);
+}
+
+export async function createScoutRun(
+  recruiter: User,
+  scoutJob: ScoutJob,
+  overrides: Partial<ScoutRun> = {}
+): Promise<ScoutRun> {
+  const repo = testDataSource.getRepository(ScoutRun);
+  const run = repo.create({
+    scoutJobId: scoutJob.id,
+    recruiterId: recruiter.id,
+    organizationId: scoutJob.organizationId,
+    idempotencyKey: `key_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+    status: ScoutRunStatus.Processing,
+    totalCvs: 1,
+    shortlistSize: scoutJob.shortlistSize ?? 5,
+    ...overrides,
+  });
+  return repo.save(run);
+}
+
+export async function createScoutCandidate(
+  overrides: Partial<ScoutCandidate> = {}
+): Promise<ScoutCandidate> {
+  const repo = testDataSource.getRepository(ScoutCandidate);
+  const candidate = repo.create({
+    emailNormalized: `candidate_${Date.now()}_${Math.random().toString(36).slice(2)}@example.com`,
+    fullName: "Sourced Candidate",
+    headline: "Account executive",
+    skills: ["negotiation", "crm"],
+    yearsExperience: 5,
+    cvText: "Experienced account executive with a track record in fintech sales.",
+    ...overrides,
+  });
+  return repo.save(candidate);
 }
 
 export async function createNotification(

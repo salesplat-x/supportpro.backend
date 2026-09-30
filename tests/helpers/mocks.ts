@@ -73,15 +73,39 @@ export const openaiMocks = {
     },
   }),
 
-  assessCVandCoverLetter: jest.fn().mockResolvedValue({
+  scoutAssessCandidate: jest.fn().mockResolvedValue({
     message: {
-      content: JSON.stringify({ cvScore: 75, coverLetterScore: 70 }),
+      content: JSON.stringify({
+        overallScore: 75,
+        skillsScore: 72,
+        experienceScore: 80,
+        locationFit: 50,
+        mustHaveSkillsMet: ["negotiation"],
+        mustHaveSkillsMissing: [],
+        recommendation:
+          "She ran enterprise deals at Paystack for three years, which is the exact motion this role needs.",
+        strengths: ["Three years of enterprise closing experience"],
+        concerns: ["No public-sector exposure"],
+        candidate: {
+          fullName: "Ada Obi",
+          email: "ada@example.com",
+          phone: "+2348012345678",
+          city: "Lagos",
+          state: "Lagos",
+          country: "Nigeria",
+          headline: "Enterprise account executive",
+          yearsExperience: 6,
+          skills: ["negotiation", "crm"],
+        },
+      }),
     },
   }),
 
-  assessCV: jest.fn().mockResolvedValue({
+  scoutShortlistSummary: jest.fn().mockResolvedValue({
     message: {
-      content: JSON.stringify({ cvScore: 75 }),
+      content: JSON.stringify({
+        summary: "The top three all come from fintech sales backgrounds.",
+      }),
     },
   }),
 

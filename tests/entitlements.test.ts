@@ -131,6 +131,9 @@ describe("plan inheritance", () => {
     expect(usage.meters.map((meter) => meter.key)).toEqual([
       "job_listings",
       "candidate_views",
+      "scout_cv_scans",
+      "talent_searches",
+      "direct_outreach",
       "team_members",
     ]);
   });
