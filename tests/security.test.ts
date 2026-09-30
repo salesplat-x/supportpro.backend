@@ -426,12 +426,7 @@ describe("Public job endpoints expose only public relation fields", () => {
 
   const assertScrubbed = (payload: Record<string, any>) => {
     expect(payload.organization).toBeTruthy();
-    expect(Object.keys(payload.organization).sort()).toEqual([
-      "id",
-      "logoUrl",
-      "name",
-      "website",
-    ]);
+    expect(Object.keys(payload.organization).sort()).toEqual(["id", "logoUrl", "name", "website"]);
     for (const key of FORBIDDEN_ORGANIZATION_KEYS) {
       expect(payload.organization).not.toHaveProperty(key);
     }

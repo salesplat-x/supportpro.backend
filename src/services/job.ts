@@ -84,9 +84,7 @@ export type PublicJobAiConfig = {
   id: string;
 };
 
-const toPublicOrganization = (
-  organization?: Organization | null
-): PublicJobOrganization | null => {
+const toPublicOrganization = (organization?: Organization | null): PublicJobOrganization | null => {
   if (!organization) return null;
   return {
     id: organization.id,

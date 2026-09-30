@@ -1,6 +1,11 @@
 import { randomUUID } from "crypto";
 import path from "path";
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+} from "@aws-sdk/client-s3";
 import env from "../../config/env.js";
 import logger from "../logger.js";
 
@@ -51,13 +56,45 @@ export const uploadToSpaces = async (
   return publicUrlFor(key);
 };
 
+/**
+ * Uploads without a public-read ACL, so the object can only be reached with our
+ * credentials. Used for scouted CVs: those belong to people who never signed up
+ * here, so their CV must not be readable by anyone who guesses the URL. Serve them
+ * through an authenticated route via `getFromSpaces`.
+ */
+export const uploadPrivateToSpaces = async (
+  buffer: Buffer,
+  key: string,
+  contentType: string
+): Promise<void> => {
+  assertSpacesConfigured();
+  await client.send(
+    new PutObjectCommand({
+      Bucket: env.doSpacesBucket,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType,
+      ACL: "private",
+    })
+  );
+};
+
+export const getFromSpaces = async (key: string): Promise<Buffer> => {
+  assertSpacesConfigured();
+  const result = await client.send(new GetObjectCommand({ Bucket: env.doSpacesBucket, Key: key }));
+  if (!result.Body) {
+    throw new Error(`Spaces object ${key} has no body`);
+  }
+  return Buffer.from(await result.Body.transformToByteArray());
+};
+
 export const deleteFromSpaces = async (key: string): Promise<void> => {
   assertSpacesConfigured();
   await client.send(new DeleteObjectCommand({ Bucket: env.doSpacesBucket, Key: key }));
 };
 
 export const spacesKeyFor = (
-  prefix: "avatars" | "cvs" | "logos",
+  prefix: "avatars" | "cvs" | "logos" | "scout-cvs",
   ownerId: string,
   originalname: string
 ): string => {

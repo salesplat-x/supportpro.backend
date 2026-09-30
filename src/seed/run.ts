@@ -932,7 +932,6 @@ export async function runSeed(ds: DataSource, options: SeedCliOptions): Promise<
           jobBrief: `Scout pipeline for ${role.name} at ${org.name}.`,
           name: `${org.name} ${role.name} Scout ${s + 1}`,
           recruiterGuide: "Prioritize relevant experience, clarity, and communication.",
-          jobEmbedding: STUB_EMBEDDING,
         })
       );
     }

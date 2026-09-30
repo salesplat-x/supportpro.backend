@@ -187,6 +187,38 @@ export const assertWithinLimit = async (
   );
 };
 
+/**
+ * Throws PlanLimitError unless the organization has room for `amount` more units of
+ * a monthly metered feature this period.
+ *
+ * `assertWithinLimit` only asks whether the limit is already reached, which is right
+ * for one-at-a-time actions but would let a 50-CV upload sail past a quota with 5
+ * left and then record all 50. Anything that consumes a batch in one go should use
+ * this instead.
+ */
+export const assertMonthlyHeadroom = async (
+  organization: Organization,
+  featureKey: string,
+  amount: number
+): Promise<void> => {
+  const org = await ensureOrganizationBillingCurrent(organization);
+  const feature = getPlanFeature(org, featureKey);
+  if (!feature || feature.kind !== "metered" || feature.period !== "monthly") return;
+  if (feature.limit == null) return;
+
+  const used = await readCounter(org.id, featureKey);
+  if (used + amount <= feature.limit) return;
+
+  const remaining = Math.max(0, feature.limit - used);
+  throw new PlanLimitError(
+    `Your company has ${remaining} of ${feature.limit} ${
+      feature.label ?? featureKey
+    } left this month, so this request for ${amount} won't fit. Ask your organization owner to upgrade.`,
+    featureKey,
+    org.billingPlan
+  );
+};
+
 /** Increments the current-month usage counter. No-op for 'concurrent' features. */
 export const recordUsage = async (
   organization: Organization,

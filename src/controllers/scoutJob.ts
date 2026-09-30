@@ -35,6 +35,10 @@ export const list = async (req: Request, res: Response) => {
     userId: req.user.id,
     limit: req.query["limit"] as string | undefined,
     offset: req.query["offset"] as string | undefined,
+    search: req.query["search"] as string | undefined,
   });
-  sendSuccessResponse(res, "Scout jobs fetched", { scoutJobs: result });
+  sendSuccessResponse(res, "Scout jobs fetched", {
+    scoutJobs: result.scoutJobs,
+    total: result.total,
+  });
 };

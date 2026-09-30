@@ -2,6 +2,8 @@ import logger from "../utils/logger.js";
 import { reconcileDueCvEmbeddings } from "./user.js";
 import { reconcileDueMatchVerdicts } from "./applicationStage.js";
 import { reconcileDuePreScreeningGenerations } from "./prescreening.js";
+import { reconcileDueScoutCvs } from "./scoutRun.js";
+import { reconcileDueCandidateEmbeddings } from "./scoutCandidate.js";
 
 /**
  * CV embedding generation runs fire-and-forget after a profile update responds
@@ -35,6 +37,24 @@ export const reconcileDurableJobs = async (): Promise<void> => {
       `Pre-screening reconciliation sweep failed: ${
         err instanceof Error ? err.message : String(err)
       }`
+    );
+  }
+
+  // Picks up CVs abandoned by a restart mid-run and closes out runs whose last CV
+  // settled without the run being finalized.
+  try {
+    await reconcileDueScoutCvs();
+  } catch (err) {
+    logger.error(
+      `Scout CV reconciliation sweep failed: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+
+  try {
+    await reconcileDueCandidateEmbeddings();
+  } catch (err) {
+    logger.error(
+      `Scout candidate embedding sweep failed: ${err instanceof Error ? err.message : String(err)}`
     );
   }
 };

@@ -267,78 +267,165 @@ export const evaluatePersonalityType = async (
   return completion.choices[0];
 };
 
-export const assessCVandCoverLetter = async (
-  input: string
+export interface ScoutAssessmentContext {
+  cv: string;
+  jobBrief: string;
+  recruiterGuide: string;
+  roleName: string;
+  experienceLevel?: string | null;
+  mustHaveSkills?: string[] | null;
+  niceToHaveSkills?: string[] | null;
+  workMode?: string | null;
+  location?: string | null;
+  coverLetter?: string | null;
+}
+
+/**
+ * Strict JSON schema for a scout assessment. Structured outputs (rather than the
+ * looser `json_object` mode used elsewhere in this file) mean the model cannot
+ * return a shape we don't expect, which is what makes a run's scoring reliable
+ * enough to retry only on genuine failures.
+ *
+ * `required` must list every property and every object needs
+ * `additionalProperties: false` — OpenAI rejects a strict schema otherwise.
+ */
+const SCOUT_ASSESSMENT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "overallScore",
+    "skillsScore",
+    "experienceScore",
+    "locationFit",
+    "mustHaveSkillsMet",
+    "mustHaveSkillsMissing",
+    "recommendation",
+    "strengths",
+    "concerns",
+    "candidate",
+  ],
+  properties: {
+    overallScore: { type: "number", description: "0-100 overall fit against this campaign" },
+    skillsScore: { type: "number", description: "0-100 skills match" },
+    experienceScore: { type: "number", description: "0-100 experience match" },
+    locationFit: { type: "number", description: "0-100 how well location and work setup fit" },
+    mustHaveSkillsMet: { type: "array", items: { type: "string" } },
+    mustHaveSkillsMissing: { type: "array", items: { type: "string" } },
+    recommendation: {
+      type: "string",
+      description: "Plain-English reason for this verdict, 2-4 short sentences",
+    },
+    strengths: { type: "array", items: { type: "string" } },
+    concerns: { type: "array", items: { type: "string" } },
+    candidate: {
+      type: "object",
+      additionalProperties: false,
+      required: [
+        "fullName",
+        "email",
+        "phone",
+        "city",
+        "state",
+        "country",
+        "headline",
+        "yearsExperience",
+        "skills",
+      ],
+      properties: {
+        fullName: { type: ["string", "null"] },
+        email: { type: ["string", "null"] },
+        phone: { type: ["string", "null"] },
+        city: { type: ["string", "null"] },
+        state: { type: ["string", "null"] },
+        country: { type: ["string", "null"] },
+        headline: {
+          type: ["string", "null"],
+          description: "One short line, e.g. 'Enterprise account executive, fintech'",
+        },
+        yearsExperience: { type: ["number", "null"] },
+        skills: { type: "array", items: { type: "string" } },
+      },
+    },
+  },
+} as const;
+
+export const scoutAssessCandidate = async (
+  context: ScoutAssessmentContext
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
-  const prompt = `
-  You are an automated CV evaluation system.
+  const prompt = `You assess one candidate's CV against a recruiter's scouting campaign.
 
-  Input: You will receive a JSON object with the following four fields:
+The recruiter's own instructions are the highest authority. Follow them even when they
+conflict with your general judgement about what makes a good candidate.
 
-  1. cv: A string containing the CV of the job applicant.
-  2. coverLetter: A string containing the cover letter of the job applicant.
-  3. jobDescription: A string containing the job description for the position.
-  4. recruiterGuide: A string with instructions on how to assess the CV and cover letter against the job description to generate a percentage match.
+How to weigh the campaign:
+- Must-have skills are near-disqualifying. A candidate missing one cannot score above 45
+  overall, however strong they otherwise look. List exactly which ones are met and missing.
+- Nice-to-have skills break ties between candidates who otherwise look alike. They never
+  rescue a missing must-have.
+- Judge experience against the seniority the role expects. Far below it is a real concern;
+  far above it is worth flagging as a possible flight risk, not silently rewarded.
+- If a location or work setup is given, judge whether this person can realistically work
+  the role. If the CV says nothing about location, score locationFit 50 and say so rather
+  than guessing.
 
-  For each of the CV and the cover letter, also provide brief explanatory insights (2-4 sentences) covering: the candidate's key strengths relative to the job description, any notable gaps or concerns, and the main reasoning behind the score.
+Writing the recommendation — this is read by a busy hiring manager with no technical
+background, so:
+- 2 to 4 short sentences. No bullet points, no headings, no markdown.
+- Everyday words. No jargon, no buzzwords, no "leverage", "synergy" or "utilise".
+- Always name the specific evidence from the CV that led to your view, not a generic verdict.
+  Say "She ran a 12-person support team at Paystack for three years" rather than
+  "strong leadership experience".
+- Be honest about weaknesses. A recommendation that only praises is useless.
 
-  Also extract the candidate's contact details from the CV text if present: full name, email address, phone number, and mailing/location address. Use null for any field not found — do not guess or fabricate values.
+Extract the candidate's details from the CV. Use null for anything not present — never
+guess, never invent an email or phone number. Scores are numbers between 0 and 100.`;
 
-  Output: You should produce a JSON object with the following structure:
-
-  {
-    "cvScore": <cvPercentage>,
-    "cvInsights": "<explanatory insights for the CV score>",
-    "coverLetterScore": <coverLetterPercentage>,
-    "coverLetterInsights": "<explanatory insights for the cover letter score>",
-    "candidateName": "<candidate's full name as it appears on the CV, or null>",
-    "candidateEmail": "<candidate's email address, or null>",
-    "candidatePhone": "<candidate's phone number, or null>",
-    "candidateAddress": "<candidate's mailing/location address, or null>"
-  }`;
   const completion = await runCompletion({
     messages: [
       { role: "system", content: prompt },
-      { role: "user", content: input },
+      { role: "user", content: JSON.stringify(context) },
     ],
     model: "gpt-4o",
-    response_format: { type: "json_object" },
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "scout_assessment",
+        strict: true,
+        schema: SCOUT_ASSESSMENT_SCHEMA,
+      },
+    },
   });
   return completion.choices[0];
 };
 
-export const assessCV = async (
-  input: string
+export interface ScoutShortlistSummaryContext {
+  roleName: string;
+  jobBrief: string;
+  candidates: Array<{ rank: number; name: string; score: number; recommendation: string }>;
+}
+
+/**
+ * One comparative paragraph over the (at most 10) shortlisted candidates. Cheap
+ * enough for gpt-4o-mini and runs once per run, not once per CV.
+ */
+export const scoutShortlistSummary = async (
+  context: ScoutShortlistSummaryContext
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
-  const prompt = `
-  You are an automated CV evaluation system.
+  const prompt = `You summarise a finished shortlist for the recruiter who ran it.
 
-  Input: You will receive a JSON object with the following three fields:
+Write one short paragraph, 3 to 5 sentences, in plain everyday English. Say who came out
+on top and why, note anything the whole shortlist has in common, and flag any gap the
+recruiter should be aware of before interviewing. No bullet points, no markdown, no
+restating each candidate one by one.
 
-  1. cv: A string containing the CV of the job applicant.
-  2. jobDescription: A string containing the job description for the position.
-  3. recruiterGuide: A string with instructions on how to assess the CV against the job description to generate a percentage match.
+Return JSON: { "summary": "<your paragraph>" }`;
 
-  Also provide brief explanatory insights (2-4 sentences) covering: the candidate's key strengths relative to the job description, any notable gaps or concerns, and the main reasoning behind the score.
-
-  Also extract the candidate's contact details from the CV text if present: full name, email address, phone number, and mailing/location address. Use null for any field not found — do not guess or fabricate values.
-
-  Output: You should produce a JSON object with the following structure:
-
-  {
-    "cvScore": <cvPercentage>,
-    "insights": "<explanatory insights for the score>",
-    "candidateName": "<candidate's full name as it appears on the CV, or null>",
-    "candidateEmail": "<candidate's email address, or null>",
-    "candidatePhone": "<candidate's phone number, or null>",
-    "candidateAddress": "<candidate's mailing/location address, or null>"
-  }`;
   const completion = await runCompletion({
     messages: [
       { role: "system", content: prompt },
-      { role: "user", content: input },
+      { role: "user", content: JSON.stringify(context) },
     ],
-    model: "gpt-4o",
+    model: "gpt-4o-mini",
     response_format: { type: "json_object" },
   });
   return completion.choices[0];
@@ -350,9 +437,8 @@ export interface TalentFitContext {
 }
 
 // Lightweight evidence pass for sourcing lists (top-N cosine-similarity
-// matches) — deliberately separate from assessCV/assessCVandCoverLetter,
-// which back the CV-upload scoring flow's own "insights" prose and must not
-// change shape.
+// matches) — deliberately separate from scoutAssessCandidate, which does the
+// full scored assessment behind a scouting run and is far more expensive.
 export const assessTalentFit = async (
   context: TalentFitContext
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
