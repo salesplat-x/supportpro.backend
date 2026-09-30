@@ -16,7 +16,12 @@ import { createNotification } from "./notification.js";
 import logger from "../utils/logger.js";
 import { assertCompanyResourceAccess, getActiveOrganizationId } from "./organizationScope.js";
 import { Organization } from "../entities/Organization.js";
-import { ensureOrganizationBillingCurrent, hasFlag } from "./entitlements.js";
+import {
+  assertWithinLimit,
+  ensureOrganizationBillingCurrent,
+  hasFlag,
+  recordUsage,
+} from "./entitlements.js";
 import EmailService from "../utils/integrations/email/emailService.js";
 import env from "../config/env.js";
 
@@ -45,46 +50,45 @@ const createConversation = async (userA: User, userB: User): Promise<Conversatio
   return conversationRepo().save(conv);
 };
 
-// A brand-new conversation may only be started between a recruiter and a talent
-// they have shortlisted — messaging is for continuing the hiring process, not
-// open DMs between any two users. Once a conversation exists, replies are free
-// (a subsequent status change shouldn't retroactively lock out an ongoing thread).
-// Admins are exempt for support purposes.
-const canStartConversation = async (userA: User, userB: User): Promise<boolean> => {
+/**
+ * A brand-new conversation is always recruiter → talent (talents may only reply, see
+ * `sendMessage`). Admins are exempt for support purposes.
+ *
+ * A recruiter used to need a shortlisted application first, which made Talent Search
+ * results a dead end — you could find the right person and not reach them. First
+ * contact is now allowed outright and the protection moved to metering: the
+ * `direct_outreach` plan limit is what stops this becoming a bulk-spam channel. Only
+ * the message that opens a thread is metered; replies in an existing thread are free.
+ */
+const canStartConversation = (userA: User, userB: User): boolean => {
   const exemptRoles = new Set([UserRole.Admin]);
   if (exemptRoles.has(userA.userRole) || exemptRoles.has(userB.userRole)) {
     return true;
   }
-
-  let recruiterId: string;
-  let talentId: string;
-  if (userA.userRole === UserRole.Recruiter && userB.userRole === UserRole.Talent) {
-    recruiterId = userA.id;
-    talentId = userB.id;
-  } else if (userA.userRole === UserRole.Talent && userB.userRole === UserRole.Recruiter) {
-    recruiterId = userB.id;
-    talentId = userA.id;
-  } else {
-    return false;
-  }
-
-  const countQb = applicationRepo()
-    .createQueryBuilder("application")
-    .leftJoin("application.job", "job")
-    .where("application.recruiter_id = :recruiterId", { recruiterId })
-    .andWhere("application.talent_id = :talentId", { talentId })
-    .andWhere("application.status = :status", { status: ApplicationStatus.Shortlisted });
-
-  const recruiter = userA.userRole === UserRole.Recruiter ? userA : userB;
-  if (recruiter.activeOrganizationId) {
-    countQb.andWhere("job.organization_id = :activeOrgId", {
-      activeOrgId: recruiter.activeOrganizationId,
-    });
-  }
-
-  const count = await countQb.getCount();
-  return count > 0;
+  return (
+    (userA.userRole === UserRole.Recruiter && userB.userRole === UserRole.Talent) ||
+    (userA.userRole === UserRole.Talent && userB.userRole === UserRole.Recruiter)
+  );
 };
+
+/**
+ * Charges one unit of `direct_outreach` for opening a thread. Throws PlanLimitError
+ * (402) when the recruiter's company is out of allowance.
+ */
+const meterFirstContact = async (sender: User): Promise<void> => {
+  if (sender.userRole !== UserRole.Recruiter) return;
+  if (!sender.activeOrganizationId) return;
+
+  const organization = await AppDataSource.getRepository(Organization).findOne({
+    where: { id: sender.activeOrganizationId },
+  });
+  if (!organization) return;
+
+  await assertWithinLimit(organization, DIRECT_OUTREACH_FEATURE);
+  await recordUsage(organization, DIRECT_OUTREACH_FEATURE);
+};
+
+const DIRECT_OUTREACH_FEATURE = "direct_outreach";
 
 export interface MessageInput {
   application?: string | null;
@@ -144,11 +148,10 @@ export const sendMessage = async (senderId: string, payload: MessageInput): Prom
     if (sender.userRole === UserRole.Talent) {
       throw new AuthorizationError("You can only reply to an existing conversation");
     }
-    if (!(await canStartConversation(sender, receiver))) {
-      throw new AuthorizationError(
-        "You can only message a recruiter/talent you have a shortlisted application with"
-      );
+    if (!canStartConversation(sender, receiver)) {
+      throw new AuthorizationError("You can only start a conversation with a talent");
     }
+    await meterFirstContact(sender);
     conversation = await createConversation(sender, receiver);
   }
 
