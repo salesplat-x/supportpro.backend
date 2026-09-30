@@ -18,6 +18,8 @@ import { Question } from "../entities/Question.js";
 import { Answer } from "../entities/Answer.js";
 import { ScoutJob } from "../entities/ScoutJob.js";
 import { Scout } from "../entities/Scout.js";
+import { ScoutRun } from "../entities/ScoutRun.js";
+import { ScoutCandidate } from "../entities/ScoutCandidate.js";
 import { TalentEmbedding } from "../entities/TalentEmbedding.js";
 import { ErrorLog } from "../entities/ErrorLog.js";
 import { AiRecommendation } from "../entities/AiRecommendation.js";
@@ -55,6 +57,8 @@ const databaseConfig: DataSourceOptions = {
     Answer,
     ScoutJob,
     Scout,
+    ScoutRun,
+    ScoutCandidate,
     TalentEmbedding,
     ErrorLog,
     AiRecommendation,

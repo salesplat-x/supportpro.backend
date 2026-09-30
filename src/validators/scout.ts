@@ -2,6 +2,8 @@ import { body, param, query } from "express-validator";
 import { Request, Response, NextFunction } from "express";
 import { paginationRules } from "./shared.js";
 import { ExperienceLevel, WorkMode } from "../types/enums.js";
+import { MAX_BATCH_SIZE } from "../config/scout.js";
+import { ValidationError } from "../utils/errors";
 
 const ALLOWED_DOC_MIMETYPES = [
   "application/pdf",
@@ -9,26 +11,28 @@ const ALLOWED_DOC_MIMETYPES = [
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
 
-export const MAX_BATCH_SIZE = 15;
+export { MAX_BATCH_SIZE };
 
 export const searchTalentsValidator = [
-  query("roleId").optional().isUUID().withMessage("roleId must be a valid UUID"),
-  query("experience")
-    .optional()
+  body("description")
+    .isString()
+    .trim()
+    .isLength({ min: 20, max: 2000 })
+    .withMessage("Describe who you're looking for in between 20 and 2000 characters"),
+  body("roleId").optional({ values: "null" }).isUUID().withMessage("roleId must be a valid UUID"),
+  body("experienceLevel")
+    .optional({ values: "null" })
     .isIn(Object.values(ExperienceLevel))
-    .withMessage(`experience must be one of: ${Object.values(ExperienceLevel).join(", ")}`),
-  query("workMode").optional().isIn(Object.values(WorkMode)).withMessage("Invalid workMode"),
-  query("country").optional().isString(),
-  query("state").optional().isString(),
-  query("city").optional().isString(),
-  query("jobId").optional().isUUID().withMessage("jobId must be a valid UUID"),
-  query("percentage").optional().isFloat({ min: 0, max: 100 }).toFloat(),
-  ...paginationRules,
-];
-
-export const scoutBatchIdParamValidator = [
-  param("id").isUUID().withMessage("ID must be a valid UUID"),
-  ...paginationRules,
+    .withMessage(`experienceLevel must be one of: ${Object.values(ExperienceLevel).join(", ")}`),
+  body("workMode")
+    .optional({ values: "null" })
+    .isIn(Object.values(WorkMode))
+    .withMessage(`workMode must be one of: ${Object.values(WorkMode).join(", ")}`),
+  body("country").optional({ values: "null" }).isString().trim(),
+  body("state").optional({ values: "null" }).isString().trim(),
+  body("city").optional({ values: "null" }).isString().trim(),
+  body("limit").optional().isInt({ min: 1, max: 50 }).toInt(),
+  body("offset").optional().isInt({ min: 0 }).toInt(),
 ];
 
 export const scoutJobScoutsParamValidator = [
@@ -36,8 +40,30 @@ export const scoutJobScoutsParamValidator = [
   ...paginationRules,
 ];
 
-export const scoutCvBatchValidator = [
-  body("scoutJobId").isUUID().withMessage("Scout job ID must be a valid UUID"),
+export const scoutRunIdParamValidator = [
+  param("runId").isUUID().withMessage("Run ID must be a valid UUID"),
+];
+
+export const scoutIdParamValidator = [
+  param("scoutId").isUUID().withMessage("Scout ID must be a valid UUID"),
+];
+
+export const scoutCandidateIdParamValidator = [
+  param("candidateId").isUUID().withMessage("Candidate ID must be a valid UUID"),
+];
+
+export const startScoutRunValidator = [
+  param("id").isUUID().withMessage("Scout campaign ID must be a valid UUID"),
+  body("idempotencyKey")
+    .isString()
+    .trim()
+    .isLength({ min: 8, max: 100 })
+    .withMessage("idempotencyKey is required so a retried upload can't start a second run"),
+];
+
+export const runsListQueryValidator = [
+  param("id").isUUID().withMessage("Scout campaign ID must be a valid UUID"),
+  ...paginationRules,
 ];
 
 export const addScoutToPipelineValidator = [
@@ -46,34 +72,41 @@ export const addScoutToPipelineValidator = [
   body("talentEmail").isEmail().withMessage("talentEmail must be a valid email address"),
 ];
 
-export const validateScoutCvBatchFiles = (req: Request, res: Response, next: NextFunction) => {
+export const messageCandidateValidator = [
+  param("candidateId").isUUID().withMessage("Candidate ID must be a valid UUID"),
+  body("content")
+    .isString()
+    .trim()
+    .isLength({ min: 1, max: 5000 })
+    .withMessage("A message is required"),
+];
+
+/**
+ * File-level checks multer can't express. Throws so the shared error handler shapes
+ * the response — the previous version wrote `{ status, message }` straight to `res`,
+ * which bypassed the handler and produced a different envelope from every other
+ * validation failure on the API.
+ */
+export const validateScoutCvFiles = (req: Request, _res: Response, next: NextFunction) => {
   const files = req.files as Record<string, Express.Multer.File[]> | undefined;
   const cvFiles = files?.["cv"] ?? [];
-  const coverLetterFiles = files?.["coverLetter"] ?? [];
 
   if (cvFiles.length === 0) {
-    res.status(400).json({ status: false, message: "At least one CV is required" });
-    return;
+    throw new ValidationError("Add at least one CV to start scouting");
   }
   if (cvFiles.length > MAX_BATCH_SIZE) {
-    res
-      .status(400)
-      .json({ status: false, message: `You can upload at most ${MAX_BATCH_SIZE} CVs at a time` });
-    return;
+    throw new ValidationError(`You can upload at most ${MAX_BATCH_SIZE} CVs at a time`);
   }
-  if (coverLetterFiles.length > 0 && coverLetterFiles.length !== cvFiles.length) {
-    res.status(400).json({
-      status: false,
-      message: "If attaching cover letters, provide one for every CV in the batch",
-    });
-    return;
-  }
-  const invalidFile = [...cvFiles, ...coverLetterFiles].find(
-    (f) => !ALLOWED_DOC_MIMETYPES.includes(f.mimetype)
-  );
+  const invalidFile = cvFiles.find((file) => !ALLOWED_DOC_MIMETYPES.includes(file.mimetype));
   if (invalidFile) {
-    res.status(400).json({ status: false, message: "Files must be in PDF or Word format" });
-    return;
+    throw new ValidationError(
+      `${invalidFile.originalname} isn't a PDF or Word file. Upload CVs as PDF, DOC or DOCX.`
+    );
   }
   next();
 };
+
+export const talentSearchQueryValidator = [
+  query("limit").optional().isInt({ min: 1, max: 50 }).toInt(),
+  query("offset").optional().isInt({ min: 0 }).toInt(),
+];

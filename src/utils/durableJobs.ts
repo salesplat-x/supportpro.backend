@@ -57,12 +57,25 @@ export const durableFailureUpdate = (
   };
 };
 
+/**
+ * TypeORM's `query()` returns plain rows for a SELECT but a `[rows, affectedCount]`
+ * tuple for `UPDATE … RETURNING`. Claim SQL is always the latter, and reading
+ * `.length` off the tuple yields 2 whatever happened — so an unwrapped check reports
+ * a successful claim even when the conditional UPDATE matched nothing, defeating the
+ * lock entirely. Normalise before counting.
+ */
+const resultRows = (result: unknown): unknown[] => {
+  if (!Array.isArray(result)) return [];
+  const [first] = result;
+  return Array.isArray(first) ? first : result;
+};
+
 export const claimRowById = async (sql: string, id: string): Promise<boolean> => {
-  const rows: Array<{ id: string }> = await AppDataSource.query(sql, [id]);
-  return rows.length > 0;
+  const result: unknown = await AppDataSource.query(sql, [id]);
+  return resultRows(result).length > 0;
 };
 
 export const selectDueIds = async (sql: string, params: unknown[] = []): Promise<string[]> => {
-  const rows: Array<{ id: string }> = await AppDataSource.query(sql, params);
-  return rows.map((row) => row.id);
+  const result: unknown = await AppDataSource.query(sql, params);
+  return resultRows(result).map((row) => (row as { id: string }).id);
 };

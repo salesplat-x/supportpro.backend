@@ -5,15 +5,19 @@ import { asyncHandler } from "../middleware/asyncHandler.js";
 import { validateAccess, requireVerifiedEmail } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { cvUpload } from "../middleware/multer.js";
+import { scoutRunLimiter } from "../middleware/rateLimiter.js";
 import { UserRole } from "../types/enums.js";
+import { MAX_BATCH_SIZE } from "../config/scout.js";
 import {
   searchTalentsValidator,
-  scoutBatchIdParamValidator,
-  scoutJobScoutsParamValidator,
-  scoutCvBatchValidator,
-  validateScoutCvBatchFiles,
+  scoutRunIdParamValidator,
+  scoutIdParamValidator,
+  scoutCandidateIdParamValidator,
+  startScoutRunValidator,
+  runsListQueryValidator,
+  validateScoutCvFiles,
   addScoutToPipelineValidator,
-  MAX_BATCH_SIZE,
+  messageCandidateValidator,
 } from "../validators/scout.js";
 import {
   createScoutJobValidator,
@@ -24,7 +28,9 @@ import {
 
 const router = Router();
 
-// Scout job routes
+// ---------------------------------------------------------------------------
+// Campaigns
+// ---------------------------------------------------------------------------
 router.get(
   "/jobs",
   validateAccess([UserRole.Recruiter]),
@@ -39,6 +45,26 @@ router.post(
   validate(createScoutJobValidator),
   asyncHandler(scoutJob.create)
 );
+
+// Declared before `/jobs/:_id` so the literal segments can't be captured as an id.
+router.post(
+  "/jobs/:id/runs",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  scoutRunLimiter,
+  cvUpload.fields([{ name: "cv", maxCount: MAX_BATCH_SIZE }]),
+  validate(startScoutRunValidator),
+  validateScoutCvFiles,
+  asyncHandler(scout.startRun)
+);
+router.get(
+  "/jobs/:id/runs",
+  validateAccess([UserRole.Recruiter, UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(runsListQueryValidator),
+  asyncHandler(scout.listRuns)
+);
+
 router.put(
   "/jobs/:_id",
   validateAccess([UserRole.Recruiter]),
@@ -60,49 +86,69 @@ router.delete(
   validate(scoutJobIdParamValidator),
   asyncHandler(scoutJob.remove)
 );
+
+// ---------------------------------------------------------------------------
+// Runs
+// ---------------------------------------------------------------------------
 router.get(
-  "/jobs/:id/scouts",
+  "/runs/:runId",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
   requireVerifiedEmail,
-  validate(scoutJobScoutsParamValidator),
-  asyncHandler(scout.fetchScoutReportsByJob)
+  validate(scoutRunIdParamValidator),
+  asyncHandler(scout.fetchRun)
+);
+router.get(
+  "/runs/:runId/shortlist",
+  validateAccess([UserRole.Recruiter, UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(scoutRunIdParamValidator),
+  asyncHandler(scout.fetchShortlist)
+);
+router.get(
+  "/runs/:runId/report.pdf",
+  validateAccess([UserRole.Recruiter, UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(scoutRunIdParamValidator),
+  asyncHandler(scout.downloadReport)
 );
 
-// Talent Search routes — a plain filtered directory search, not scoped to
-// any job/scout-job.
-router.get(
-  "/talents",
+// ---------------------------------------------------------------------------
+// Talent Search and the sourced-candidate pool
+// ---------------------------------------------------------------------------
+router.post(
+  "/talents/search",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
   requireVerifiedEmail,
   validate(searchTalentsValidator),
   asyncHandler(scout.searchTalents)
 );
 router.get(
-  "/batch/:id",
+  "/candidates/:candidateId/cv",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
   requireVerifiedEmail,
-  validate(scoutBatchIdParamValidator),
-  asyncHandler(scout.fetchScoutReports)
-);
-router.get(
-  "/single/:id",
-  validateAccess([UserRole.Recruiter, UserRole.Admin]),
-  requireVerifiedEmail,
-  validate(scoutBatchIdParamValidator),
-  asyncHandler(scout.fetchScoutReport)
+  validate(scoutCandidateIdParamValidator),
+  asyncHandler(scout.downloadCandidateCv)
 );
 router.post(
-  "/cv-batch",
-  validateAccess([UserRole.Recruiter, UserRole.Admin]),
+  "/candidates/:candidateId/message",
+  validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
-  cvUpload.fields([
-    { name: "cv", maxCount: MAX_BATCH_SIZE },
-    { name: "coverLetter", maxCount: MAX_BATCH_SIZE },
-  ]),
-  validate(scoutCvBatchValidator),
-  validateScoutCvBatchFiles,
-  asyncHandler(scout.scoutCvBatch)
+  validate(messageCandidateValidator),
+  asyncHandler(scout.messageCandidate)
 );
+
+// ---------------------------------------------------------------------------
+// Individual CVs
+// ---------------------------------------------------------------------------
+router.post(
+  "/cvs/:scoutId/retry",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(scoutIdParamValidator),
+  asyncHandler(scout.retryCv)
+);
+
+// Last, so it can't shadow any of the literal prefixes above.
 router.post(
   "/:scoutId/add-to-pipeline",
   validateAccess([UserRole.Recruiter]),

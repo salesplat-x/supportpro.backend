@@ -7,12 +7,16 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
+  Check,
 } from "typeorm";
 import type { Role } from "./Role.js";
 import type { User } from "./User.js";
 import type { Organization } from "./Organization.js";
+import { ExperienceLevel, WorkMode } from "../types/enums.js";
+import { DEFAULT_SHORTLIST_SIZE } from "../config/scout.js";
 
 @Entity("scout_jobs")
+@Check("CHK_scout_jobs_shortlist_size", `"shortlist_size" BETWEEN 2 AND 10`)
 export class ScoutJob {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
@@ -51,9 +55,38 @@ export class ScoutJob {
   @Column({ type: "text" })
   recruiterGuide!: string;
 
-  // pgvector embedding stored as text in pgvector format: [0.1,0.2,...]
-  @Column({ type: "text", nullable: true, default: null, name: "job_embedding", select: false })
-  jobEmbedding!: string | null;
+  /** How many best-fit candidates the AI shortlists from a run. DB-checked 2..10. */
+  @Column({ type: "int", default: DEFAULT_SHORTLIST_SIZE, name: "shortlist_size" })
+  shortlistSize!: number;
+
+  @Column({
+    type: "enum",
+    enum: ExperienceLevel,
+    nullable: true,
+    default: null,
+    name: "experience_level",
+  })
+  experienceLevel!: ExperienceLevel | null;
+
+  /** Skills a candidate cannot do the job without — near-disqualifying when missing. */
+  @Column({ type: "simple-array", nullable: true, default: null, name: "must_have_skills" })
+  mustHaveSkills!: string[] | null;
+
+  /** Bonus skills — used to break ties between otherwise similar candidates. */
+  @Column({ type: "simple-array", nullable: true, default: null, name: "nice_to_have_skills" })
+  niceToHaveSkills!: string[] | null;
+
+  @Column({ type: "enum", enum: WorkMode, nullable: true, default: null, name: "work_mode" })
+  workMode!: WorkMode | null;
+
+  @Column({ type: "varchar", nullable: true, default: null, name: "location_country" })
+  locationCountry!: string | null;
+
+  @Column({ type: "varchar", nullable: true, default: null, name: "location_state" })
+  locationState!: string | null;
+
+  @Column({ type: "varchar", nullable: true, default: null, name: "location_city" })
+  locationCity!: string | null;
 
   @CreateDateColumn()
   createdAt!: Date;

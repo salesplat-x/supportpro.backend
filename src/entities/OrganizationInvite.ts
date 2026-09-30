@@ -28,7 +28,7 @@ export class OrganizationInvite {
   organizationId!: string;
 
   @ManyToOne("Organization", { eager: false, onDelete: "CASCADE" })
-  @JoinColumn({ name: "organization_id" })
+  @JoinColumn({ name: "organization_id", foreignKeyConstraintName: "FK_org_invites_org" })
   organization!: Organization;
 
   @Column({ type: "varchar" })
@@ -41,7 +41,7 @@ export class OrganizationInvite {
   invitedById!: string;
 
   @ManyToOne("User", { eager: false, onDelete: "CASCADE" })
-  @JoinColumn({ name: "invited_by_id" })
+  @JoinColumn({ name: "invited_by_id", foreignKeyConstraintName: "FK_org_invites_invited_by" })
   invitedBy!: User;
 
   @Column({

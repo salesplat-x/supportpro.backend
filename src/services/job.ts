@@ -58,6 +58,69 @@ const roleRepo = () => AppDataSource.getRepository(Role);
 
 const MAX_PAGE_SIZE = 100;
 
+/**
+ * GET /jobs and GET /jobs/:_id are optionalAuth, so everything they return is
+ * readable by anonymous visitors on the public job page — including social
+ * crawlers. The Organization, User and AIConfig relations are loaded whole by
+ * TypeORM, which would otherwise publish company contact details and billing
+ * state, the recruiter's email and CV fields, and the job's screening
+ * thresholds and uploaded assessment questions. Only the fields the job page
+ * actually renders survive the trip out.
+ */
+export type PublicJobOrganization = {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  website: string | null;
+};
+
+export type PublicJobPoster = {
+  id: string;
+  firstName: string;
+  lastName: string;
+};
+
+export type PublicJobAiConfig = {
+  id: string;
+};
+
+const toPublicOrganization = (organization?: Organization | null): PublicJobOrganization | null => {
+  if (!organization) return null;
+  return {
+    id: organization.id,
+    name: organization.name,
+    logoUrl: organization.logoUrl,
+    website: organization.website,
+  };
+};
+
+const toPublicPoster = (poster?: User | null): PublicJobPoster | null => {
+  if (!poster) return null;
+  return {
+    id: poster.id,
+    firstName: poster.firstName,
+    lastName: poster.lastName,
+  };
+};
+
+const toPublicAiConfig = (aiConfig?: AIConfig | null): PublicJobAiConfig | null => {
+  if (!aiConfig) return null;
+  return { id: aiConfig.id };
+};
+
+export type PublicJob = Omit<Job, "organization" | "postedBy" | "aiConfig"> & {
+  organization: PublicJobOrganization | null;
+  postedBy: PublicJobPoster | null;
+  aiConfig: PublicJobAiConfig | null;
+};
+
+const toPublicJob = (job: Job): PublicJob => ({
+  ...job,
+  organization: toPublicOrganization(job.organization),
+  postedBy: toPublicPoster(job.postedBy),
+  aiConfig: toPublicAiConfig(job.aiConfig),
+});
+
 const aiConfigRepo = () => AppDataSource.getRepository(AIConfig);
 
 const applicationRepo = () => AppDataSource.getRepository(Application);
@@ -536,7 +599,7 @@ export const deleteJob = async (userId: string, jobId: string): Promise<void> =>
 export const fetchAllJobs = async (
   payload: FetchJobsParams
 ): Promise<
-  (Job & {
+  (PublicJob & {
     hasApplied?: boolean;
     applicationStage?: string | null;
     applicationStages?: Record<string, string> | null;
@@ -616,7 +679,7 @@ export const fetchAllJobs = async (
   const jobs = await qb.orderBy("job.createdAt", order).skip(offset).take(limit).getMany();
 
   if (!payload.talentId || jobs.length === 0) {
-    return jobs;
+    return jobs.map(toPublicJob);
   }
 
   const applied = await applicationRepo().find({
@@ -629,7 +692,7 @@ export const fetchAllJobs = async (
 
   return jobs.map((job) => {
     const application = applicationByJobId.get(job.id);
-    return Object.assign(job, {
+    return Object.assign(toPublicJob(job), {
       hasApplied: !!application,
       applicationStage: application?.currentStage ?? null,
       applicationStages: application?.stages ?? null,
@@ -641,7 +704,7 @@ export const fetchRecruiterJobs = async (
   userId: string,
   payload: FetchJobsParams
 ): Promise<
-  (Job & {
+  (PublicJob & {
     hasApplied?: boolean;
     applicationStage?: string | null;
     applicationStages?: Record<string, string> | null;
@@ -658,7 +721,7 @@ export const fetchJob = async (
   talentId?: string,
   isAuthenticated?: boolean
 ): Promise<
-  Job & {
+  PublicJob & {
     hasApplied?: boolean;
     applicationStage?: string | null;
     applicationId?: string | null;
@@ -676,14 +739,14 @@ export const fetchJob = async (
     throw new NotFoundError("Job not found");
   }
   if (!talentId) {
-    return job;
+    return toPublicJob(job);
   }
 
   const existingApplication = await applicationRepo().findOne({
     where: { talentId, jobId },
     select: { id: true, currentStage: true, stages: true },
   });
-  return Object.assign(job, {
+  return Object.assign(toPublicJob(job), {
     hasApplied: !!existingApplication,
     applicationStage: existingApplication?.currentStage ?? null,
     applicationId: existingApplication?.id ?? null,
@@ -752,8 +815,12 @@ export const rankTalentIdsByJobEmbedding = (
     )
     SELECT user_id, similarity
     FROM (
+      -- A talent has one row per CV chunk, so each is reduced to the chunk that
+      -- matches this job best. The <=> operator is cosine DISTANCE, so the best
+      -- chunk is the smallest value: ordering DESC here picked each talent's
+      -- worst chunk as their representative score, pushing good candidates down.
       SELECT user_id, similarity,
-        ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY similarity DESC) AS rn
+        ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY similarity ASC) AS rn
       FROM similarity_cte
     ) ranked
     WHERE rn = 1 AND similarity <= $2
