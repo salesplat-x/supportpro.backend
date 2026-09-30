@@ -20,8 +20,18 @@ import {
   clearAllTables,
   testDataSource,
 } from "./helpers/db.js";
-import { createTalent, createRecruiter, createAdmin, createPayment } from "./helpers/fixtures.js";
+import {
+  createTalent,
+  createRecruiter,
+  createAdmin,
+  createPayment,
+  createRole,
+  createJob,
+  createAIConfig,
+  createOrganization,
+} from "./helpers/fixtures.js";
 import { User } from "../src/entities/User.js";
+import { JobStatus } from "../src/types/enums.js";
 import { generateHashedPassword, signToken } from "../src/utils/crypto.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
@@ -363,5 +373,109 @@ describe("ISSUE-007: CORS wildcard origin (fixed)", () => {
   it("API allows requests from the configured frontend origin", async () => {
     const res = await request(app).get("/v1/").set("Origin", "http://localhost:5173");
     expect(res.headers["access-control-allow-origin"]).toBe("http://localhost:5173");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Public job payloads must not leak company, recruiter or screening internals
+// ---------------------------------------------------------------------------
+
+describe("Public job endpoints expose only public relation fields", () => {
+  // GET /v1/jobs and GET /v1/jobs/:_id are optionalAuth, so their payloads are
+  // readable by anonymous visitors and social crawlers on the public job page.
+  const FORBIDDEN_ORGANIZATION_KEYS = [
+    "email",
+    "phone",
+    "address",
+    "domain",
+    "ownerId",
+    "owner",
+    "logoKey",
+    "status",
+    "billingPlan",
+    "billingInterval",
+    "billingStatus",
+    "billingPeriodEnd",
+    "verifiedAt",
+    "verifiedById",
+  ];
+  const FORBIDDEN_POSTED_BY_KEYS = ["email", "phone", "cvUrl", "cvFileName", "bio", "country"];
+  const FORBIDDEN_AI_CONFIG_KEYS = [
+    "uploadedQuestions",
+    "recruiterGuide",
+    "minPrescreeningScore",
+    "minCvSimilarityScore",
+    "recruiterId",
+  ];
+
+  const seedJob = async () => {
+    const { user: recruiter } = await createRecruiter();
+    const organization = await createOrganization(recruiter);
+    const role = await createRole();
+    const aiConfig = await createAIConfig(recruiter, {
+      recruiterGuide: "Prefer candidates from fintech.",
+      uploadedQuestions: ["What is your closing ratio?"],
+    });
+    const job = await createJob(recruiter, role, {
+      organizationId: organization.id,
+      aiConfigId: aiConfig.id,
+      status: JobStatus.Active,
+    });
+    return { job, organization, recruiter };
+  };
+
+  const assertScrubbed = (payload: Record<string, any>) => {
+    expect(payload.organization).toBeTruthy();
+    expect(Object.keys(payload.organization).sort()).toEqual([
+      "id",
+      "logoUrl",
+      "name",
+      "website",
+    ]);
+    for (const key of FORBIDDEN_ORGANIZATION_KEYS) {
+      expect(payload.organization).not.toHaveProperty(key);
+    }
+
+    expect(Object.keys(payload.postedBy).sort()).toEqual(["firstName", "id", "lastName"]);
+    for (const key of FORBIDDEN_POSTED_BY_KEYS) {
+      expect(payload.postedBy).not.toHaveProperty(key);
+    }
+
+    // The list query never joins aiConfig, so null there is correct — but when
+    // it is present (job detail) it must carry nothing beyond the id.
+    if (payload.aiConfig) {
+      expect(Object.keys(payload.aiConfig)).toEqual(["id"]);
+      for (const key of FORBIDDEN_AI_CONFIG_KEYS) {
+        expect(payload.aiConfig).not.toHaveProperty(key);
+      }
+    }
+  };
+
+  it("GET /v1/jobs/:_id scrubs relations for anonymous callers", async () => {
+    const { job, organization } = await seedJob();
+
+    const res = await request(app).get(`/v1/jobs/${job.id}`);
+
+    expect(res.status).toBe(200);
+    assertScrubbed(res.body.data.job);
+    // The fields the public job page and its OG tags actually render survive.
+    expect(res.body.data.job.organization.name).toBe(organization.name);
+    expect(res.body.data.job.jobBrief).toBeTruthy();
+
+    // Nothing sensitive anywhere in the serialized response, at any depth.
+    const serialized = JSON.stringify(res.body);
+    expect(serialized).not.toContain(organization.email);
+    expect(serialized).not.toContain(organization.address);
+    expect(serialized).not.toContain("What is your closing ratio?");
+  });
+
+  it("GET /v1/jobs scrubs relations for anonymous callers", async () => {
+    await seedJob();
+
+    const res = await request(app).get("/v1/jobs");
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.jobs.length).toBeGreaterThan(0);
+    assertScrubbed(res.body.data.jobs[0]);
   });
 });
