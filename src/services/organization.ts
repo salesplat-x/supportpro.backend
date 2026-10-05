@@ -31,6 +31,7 @@ import {
 } from "../utils/emailDomain.js";
 import { createNotification } from "./notification.js";
 import { purgeOrganizationCascade } from "./cascadeDelete.js";
+import { disablePaystackSubscriptions } from "./payment.js";
 import logger from "../utils/logger.js";
 
 const orgRepo = () => AppDataSource.getRepository(Organization);
@@ -619,13 +620,14 @@ export const deleteOrganization = async (
 ): Promise<void> => {
   const org = await assertOwnership(ownerId, organizationId);
 
-  await AppDataSource.transaction(async (manager) => {
-    await purgeOrganizationCascade(manager, organizationId);
-  });
+  const chargeableSubscriptions = await AppDataSource.transaction((manager) =>
+    purgeOrganizationCascade(manager, organizationId)
+  );
 
-  // Only clean up the logo once the delete itself has actually committed —
-  // otherwise a failed/rolled-back delete would leave a still-referenced
-  // logo deleted from Spaces.
+  // Only clean up the logo and Paystack once the delete itself has actually
+  // committed — otherwise a failed/rolled-back delete would leave a
+  // still-referenced logo deleted from Spaces or a live plan cancelled.
+  await disablePaystackSubscriptions(chargeableSubscriptions);
   await deleteSpacesObjectQuietly(org.logoKey, organizationId);
 };
 

@@ -17,16 +17,28 @@ import { TalentEmbedding } from "../src/entities/TalentEmbedding.js";
 import { User } from "../src/entities/User.js";
 import { Answer } from "../src/entities/Answer.js";
 import { Question } from "../src/entities/Question.js";
+import {
+  FeatureUsageCounter,
+  Payment,
+  Scout,
+  ScoutJob,
+  ScoutRun,
+  Subscription,
+} from "../src/entities";
 import { QuestionType } from "../src/types/enums.js";
+import * as paystack from "../src/utils/integrations/paystack.js";
 import {
   createAdmin,
   createAIConfig,
   createApplication,
+  createCompanyHistory,
   createConversationWithMessage,
   createJob,
   createOrganization,
   createRecruiter,
   createRole,
+  createScoutJob,
+  createScoutRun,
   createTalent,
 } from "./helpers/fixtures.js";
 
@@ -453,5 +465,94 @@ describe("Admin organizations", () => {
       where: { id: teammate.id },
     });
     expect(refreshedTeammate?.activeOrganizationId).toBeNull();
+  });
+});
+
+describe("Deleting companies with usage, billing and scout history", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  const expectHistoryRemoved = async (
+    history: Awaited<ReturnType<typeof createCompanyHistory>>
+  ) => {
+    expect(
+      await testDataSource.getRepository(FeatureUsageCounter).findOneBy({ id: history.counter.id })
+    ).toBeNull();
+    expect(
+      await testDataSource.getRepository(Subscription).findOneBy({ id: history.subscription.id })
+    ).toBeNull();
+    expect(
+      await testDataSource.getRepository(ScoutJob).findOneBy({ id: history.scoutJob.id })
+    ).toBeNull();
+    expect(
+      await testDataSource.getRepository(ScoutRun).findOneBy({ id: history.scoutRun.id })
+    ).toBeNull();
+    expect(
+      await testDataSource.getRepository(Scout).findOneBy({ id: history.scout.id })
+    ).toBeNull();
+  };
+
+  it("admin deletes the company, keeps its payments and stops Paystack charging its plan", async () => {
+    const disable = jest.spyOn(paystack, "disableSubscription");
+    const { token: adminToken } = await createAdmin();
+    const { user: owner } = await createRecruiter();
+    const org = await createOrganization(owner);
+    const role = await createRole("history-role");
+    const job = await createJob(owner, role, { organizationId: org.id });
+    const history = await createCompanyHistory(owner, org);
+
+    const res = await request(app)
+      .delete(`/v1/admin/organizations/${org.id}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+
+    expect(await testDataSource.getRepository(Organization).findOneBy({ id: org.id })).toBeNull();
+    expect(await testDataSource.getRepository(Job).findOneBy({ id: job.id })).toBeNull();
+    await expectHistoryRemoved(history);
+
+    const payment = await testDataSource
+      .getRepository(Payment)
+      .findOneBy({ id: history.payment.id });
+    expect(payment).not.toBeNull();
+    expect(payment?.organizationId).toBeNull();
+
+    expect(disable).toHaveBeenCalledWith({
+      code: history.subscription.paystackSubscriptionCode,
+      token: "tok_company",
+    });
+  });
+
+  it("admin deletes a recruiter who owns such a company and ran scouts on a teammate's campaign", async () => {
+    const disable = jest.spyOn(paystack, "disableSubscription");
+    const { token: adminToken } = await createAdmin();
+    const { user: owner } = await createRecruiter();
+    const { user: teammate } = await createRecruiter();
+    const org = await createOrganization(owner);
+    const history = await createCompanyHistory(owner, org);
+    const teammateOrg = await createOrganization(teammate);
+    const teammateCampaign = await createScoutJob(teammate, undefined, {
+      organizationId: teammateOrg.id,
+    });
+    const ownerRunOnTeammateCampaign = await createScoutRun(owner, teammateCampaign);
+
+    const res = await request(app)
+      .delete(`/v1/admin/recruiters/${owner.id}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+
+    expect(await testDataSource.getRepository(User).findOneBy({ id: owner.id })).toBeNull();
+    expect(await testDataSource.getRepository(Organization).findOneBy({ id: org.id })).toBeNull();
+    await expectHistoryRemoved(history);
+    expect(
+      await testDataSource.getRepository(ScoutRun).findOneBy({ id: ownerRunOnTeammateCampaign.id })
+    ).toBeNull();
+    expect(
+      await testDataSource.getRepository(ScoutJob).findOneBy({ id: teammateCampaign.id })
+    ).not.toBeNull();
+    expect(disable).toHaveBeenCalledWith({
+      code: history.subscription.paystackSubscriptionCode,
+      token: "tok_company",
+    });
   });
 });

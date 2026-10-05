@@ -10,15 +10,25 @@ import {
   clearAllTables,
   testDataSource,
 } from "./helpers/db.js";
-import { Job, Organization, OrganizationMember, User } from "../src/entities";
+import {
+  FeatureUsageCounter,
+  Job,
+  Organization,
+  OrganizationMember,
+  Payment,
+  ScoutRun,
+  User,
+} from "../src/entities";
 import {
   createTalent,
   createRecruiter,
   createAdmin,
+  createCompanyHistory,
   createOrganization,
   createRole,
   createJob,
 } from "./helpers/fixtures.js";
+import * as paystack from "../src/utils/integrations/paystack.js";
 import { DEFAULT_BILLING_PLAN_KEY } from "../src/types/enums.js";
 import { uploadToSpaces, deleteFromSpaces } from "../src/utils/integrations/spaces.js";
 
@@ -504,6 +514,35 @@ describe("DELETE /v1/organizations/:id — delete organization", () => {
       .getRepository(User)
       .findOne({ where: { id: recruiter.id } });
     expect(refreshed?.activeOrganizationId).toBeNull();
+  });
+
+  it("Owner deletes a company with usage, billing and scout history → 200", async () => {
+    const disable = jest.spyOn(paystack, "disableSubscription");
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+    const history = await createCompanyHistory(recruiter, org);
+
+    const res = await request(app)
+      .delete(`/v1/organizations/${org.id}`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(200);
+
+    expect(await testDataSource.getRepository(Organization).findOneBy({ id: org.id })).toBeNull();
+    expect(
+      await testDataSource.getRepository(FeatureUsageCounter).findOneBy({ id: history.counter.id })
+    ).toBeNull();
+    expect(
+      await testDataSource.getRepository(ScoutRun).findOneBy({ id: history.scoutRun.id })
+    ).toBeNull();
+    expect(
+      (await testDataSource.getRepository(Payment).findOneBy({ id: history.payment.id }))
+        ?.organizationId
+    ).toBeNull();
+    expect(disable).toHaveBeenCalledWith({
+      code: history.subscription.paystackSubscriptionCode,
+      token: "tok_company",
+    });
+    disable.mockRestore();
   });
 
   it("Non-owner recruiter cannot delete → 403", async () => {
