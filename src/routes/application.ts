@@ -18,28 +18,28 @@ router.get(
   loginRequired,
   requireVerifiedEmail,
   validate(getApplicationsQueryValidator),
-  asyncHandler(application.getApplications)
+  asyncHandler(application.getApplications, "load applications")
 );
 router.get(
   "/:_id",
   loginRequired,
   requireVerifiedEmail,
   validate(applicationIdParamValidator),
-  asyncHandler(application.getApplication)
+  asyncHandler(application.getApplication, "load application")
 );
 router.patch(
   "/status",
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(bulkUpdateApplicationStatusValidator),
-  asyncHandler(application.bulkUpdateStatus)
+  asyncHandler(application.bulkUpdateStatus, "update application statuses")
 );
 router.patch(
   "/:_id/status",
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(updateApplicationStatusValidator),
-  asyncHandler(application.updateStatus)
+  asyncHandler(application.updateStatus, "update application status")
 );
 
 export default (app: Router) => app.use("/applications", router);

@@ -17,34 +17,34 @@ router.post(
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
   requireVerifiedEmail,
   validate(createAIConfigValidator),
-  asyncHandler(aiConfig.createAIConfig)
+  asyncHandler(aiConfig.createAIConfig, "create AI configuration")
 );
 router.get(
   "/",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
   requireVerifiedEmail,
-  asyncHandler(aiConfig.allAIConfig)
+  asyncHandler(aiConfig.allAIConfig, "load AI configurations")
 );
 router.get(
   "/:_id",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
   requireVerifiedEmail,
   validate(aiConfigIdParamValidator),
-  asyncHandler(aiConfig.fetchAIConfig)
+  asyncHandler(aiConfig.fetchAIConfig, "load AI configuration")
 );
 router.patch(
   "/:_id",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
   requireVerifiedEmail,
   validate(updateAIConfigValidator),
-  asyncHandler(aiConfig.update)
+  asyncHandler(aiConfig.update, "update AI configuration")
 );
 router.delete(
   "/:_id",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
   requireVerifiedEmail,
   validate(aiConfigIdParamValidator),
-  asyncHandler(aiConfig.deleteAIConfig)
+  asyncHandler(aiConfig.deleteAIConfig, "delete AI configuration")
 );
 
 export default (app: Router) => app.use("/ai-config", router);

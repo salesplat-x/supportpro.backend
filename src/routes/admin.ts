@@ -21,14 +21,14 @@ router.get(
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(adminTalentsQueryValidator),
-  asyncHandler(admin.listTalents)
+  asyncHandler(admin.listTalents, "load talents")
 );
 router.delete(
   "/talents/:_id",
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(adminIdParamValidator),
-  asyncHandler(admin.deleteTalent)
+  asyncHandler(admin.deleteTalent, "delete talent")
 );
 
 router.get(
@@ -36,14 +36,14 @@ router.get(
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(adminRecruitersQueryValidator),
-  asyncHandler(admin.listRecruiters)
+  asyncHandler(admin.listRecruiters, "load recruiters")
 );
 router.delete(
   "/recruiters/:_id",
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(adminIdParamValidator),
-  asyncHandler(admin.deleteRecruiter)
+  asyncHandler(admin.deleteRecruiter, "delete recruiter")
 );
 
 router.get(
@@ -51,14 +51,14 @@ router.get(
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(adminJobsQueryValidator),
-  asyncHandler(admin.listJobs)
+  asyncHandler(admin.listJobs, "load jobs")
 );
 router.delete(
   "/jobs/:_id",
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(adminIdParamValidator),
-  asyncHandler(admin.deleteJob)
+  asyncHandler(admin.deleteJob, "delete job")
 );
 
 router.get(
@@ -66,35 +66,35 @@ router.get(
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(adminOrganizationsQueryValidator),
-  asyncHandler(admin.listOrganizations)
+  asyncHandler(admin.listOrganizations, "load companies")
 );
 router.get(
   "/organizations/:_id",
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(adminIdParamValidator),
-  asyncHandler(admin.getOrganization)
+  asyncHandler(admin.getOrganization, "load company")
 );
 router.patch(
   "/organizations/:_id/verify",
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(adminIdParamValidator),
-  asyncHandler(admin.verifyOrganization)
+  asyncHandler(admin.verifyOrganization, "verify company")
 );
 router.patch(
   "/organizations/:_id/reject",
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(adminIdParamValidator),
-  asyncHandler(admin.rejectOrganization)
+  asyncHandler(admin.rejectOrganization, "reject company")
 );
 router.delete(
   "/organizations/:_id",
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(adminIdParamValidator),
-  asyncHandler(admin.deleteOrganization)
+  asyncHandler(admin.deleteOrganization, "delete company")
 );
 
 router.get(
@@ -102,21 +102,21 @@ router.get(
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(adminUserIdParamValidator),
-  asyncHandler(admin.userOnboarding)
+  asyncHandler(admin.userOnboarding, "load onboarding progress")
 );
 router.post(
   "/users/:_id/onboarding/draft",
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(adminUserIdParamValidator),
-  asyncHandler(admin.draftOnboardingEmail)
+  asyncHandler(admin.draftOnboardingEmail, "draft onboarding email")
 );
 router.post(
   "/users/:_id/onboarding/emails",
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(adminOnboardingEmailValidator),
-  asyncHandler(admin.sendOnboardingEmail)
+  asyncHandler(admin.sendOnboardingEmail, "send onboarding email")
 );
 
 export default (app: Router) => app.use("/admin", router);

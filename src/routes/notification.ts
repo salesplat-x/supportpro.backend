@@ -15,28 +15,33 @@ router.post(
   loginRequired,
   requireVerifiedEmail,
   validate(createNotificationValidator),
-  asyncHandler(notification.create)
+  asyncHandler(notification.create, "create notification")
 );
-router.get("/", loginRequired, requireVerifiedEmail, asyncHandler(notification.getNotifications));
+router.get(
+  "/",
+  loginRequired,
+  requireVerifiedEmail,
+  asyncHandler(notification.getNotifications, "load notifications")
+);
 router.patch(
   "/read-all",
   loginRequired,
   requireVerifiedEmail,
-  asyncHandler(notification.markAllRead)
+  asyncHandler(notification.markAllRead, "mark notifications as read")
 );
 router.get(
   "/:id",
   loginRequired,
   requireVerifiedEmail,
   validate(notificationIdParamValidator),
-  asyncHandler(notification.getNotification)
+  asyncHandler(notification.getNotification, "load notification")
 );
 router.delete(
   "/:id",
   loginRequired,
   requireVerifiedEmail,
   validate(notificationIdParamValidator),
-  asyncHandler(notification.deleteNotification)
+  asyncHandler(notification.deleteNotification, "delete notification")
 );
 
 export default (app: Router) => app.use("/notifications", router);

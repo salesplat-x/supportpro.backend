@@ -19,41 +19,41 @@ router.post(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(broadcastMessageValidator),
-  asyncHandler(message.broadcastMessage)
+  asyncHandler(message.broadcastMessage, "send broadcast message")
 );
 router.patch(
   "/:id",
   validateAccess([UserRole.Talent]),
   requireVerifiedEmail,
   validate(acknowledgeMessageValidator),
-  asyncHandler(message.acknowledge)
+  asyncHandler(message.acknowledge, "acknowledge message")
 );
 router.post(
   "/",
   validateAccess([UserRole.Recruiter, UserRole.Admin, UserRole.Talent]),
   requireVerifiedEmail,
   validate(sendMessageValidator),
-  asyncHandler(message.create)
+  asyncHandler(message.create, "send message")
 );
 router.get(
   "/sessions",
   validateAccess([UserRole.Recruiter, UserRole.Talent]),
   requireVerifiedEmail,
-  asyncHandler(message.getChatSessions)
+  asyncHandler(message.getChatSessions, "load chats")
 );
 router.get(
   "/",
   loginRequired,
   requireVerifiedEmail,
   validate(fetchMessagesQueryValidator),
-  asyncHandler(message.getMessages)
+  asyncHandler(message.getMessages, "load messages")
 );
 router.get(
   "/:id",
   loginRequired,
   requireVerifiedEmail,
   validate(messageIdParamValidator),
-  asyncHandler(message.getMessage)
+  asyncHandler(message.getMessage, "load message")
 );
 
 export default (app: Router) => app.use("/messages", router);

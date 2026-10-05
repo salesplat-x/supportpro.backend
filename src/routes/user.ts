@@ -20,7 +20,7 @@ router.patch(
   loginRequired,
   requireVerifiedEmail,
   validate(updateUserValidator),
-  asyncHandler(user.updateUser)
+  asyncHandler(user.updateUser, "update account")
 );
 // Distinct from /me: accepts a multipart cv file upload (parsed by extraction/embedding
 // pipeline), so it stays separate rather than merging into /me.
@@ -30,7 +30,7 @@ router.patch(
   requireVerifiedEmail,
   cvUpload.single("cv"),
   validate(updateProfileValidator),
-  asyncHandler(user.editProfile)
+  asyncHandler(user.editProfile, "update profile")
 );
 // Every role can have an avatar, unlike the talent-only CV flow above, so this stays a
 // separate route rather than being folded into /profile.
@@ -39,47 +39,52 @@ router.patch(
   loginRequired,
   requireVerifiedEmail,
   avatarUpload.single("avatar"),
-  asyncHandler(user.updateAvatar)
+  asyncHandler(user.updateAvatar, "update profile picture")
 );
-router.delete("/avatar", loginRequired, requireVerifiedEmail, asyncHandler(user.removeAvatar));
-router.get("/me", loginRequired, asyncHandler(user.me));
+router.delete(
+  "/avatar",
+  loginRequired,
+  requireVerifiedEmail,
+  asyncHandler(user.removeAvatar, "remove profile picture")
+);
+router.get("/me", loginRequired, asyncHandler(user.me, "load your profile"));
 // No email-verification gate: the tour runs on a new user's first dashboard visit,
 // which can happen before they verify.
-router.post("/me/tour", loginRequired, asyncHandler(user.completeTour));
+router.post("/me/tour", loginRequired, asyncHandler(user.completeTour, "save tour progress"));
 router.get(
   "/profile/",
   validateAccess([UserRole.Admin, UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(userProfilesQueryValidator),
-  asyncHandler(user.viewProfiles)
+  asyncHandler(user.viewProfiles, "load talent profiles")
 );
 router.get(
   "/profile/:_id/cv",
   validateAccess([UserRole.Admin, UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(userIdParamValidator),
-  asyncHandler(user.downloadTalentCv)
+  asyncHandler(user.downloadTalentCv, "download CV")
 );
 router.post(
   "/profile/:_id/reprocess-cv",
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(userIdParamValidator),
-  asyncHandler(user.reprocessCv)
+  asyncHandler(user.reprocessCv, "reprocess CV")
 );
 router.get(
   "/profile/:_id",
   validateAccess([UserRole.Admin, UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(userIdParamValidator),
-  asyncHandler(user.viewProfile)
+  asyncHandler(user.viewProfile, "load profile")
 );
 router.get(
   "/applications",
   validateAccess([UserRole.Talent]),
   requireVerifiedEmail,
   validate(userApplicationsQueryValidator),
-  asyncHandler(user.applications)
+  asyncHandler(user.applications, "load your applications")
 );
 
 export default (app: Router) => app.use("/user", router);

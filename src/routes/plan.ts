@@ -18,23 +18,23 @@ router.post(
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(createPlanValidator),
-  asyncHandler(plan.create)
+  asyncHandler(plan.create, "create plan")
 );
 router.patch(
   "/:_id",
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(updatePlanValidator),
-  asyncHandler(plan.update)
+  asyncHandler(plan.update, "update plan")
 );
 router.delete(
   "/:id",
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(planIdParamValidator),
-  asyncHandler(plan.deleteItem)
+  asyncHandler(plan.deleteItem, "delete plan")
 );
-router.get("/:id", validate(planIdParamValidator), asyncHandler(plan.fetchOne));
-router.get("/", validate(fetchPlansQueryValidator), asyncHandler(plan.fetch));
+router.get("/:id", validate(planIdParamValidator), asyncHandler(plan.fetchOne, "load plan"));
+router.get("/", validate(fetchPlansQueryValidator), asyncHandler(plan.fetch, "load plans"));
 
 export default (app: Router) => app.use("/plans", router);
