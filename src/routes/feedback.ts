@@ -17,28 +17,28 @@ router.post(
   loginRequired,
   requireVerifiedEmail,
   validate(submitFeedbackValidator),
-  asyncHandler(feedback.submitFeedback)
+  asyncHandler(feedback.submitFeedback, "send feedback")
 );
 router.get(
   "/",
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(listFeedbackQueryValidator),
-  asyncHandler(feedback.getFeedback)
+  asyncHandler(feedback.getFeedback, "load feedback")
 );
 router.patch(
   "/:id/read",
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(feedbackIdParamValidator),
-  asyncHandler(feedback.markRead)
+  asyncHandler(feedback.markRead, "mark feedback as read")
 );
 router.patch(
   "/:id/unread",
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(feedbackIdParamValidator),
-  asyncHandler(feedback.markUnread)
+  asyncHandler(feedback.markUnread, "mark feedback as unread")
 );
 
 export default (app: Router) => app.use("/feedback", router);

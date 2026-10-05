@@ -11,6 +11,8 @@ import {
 } from "./cascadeDelete.js";
 import { applyOnboardingFilters, OnboardingSummary, onboardingSummaries } from "./onboarding.js";
 import { loadOrganizationMembers, OrganizationMemberView } from "./organization.js";
+import { disablePaystackSubscriptions } from "./payment.js";
+import { deleteSpacesObjectQuietly } from "../utils/integrations/spaces.js";
 
 const userRepo = () => AppDataSource.getRepository(User);
 const jobRepo = () => AppDataSource.getRepository(Job);
@@ -114,9 +116,10 @@ export const listRecruiters = async (
 };
 
 export const deleteRecruiter = async (recruiterId: string): Promise<void> => {
-  await AppDataSource.transaction(async (manager) => {
-    await purgeRecruiterCascade(manager, recruiterId);
-  });
+  const chargeableSubscriptions = await AppDataSource.transaction((manager) =>
+    purgeRecruiterCascade(manager, recruiterId)
+  );
+  await disablePaystackSubscriptions(chargeableSubscriptions);
 };
 
 export const listJobs = async (
@@ -220,9 +223,16 @@ export const getOrganization = async (organizationId: string): Promise<AdminOrga
 };
 
 export const deleteOrganizationAsAdmin = async (organizationId: string): Promise<void> => {
-  await AppDataSource.transaction(async (manager) => {
-    await purgeOrganizationCascade(manager, organizationId);
-  });
+  const org = await orgRepo().findOne({ where: { id: organizationId } });
+  if (!org) {
+    throw new NotFoundError("Company not found");
+  }
+
+  const chargeableSubscriptions = await AppDataSource.transaction((manager) =>
+    purgeOrganizationCascade(manager, organizationId)
+  );
+  await disablePaystackSubscriptions(chargeableSubscriptions);
+  await deleteSpacesObjectQuietly(org.logoKey, organizationId);
 };
 
 export const updateOrganizationStatus = async (

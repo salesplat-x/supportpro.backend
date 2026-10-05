@@ -12,26 +12,26 @@ router.get(
   "/",
   validateAccess([UserRole.Talent]),
   requireVerifiedEmail,
-  asyncHandler(prescreening.getPreScreening)
+  asyncHandler(prescreening.getPreScreening, "load pre-screening")
 );
 router.post(
   "/submit",
   validateAccess([UserRole.Talent]),
   requireVerifiedEmail,
   validate(submitPreScreeningValidator),
-  asyncHandler(prescreening.submitAnswers)
+  asyncHandler(prescreening.submitAnswers, "submit pre-screening answers")
 );
 router.post(
   "/retake",
   validateAccess([UserRole.Talent]),
   requireVerifiedEmail,
-  asyncHandler(prescreening.requestRetake)
+  asyncHandler(prescreening.requestRetake, "start pre-screening retake")
 );
 router.post(
   "/retry-generation",
   validateAccess([UserRole.Talent]),
   requireVerifiedEmail,
-  asyncHandler(prescreening.retryGeneration)
+  asyncHandler(prescreening.retryGeneration, "retry pre-screening generation")
 );
 
 export default (app: Router) => app.use("/prescreening", router);

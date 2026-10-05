@@ -26,27 +26,27 @@ router.post(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(createOrganizationValidator),
-  asyncHandler(organization.registerOrganization)
+  asyncHandler(organization.registerOrganization, "create company")
 );
 
 router.get(
   "/me",
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
-  asyncHandler(organization.listMyOrganizations)
+  asyncHandler(organization.listMyOrganizations, "load your companies")
 );
 
 router.get(
   "/verified",
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
-  asyncHandler(organization.listVerifiedOrganizations)
+  asyncHandler(organization.listVerifiedOrganizations, "load verified companies")
 );
 
 router.get(
   "/invites/:token",
   validate(inviteTokenValidator),
-  asyncHandler(organization.getOrganizationInvitePreview)
+  asyncHandler(organization.getOrganizationInvitePreview, "load invite")
 );
 
 router.post(
@@ -54,7 +54,7 @@ router.post(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(inviteTokenValidator),
-  asyncHandler(organization.acceptOrganizationInvite)
+  asyncHandler(organization.acceptOrganizationInvite, "accept invite")
 );
 
 router.post(
@@ -62,7 +62,7 @@ router.post(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(sendOrganizationInviteValidator),
-  asyncHandler(organization.sendOrganizationInvite)
+  asyncHandler(organization.sendOrganizationInvite, "send invite")
 );
 
 router.get(
@@ -70,7 +70,7 @@ router.get(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(switchOrganizationValidator),
-  asyncHandler(organization.listOrganizationMembers)
+  asyncHandler(organization.listOrganizationMembers, "load team members")
 );
 
 router.get(
@@ -78,7 +78,7 @@ router.get(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(switchOrganizationValidator),
-  asyncHandler(usage.getOrganizationUsage)
+  asyncHandler(usage.getOrganizationUsage, "load plan usage")
 );
 
 router.get(
@@ -86,7 +86,7 @@ router.get(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(switchOrganizationValidator),
-  asyncHandler(usage.getOrganizationPlanHistory)
+  asyncHandler(usage.getOrganizationPlanHistory, "load plan history")
 );
 
 router.get(
@@ -94,7 +94,7 @@ router.get(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(switchOrganizationValidator),
-  asyncHandler(organization.listOrganizationInvites)
+  asyncHandler(organization.listOrganizationInvites, "load invites")
 );
 
 router.delete(
@@ -102,7 +102,7 @@ router.delete(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(revokeOrganizationInviteValidator),
-  asyncHandler(organization.revokeOrganizationInvite)
+  asyncHandler(organization.revokeOrganizationInvite, "revoke invite")
 );
 
 router.post(
@@ -110,7 +110,7 @@ router.post(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(joinRequestOrganizationValidator),
-  asyncHandler(organization.requestJoinOrganization)
+  asyncHandler(organization.requestJoinOrganization, "request to join company")
 );
 
 router.get(
@@ -118,7 +118,7 @@ router.get(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(switchOrganizationValidator),
-  asyncHandler(organization.listOrganizationJoinRequests)
+  asyncHandler(organization.listOrganizationJoinRequests, "load join requests")
 );
 
 router.patch(
@@ -126,7 +126,7 @@ router.patch(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(joinRequestIdValidator),
-  asyncHandler(organization.approveJoinRequest)
+  asyncHandler(organization.approveJoinRequest, "approve join request")
 );
 
 router.patch(
@@ -134,7 +134,7 @@ router.patch(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(joinRequestIdValidator),
-  asyncHandler(organization.rejectJoinRequest)
+  asyncHandler(organization.rejectJoinRequest, "reject join request")
 );
 
 router.patch(
@@ -142,7 +142,7 @@ router.patch(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(switchOrganizationValidator),
-  asyncHandler(organization.switchOrganization)
+  asyncHandler(organization.switchOrganization, "switch company")
 );
 
 router.patch(
@@ -150,7 +150,7 @@ router.patch(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(updateOrganizationValidator),
-  asyncHandler(organization.updateOrganization)
+  asyncHandler(organization.updateOrganization, "update company")
 );
 
 router.delete(
@@ -158,7 +158,7 @@ router.delete(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(deleteOrganizationValidator),
-  asyncHandler(organization.deleteOrganization)
+  asyncHandler(organization.deleteOrganization, "delete company")
 );
 
 router.patch(
@@ -167,7 +167,7 @@ router.patch(
   requireVerifiedEmail,
   avatarUpload.single("logo"),
   validate(organizationLogoValidator),
-  asyncHandler(organization.updateLogo)
+  asyncHandler(organization.updateLogo, "update company logo")
 );
 
 router.delete(
@@ -175,7 +175,7 @@ router.delete(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(organizationLogoValidator),
-  asyncHandler(organization.removeLogo)
+  asyncHandler(organization.removeLogo, "remove company logo")
 );
 
 export default (app: Router) => app.use("/organizations", router);

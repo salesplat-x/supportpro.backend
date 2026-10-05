@@ -14,17 +14,25 @@ router.post(
   requireVerifiedEmail,
   validateAccess([UserRole.Recruiter]),
   validate(initializePaymentValidator),
-  asyncHandler(payment.getPaymentLink)
+  asyncHandler(payment.getPaymentLink, "start payment")
 );
-router.get("/", loginRequired, requireVerifiedEmail, asyncHandler(payment.getPaymentRecords));
+router.get(
+  "/",
+  loginRequired,
+  requireVerifiedEmail,
+  asyncHandler(payment.getPaymentRecords, "load payments")
+);
 router.post(
   "/verify",
   loginRequired,
   requireVerifiedEmail,
   validate(verifyPaymentValidator),
-  asyncHandler(payment.verify)
+  asyncHandler(payment.verify, "verify payment")
 );
-router.post("/webhook", asyncHandler(payment.paystackWebhook));
-router.post("/dwhdbwnmdn229dnjkdnn83/webhook", asyncHandler(payment.paystackWebhook));
+router.post("/webhook", asyncHandler(payment.paystackWebhook, "process payment notification"));
+router.post(
+  "/dwhdbwnmdn229dnjkdnn83/webhook",
+  asyncHandler(payment.paystackWebhook, "process payment notification")
+);
 
 export default (app: Router) => app.use("/payments", router);

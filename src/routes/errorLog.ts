@@ -17,27 +17,27 @@ router.get(
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(getErrorLogsQueryValidator),
-  asyncHandler(errorLog.getErrorLogs)
+  asyncHandler(errorLog.getErrorLogs, "load error logs")
 );
 router.get(
   "/stats",
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
-  asyncHandler(errorLog.getErrorStats)
+  asyncHandler(errorLog.getErrorStats, "load error statistics")
 );
 router.patch(
   "/:requestId/resolve",
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(resolveErrorLogValidator),
-  asyncHandler(errorLog.markErrorAsResolved)
+  asyncHandler(errorLog.markErrorAsResolved, "mark error as resolved")
 );
 router.delete(
   "/cleanup",
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(cleanupLogsValidator),
-  asyncHandler(errorLog.cleanupOldLogs)
+  asyncHandler(errorLog.cleanupOldLogs, "clean up old error logs")
 );
 
 export default (app: Router) => app.use("/error-logs", router);

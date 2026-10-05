@@ -14,7 +14,6 @@ tests
 *.test.ts
 jest.config.js
 tsconfig.jest.json
-nodemon.json
 eslint.config.mjs
 .prettierrc.json
 commitlint.config.js

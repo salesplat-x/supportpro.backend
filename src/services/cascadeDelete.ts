@@ -5,6 +5,7 @@ import {
   Application,
   Conversation,
   ErrorLog,
+  FeatureUsageCounter,
   Feedback,
   Job,
   Message,
@@ -16,13 +17,38 @@ import {
   Question,
   Scout,
   ScoutJob,
+  ScoutRun,
   Subscription,
   TalentEmbedding,
   User,
   AiRecommendation,
 } from "../entities";
 import { NotFoundError, ValidationError } from "../utils/errors";
-import { UserRole } from "../types/enums.js";
+import { SubscriptionStatus, UserRole } from "../types/enums.js";
+
+const CHARGEABLE_SUBSCRIPTION_STATUSES = [
+  SubscriptionStatus.Active,
+  SubscriptionStatus.Pending,
+  SubscriptionStatus.Attention,
+];
+
+/**
+ * Delete the matching subscriptions and return the ones Paystack may still charge, so the
+ * caller can disable them once the surrounding transaction has committed.
+ */
+async function deleteSubscriptions(
+  manager: EntityManager,
+  where: { organizationId: string } | { userId: string }
+): Promise<Subscription[]> {
+  const subscriptions = await manager.find(Subscription, { where });
+  if (subscriptions.length > 0) {
+    await manager.delete(Subscription, { id: In(subscriptions.map((sub) => sub.id)) });
+  }
+  return subscriptions.filter(
+    (sub) =>
+      Boolean(sub.paystackSubscriptionCode) && CHARGEABLE_SUBSCRIPTION_STATUSES.includes(sub.status)
+  );
+}
 
 /**
  * Null conversation.last_message_id for any message that is about to be deleted,
@@ -109,14 +135,17 @@ export async function purgeJobCascade(manager: EntityManager, jobId: string): Pr
 
 /**
  * Fully remove a company and every job posted under it (each job taking its own
- * applications, answers, questions and messages with it via purgeJobCascade).
+ * applications, answers, questions and messages with it via purgeJobCascade),
+ * its scout campaigns and runs, usage counters and subscriptions. Payments are
+ * kept as the paying user's records and only detached from the company.
  * Any recruiter currently working on this company is detached first, since
  * users.active_organization_id points back at the row being deleted.
+ * Returns the deleted subscriptions Paystack may still charge.
  */
 export async function purgeOrganizationCascade(
   manager: EntityManager,
   organizationId: string
-): Promise<void> {
+): Promise<Subscription[]> {
   const organization = await manager.findOne(Organization, { where: { id: organizationId } });
   if (!organization) {
     throw new NotFoundError("Company does not exist");
@@ -129,6 +158,9 @@ export async function purgeOrganizationCascade(
   for (const job of jobs) {
     await purgeJobCascade(manager, job.id);
   }
+
+  // scouts.scout_run_id cascades, but scout_runs.organization_id is NO ACTION.
+  await manager.delete(ScoutRun, { organizationId });
 
   const scoutJobs = await manager.find(ScoutJob, {
     where: { organizationId },
@@ -144,12 +176,18 @@ export async function purgeOrganizationCascade(
   // and their configs; just detach them from the company being removed.
   await manager.update(AIConfig, { organizationId }, { organizationId: null });
 
+  await manager.delete(FeatureUsageCounter, { organizationId });
+  const chargeableSubscriptions = await deleteSubscriptions(manager, { organizationId });
+  await manager.update(Payment, { organizationId }, { organizationId: null });
+
   await manager.update(
     User,
     { activeOrganizationId: organizationId },
     { activeOrganizationId: null }
   );
   await manager.delete(Organization, { id: organizationId });
+
+  return chargeableSubscriptions;
 }
 
 /**
@@ -240,8 +278,12 @@ export async function purgeTalentCascade(manager: EntityManager, userId: string)
  * (via purgeJobCascade), scout jobs/scouts, remaining applications, AI configs,
  * messages, notifications, payments, subscriptions, conversation membership,
  * and the companies they own (a company has exactly one owning recruiter).
+ * Returns the deleted subscriptions Paystack may still charge.
  */
-export async function purgeRecruiterCascade(manager: EntityManager, userId: string): Promise<void> {
+export async function purgeRecruiterCascade(
+  manager: EntityManager,
+  userId: string
+): Promise<Subscription[]> {
   const user = await manager.findOne(User, { where: { id: userId } });
   if (!user) {
     throw new NotFoundError("Recruiter not found");
@@ -267,8 +309,9 @@ export async function purgeRecruiterCascade(manager: EntityManager, userId: stri
     where: { ownerId: userId },
     select: { id: true },
   });
+  const chargeableSubscriptions: Subscription[] = [];
   for (const org of ownedOrgs) {
-    await purgeOrganizationCascade(manager, org.id);
+    chargeableSubscriptions.push(...(await purgeOrganizationCascade(manager, org.id)));
   }
 
   const scoutJobs = await manager.find(ScoutJob, {
@@ -284,6 +327,8 @@ export async function purgeRecruiterCascade(manager: EntityManager, userId: stri
   if (scoutJobIds.length > 0) {
     await manager.delete(ScoutJob, { postedById: userId });
   }
+  // Runs they started on a teammate's campaign; scout_runs.recruiter_id is NO ACTION.
+  await manager.delete(ScoutRun, { recruiterId: userId });
 
   const remainingApplications = await manager.find(Application, {
     where: { recruiterId: userId },
@@ -304,7 +349,7 @@ export async function purgeRecruiterCascade(manager: EntityManager, userId: stri
   await manager.delete(AIConfig, { recruiterId: userId });
   await manager.delete(Notification, { userId });
   await manager.delete(Payment, { userId });
-  await manager.delete(Subscription, { userId });
+  chargeableSubscriptions.push(...(await deleteSubscriptions(manager, { userId })));
 
   await manager.update(ErrorLog, { userId }, { userId: null });
 
@@ -329,4 +374,6 @@ export async function purgeRecruiterCascade(manager: EntityManager, userId: stri
   await manager.delete(OnboardingEmail, { userId });
   await manager.query(`DELETE FROM user_roles WHERE user_id = $1`, [userId]);
   await manager.delete(User, { id: userId });
+
+  return chargeableSubscriptions;
 }

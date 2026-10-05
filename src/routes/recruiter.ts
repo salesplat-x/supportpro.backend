@@ -10,25 +10,25 @@ router.get(
   "/shortlist",
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
-  asyncHandler(recruiter.shortlistedApplications)
+  asyncHandler(recruiter.shortlistedApplications, "load shortlist")
 );
 router.get(
   "/dashboard",
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
-  asyncHandler(recruiter.recruiterDashboard)
+  asyncHandler(recruiter.recruiterDashboard, "load dashboard")
 );
 router.get(
   "/applications",
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
-  asyncHandler(recruiter.recentApplications)
+  asyncHandler(recruiter.recentApplications, "load recent applications")
 );
 router.get(
   "/compilations",
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
-  asyncHandler(recruiter.recentCompilations)
+  asyncHandler(recruiter.recentCompilations, "load recent compilations")
 );
 
 export default (app: Router) => app.use("/recruiter", router);

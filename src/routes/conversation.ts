@@ -10,20 +10,25 @@ import {
 
 const router = Router();
 
-router.get("/", loginRequired, requireVerifiedEmail, asyncHandler(conversation.getConversations));
+router.get(
+  "/",
+  loginRequired,
+  requireVerifiedEmail,
+  asyncHandler(conversation.getConversations, "load conversations")
+);
 router.get(
   "/:id",
   loginRequired,
   requireVerifiedEmail,
   validate(conversationIdParamValidator),
-  asyncHandler(conversation.getConversation)
+  asyncHandler(conversation.getConversation, "load conversation")
 );
 router.get(
   "/:id/messages",
   loginRequired,
   requireVerifiedEmail,
   validate(conversationMessagesValidator),
-  asyncHandler(conversation.conversationMessages)
+  asyncHandler(conversation.conversationMessages, "load messages")
 );
 
 export default (app: Router) => app.use("/conversations", router);

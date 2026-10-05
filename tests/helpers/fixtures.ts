@@ -36,6 +36,7 @@ import { Notification } from "../../src/entities/Notification.js";
 import { Conversation } from "../../src/entities/Conversation.js";
 import { Message } from "../../src/entities/Message.js";
 import { ErrorLog } from "../../src/entities/ErrorLog.js";
+import { FeatureUsageCounter } from "../../src/entities/FeatureUsageCounter.js";
 import { generateHashedPassword, signToken } from "../../src/utils/crypto.js";
 import type { MatchAnalysis } from "../../src/utils/matchAnalysis.js";
 
@@ -419,6 +420,28 @@ export async function createScoutRun(
     ...overrides,
   });
   return repo.save(run);
+}
+
+export async function createCompanyHistory(owner: User, organization: Organization) {
+  const counter = await testDataSource.getRepository(FeatureUsageCounter).save({
+    organizationId: organization.id,
+    featureKey: "candidate_views",
+    periodStart: "2026-10-01",
+    count: 3,
+  });
+  const plan = await createPlan();
+  const subscription = await createSubscription(owner, plan, {
+    organizationId: organization.id,
+    email_token: "tok_company",
+  });
+  const payment = await createPayment(owner, plan, {
+    organizationId: organization.id,
+    status: PaymentStatus.Completed,
+  });
+  const scoutJob = await createScoutJob(owner, undefined, { organizationId: organization.id });
+  const scoutRun = await createScoutRun(owner, scoutJob);
+  const scout = await createScout(owner, scoutJob, { scoutRunId: scoutRun.id });
+  return { counter, subscription, payment, scoutJob, scoutRun, scout };
 }
 
 export async function createScoutCandidate(

@@ -36,14 +36,14 @@ router.get(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(scoutJobsListQueryValidator),
-  asyncHandler(scoutJob.list)
+  asyncHandler(scoutJob.list, "load scout campaigns")
 );
 router.post(
   "/jobs/",
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(createScoutJobValidator),
-  asyncHandler(scoutJob.create)
+  asyncHandler(scoutJob.create, "create scout campaign")
 );
 
 // Declared before `/jobs/:_id` so the literal segments can't be captured as an id.
@@ -55,14 +55,14 @@ router.post(
   cvUpload.fields([{ name: "cv", maxCount: MAX_BATCH_SIZE }]),
   validate(startScoutRunValidator),
   validateScoutCvFiles,
-  asyncHandler(scout.startRun)
+  asyncHandler(scout.startRun, "start scouting")
 );
 router.get(
   "/jobs/:id/runs",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
   requireVerifiedEmail,
   validate(runsListQueryValidator),
-  asyncHandler(scout.listRuns)
+  asyncHandler(scout.listRuns, "load scouting runs")
 );
 
 router.put(
@@ -70,21 +70,21 @@ router.put(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(updateScoutJobValidator),
-  asyncHandler(scoutJob.update)
+  asyncHandler(scoutJob.update, "update scout campaign")
 );
 router.get(
   "/jobs/:_id",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
   requireVerifiedEmail,
   validate(scoutJobIdParamValidator),
-  asyncHandler(scoutJob.fetch)
+  asyncHandler(scoutJob.fetch, "load scout campaign")
 );
 router.delete(
   "/jobs/:_id",
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(scoutJobIdParamValidator),
-  asyncHandler(scoutJob.remove)
+  asyncHandler(scoutJob.remove, "delete scout campaign")
 );
 
 // ---------------------------------------------------------------------------
@@ -95,21 +95,21 @@ router.get(
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
   requireVerifiedEmail,
   validate(scoutRunIdParamValidator),
-  asyncHandler(scout.fetchRun)
+  asyncHandler(scout.fetchRun, "load scouting run")
 );
 router.get(
   "/runs/:runId/shortlist",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
   requireVerifiedEmail,
   validate(scoutRunIdParamValidator),
-  asyncHandler(scout.fetchShortlist)
+  asyncHandler(scout.fetchShortlist, "load shortlist")
 );
 router.get(
   "/runs/:runId/report.pdf",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
   requireVerifiedEmail,
   validate(scoutRunIdParamValidator),
-  asyncHandler(scout.downloadReport)
+  asyncHandler(scout.downloadReport, "download scouting report")
 );
 
 // ---------------------------------------------------------------------------
@@ -120,21 +120,21 @@ router.post(
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
   requireVerifiedEmail,
   validate(searchTalentsValidator),
-  asyncHandler(scout.searchTalents)
+  asyncHandler(scout.searchTalents, "search talent")
 );
 router.get(
   "/candidates/:candidateId/cv",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
   requireVerifiedEmail,
   validate(scoutCandidateIdParamValidator),
-  asyncHandler(scout.downloadCandidateCv)
+  asyncHandler(scout.downloadCandidateCv, "download candidate CV")
 );
 router.post(
   "/candidates/:candidateId/message",
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(messageCandidateValidator),
-  asyncHandler(scout.messageCandidate)
+  asyncHandler(scout.messageCandidate, "message candidate")
 );
 
 // ---------------------------------------------------------------------------
@@ -145,7 +145,7 @@ router.post(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(scoutIdParamValidator),
-  asyncHandler(scout.retryCv)
+  asyncHandler(scout.retryCv, "retry CV")
 );
 
 // Last, so it can't shadow any of the literal prefixes above.
@@ -154,7 +154,7 @@ router.post(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   validate(addScoutToPipelineValidator),
-  asyncHandler(scout.addScoutToPipeline)
+  asyncHandler(scout.addScoutToPipeline, "add candidate to pipeline")
 );
 
 export default (app: Router) => app.use("/scout", router);

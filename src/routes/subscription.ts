@@ -20,34 +20,34 @@ router.get(
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(subscriptionIdParamValidator),
-  asyncHandler(subscription.enable)
+  asyncHandler(subscription.enable, "enable subscription")
 );
 router.get(
   "/disable/:id",
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(subscriptionIdParamValidator),
-  asyncHandler(subscription.disable)
+  asyncHandler(subscription.disable, "cancel subscription")
 );
 router.get(
   "/:id",
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(subscriptionIdParamValidator),
-  asyncHandler(subscription.fetchOne)
+  asyncHandler(subscription.fetchOne, "load subscription")
 );
 router.post(
   "/",
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   validate(findSubscriptionValidator),
-  asyncHandler(subscription.fetchByMatch)
+  asyncHandler(subscription.fetchByMatch, "find subscription")
 );
 router.get(
   "/",
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
-  asyncHandler(subscription.fetch)
+  asyncHandler(subscription.fetch, "load subscriptions")
 );
 
 export default (app: Router) => app.use("/subscriptions", router);

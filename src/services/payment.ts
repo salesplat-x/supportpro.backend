@@ -227,16 +227,19 @@ const fulfillPayment = async (payment: Payment, authorizationCode?: string): Pro
   });
 
   if (newlyCompleted) {
-    await disableReplacedSubscriptions(replacedSubscriptions);
+    await disablePaystackSubscriptions(replacedSubscriptions);
   }
   return newlyCompleted;
 };
 
 /**
- * Stops Paystack from charging for subscriptions an upgrade replaced. Best effort: the upgrade
- * has already committed, so a Paystack failure is logged for follow-up rather than surfaced.
+ * Stops Paystack from charging for subscriptions that were replaced by an upgrade or deleted with
+ * their company. Best effort: the change has already committed, so a Paystack failure is logged
+ * for follow-up rather than surfaced.
  */
-const disableReplacedSubscriptions = async (subscriptions: Subscription[]): Promise<void> => {
+export const disablePaystackSubscriptions = async (
+  subscriptions: Subscription[]
+): Promise<void> => {
   for (const sub of subscriptions) {
     if (!sub.paystackSubscriptionCode) continue;
     try {
@@ -245,13 +248,11 @@ const disableReplacedSubscriptions = async (subscriptions: Subscription[]): Prom
         token: sub.email_token ?? "",
       });
       if (!response.status) {
-        logger.error(
-          `Paystack refused to disable replaced subscription ${sub.id}: ${response.message}`
-        );
+        logger.error(`Paystack refused to disable subscription ${sub.id}: ${response.message}`);
       }
     } catch (err) {
       logger.error(
-        `Failed to disable replaced subscription ${sub.id} on Paystack: ${(err as Error).message}`
+        `Failed to disable subscription ${sub.id} on Paystack: ${(err as Error).message}`
       );
     }
   }
