@@ -2734,3 +2734,127 @@ paths:
                 type: object
       security:
         - bearerAuth: []
+  /voice/transcribe:
+    post:
+      summary: Any verified user. Audio in, transcription text out.
+      tags:
+        - voice
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - audio
+              properties:
+                audio:
+                  type: string
+                  format: binary
+                  description: Recording up to 10 MB (webm, ogg, mp3, m4a, wav or flac).
+      responses:
+        "200":
+          description: Transcription
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      transcription:
+                        type: string
+        "400":
+          description: Missing, empty, unsupported or unreadable audio
+        "401":
+          description: Login required
+        "429":
+          description: Too many voice messages (20 per 15 minutes per user)
+      security:
+        - bearerAuth: []
+  /voice/chat:
+    post:
+      summary: Any verified user. Audio in, spoken reply (mp3) out.
+      tags:
+        - voice
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - audio
+              properties:
+                audio:
+                  type: string
+                  format: binary
+                  description: Recording up to 10 MB (webm, ogg, mp3, m4a, wav or flac).
+      responses:
+        "200":
+          description: Spoken reply
+          headers:
+            X-Voice-Fallback:
+              description: '"true" when the canned fallback clip was returned because an upstream service failed.'
+              schema:
+                type: string
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Missing, empty, unsupported or unreadable audio
+        "401":
+          description: Login required
+        "429":
+          description: Too many voice messages (20 per 15 minutes per user)
+      security:
+        - bearerAuth: []
+  /voice/stream:
+    post:
+      summary: Any verified user. Audio in, spoken reply (mp3) streamed out.
+      tags:
+        - voice
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - audio
+              properties:
+                audio:
+                  type: string
+                  format: binary
+                  description: Recording up to 10 MB (webm, ogg, mp3, m4a, wav or flac).
+      responses:
+        "200":
+          description: Spoken reply, streamed
+          headers:
+            X-Voice-Fallback:
+              description: '"true" when the canned fallback clip was returned because an upstream service failed.'
+              schema:
+                type: string
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Missing, empty, unsupported or unreadable audio
+        "401":
+          description: Login required
+        "429":
+          description: Too many voice messages (20 per 15 minutes per user)
+      security:
+        - bearerAuth: []
