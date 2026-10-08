@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 import env from "../../config/env.js";
 import { withRetry } from "../retry.js";
 import { createLimiter } from "../concurrencyLimiter.js";
@@ -925,4 +925,39 @@ ${JSON.stringify(context.questions, null, 2)}`;
     response_format: { type: "json_object" },
   });
   return completion.choices[0];
+};
+
+const VOICE_SYSTEM_PROMPT =
+  "You are Grace, a friendly and helpful voice assistant. Your reply will be read aloud, so " +
+  "respond conversationally in short, plain sentences with no markdown, lists or emoji.";
+
+/**
+ * Speech-to-text. The filename's extension tells Whisper which audio format it is
+ * receiving, so callers must pass one it supports (mp3, mp4, m4a, wav, webm, ogg, flac).
+ */
+export const transcribeAudio = async (audio: Buffer, filename: string): Promise<string> => {
+  const transcription = await limiter.run(() =>
+    withRetry(
+      async () =>
+        openai.audio.transcriptions.create({
+          file: await toFile(audio, filename),
+          model: "whisper-1",
+        }),
+      { label: "OpenAI transcription" }
+    )
+  );
+  return transcription.text.trim();
+};
+
+/** Short conversational reply for the voice assistant. Capped because TTS bills per character. */
+export const generateVoiceReply = async (userText: string): Promise<string> => {
+  const completion = await runCompletion({
+    model: "gpt-4o",
+    max_tokens: 300,
+    messages: [
+      { role: "system", content: VOICE_SYSTEM_PROMPT },
+      { role: "user", content: userText },
+    ],
+  });
+  return completion.choices[0]?.message?.content?.trim() ?? "";
 };

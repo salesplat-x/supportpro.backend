@@ -24,6 +24,11 @@ const optionalEnvVars = {
   doSpacesBucket: process.env.DO_SPACES_BUCKET,
   doSpacesKey: process.env.DO_SPACES_KEY,
   doSpacesSecret: process.env.DO_SPACES_SECRET,
+  // Voice replies (text-to-speech). Optional: without them the voice endpoints answer with
+  // the canned fallback clip instead of failing, and the rest of the API is unaffected.
+  elevenlabsApiKey: process.env.ELEVENLABS_API_KEY,
+  elevenlabsVoiceId: process.env.ELEVENLABS_VOICE_ID,
+  elevenlabsModelId: process.env.ELEVENLABS_MODEL_ID,
 } as const;
 
 const requiredEnvVars = {
