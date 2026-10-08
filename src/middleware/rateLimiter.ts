@@ -40,6 +40,23 @@ export const scoutRunLimiter = rateLimit({
   skip: () => env.app_env === "test",
 });
 
+/**
+ * Every voice request costs a transcription, a completion and a synthesis, so it gets a
+ * per-user ceiling. Like the scout limiter it relies on `loginRequired` running first.
+ */
+export const voiceLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id ?? "unauthenticated",
+  message: {
+    status: false,
+    message: "You've sent a lot of voice messages recently — please try again in a few minutes.",
+  },
+  skip: () => env.app_env === "test",
+});
+
 export const verificationLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 5,

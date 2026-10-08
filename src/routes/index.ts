@@ -22,6 +22,7 @@ import errorLogRoutes from "./errorLog.js";
 import prescreeningRoutes from "./prescreening.js";
 import adminRoutes from "./admin.js";
 import feedbackRoutes from "./feedback.js";
+import voiceRoutes from "./voice.js";
 
 const v1Router = Router();
 
@@ -48,5 +49,6 @@ errorLogRoutes(v1Router);
 prescreeningRoutes(v1Router);
 adminRoutes(v1Router);
 feedbackRoutes(v1Router);
+voiceRoutes(v1Router);
 
 export default v1Router;
