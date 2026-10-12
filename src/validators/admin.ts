@@ -7,6 +7,12 @@ import {
   RECRUITER_STAGES,
   TALENT_STAGES,
 } from "../services/onboardingRules.js";
+import {
+  FOLLOW_UP_STATUSES as APP_FOLLOW_UP_STATUSES,
+  MAX_BODY_LENGTH as APP_MAX_BODY_LENGTH,
+  MAX_SUBJECT_LENGTH as APP_MAX_SUBJECT_LENGTH,
+  STUCK_STAGES,
+} from "../services/applicationFollowUpRules.js";
 import { idParam, paginationRules } from "./shared.js";
 
 const onboardingQueryRules = (stages: readonly string[]) => [
@@ -80,4 +86,40 @@ export const adminOrganizationsQueryValidator = [
     .optional()
     .isIn(Object.values(OrganizationStatus))
     .withMessage(`status must be one of: ${Object.values(OrganizationStatus).join(", ")}`),
+];
+
+export const adminStuckApplicationsQueryValidator = [
+  ...paginationRules,
+  query("search").optional().trim().isLength({ max: 200 }),
+  query("stuckStage")
+    .optional()
+    .isIn(STUCK_STAGES)
+    .withMessage(`stuckStage must be one of: ${STUCK_STAGES.join(", ")}`),
+  query("followUp")
+    .optional()
+    .isIn(APP_FOLLOW_UP_STATUSES)
+    .withMessage(`followUp must be one of: ${APP_FOLLOW_UP_STATUSES.join(", ")}`),
+];
+
+export const adminApplicationIdParamValidator = [
+  param("_id").isUUID().withMessage("_id must be a valid UUID"),
+];
+
+export const adminApplicationFollowUpEmailValidator = [
+  ...adminApplicationIdParamValidator,
+  body("subject")
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage("Add a subject")
+    .isLength({ max: APP_MAX_SUBJECT_LENGTH })
+    .withMessage(`Subject must be at most ${APP_MAX_SUBJECT_LENGTH} characters`),
+  body("body")
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage("Add a message")
+    .isLength({ max: APP_MAX_BODY_LENGTH })
+    .withMessage(`Message must be at most ${APP_MAX_BODY_LENGTH} characters`),
+  body("confirm").optional().isBoolean().toBoolean(),
 ];

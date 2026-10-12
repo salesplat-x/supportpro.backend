@@ -3,6 +3,7 @@ import {
   AIConfig,
   Answer,
   Application,
+  ApplicationFollowUpEmail,
   Conversation,
   ErrorLog,
   FeatureUsageCounter,
@@ -115,9 +116,10 @@ export async function purgeJobCascade(manager: EntityManager, jobId: string): Pr
   const messageIds = await collectMessageIds(manager, { applicationIds });
   await deleteMessagesAndDetachConversations(manager, messageIds);
 
-  // ai_recommendations cascade via FK when applications are deleted
+  // ai_recommendations cascades via FK when applications are deleted
   await manager.delete(Answer, { jobId });
   if (applicationIds.length > 0) {
+    await manager.delete(ApplicationFollowUpEmail, { applicationId: In(applicationIds) });
     await manager.delete(Application, { jobId });
   }
   await manager.delete(Question, { jobId });
@@ -225,6 +227,7 @@ export async function purgeTalentCascade(manager: EntityManager, userId: string)
 
   if (applicationIds.length > 0) {
     await manager.delete(AiRecommendation, { applicationId: In(applicationIds) });
+    await manager.delete(ApplicationFollowUpEmail, { applicationId: In(applicationIds) });
     await manager.delete(Application, { talentId: userId });
   }
 
@@ -343,6 +346,9 @@ export async function purgeRecruiterCascade(
   await deleteMessagesAndDetachConversations(manager, messageIds);
 
   if (remainingApplicationIds.length > 0) {
+    await manager.delete(ApplicationFollowUpEmail, {
+      applicationId: In(remainingApplicationIds),
+    });
     await manager.delete(Application, { recruiterId: userId });
   }
 

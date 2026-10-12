@@ -31,6 +31,7 @@ import { OrganizationInvite } from "../../src/entities/OrganizationInvite.js";
 import { FeatureUsageCounter } from "../../src/entities/FeatureUsageCounter.js";
 import { OrganizationPlanHistory } from "../../src/entities/OrganizationPlanHistory.js";
 import { OnboardingEmail } from "../../src/entities/OnboardingEmail.js";
+import { ApplicationFollowUpEmail } from "../../src/entities/ApplicationFollowUpEmail.js";
 
 let container: StartedPostgreSqlContainer;
 export let testDataSource: DataSource;
@@ -66,6 +67,7 @@ const ALL_ENTITIES = [
   FeatureUsageCounter,
   OrganizationPlanHistory,
   OnboardingEmail,
+  ApplicationFollowUpEmail,
 ];
 
 export async function startTestDatabase(): Promise<void> {

@@ -52,6 +52,32 @@ class EmailService {
     });
   }
 
+  /** Sends an admin's follow-up about a talent's stuck job application. Unlike sendEmail it throws, so failures can be recorded. */
+  async sendApplicationFollowUp(details: {
+    to: string;
+    subject: string;
+    jobTitle: string;
+    companyName?: string;
+    paragraphs: string[];
+    ctaLabel: string;
+    ctaUrl: string;
+  }): Promise<void> {
+    const html = renderTemplate("application-follow-up", {
+      jobTitle: details.jobTitle,
+      companyName: details.companyName,
+      paragraphs: details.paragraphs,
+      ctaLabel: details.ctaLabel,
+      ctaUrl: details.ctaUrl,
+    });
+    await this.provider.send({
+      to: details.to,
+      subject: details.subject,
+      html,
+      text: [...details.paragraphs, `${details.ctaLabel}: ${details.ctaUrl}`].join("\n\n"),
+      tags: [{ name: "category", value: "application-follow-up" }],
+    });
+  }
+
   /** Sends a recruiter's message to a shortlisted applicant. Unlike sendEmail it throws, so the caller can record a per-recipient failure without failing the whole batch. */
   async sendApplicantMessage(details: {
     to: string;
