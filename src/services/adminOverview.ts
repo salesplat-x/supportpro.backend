@@ -84,7 +84,9 @@ const onboardingBuckets = async (
   return rows.map((row) => ({ key: row.stage, count: Number(row.count) }));
 };
 
-export const getAdminOverview = async (days: number = DEFAULT_OVERVIEW_DAYS): Promise<AdminOverview> => {
+export const getAdminOverview = async (
+  days: number = DEFAULT_OVERVIEW_DAYS
+): Promise<AdminOverview> => {
   const today = startOfUtcDay(new Date());
   const from = new Date(today.getTime() - (days - 1) * DAY_MS);
   const previousFrom = new Date(from.getTime() - days * DAY_MS);
@@ -103,7 +105,11 @@ export const getAdminOverview = async (days: number = DEFAULT_OVERVIEW_DAYS): Pr
          COUNT(*) FILTER (WHERE "createdAt" >= $4::timestamp AND "createdAt" < $2::timestamp)::int AS previous
        FROM users WHERE "userRole" = $1`,
       [role, fromKey, rangeEndKey, previousFromKey]
-    ).then(([row]) => ({ total: row?.total ?? 0, new: row?.new ?? 0, previous: row?.previous ?? 0 }));
+    ).then(([row]) => ({
+      total: row?.total ?? 0,
+      new: row?.new ?? 0,
+      previous: row?.previous ?? 0,
+    }));
 
   const [
     talents,
@@ -127,8 +133,12 @@ export const getAdminOverview = async (days: number = DEFAULT_OVERVIEW_DAYS): Pr
   ] = await Promise.all([
     userCounts(UserRole.Talent),
     userCounts(UserRole.Recruiter),
-    buckets(`SELECT status::text AS key, COUNT(*)::int AS count FROM organizations GROUP BY status`),
-    buckets(`SELECT status::text AS key, COUNT(*)::int AS count FROM jobs GROUP BY status ORDER BY count DESC`),
+    buckets(
+      `SELECT status::text AS key, COUNT(*)::int AS count FROM organizations GROUP BY status`
+    ),
+    buckets(
+      `SELECT status::text AS key, COUNT(*)::int AS count FROM jobs GROUP BY status ORDER BY count DESC`
+    ),
     run<{ total: number; new: number; previous: number }>(
       `SELECT
          COUNT(*)::int AS total,
@@ -137,7 +147,9 @@ export const getAdminOverview = async (days: number = DEFAULT_OVERVIEW_DAYS): Pr
        FROM applications`,
       [fromKey, rangeEndKey, previousFromKey]
     ),
-    buckets(`SELECT status::text AS key, COUNT(*)::int AS count FROM applications GROUP BY status ORDER BY count DESC`),
+    buckets(
+      `SELECT status::text AS key, COUNT(*)::int AS count FROM applications GROUP BY status ORDER BY count DESC`
+    ),
     scalar(`SELECT COUNT(*)::int AS value FROM applications a WHERE ${stuckApplicationSql("a")}`),
     buckets(
       `SELECT a."currentStage"::text AS key, COUNT(*)::int AS count
@@ -159,7 +171,9 @@ export const getAdminOverview = async (days: number = DEFAULT_OVERVIEW_DAYS): Pr
     buckets(
       `SELECT billing_plan AS key, COUNT(*)::int AS count FROM organizations GROUP BY billing_plan ORDER BY count DESC`
     ),
-    buckets(`SELECT status::text AS key, COUNT(*)::int AS count FROM scout_runs GROUP BY status ORDER BY count DESC`),
+    buckets(
+      `SELECT status::text AS key, COUNT(*)::int AS count FROM scout_runs GROUP BY status ORDER BY count DESC`
+    ),
     onboardingBuckets(UserRole.Talent, talentStageSql),
     onboardingBuckets(UserRole.Recruiter, recruiterStageSql),
     run<{ date: string; talents: number; recruiters: number }>(

@@ -131,7 +131,10 @@ describe("GET /v1/admin/overview", () => {
     expect(data.kpis.applications.total).toBe(2);
     expect(data.kpis.applications.new).toBe(2);
     const byStatus = Object.fromEntries(
-      data.breakdowns.applicationsByStatus.map((b: { key: string; count: number }) => [b.key, b.count])
+      data.breakdowns.applicationsByStatus.map((b: { key: string; count: number }) => [
+        b.key,
+        b.count,
+      ])
     );
     expect(byStatus).toEqual({ shortlisted: 1, pending: 1 });
     expect(data.kpis.stuckApplications).toBe(0);
