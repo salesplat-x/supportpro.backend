@@ -109,6 +109,19 @@ describe("plan inheritance", () => {
     expect(getPlanFeature(org, "candidate_views")?.limit).toBeNull();
   });
 
+  it("production_enterprise grants exactly what enterprise does", async () => {
+    const enterprise = await orgOnPlan("enterprise");
+    const production = await orgOnPlan("production_enterprise");
+    const usage = async (org: Organization) => {
+      const snapshot = await getOrganizationUsage(org.id);
+      return {
+        meters: snapshot.meters.map((meter) => [meter.key, meter.limit]),
+        flags: snapshot.flags.map((flag) => flag.key).sort(),
+      };
+    };
+    expect(await usage(production)).toEqual(await usage(enterprise));
+  });
+
   it("inheritance only flows upward — Pro does not get Advance's or Enterprise's flags", async () => {
     const org = await orgOnPlan("pro");
     expect(hasFlag(org, "job_board_distribution")).toBe(false);

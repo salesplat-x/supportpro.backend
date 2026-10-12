@@ -19,4 +19,3 @@ eslint.config.mjs
 commitlint.config.js
 generate-swagger.ts
 swagger-custome.js
-plans.json
