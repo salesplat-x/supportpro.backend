@@ -68,10 +68,6 @@ export class User {
   @Column({ type: "timestamp", nullable: true, default: null })
   welcomeEmailSentAt!: Date | null;
 
-  /** When the user finished or skipped the first-time product tour; null means show it. */
-  @Column({ type: "timestamp", nullable: true, default: null, name: "tour_completed_at" })
-  tourCompletedAt!: Date | null;
-
   @Column({ type: "boolean", default: true })
   active!: boolean;
 
