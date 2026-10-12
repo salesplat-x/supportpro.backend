@@ -50,7 +50,11 @@ router.delete(
 router.get("/me", loginRequired, asyncHandler(user.me, "load your profile"));
 // No email-verification gate: the tour runs on a new user's first dashboard visit,
 // which can happen before they verify.
-router.post("/me/tour", loginRequired, asyncHandler(user.completeTour, "save tour progress"));
+router.get(
+  "/me/onboarding",
+  loginRequired,
+  asyncHandler(user.myOnboarding, "load your onboarding")
+);
 router.get(
   "/profile/",
   validateAccess([UserRole.Admin, UserRole.Recruiter]),
