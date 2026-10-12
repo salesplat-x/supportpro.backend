@@ -2143,6 +2143,32 @@ paths:
                 type: object
       security:
         - bearerAuth: []
+  /admin/overview:
+    get:
+      summary: Admin platform overview (KPIs, daily series and breakdowns)
+      tags:
+        - admin
+      parameters:
+        - name: days
+          in: query
+          required: false
+          description: Window for new-signup, application and revenue figures. Defaults to 30.
+          schema:
+            type: integer
+            enum: [7, 30, 90]
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Unsupported days value
+        "403":
+          description: Caller is not an admin
+      security:
+        - bearerAuth: []
   /error-logs/stats:
     get:
       summary: Superadmin

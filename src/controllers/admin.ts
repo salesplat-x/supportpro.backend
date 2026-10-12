@@ -1,9 +1,16 @@
 import { Request, Response } from "express";
 import * as adminService from "../services/admin.js";
+import { DEFAULT_OVERVIEW_DAYS, getAdminOverview } from "../services/adminOverview.js";
 import * as onboardingService from "../services/onboarding.js";
 import * as applicationFollowUpService from "../services/applicationFollowUps.js";
 import { OrganizationStatus } from "../types/enums.js";
 import { sendSuccessResponse } from "../utils/response.js";
+
+export const overview = async (req: Request, res: Response) => {
+  const days = Number(req.query["days"]) || DEFAULT_OVERVIEW_DAYS;
+  const result = await getAdminOverview(days);
+  sendSuccessResponse(res, "Overview fetched", result);
+};
 
 export const listTalents = async (req: Request, res: Response) => {
   const result = await adminService.listTalents(req.query as Record<string, string>);

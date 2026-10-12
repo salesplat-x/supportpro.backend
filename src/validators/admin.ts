@@ -13,6 +13,7 @@ import {
   MAX_SUBJECT_LENGTH as APP_MAX_SUBJECT_LENGTH,
   STUCK_STAGES,
 } from "../services/applicationFollowUpRules.js";
+import { OVERVIEW_RANGES } from "../services/adminOverview.js";
 import { idParam, paginationRules } from "./shared.js";
 
 const onboardingQueryRules = (stages: readonly string[]) => [
@@ -122,4 +123,11 @@ export const adminApplicationFollowUpEmailValidator = [
     .isLength({ max: APP_MAX_BODY_LENGTH })
     .withMessage(`Message must be at most ${APP_MAX_BODY_LENGTH} characters`),
   body("confirm").optional().isBoolean().toBoolean(),
+];
+
+export const adminOverviewQueryValidator = [
+  query("days")
+    .optional()
+    .isIn(OVERVIEW_RANGES.map(String))
+    .withMessage(`days must be one of: ${OVERVIEW_RANGES.join(", ")}`),
 ];

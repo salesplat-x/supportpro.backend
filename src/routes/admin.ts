@@ -6,6 +6,7 @@ import { validate } from "../middleware/validate.js";
 import { UserRole } from "../types/enums.js";
 import {
   adminApplicationFollowUpEmailValidator,
+  adminOverviewQueryValidator,
   adminApplicationIdParamValidator,
   adminIdParamValidator,
   adminJobsQueryValidator,
@@ -18,6 +19,14 @@ import {
 } from "../validators/admin.js";
 
 const router = Router();
+
+router.get(
+  "/overview",
+  validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(adminOverviewQueryValidator),
+  asyncHandler(admin.overview, "load overview")
+);
 
 router.get(
   "/talents",
