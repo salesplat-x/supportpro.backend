@@ -8,6 +8,7 @@ import { AppError, ConflictError, NotFoundError, ValidationError } from "../util
 import EmailService from "../utils/integrations/email/emailService.js";
 import { composeOnboardingEmail } from "../utils/integrations/openai.js";
 import logger from "../utils/logger.js";
+import { RESEND_WINDOW_MS } from "./followUpShared.js";
 import {
   followUpStatus,
   FollowUpStatus,
@@ -28,9 +29,6 @@ import {
 
 const userRepo = () => AppDataSource.getRepository(User);
 const emailRepo = () => AppDataSource.getRepository(OnboardingEmail);
-
-/** A second email inside this window needs the admin to confirm, to stop double-sends. */
-export const RESEND_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 // ---- SQL mirrors of onboardingRules.ts -------------------------------------------------
 // Each fact is one boolean SQL expression over a users alias. The stage CASE is built from

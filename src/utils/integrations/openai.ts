@@ -896,6 +896,61 @@ Output a JSON object in this exact format:
   return completion.choices[0];
 };
 
+export interface ComposeApplicationFollowUpContext {
+  talentFirstName: string;
+  jobTitle: string;
+  companyName?: string;
+  stage: string;
+  nextSteps: string[];
+  ctaLabel: string;
+  daysStuck: number;
+  /** Every previous follow-up sent for this application, oldest first. */
+  previousSteps: Array<{ step: number; subject: string; sentAt: string }>;
+}
+
+// The onboarding-email sibling of this function (composeOnboardingEmail) nudges
+// someone back to finish their account setup; this one nudges them back to finish
+// one specific job application, so it needs to name the job and knows about a
+// numbered sequence of prior steps rather than just a flat email history.
+export const composeApplicationFollowUpEmail = async (
+  context: ComposeApplicationFollowUpContext
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const system = `You write short, warm nudge emails that bring a job applicant back to finish a specific step in their application on Auxhr, an AI-assisted hiring platform.
+
+Write one email that:
+- greets them by first name,
+- names the job (and company, if given) they applied to,
+- tells them exactly what step is left, using the next steps provided (you may reword them, but do not add or drop steps),
+- is friendly and encouraging, never guilt-tripping or pushy,
+- is under 130 words, in plain text with short paragraphs and no markdown symbols.
+If previousSteps is non-empty, this is not the first follow-up for this application — write it as the Nth gentle follow-up, acknowledge they haven't gotten to it yet without being pushy, and do not repeat earlier subject lines.
+Do not include links, a signature block, or placeholders like [Name] — a button to the right page is added below your text.
+
+Output a JSON object in this exact format:
+{ "subject": "<under 70 characters>", "body": "<the email text>" }`;
+
+  const user = JSON.stringify({
+    talentFirstName: context.talentFirstName,
+    jobTitle: context.jobTitle,
+    companyName: context.companyName,
+    stage: context.stage,
+    nextSteps: context.nextSteps,
+    buttonLabel: context.ctaLabel,
+    daysStuck: context.daysStuck,
+    previousSteps: context.previousSteps,
+  });
+
+  const completion = await runCompletion({
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+    model: "gpt-4o",
+    response_format: { type: "json_object" },
+  });
+  return completion.choices[0];
+};
+
 export const scorePreScreeningAssessment = async (
   context: PreScreeningScoringContext
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
