@@ -31,6 +31,7 @@ import {
   createOrganization,
 } from "./helpers/fixtures.js";
 import { User } from "../src/entities/User.js";
+import { Job } from "../src/entities/Job.js";
 import { JobStatus } from "../src/types/enums.js";
 import { generateHashedPassword, signToken } from "../src/utils/crypto.js";
 
@@ -472,5 +473,95 @@ describe("Public job endpoints expose only public relation fields", () => {
     expect(res.status).toBe(200);
     expect(res.body.data.jobs.length).toBeGreaterThan(0);
     assertScrubbed(res.body.data.jobs[0]);
+  });
+
+  describe("applicant count is visible to the hiring team only", () => {
+    const seedJobWithApplicants = async () => {
+      const seeded = await seedJob();
+      await testDataSource.getRepository(Job).update(seeded.job.id, { noOfApplicants: 7 });
+      return seeded;
+    };
+
+    it("hides the count from anonymous callers on GET /v1/jobs/:_id and GET /v1/jobs", async () => {
+      const { job } = await seedJobWithApplicants();
+
+      const detail = await request(app).get(`/v1/jobs/${job.id}`);
+      const list = await request(app).get("/v1/jobs");
+
+      expect(detail.status).toBe(200);
+      expect(detail.body.data.job).not.toHaveProperty("noOfApplicants");
+      expect(list.status).toBe(200);
+      for (const listed of list.body.data.jobs) {
+        expect(listed).not.toHaveProperty("noOfApplicants");
+      }
+    });
+
+    it("hides the count from talents", async () => {
+      const { job } = await seedJobWithApplicants();
+      const { token } = await createTalent();
+
+      const detail = await request(app)
+        .get(`/v1/jobs/${job.id}`)
+        .set("Authorization", `Bearer ${token}`);
+      const list = await request(app).get("/v1/jobs").set("Authorization", `Bearer ${token}`);
+
+      expect(detail.status).toBe(200);
+      expect(detail.body.data.job).not.toHaveProperty("noOfApplicants");
+      for (const listed of list.body.data.jobs) {
+        expect(listed).not.toHaveProperty("noOfApplicants");
+      }
+    });
+
+    it("hides the count from recruiters at another company", async () => {
+      const { job } = await seedJobWithApplicants();
+      const { user: outsider, token } = await createRecruiter();
+      await createOrganization(outsider);
+
+      const res = await request(app)
+        .get(`/v1/jobs/${job.id}`)
+        .set("Authorization", `Bearer ${token}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.job).not.toHaveProperty("noOfApplicants");
+    });
+
+    it("shows the count to the recruiter who posted the job", async () => {
+      const { job, recruiter } = await seedJobWithApplicants();
+
+      const res = await request(app)
+        .get(`/v1/jobs/${job.id}`)
+        .set("Authorization", `Bearer ${signToken(recruiter)}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.job.noOfApplicants).toBe(7);
+    });
+
+    it("shows the count to a teammate in the same company, on the detail and their job list", async () => {
+      const { job, organization } = await seedJobWithApplicants();
+      const { token } = await createRecruiter({ activeOrganizationId: organization.id });
+
+      const detail = await request(app)
+        .get(`/v1/jobs/${job.id}`)
+        .set("Authorization", `Bearer ${token}`);
+      const mine = await request(app).get("/v1/jobs/me").set("Authorization", `Bearer ${token}`);
+
+      expect(detail.status).toBe(200);
+      expect(detail.body.data.job.noOfApplicants).toBe(7);
+      expect(mine.status).toBe(200);
+      const listed = mine.body.data.jobs.find((entry: { id: string }) => entry.id === job.id);
+      expect(listed.noOfApplicants).toBe(7);
+    });
+
+    it("shows the count to admins", async () => {
+      const { job } = await seedJobWithApplicants();
+      const { token } = await createAdmin();
+
+      const res = await request(app)
+        .get(`/v1/jobs/${job.id}`)
+        .set("Authorization", `Bearer ${token}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.job.noOfApplicants).toBe(7);
+    });
   });
 });
