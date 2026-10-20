@@ -17,7 +17,9 @@ export const generateContent = async (req: Request, res: Response) => {
 };
 
 export const generateContentFromFile = async (req: Request, res: Response) => {
-  const result = await jobService.generateJobContentFromFile(req.file);
+  const result = await jobService.generateJobContentFromFile(req.file, {
+    richText: req.body?.richText === "true",
+  });
   sendSuccessResponse(res, "Job content generated", { content: result });
 };
 

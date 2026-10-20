@@ -351,6 +351,7 @@ export interface GenerateJobContentPayload {
   keywords?: string[];
   prompt?: string;
   sourceText?: string;
+  richText?: boolean;
 }
 
 export interface GeneratedJobContent {
@@ -442,7 +443,8 @@ const JOB_DESCRIPTION_FILE_TYPES = [
 const MAX_SOURCE_TEXT_LENGTH = 30000;
 
 export const generateJobContentFromFile = async (
-  file: Express.Multer.File | undefined
+  file: Express.Multer.File | undefined,
+  options: { richText?: boolean } = {}
 ): Promise<GeneratedJobContent> => {
   if (!file) {
     throw new ValidationError("Upload a job description file");
@@ -469,7 +471,10 @@ export const generateJobContentFromFile = async (
     throw new ValidationError("We couldn't find any text in this file");
   }
 
-  return generateJobContent({ sourceText: text.trim().slice(0, MAX_SOURCE_TEXT_LENGTH) });
+  return generateJobContent({
+    sourceText: text.trim().slice(0, MAX_SOURCE_TEXT_LENGTH),
+    ...(options.richText ? { richText: true } : {}),
+  });
 };
 
 export type GenerateJobFieldPayload = GenerateJobFieldContext;

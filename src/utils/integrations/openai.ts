@@ -654,12 +654,25 @@ export interface GenerateJobContentContext {
   keywords?: string[];
   prompt?: string;
   sourceText?: string;
+  /** Set by clients that render the job brief and requirements as rich text. */
+  richText?: boolean;
 }
 
-export const generateJobContent = async (
-  context: GenerateJobContentContext
-): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
-  const system = `You are an expert technical recruiter and copywriter. Turn the recruiter's input into a complete, compelling job posting.
+// Only clients that convert this Markdown subset into editor HTML ask for it;
+// everyone else keeps the plain-text contract below.
+const JOB_RICH_TEXT_RULES = `Format the job brief and requirements text with this limited Markdown only:
+- Put each section header on its own line in bold, for example **Responsibilities**
+- Write responsibilities, qualifications, benefits and any other list as lines starting with "- "
+- Use *italic* only for genuine emphasis, and sparingly
+- Separate sections and paragraphs with a blank line
+Do not use "#" headings, tables, links, code or nested lists.`;
+
+const KEEP_SOURCE_STRUCTURE = `An existing job description is provided: keep its wording, section order, lists and emphasis. Reformat it into the structure above rather than rewriting it, trimming only what is needed to stay under 600 words.`;
+
+const jobContentSystem = (
+  fields: { jobBrief: string; requirements: string },
+  rules: string
+) => `You are an expert technical recruiter and copywriter. Turn the recruiter's input into a complete, compelling job posting.
 
 The input may be a role name, a short free-text description of the job, or the text of an existing job description. Use every fact the input gives you. Never invent a location, salary, currency or pay period that the input does not state — use null instead.
 
@@ -675,13 +688,42 @@ Output a JSON object in this exact format:
   "minSalary": <number or null>,
   "maxSalary": <number or null>,
   "compensationPeriod": <"monthly", "yearly" or null>,
-  "jobBrief": "<a well-structured job description under 600 words, written in plain text with clear section headers such as 'About the Role:', 'Responsibilities:', and 'Benefits:'>",
-  "requirements": "<a well-structured requirements section, written in plain text with clear section headers such as 'Qualifications:' and 'Nice to Have:'>",
+  "jobBrief": "<${fields.jobBrief}>",
+  "requirements": "<${fields.requirements}>",
   "skills": ["<skill1>", "<skill2>", "..."],
   "goals": ["<goal1>", "<goal2>", "..."]
 }
 
-Do not use markdown symbols (no "#", "*", "-") — use plain text with line breaks and the section headers described above.`;
+${rules}`;
+
+const PLAIN_JOB_CONTENT_SYSTEM = jobContentSystem(
+  {
+    jobBrief:
+      "a well-structured job description under 600 words, written in plain text with clear section headers such as 'About the Role:', 'Responsibilities:', and 'Benefits:'",
+    requirements:
+      "a well-structured requirements section, written in plain text with clear section headers such as 'Qualifications:' and 'Nice to Have:'",
+  },
+  'Do not use markdown symbols (no "#", "*", "-") — use plain text with line breaks and the section headers described above.'
+);
+
+const RICH_JOB_CONTENT_FIELDS = {
+  jobBrief:
+    "a well-structured job description under 600 words, with section headers such as 'About the Role', 'Responsibilities' and 'Benefits'",
+  requirements:
+    "a well-structured requirements section with section headers such as 'Qualifications' and 'Nice to Have'",
+};
+
+export const generateJobContent = async (
+  context: GenerateJobContentContext
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const system = context.richText
+    ? jobContentSystem(
+        RICH_JOB_CONTENT_FIELDS,
+        context.sourceText
+          ? `${JOB_RICH_TEXT_RULES}\n\n${KEEP_SOURCE_STRUCTURE}`
+          : JOB_RICH_TEXT_RULES
+      )
+    : PLAIN_JOB_CONTENT_SYSTEM;
 
   const lines = [
     context.role ? `Role: ${context.role}` : null,
@@ -712,6 +754,8 @@ export interface GenerateJobFieldContext {
   field: JobTextField | JobListField;
   action?: JobFieldAction;
   currentText?: string;
+  /** Set by clients that render the job brief and requirements as rich text. */
+  richText?: boolean;
   job: {
     role?: string;
     experienceLevel?: string;
@@ -735,6 +779,13 @@ const FIELD_TASKS: Record<GenerateJobFieldContext["field"], string> = {
     "Suggest up to 5 goals the new hire should achieve in their first year. Each is one short sentence. Do not repeat goals already listed.",
 };
 
+const RICH_FIELD_TASKS: Partial<Record<GenerateJobFieldContext["field"], string>> = {
+  jobBrief:
+    "Write the job brief: what the candidate reads first. Use section headers such as 'About the Role', 'Responsibilities' and 'Benefits', under 600 words.",
+  requirements:
+    "Write the requirements section, with section headers such as 'Qualifications' and 'Nice to Have'.",
+};
+
 const ACTION_INSTRUCTIONS: Record<JobFieldAction, string> = {
   regenerate: "Write a fresh version.",
   shorter: "Rewrite the current text to be about half as long, keeping every key fact.",
@@ -751,7 +802,18 @@ export const generateJobField = async (
     ? '{ "items": ["<item1>", "<item2>", "..."] }'
     : '{ "text": "<the written text>" }';
 
-  const system = `You are an expert technical recruiter and copywriter helping a recruiter fill in one field of a job posting.
+  const richTask = context.richText ? RICH_FIELD_TASKS[context.field] : undefined;
+  const system = richTask
+    ? `You are an expert technical recruiter and copywriter helping a recruiter fill in one field of a job posting.
+
+Task: ${richTask}
+${context.action ? ACTION_INSTRUCTIONS[context.action] : ""}
+
+${JOB_RICH_TEXT_RULES}
+
+Output a JSON object in this exact format:
+${outputFormat}`
+    : `You are an expert technical recruiter and copywriter helping a recruiter fill in one field of a job posting.
 
 Task: ${FIELD_TASKS[context.field]}
 ${!isList && context.action ? ACTION_INSTRUCTIONS[context.action] : ""}
