@@ -76,7 +76,7 @@
     "google-libphonenumber": "^3.2.42",
     "handlebars": "^4.7.8",
     "helmet": "^7.1.0",
-    "joi": "^17.12.1",
+    "joi": "^18.3.0",
     "js-yaml": "^4.3.1",
     "jsonwebtoken": "^9.0.2",
     "mammoth": "^1.7.2",
