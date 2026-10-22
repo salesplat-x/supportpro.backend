@@ -1,15 +1,24 @@
 name: Continuous Build and Deployment Engine
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches: [main]
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
 
 jobs:
   build-and-push:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -22,7 +31,9 @@ jobs:
         with:
           context: .
           push: true
-          tags: salesplat/supportpro-backend:latest
+          tags: |
+            salesplat/supportpro-backend:latest
+            salesplat/supportpro-backend:${{ github.event.workflow_run.head_sha }}
 
   deploy:
     needs: build-and-push
@@ -39,6 +50,10 @@ jobs:
             set -euo pipefail
 
             cd ~/app-stack
+
+            # Image ID (not tag) of what is serving now, so rollback survives :latest being repointed.
+            previous_image="$(docker inspect -f '{{.Image}}' supportpro-backend 2>/dev/null || true)"
+            echo "==> Currently running image: ${previous_image:-none}"
 
             echo "==> Pulling latest image"
             docker pull salesplat/supportpro-backend:latest
@@ -70,8 +85,6 @@ jobs:
               --entrypoint node \
               salesplat/supportpro-backend:latest \
               dist/scripts/syncPlans.js
-
-            echo "==> Replacing running server"
 
             unique_ids() {
               printf '%s\n' "$@" | awk 'NF && !seen[$0]++'
@@ -114,47 +127,85 @@ jobs:
               ss -ltnp | grep 8000 || true
             }
 
-            started=0
-            attempt=1
-            while [ "${attempt}" -le 20 ]; do
-              free_host_port_8000
-              wait_for_8000_free
-              docker rm -f supportpro-backend 2>/dev/null || true
+            start_container() {
+              image="$1"
+              attempt=1
+              while [ "${attempt}" -le 20 ]; do
+                free_host_port_8000
+                wait_for_8000_free
+                docker rm -f supportpro-backend 2>/dev/null || true
 
-              set +e
-              docker run -d \
-                --name supportpro-backend \
-                --network app-network \
-                -p 8000:8000 \
-                --env-file .env \
-                --restart always \
-                salesplat/supportpro-backend:latest
-              rc=$?
-              set -e
+                set +e
+                docker run -d \
+                  --name supportpro-backend \
+                  --network app-network \
+                  -p 8000:8000 \
+                  --env-file .env \
+                  --restart always \
+                  "${image}"
+                rc=$?
+                set -e
 
-              if [ "${rc}" -eq 0 ]; then
-                started=1
-                break
-              fi
+                if [ "${rc}" -eq 0 ]; then
+                  return 0
+                fi
 
-              echo "docker run exit ${rc} (attempt ${attempt}/20)"
-              docker rm -f supportpro-backend 2>/dev/null || true
-              if [ "${attempt}" -ge 8 ]; then
-                fuser -k 8000/tcp 2>/dev/null || true
-              fi
-              if [ "${attempt}" -lt 5 ]; then
-                sleep 2
-              else
-                sleep 5
-              fi
-              attempt=$((attempt + 1))
-            done
+                echo "docker run exit ${rc} (attempt ${attempt}/20)"
+                docker rm -f supportpro-backend 2>/dev/null || true
+                if [ "${attempt}" -ge 8 ]; then
+                  fuser -k 8000/tcp 2>/dev/null || true
+                fi
+                if [ "${attempt}" -lt 5 ]; then
+                  sleep 2
+                else
+                  sleep 5
+                fi
+                attempt=$((attempt + 1))
+              done
 
-            if [ "${started}" -ne 1 ]; then
               echo "Failed to bind host :8000 after retries"
               docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
               ss -ltnp | grep 8000 || true
+              return 1
+            }
+
+            # The entrypoint re-runs migrations before listening, so allow up to 90s.
+            wait_for_health() {
+              i=1
+              while [ "${i}" -le 30 ]; do
+                if curl -fsS http://localhost:8000/health >/dev/null 2>&1; then
+                  return 0
+                fi
+                restarts="$(docker inspect -f '{{.RestartCount}}' supportpro-backend 2>/dev/null || echo 0)"
+                if [ "${restarts}" -gt 0 ]; then
+                  echo "Container restarted ${restarts} time(s); treating as crash loop"
+                  return 1
+                fi
+                sleep 3
+                i=$((i + 1))
+              done
+              echo "/health did not return 200 within 90s"
+              return 1
+            }
+
+            echo "==> Replacing running server"
+            if start_container salesplat/supportpro-backend:latest && wait_for_health; then
+              echo "==> Deploy complete"
+              exit 0
+            fi
+
+            echo "==> New release is unhealthy; last 100 log lines:"
+            docker logs --tail 100 supportpro-backend 2>&1 || true
+
+            if [ -z "${previous_image}" ]; then
+              echo "No previous image recorded; nothing to roll back to"
               exit 1
             fi
 
-            echo "==> Deploy complete"
+            echo "==> Rolling back to ${previous_image}"
+            if start_container "${previous_image}" && wait_for_health; then
+              echo "==> Rollback complete; previous release is serving"
+            else
+              echo "==> Rollback also failed; production needs manual attention"
+            fi
+            exit 1
