@@ -88,6 +88,7 @@ export const loginUser = async (
     // timing-based email enumeration (bcrypt takes ~100 ms; skipping it leaks existence).
     await compareHashedPassword(
       password,
+      // nosemgrep: generic.secrets.security.detected-bcrypt-hash.detected-bcrypt-hash
       "$2b$10$dummyhashplaceholderXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
     );
     logger.error(`Failed login: email=${email} ip=${ip ?? "unknown"}`);

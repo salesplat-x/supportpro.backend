@@ -1,0 +1,6 @@
+# Placeholder Paystack key used only by the test suite.
+bfcabd7a036a697b999340e92c94e9a08c73e324:tests/setup.ts:stripe-access-token:17
+# Blank ELEVENLABS_API_KEY with trailing whitespace.
+7bf39cd80542268db1c6bc2d09eb82d8e4f665e5:.env.example:generic-api-key:14
+# Real keys removed from the tree in 4fabb3d; still in history, so they must stay rotated.
+9547059fb782a7aeaabcd3c42ae127a2af990c0c:credentials.md:stripe-access-token:140

@@ -10,6 +10,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build & Test (Node ${{ matrix.node-version }})
@@ -73,10 +76,67 @@ jobs:
       - name: npm audit
         run: npm audit --audit-level=high
 
+      - name: Verify registry signatures
+        run: npm audit signatures
+
+  secrets:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: gitleaks
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.24.3 \
+            git /repo --no-banner --redact --gitleaks-ignore-path /repo/.gitleaksignore
+
+  sast:
+    name: Static Analysis
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:1.130.0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Semgrep
+        run: |
+          semgrep scan \
+            --config p/typescript \
+            --config p/expressjs \
+            --config p/jwt \
+            --config p/secrets \
+            --severity ERROR \
+            --exclude tests \
+            --metrics=off \
+            --error
+
+  image-scan:
+    name: Container Image Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t supportpro-backend:ci .
+
+      - name: Trivy
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.65.0 \
+            image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
+            supportpro-backend:ci
+
   commitlint:
     name: Commit Lint
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
