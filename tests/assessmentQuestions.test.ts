@@ -230,7 +230,7 @@ describe("POST /v1/questions/problem-solving", () => {
   });
 
   it.each([
-    ["a missing jobId", {}],
+    ["a missing jobId", { jobId: undefined }],
     ["a jobId that is not an id", { jobId: "not-an-id" }],
     ["count 0", { count: 0 }],
     ["count 11", { count: 11 }],
