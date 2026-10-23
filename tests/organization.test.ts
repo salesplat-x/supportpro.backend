@@ -1055,3 +1055,146 @@ describe("Organization domain field", () => {
     expect(res.status).toBe(201);
   });
 });
+
+// ---------------------------------------------------------------------------
+// companyValues — the company's values, used to write culture-fit questions
+// ---------------------------------------------------------------------------
+
+describe("Organization companyValues field", () => {
+  const patchValues = (orgId: string, token: string, companyValues: unknown) =>
+    request(app)
+      .patch(`/v1/organizations/${orgId}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ companyValues });
+
+  it("defaults to an empty list for a new company", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+
+    const stored = await testDataSource.getRepository(Organization).findOneByOrFail({ id: org.id });
+    expect(stored.companyValues).toEqual([]);
+  });
+
+  it("Owner sets company values → 200, trimmed and returned", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+
+    const res = await patchValues(org.id, token, [
+      "  Ownership  ",
+      "Customer obsession",
+      "Bias for action",
+    ]);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.organization.companyValues).toEqual([
+      "Ownership",
+      "Customer obsession",
+      "Bias for action",
+    ]);
+    const stored = await testDataSource.getRepository(Organization).findOneByOrFail({ id: org.id });
+    expect(stored.companyValues).toEqual(["Ownership", "Customer obsession", "Bias for action"]);
+  });
+
+  it("keeps values that contain commas intact", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+
+    const res = await patchValues(org.id, token, ["Be kind, be direct", "Learn fast"]);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.organization.companyValues).toEqual(["Be kind, be direct", "Learn fast"]);
+  });
+
+  it("drops duplicate values (case-insensitive), keeping the first spelling", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+
+    const res = await patchValues(org.id, token, ["Integrity", "integrity ", "Teamwork"]);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.organization.companyValues).toEqual(["Integrity", "Teamwork"]);
+  });
+
+  it("an empty list clears the values", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter, { companyValues: ["Integrity"] });
+
+    const res = await patchValues(org.id, token, []);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.organization.companyValues).toEqual([]);
+  });
+
+  it("is listed with the company in GET /organizations/me", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    await createOrganization(recruiter, { companyValues: ["Integrity", "Teamwork"] });
+
+    const res = await request(app)
+      .get("/v1/organizations/me")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(JSON.stringify(res.body.data)).toContain('"companyValues":["Integrity","Teamwork"]');
+  });
+
+  it.each([
+    ["not a list", "Integrity"],
+    ["more than 10 values", Array.from({ length: 11 }, (_, i) => `Value ${i + 1}`)],
+    ["an empty value", ["Integrity", "   "]],
+    ["a value over 200 characters", ["x".repeat(201)]],
+    ["a value that is not text", ["Integrity", 42]],
+  ])("rejects %s → 400 and leaves the values unchanged", async (_label, companyValues) => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter, { companyValues: ["Integrity"] });
+
+    const res = await patchValues(org.id, token, companyValues);
+
+    expect(res.status).toBe(400);
+    const stored = await testDataSource.getRepository(Organization).findOneByOrFail({ id: org.id });
+    expect(stored.companyValues).toEqual(["Integrity"]);
+  });
+
+  it("accepts exactly 10 values of 200 characters", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+    const values = Array.from({ length: 10 }, (_, i) => `${i}`.padEnd(200, "v"));
+
+    const res = await patchValues(org.id, token, values);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.organization.companyValues).toEqual(values);
+  });
+
+  it("Non-owner recruiter cannot change company values → 403", async () => {
+    const { user: owner } = await createRecruiter();
+    const { token: otherToken } = await createRecruiter();
+    const org = await createOrganization(owner, { companyValues: ["Integrity"] });
+
+    const res = await patchValues(org.id, otherToken, ["Hijacked"]);
+
+    expect(res.status).toBe(403);
+    const stored = await testDataSource.getRepository(Organization).findOneByOrFail({ id: org.id });
+    expect(stored.companyValues).toEqual(["Integrity"]);
+  });
+
+  it("AddOrganizationCompanyValues migration adds a non-null jsonb column defaulting to []", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mod =
+      require("../src/migrations/1789000600000-AddOrganizationCompanyValues.js") as Record<
+        string,
+        new () => { up(q: unknown): Promise<void>; down(q: unknown): Promise<void> }
+      >;
+    const Migration = Object.values(mod)[0]!;
+    const queries: string[] = [];
+    const runner = { query: (sql: string) => Promise.resolve(void queries.push(sql)) };
+
+    await new Migration().up(runner);
+    expect(queries).toEqual([
+      `ALTER TABLE "organizations" ADD "company_values" jsonb NOT NULL DEFAULT '[]'`,
+    ]);
+
+    queries.length = 0;
+    await new Migration().down(runner);
+    expect(queries).toEqual([`ALTER TABLE "organizations" DROP COLUMN "company_values"`]);
+  });
+});
