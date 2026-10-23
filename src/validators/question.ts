@@ -1,6 +1,7 @@
 import { body, query } from "express-validator";
 import { paginationRules, idParam } from "./shared.js";
 import { QuestionType } from "../types/enums.js";
+import { MAX_GENERATED_QUESTIONS_PER_REQUEST } from "../config/assessmentQuestions.js";
 
 const DichotomyPair = ["EI", "SN", "TF", "JP"] as const;
 
@@ -59,4 +60,14 @@ export const generatePersonalityQuestionsValidator = [
 
 export const ensurePersonalityQuestionsValidator = [
   body("jobId").notEmpty().withMessage("jobId is required"),
+];
+
+// Problem-solving and culture-fit generation share one request shape.
+export const generateAssessmentQuestionsValidator = [
+  body("jobId").isUUID().withMessage("jobId must be a valid job id"),
+  body("count")
+    .optional()
+    .isInt({ min: 1, max: MAX_GENERATED_QUESTIONS_PER_REQUEST })
+    .withMessage(`count must be a whole number from 1 to ${MAX_GENERATED_QUESTIONS_PER_REQUEST}`)
+    .toInt(),
 ];

@@ -46,6 +46,16 @@ export const ensurePersonalityQuestions = async (req: Request, res: Response) =>
   sendSuccessResponse(res, "Personality questions ready", { questions: result });
 };
 
+export const generateProblemSolvingQuestions = async (req: Request, res: Response) => {
+  const result = await questionService.generateProblemSolvingQuestions(req.user, req.body);
+  sendSuccessResponse(res, "Problem-solving questions generated", result);
+};
+
+export const generateCultureFitQuestions = async (req: Request, res: Response) => {
+  const result = await questionService.generateCultureFitQuestions(req.user, req.body);
+  sendSuccessResponse(res, "Culture-fit questions generated", result);
+};
+
 export const evaluatePersonalityType = async (req: Request, res: Response) => {
   const result = await answerService.evaluatePersonalityType(req.user.id, req.body);
   sendSuccessResponse(res, "Personality evaluated", result);

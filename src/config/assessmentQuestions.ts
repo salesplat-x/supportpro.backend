@@ -24,6 +24,15 @@ export const CULTURE_FIT_GENERAL_CATEGORIES = [
   "feedback",
 ] as const;
 
+/** Questions generated per request when the recruiter doesn't say. */
+export const DEFAULT_GENERATED_QUESTIONS = 5;
+/** Most questions one generate request may ask for. */
+export const MAX_GENERATED_QUESTIONS_PER_REQUEST = 10;
+/** Most problem-solving (or culture-fit) questions one job may hold — caps AI spend. */
+export const MAX_QUESTION_POOL_PER_TYPE = 30;
+/** AI calls per generate request: the first, plus one retry for a bad or short reply. */
+export const MAX_GENERATION_ATTEMPTS = 2;
+
 /** Ceiling on the job brief text sent with a culture-fit request. */
 export const MAX_CULTURE_FIT_JOB_BRIEF_CHARS = 4_000;
 

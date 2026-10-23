@@ -19,6 +19,7 @@ import {
   personalizedQuestionsValidator,
   generatePersonalityQuestionsValidator,
   ensurePersonalityQuestionsValidator,
+  generateAssessmentQuestionsValidator,
 } from "../validators/question.js";
 
 const router = Router();
@@ -58,6 +59,20 @@ router.post(
   requireVerifiedEmail,
   validate(ensurePersonalityQuestionsValidator),
   asyncHandler(question.ensurePersonalityQuestions, "prepare personality questions")
+);
+router.post(
+  "/problem-solving",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(generateAssessmentQuestionsValidator),
+  asyncHandler(question.generateProblemSolvingQuestions, "generate problem-solving questions")
+);
+router.post(
+  "/culture-fit",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(generateAssessmentQuestionsValidator),
+  asyncHandler(question.generateCultureFitQuestions, "generate culture-fit questions")
 );
 router.post(
   "/answer/prescreening",

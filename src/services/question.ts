@@ -9,12 +9,25 @@ import {
   User,
   Answer,
 } from "../entities";
-import { NotFoundError, ValidationError, AuthorizationError } from "../utils/errors";
+import { NotFoundError, ValidationError, AuthorizationError, AppError } from "../utils/errors";
 import { QuestionType, JobStatus, UserRole } from "../types/enums.js";
 import { calculateTimeLeft, sortDirection } from "../utils/text.js";
 import * as AI from "../utils/integrations/openai.js";
 import { answerTextForQuestion, type StoredResponse } from "../utils/answerResponses.js";
 import { assertCompanyResourceAccess } from "./organizationScope.js";
+import {
+  CULTURE_FIT_GENERAL_CATEGORIES,
+  DEFAULT_GENERATED_QUESTIONS,
+  MAX_GENERATION_ATTEMPTS,
+  MAX_QUESTION_POOL_PER_TYPE,
+  PROBLEM_SOLVING_CATEGORIES,
+} from "../config/assessmentQuestions.js";
+import {
+  parseGeneratedQuestions,
+  GeneratedQuestionsParseError,
+  type GeneratedQuestion,
+} from "../utils/generatedQuestions.js";
+import logger from "../utils/logger.js";
 
 const questionRepo = () => AppDataSource.getRepository(Question);
 const roleRepo = () => AppDataSource.getRepository(Role);
@@ -115,6 +128,15 @@ export const fetchQuestions = async (
   if (payload.jobId && payload.questionType === QuestionType.Personality) {
     const questions = await getOrAssignPersonalityQuestionsForApplicant(payload.jobId, user.id);
     return withStoredAnswers(user.id, payload.jobId, QuestionType.Personality, questions);
+  }
+
+  // Problem-solving / culture-fit questions carry scoring criteria: only the
+  // job's company can see them (candidates get them once Day 4/5 serves them).
+  if (
+    payload.questionType === QuestionType.ProblemSolving ||
+    payload.questionType === QuestionType.CultureFit
+  ) {
+    return fetchCompanyAssessmentQuestions(user, payload);
   }
 
   // Prescreening questions require a complete profile and matching role
@@ -470,4 +492,227 @@ export const getOrAssignPersonalityQuestionsForApplicant = async (
   await applicationRepo().save(application);
 
   return questionRepo().createQueryBuilder("q").whereInIds(selectedIds).getMany();
+};
+
+// ---------------------------------------------------------------------------
+// Problem-solving and culture-fit questions (plan Day 3)
+// ---------------------------------------------------------------------------
+
+type CompanyAssessmentType = QuestionType.ProblemSolving | QuestionType.CultureFit;
+
+const ASSESSMENT_LABEL: Record<CompanyAssessmentType, string> = {
+  [QuestionType.ProblemSolving]: "problem-solving",
+  [QuestionType.CultureFit]: "culture-fit",
+};
+
+/** Loads the job and checks the caller belongs to the company that owns it. */
+const loadJobForCompanyMember = async (
+  user: Pick<User, "id" | "userRole">,
+  jobId: string,
+  withOrganization = false
+): Promise<Job> => {
+  const job = await jobRepo().findOne({
+    where: { id: jobId },
+    relations: withOrganization ? { organization: true } : undefined,
+  });
+  if (!job) {
+    throw new NotFoundError("Job not found");
+  }
+  if (user.userRole === UserRole.Talent) {
+    throw new AuthorizationError("You are not authorized to perform this action");
+  }
+  await assertCompanyResourceAccess(user.id, user.userRole, job.organizationId, job.postedById);
+  return job;
+};
+
+const fetchCompanyAssessmentQuestions = async (
+  user: User,
+  payload: FetchQuestionsParams
+): Promise<Question[]> => {
+  if (!payload.jobId) {
+    throw new ValidationError("jobId is required for this question type");
+  }
+  await loadJobForCompanyMember(user, payload.jobId);
+
+  const limit = Math.min(Number(payload.limit) || 50, MAX_PAGE_SIZE);
+  const offset = Number(payload.offset) || 0;
+  return questionRepo().find({
+    where: { jobId: payload.jobId, type: payload.questionType },
+    skip: offset,
+    take: limit,
+    order: { createdAt: sortDirection(payload.sort ?? "asc") },
+  });
+};
+
+const generationFailedError = (label: string) =>
+  new AppError(
+    502,
+    "AI_GENERATION_FAILED",
+    `We couldn't generate ${label} questions right now. Please try again in a moment.`
+  );
+
+const questionKey = (text: string) => text.toLowerCase().replace(/\s+/g, " ").trim();
+
+/**
+ * Calls the AI up to MAX_GENERATION_ATTEMPTS times, asking only for what is
+ * still missing, and keeps every usable question. A malformed reply or a failed
+ * call is logged and retried; if nothing usable comes back, a clear 502.
+ */
+const collectGeneratedQuestions = async (
+  label: string,
+  count: number,
+  existing: string[],
+  callAI: (
+    remaining: number,
+    avoid: string[]
+  ) => Promise<{ message?: { content?: string | null } } | undefined>,
+  parseOptions: { categories: readonly string[] }
+): Promise<GeneratedQuestion[]> => {
+  const collected: GeneratedQuestion[] = [];
+  const seen = new Set(existing.map(questionKey));
+
+  for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt++) {
+    const remaining = count - collected.length;
+    if (remaining <= 0) break;
+
+    let content: string | null | undefined;
+    try {
+      const avoid = [...existing, ...collected.map((q) => q.question)];
+      content = (await callAI(remaining, avoid))?.message?.content;
+    } catch (err) {
+      logger.warn(
+        `AI ${label} question generation failed (attempt ${attempt}/${MAX_GENERATION_ATTEMPTS}): ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+      continue;
+    }
+
+    let parsed: GeneratedQuestion[];
+    try {
+      parsed = parseGeneratedQuestions(content, { max: remaining, ...parseOptions });
+    } catch (err) {
+      if (!(err instanceof GeneratedQuestionsParseError)) throw err;
+      logger.warn(
+        `AI ${label} question reply unusable (attempt ${attempt}/${MAX_GENERATION_ATTEMPTS}): ${err.message}`
+      );
+      continue;
+    }
+
+    for (const item of parsed) {
+      const key = questionKey(item.question);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      collected.push(item);
+    }
+  }
+
+  if (collected.length === 0) {
+    throw generationFailedError(label);
+  }
+  return collected;
+};
+
+/** How many more questions of this type the job may hold; 400 when it is full. */
+const remainingPoolSpace = async (
+  job: Job,
+  type: CompanyAssessmentType,
+  requested: number
+): Promise<{ count: number; existing: string[] }> => {
+  const existingRows = await questionRepo().find({
+    where: { jobId: job.id, type },
+    select: { id: true, question: true },
+    order: { createdAt: "ASC" },
+  });
+  const space = MAX_QUESTION_POOL_PER_TYPE - existingRows.length;
+  if (space <= 0) {
+    throw new ValidationError(
+      `This job already has the maximum of ${MAX_QUESTION_POOL_PER_TYPE} ${ASSESSMENT_LABEL[type]} questions. Delete some before generating more.`
+    );
+  }
+  return { count: Math.min(requested, space), existing: existingRows.map((q) => q.question) };
+};
+
+const saveGeneratedQuestions = (
+  job: Job,
+  type: CompanyAssessmentType,
+  generated: GeneratedQuestion[]
+): Promise<Question[]> =>
+  questionRepo().save(
+    generated.map((item) =>
+      questionRepo().create({
+        type,
+        jobId: job.id,
+        question: item.question,
+        category: item.category,
+        criteria: item.criteria,
+      })
+    )
+  );
+
+export interface GenerateAssessmentQuestionsPayload {
+  jobId: string;
+  count?: number;
+}
+
+export const generateProblemSolvingQuestions = async (
+  user: Pick<User, "id" | "userRole">,
+  payload: GenerateAssessmentQuestionsPayload
+): Promise<{ questions: Question[] }> => {
+  const type = QuestionType.ProblemSolving;
+  const job = await loadJobForCompanyMember(user, payload.jobId);
+  const { count, existing } = await remainingPoolSpace(
+    job,
+    type,
+    payload.count ?? DEFAULT_GENERATED_QUESTIONS
+  );
+
+  // Job-agnostic by design: nothing about the job goes to the AI.
+  const generated = await collectGeneratedQuestions(
+    ASSESSMENT_LABEL[type],
+    count,
+    existing,
+    (remaining, avoid) => AI.generateProblemSolvingQuestions({ count: remaining, avoid }),
+    { categories: PROBLEM_SOLVING_CATEGORIES }
+  );
+
+  return { questions: await saveGeneratedQuestions(job, type, generated) };
+};
+
+export const generateCultureFitQuestions = async (
+  user: Pick<User, "id" | "userRole">,
+  payload: GenerateAssessmentQuestionsPayload
+): Promise<{ questions: Question[]; basedOnCompanyValues: boolean }> => {
+  const type = QuestionType.CultureFit;
+  const job = await loadJobForCompanyMember(user, payload.jobId, true);
+  const { count, existing } = await remainingPoolSpace(
+    job,
+    type,
+    payload.count ?? DEFAULT_GENERATED_QUESTIONS
+  );
+
+  // No values yet (or a pre-tenancy job with no company): still useful — the
+  // AI asks about general ways of working, and the caller is told so.
+  const companyValues = job.organization?.companyValues ?? [];
+  const basedOnCompanyValues = companyValues.length > 0;
+
+  const generated = await collectGeneratedQuestions(
+    ASSESSMENT_LABEL[type],
+    count,
+    existing,
+    (remaining, avoid) =>
+      AI.generateCultureFitQuestions({
+        count: remaining,
+        companyValues,
+        companyName: job.organization?.name ?? null,
+        jobBrief: job.jobBrief,
+        avoid,
+      }),
+    { categories: basedOnCompanyValues ? companyValues : CULTURE_FIT_GENERAL_CATEGORIES }
+  );
+
+  return {
+    questions: await saveGeneratedQuestions(job, type, generated),
+    basedOnCompanyValues,
+  };
 };
