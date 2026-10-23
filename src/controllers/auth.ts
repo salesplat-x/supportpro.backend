@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 import { UserRole } from "../types/enums.js";
 import * as authService from "../services/auth.js";
 import { sendSuccessResponse } from "../utils/response.js";
-import { toPublicUser } from "../utils/publicUser.js";
 
 export const register = async (req: Request, res: Response) => {
   const { redirectPath, ...payload } = req.body;
@@ -15,7 +14,7 @@ export const register = async (req: Request, res: Response) => {
   sendSuccessResponse(
     res,
     "User Registered Successfully",
-    { user: toPublicUser(result.user), token: result.token },
+    { user: result.user, token: result.token },
     201
   );
 };
@@ -31,17 +30,14 @@ export const registerRecruiter = async (req: Request, res: Response) => {
   sendSuccessResponse(
     res,
     "User Registered Successfully",
-    { user: toPublicUser(result.user), token: result.token },
+    { user: result.user, token: result.token },
     201
   );
 };
 
 export const login = async (req: Request, res: Response) => {
   const result = await authService.loginUser(req.body, req.ip ?? undefined);
-  sendSuccessResponse(res, "Login successful", {
-    user: toPublicUser(result.user),
-    token: result.token,
-  });
+  sendSuccessResponse(res, "Login successful", { user: result.user, token: result.token });
 };
 
 export const forgotPassword = async (req: Request, res: Response) => {
@@ -56,18 +52,12 @@ export const validateResetToken = async (req: Request, res: Response) => {
 
 export const resetPassword = async (req: Request, res: Response) => {
   const result = await authService.resetPassword(req.body, req.ip ?? undefined);
-  sendSuccessResponse(res, "Password has been reset", {
-    user: toPublicUser(result.user),
-    token: result.token,
-  });
+  sendSuccessResponse(res, "Password has been reset", { user: result.user, token: result.token });
 };
 
 export const changePassword = async (req: Request, res: Response) => {
   const result = await authService.changePassword(req.user.id, req.body, req.ip ?? undefined);
-  sendSuccessResponse(res, "Password changed", {
-    user: toPublicUser(result.user),
-    token: result.token,
-  });
+  sendSuccessResponse(res, "Password changed", { user: result.user, token: result.token });
 };
 
 export const logout = async (req: Request, res: Response) => {
@@ -88,7 +78,7 @@ export const resendVerification = async (req: Request, res: Response) => {
 export const changeEmail = async (req: Request, res: Response) => {
   const result = await authService.changeEmail(req.user.id, req.body, req.ip ?? undefined);
   sendSuccessResponse(res, "Email updated. Please verify your new address.", {
-    user: toPublicUser(result.user),
+    user: result.user,
     token: result.token,
   });
 };

@@ -2,13 +2,10 @@ import { Request, Response } from "express";
 import * as onboardingService from "../services/onboarding.js";
 import * as userService from "../services/user.js";
 import { sendSuccessResponse } from "../utils/response.js";
-import { toPublicUser, type SecretUserField } from "../utils/publicUser.js";
 
-const withoutCvText = <T extends object>(user: T): Omit<T, "cvText" | SecretUserField> => {
-  const { cvText: _cvText, ...rest } = toPublicUser(user) as Omit<T, SecretUserField> & {
-    cvText?: unknown;
-  };
-  return rest as Omit<T, "cvText" | SecretUserField>;
+const withoutCvText = <T extends object>(user: T): Omit<T, "cvText"> => {
+  const { cvText: _cvText, ...rest } = user as T & { cvText?: unknown };
+  return rest;
 };
 
 export const updateUser = async (req: Request, res: Response) => {
@@ -46,12 +43,12 @@ export const me = async (req: Request, res: Response) => {
 
 export const viewProfiles = async (req: Request, res: Response) => {
   const result = await userService.viewProfilesForRole(req.query as Record<string, string>);
-  sendSuccessResponse(res, "Profiles fetched", { users: result.map(toPublicUser) });
+  sendSuccessResponse(res, "Profiles fetched", { users: result });
 };
 
 export const viewProfile = async (req: Request, res: Response) => {
   const result = await userService.viewProfile(req.params["_id"]!);
-  sendSuccessResponse(res, "Profile fetched", { user: toPublicUser(result) });
+  sendSuccessResponse(res, "Profile fetched", { user: result });
 };
 
 export const downloadTalentCv = async (req: Request, res: Response) => {
