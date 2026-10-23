@@ -86,29 +86,6 @@ export interface OrganizationPayload {
   twitter?: string | null;
 }
 
-/** The only client fields POST /v1/organizations/ copies (email and domain are normalised separately). */
-const CREATABLE_ORGANIZATION_FIELDS = [
-  "name",
-  "phone",
-  "address",
-  "industry",
-  "website",
-  "facebook",
-  "linkedin",
-  "twitter",
-] as const satisfies readonly (keyof OrganizationPayload)[];
-
-/** The only fields an owner may change through PATCH /v1/organizations/:id. */
-export const EDITABLE_ORGANIZATION_FIELDS = [
-  "name",
-  "phone",
-  "address",
-  "industry",
-  "twitter",
-  "linkedin",
-  "facebook",
-] as const satisfies readonly (keyof UpdateOrganizationPayload)[];
-
 export interface UpdateOrganizationPayload {
   name?: string;
   phone?: string | null;
@@ -320,20 +297,16 @@ export const createOrganization = async (
     }
   }
 
-  // Explicit allow-list (payload is untyped req.body at the controller boundary).
-  // Plan, billing, verification, ownership and logo fields are never taken from
-  // the client: the plan comes from payments, verification from the admin
-  // routes, and logoUrl only from the logo upload endpoint.
-  const source = payload as unknown as Record<string, unknown>;
-  const createFields = Object.fromEntries(
-    CREATABLE_ORGANIZATION_FIELDS.filter((field) => source[field] !== undefined).map((field) => [
-      field,
-      source[field],
-    ])
-  ) as Partial<OrganizationPayload>;
-
+  const { name, phone, address, industry, website, facebook, linkedin, twitter } = payload;
   const org = orgRepo().create({
-    ...createFields,
+    name,
+    phone,
+    address,
+    industry,
+    website,
+    facebook,
+    linkedin,
+    twitter,
     email,
     domain,
     ownerId,
@@ -610,18 +583,11 @@ export const updateOrganization = async (
 ): Promise<Organization> => {
   const org = await assertOwnership(ownerId, organizationId);
 
-  // Explicit allow-list: only these profile fields are owner-editable. Anything
-  // else in the body (status, billingPlan/billingStatus/billingPeriodEnd,
-  // verifiedAt/verifiedById, ownerId, id, logoUrl/logoKey, email, website,
-  // domain, timestamps…) is ignored, so an owner can't self-verify, grant
-  // themselves a paid plan or hand the company to someone else. Verification
-  // goes through the admin routes and plans through payments only.
-  const source = payload as Record<string, unknown>;
+  const { name, phone, address, industry, twitter, linkedin, facebook } = payload;
   const updates = Object.fromEntries(
-    EDITABLE_ORGANIZATION_FIELDS.filter((field) => source[field] !== undefined).map((field) => [
-      field,
-      source[field],
-    ])
+    Object.entries({ name, phone, address, industry, twitter, linkedin, facebook }).filter(
+      ([, value]) => value !== undefined
+    )
   ) as UpdateOrganizationPayload;
 
   if (Object.keys(updates).length === 0) {

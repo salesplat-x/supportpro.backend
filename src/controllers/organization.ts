@@ -1,5 +1,4 @@
 import { Request, Response } from "express";
-import { matchedData } from "express-validator";
 import * as organizationService from "../services/organization.js";
 import { sendSuccessResponse } from "../utils/response.js";
 
@@ -56,15 +55,10 @@ export const switchOrganization = async (req: Request, res: Response) => {
 };
 
 export const updateOrganization = async (req: Request, res: Response) => {
-  // Only fields declared in updateOrganizationValidator reach the service;
-  // unknown body fields are dropped here (and again by the service allow-list).
-  const payload = matchedData(req, {
-    locations: ["body"],
-  }) as organizationService.UpdateOrganizationPayload;
   const result = await organizationService.updateOrganization(
     req.user.id,
     req.params["_id"]!,
-    payload
+    req.body
   );
   sendSuccessResponse(res, "Company updated", { organization: result });
 };
