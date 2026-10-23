@@ -33,6 +33,7 @@ import { createNotification } from "./notification.js";
 import { purgeOrganizationCascade } from "./cascadeDelete.js";
 import { disablePaystackSubscriptions } from "./payment.js";
 import logger from "../utils/logger.js";
+import { normalizeCompanyValues } from "../config/assessmentQuestions.js";
 
 const orgRepo = () => AppDataSource.getRepository(Organization);
 const userRepo = () => AppDataSource.getRepository(User);
@@ -94,6 +95,7 @@ export interface UpdateOrganizationPayload {
   facebook?: string | null;
   linkedin?: string | null;
   twitter?: string | null;
+  companyValues?: string[];
 }
 
 export interface OrganizationMemberUserView {
@@ -602,6 +604,10 @@ export const updateOrganization = async (
 
   if (Object.keys(updates).length === 0) {
     return org;
+  }
+
+  if (updates.companyValues) {
+    updates.companyValues = normalizeCompanyValues(updates.companyValues);
   }
 
   if (updates.phone) {
