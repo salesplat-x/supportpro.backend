@@ -86,6 +86,17 @@ export interface OrganizationPayload {
   twitter?: string | null;
 }
 
+/** The only fields an owner may change through PATCH /v1/organizations/:id. */
+export const EDITABLE_ORGANIZATION_FIELDS = [
+  "name",
+  "phone",
+  "address",
+  "industry",
+  "twitter",
+  "linkedin",
+  "facebook",
+] as const satisfies readonly (keyof UpdateOrganizationPayload)[];
+
 export interface UpdateOrganizationPayload {
   name?: string;
   phone?: string | null;
@@ -582,22 +593,18 @@ export const updateOrganization = async (
 ): Promise<Organization> => {
   const org = await assertOwnership(ownerId, organizationId);
 
-  // logoUrl is never accepted here — same reasoning as createOrganization above.
-  const {
-    email: _email,
-    website: _website,
-    domain: _domain,
-    logoUrl: _logoUrl,
-    ...allowed
-  } = payload as UpdateOrganizationPayload & {
-    email?: string;
-    website?: string;
-    domain?: string;
-    logoUrl?: string;
-  };
-
+  // Explicit allow-list: only these profile fields are owner-editable. Anything
+  // else in the body (status, billingPlan/billingStatus/billingPeriodEnd,
+  // verifiedAt/verifiedById, ownerId, id, logoUrl/logoKey, email, website,
+  // domain, timestamps…) is ignored, so an owner can't self-verify, grant
+  // themselves a paid plan or hand the company to someone else. Verification
+  // goes through the admin routes and plans through payments only.
+  const source = payload as Record<string, unknown>;
   const updates = Object.fromEntries(
-    Object.entries(allowed).filter(([, value]) => value !== undefined)
+    EDITABLE_ORGANIZATION_FIELDS.filter((field) => source[field] !== undefined).map((field) => [
+      field,
+      source[field],
+    ])
   ) as UpdateOrganizationPayload;
 
   if (Object.keys(updates).length === 0) {

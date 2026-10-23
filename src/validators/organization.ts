@@ -10,6 +10,9 @@ export const joinRequestIdValidator = [
   param("requestId").isUUID().withMessage("Invalid request id"),
 ];
 
+// Declares every owner-editable field. The controller passes only matchedData()
+// to the service, so a field missing here is silently dropped; keep this list in
+// step with EDITABLE_ORGANIZATION_FIELDS in services/organization.ts.
 export const updateOrganizationValidator = [
   idParam("_id"),
   body("name").optional().notEmpty().withMessage("Organization name cannot be empty"),
