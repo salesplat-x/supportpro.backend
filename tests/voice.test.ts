@@ -13,7 +13,11 @@ import env from "../src/config/env.js";
 import { errorHandler } from "../src/middleware/errorHandler.js";
 import voiceRoutes from "../src/routes/voice.js";
 import { transcribeAudio, generateVoiceReply } from "../src/utils/integrations/openai.js";
-import { synthesizeSpeech, synthesizeSpeechStream } from "../src/utils/integrations/elevenlabs.js";
+import {
+  isElevenLabsConfigured,
+  synthesizeSpeech,
+  synthesizeSpeechStream,
+} from "../src/utils/integrations/elevenlabs.js";
 
 jest.mock("../src/middleware/auth.js", () => ({
   loginRequired: (req: any, res: any, next: any) => {
@@ -36,6 +40,7 @@ jest.mock("../src/utils/integrations/openai.js", () => ({
   generateVoiceReply: jest.fn(),
 }));
 jest.mock("../src/utils/integrations/elevenlabs.js", () => ({
+  isElevenLabsConfigured: jest.fn(),
   synthesizeSpeech: jest.fn(),
   synthesizeSpeechStream: jest.fn(),
 }));
@@ -49,6 +54,7 @@ const mockReply = generateVoiceReply as jest.Mock;
 const mockSpeech = synthesizeSpeech as jest.Mock;
 const mockSpeechStream = synthesizeSpeechStream as jest.Mock;
 const mockExecFile = execFile as unknown as jest.Mock;
+const mockTtsConfigured = isElevenLabsConfigured as jest.Mock;
 
 type ExecCallback = (err: Error | null, stdout: string, stderr: string) => void;
 
@@ -111,6 +117,7 @@ beforeEach(() => {
   mockSpeech.mockResolvedValue(speech);
   mockSpeechStream.mockResolvedValue(Readable.from([speech]));
   fakeProbe("5.000000");
+  mockTtsConfigured.mockReturnValue(true);
 });
 
 describe("auth and upload validation", () => {
@@ -324,5 +331,39 @@ describe("recording length cap", () => {
     expect(errorMessage(res.body as Buffer)).toBe(
       "That recording is too long. Please keep it under 30 seconds."
     );
+  });
+});
+
+describe("when text-to-speech is not set up", () => {
+  beforeEach(() => mockTtsConfigured.mockReturnValue(false));
+
+  it.each(["chat", "stream"])(
+    "%s answers with the fallback clip straight away, with no paid calls",
+    async (route) => {
+      const res = await send(route);
+      expect(res.status).toBe(200);
+      expect(res.headers["x-voice-fallback"]).toBe("true");
+      expect(res.body).toEqual(fallbackBytes);
+      expect(mockTranscribe).not.toHaveBeenCalled();
+      expect(mockReply).not.toHaveBeenCalled();
+      expect(mockSpeech).not.toHaveBeenCalled();
+      expect(mockSpeechStream).not.toHaveBeenCalled();
+    }
+  );
+
+  it("does not even measure the recording first", async () => {
+    await send("chat");
+    expect(mockExecFile).not.toHaveBeenCalled();
+  });
+
+  it("still requires an audio file", async () => {
+    const res = await send("chat", { data: null });
+    expect(res.status).toBe(400);
+  });
+
+  it("keeps transcription working, since it doesn't need text-to-speech", async () => {
+    const res = await send("transcribe");
+    expect(res.status).toBe(200);
+    expect(mockTranscribe).toHaveBeenCalledTimes(1);
   });
 });
