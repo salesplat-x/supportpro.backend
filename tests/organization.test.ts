@@ -129,6 +129,42 @@ describe("POST /v1/organizations/ — create organization (Recruiter only)", () 
     expect(res.body.data.organization.status).toBe("pending");
   });
 
+  it("Create ignores plan, billing, verification and ownership fields in the body → defaults", async () => {
+    const { user: recruiter, token } = await recruiterForTechCorp();
+    const { user: someoneElse } = await createRecruiter();
+    const res = await request(app)
+      .post("/v1/organizations/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        ...validOrgBody,
+        status: OrganizationStatus.Verified,
+        billingPlan: "enterprise",
+        billingStatus: BillingStatus.PastDue,
+        billingInterval: BillingInterval.Annually,
+        billingPeriodEnd: "2099-12-31T00:00:00.000Z",
+        verifiedAt: "2026-01-01T00:00:00.000Z",
+        verifiedById: someoneElse.id,
+        ownerId: someoneElse.id,
+        logoKey: "organizations/someone-else/logo.png",
+      });
+
+    expect(res.status).toBe(201);
+    const createdId = (res.body as { data: { organization: Organization } }).data.organization.id;
+    const created = await testDataSource
+      .getRepository(Organization)
+      .findOneByOrFail({ id: createdId });
+    expect(created.name).toBe("TechCorp Ltd");
+    expect(created.status).toBe(OrganizationStatus.Pending);
+    expect(created.billingPlan).toBe(DEFAULT_BILLING_PLAN_KEY);
+    expect(created.billingStatus).toBe(BillingStatus.Active);
+    expect(created.billingInterval).toBeNull();
+    expect(created.billingPeriodEnd).toBeNull();
+    expect(created.verifiedAt).toBeNull();
+    expect(created.verifiedById).toBeNull();
+    expect(created.ownerId).toBe(recruiter.id);
+    expect(created.logoKey).toBeNull();
+  });
+
   it("Admin cannot create organization → 403", async () => {
     const { token } = await createAdmin();
     const res = await request(app)
