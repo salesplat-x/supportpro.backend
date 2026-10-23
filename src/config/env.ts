@@ -8,6 +8,11 @@ const getEnv = (): AppEnv => {
 const paystackModeRaw = (process.env.PAYSTACK_MODE ?? "dummy").toLowerCase();
 const paystackMode = paystackModeRaw === "paystack" ? "paystack" : "dummy";
 
+const positiveNumberOr = (value: string | undefined, fallback: number): number => {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+};
+
 const optionalEnvVars = {
   app_env: getEnv(),
   paystackSecretKey: process.env.PAYSTACK_SECRET_KEY,
@@ -29,6 +34,9 @@ const optionalEnvVars = {
   elevenlabsApiKey: process.env.ELEVENLABS_API_KEY,
   elevenlabsVoiceId: process.env.ELEVENLABS_VOICE_ID,
   elevenlabsModelId: process.env.ELEVENLABS_MODEL_ID,
+  // Longest recording the voice endpoints accept. Whisper bills per minute, and a 10 MB
+  // Opus file can hold over an hour, so length is capped as well as size.
+  voiceMaxDurationSeconds: positiveNumberOr(process.env.VOICE_MAX_DURATION_SECONDS, 120),
 } as const;
 
 const requiredEnvVars = {

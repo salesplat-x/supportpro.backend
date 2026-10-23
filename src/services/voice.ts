@@ -3,7 +3,9 @@ import path from "path";
 import { Readable } from "stream";
 import { generateVoiceReply, transcribeAudio } from "../utils/integrations/openai.js";
 import { synthesizeSpeech, synthesizeSpeechStream } from "../utils/integrations/elevenlabs.js";
+import { AudioUnreadableError, probeAudioDurationSeconds } from "../utils/audioDuration.js";
 import { getErrorStatus } from "../utils/retry.js";
+import env from "../config/env.js";
 import { ValidationError } from "../utils/errors/ValidationError.js";
 import logger from "../utils/logger.js";
 
@@ -28,14 +30,47 @@ const fallbackPath = (): string => path.join(process.cwd(), "templates", "fallba
 
 const describe = (err: unknown): string => (err instanceof Error ? err.message : String(err));
 
+const UNREADABLE_AUDIO = "We couldn't read that audio. Please record it again.";
+
+const describeLimit = (seconds: number): string => {
+  if (seconds % 60 === 0) {
+    const minutes = seconds / 60;
+    return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  }
+  return `${seconds} seconds`;
+};
+
+/**
+ * Whisper bills per minute and 10 MB of Opus can hold over an hour, so the length is checked
+ * before anything is paid for. A missing ffprobe propagates as our failure (fail closed).
+ */
+const assertWithinLengthLimit = async (input: VoiceAudioInput): Promise<void> => {
+  let seconds: number;
+  try {
+    seconds = await probeAudioDurationSeconds(input.buffer, input.extension);
+  } catch (err) {
+    if (err instanceof AudioUnreadableError) {
+      throw new ValidationError(UNREADABLE_AUDIO);
+    }
+    throw err;
+  }
+  const limit = env.voiceMaxDurationSeconds;
+  if (seconds > limit) {
+    throw new ValidationError(
+      `That recording is too long. Please keep it under ${describeLimit(limit)}.`
+    );
+  }
+};
+
 /** Speech-to-text only. Unreadable audio is the caller's problem (400); anything else is ours. */
 export const transcribe = async (input: VoiceAudioInput): Promise<string> => {
+  await assertWithinLengthLimit(input);
   let text: string;
   try {
     text = await transcribeAudio(input.buffer, `voice.${input.extension}`);
   } catch (err) {
     if (getErrorStatus(err) === 400) {
-      throw new ValidationError("We couldn't read that audio. Please record it again.");
+      throw new ValidationError(UNREADABLE_AUDIO);
     }
     throw err;
   }
