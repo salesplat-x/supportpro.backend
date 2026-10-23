@@ -1,23 +1,9 @@
-import { isIP } from "node:net";
 import type { Request } from "express";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import env from "../config/env.js";
+import { getClientIp } from "../utils/clientIp.js";
 
-/**
- * The API sits behind Cloudflare and a host proxy, and `trust proxy` is unset,
- * so req.ip is the proxy's address for every caller — keying on it put the
- * whole platform in one bucket. Cloudflare sets CF-Connecting-IP to the real
- * client on every request it forwards; anything without a valid one (direct
- * origin traffic) keeps the previous req.ip key.
- */
-export const clientIpKey = (req: Request): string => {
-  const cfConnectingIp = req.headers["cf-connecting-ip"];
-  const clientIp =
-    typeof cfConnectingIp === "string" && isIP(cfConnectingIp.trim()) !== 0
-      ? cfConnectingIp.trim()
-      : (req.ip ?? req.socket?.remoteAddress ?? "");
-  return ipKeyGenerator(clientIp);
-};
+export const clientIpKey = (req: Request): string => ipKeyGenerator(getClientIp(req));
 
 export const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
