@@ -46,7 +46,7 @@ services:
       retries: 10
 
   migrate:
-    image: salesplat/supportpro-backend:latest
+    image: salesplat/supportpro-backend:${IMAGE_TAG:-latest}
     build: .
     env_file:
       - .env
@@ -59,7 +59,7 @@ services:
         condition: service_healthy
 
   app:
-    image: salesplat/supportpro-backend:latest
+    image: salesplat/supportpro-backend:${IMAGE_TAG:-latest}
     build: .
     restart: unless-stopped
     ports:

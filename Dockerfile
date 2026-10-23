@@ -9,6 +9,11 @@ RUN npm run build
 RUN npm prune --omit=dev
 
 FROM node:22-alpine AS production
+# The commit this image was built from (CI passes --build-arg GIT_SHA=<sha>).
+# /health reports it as `version`, so a deploy or rollback can prove what is serving.
+ARG GIT_SHA=unknown
+ENV APP_VERSION=${GIT_SHA}
+LABEL org.opencontainers.image.revision=${GIT_SHA}
 RUN apk upgrade --no-cache && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 WORKDIR /app
 COPY --from=builder /app/node_modules ./node_modules

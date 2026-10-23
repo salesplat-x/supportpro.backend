@@ -97,7 +97,7 @@ describe("deploy workflow (.github/workflows/main.yml)", () => {
     const run = promote.steps.map((s) => s.run ?? "").join("\n");
     expect(run).toMatch(/docker buildx imagetools create/);
     expect(run).toContain(`${IMAGE}:latest`);
-    expect(run).toContain('"${DEPLOY_SHA}"');
+    expect(run).toContain(`${IMAGE}:\${DEPLOY_SHA}`);
   });
 
   it("never interpolates the manual input straight into a shell command", () => {

@@ -1,18 +1,36 @@
 name: Continuous Build and Deployment Engine
 
+# Deploys only a commit that passed CI, by its exact SHA. The droplet runs
+# scripts/deploy.sh (tested in tests/deploy.test.ts): it health-checks the new
+# release and rolls back to the previous image if it is unhealthy. :latest on
+# Docker Hub moves only after a healthy deploy, so it always means "last good".
+#
+# Manual redeploy / rollback: Actions → this workflow → "Run workflow" with the
+# full SHA of a commit whose image was already built here.
+
 on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Full 40-character commit SHA of an already-built image to (re)deploy"
+        required: true
+        type: string
 
 concurrency:
   group: deploy-production
   cancel-in-progress: false
 
+env:
+  IMAGE: salesplat/supportpro-backend
+  DEPLOY_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.sha || github.event.workflow_run.head_sha }}
+
 jobs:
   build-and-push:
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -26,186 +44,68 @@ jobs:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
+      # Only the immutable commit tag is pushed here; :latest is promoted after the health check.
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
+          build-args: |
+            GIT_SHA=${{ env.DEPLOY_SHA }}
           tags: |
-            salesplat/supportpro-backend:latest
-            salesplat/supportpro-backend:${{ github.event.workflow_run.head_sha }}
+            salesplat/supportpro-backend:${{ env.DEPLOY_SHA }}
 
   deploy:
     needs: build-and-push
+    # Runs after a successful build, or on a manual run (where the build is skipped).
+    if: >-
+      always() &&
+      (needs.build-and-push.result == 'success' ||
+      (github.event_name == 'workflow_dispatch' && needs.build-and-push.result == 'skipped'))
     runs-on: ubuntu-latest
     steps:
+      # A manual run uses main's deploy script even when redeploying an older image.
+      - name: Checkout deploy script
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Check the SHA
+        run: |
+          if ! printf '%s' "${DEPLOY_SHA}" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error::DEPLOY_SHA must be a full 40-character commit SHA (got '${DEPLOY_SHA}')"
+            exit 1
+          fi
+          echo "Deploying ${IMAGE}:${DEPLOY_SHA}"
+
       - name: Deploy via SSH to Droplet
         uses: appleboy/ssh-action@v1.2.2
+        env:
+          DEPLOY_SHA: ${{ env.DEPLOY_SHA }}
         with:
           host: ${{ secrets.DIGITAL_OCEAN_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           command_timeout: 15m
-          script: |
-            set -euo pipefail
+          envs: DEPLOY_SHA
+          script_path: scripts/deploy.sh
 
-            cd ~/app-stack
+  promote-latest:
+    needs: deploy
+    if: always() && needs.deploy.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-            # Image ID (not tag) of what is serving now, so rollback survives :latest being repointed.
-            previous_image="$(docker inspect -f '{{.Image}}' supportpro-backend 2>/dev/null || true)"
-            echo "==> Currently running image: ${previous_image:-none}"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-            echo "==> Pulling latest image"
-            docker pull salesplat/supportpro-backend:latest
-
-            # Gate the cutover: migrations must succeed while the old container
-            # is still serving. If this fails, we abort and leave production alone.
-            echo "==> Running migrations (must succeed before server restart)"
-            docker run --rm \
-              --network app-network \
-              --env-file .env \
-              --entrypoint node \
-              salesplat/supportpro-backend:latest \
-              dist/scripts/migrate.js
-
-            echo "==> Seeding admin (no-op if already present)"
-            docker run --rm \
-              --network app-network \
-              --env-file .env \
-              --entrypoint node \
-              salesplat/supportpro-backend:latest \
-              dist/scripts/seedAdmin.js
-
-            # Upsert Paystack plan codes from pricing.yaml into the plans table.
-            # Must succeed before cutover so checkout against new catalog keys works.
-            echo "==> Syncing subscription plans to Paystack"
-            docker run --rm \
-              --network app-network \
-              --env-file .env \
-              --entrypoint node \
-              salesplat/supportpro-backend:latest \
-              dist/scripts/syncPlans.js
-
-            unique_ids() {
-              printf '%s\n' "$@" | awk 'NF && !seen[$0]++'
-            }
-
-            free_host_port_8000() {
-              docker rm -f supportpro-backend 2>/dev/null || true
-              docker compose stop app 2>/dev/null || true
-              docker compose rm -f -s app 2>/dev/null || true
-
-              published="$(docker ps -aq --filter publish=8000 2>/dev/null || true)"
-              mapped="$(docker ps -a --format '{{.ID}} {{.Ports}}' | awk '/:8000->/ { print $1 }' || true)"
-              image_ctr="$(docker ps -q --filter ancestor=salesplat/supportpro-backend:latest 2>/dev/null || true)"
-              ids="$(unique_ids ${published:-} ${mapped:-} ${image_ctr:-})"
-
-              if [ -n "${ids}" ]; then
-                echo "Releasing :8000 / old backend containers:"
-                echo "${ids}"
-                for cid in ${ids}; do
-                  docker update --restart=no "${cid}" >/dev/null 2>&1 || true
-                  docker rm -f "${cid}" >/dev/null 2>&1 || true
-                done
-              fi
-            }
-
-            wait_for_8000_free() {
-              i=1
-              while [ "${i}" -le 15 ]; do
-                if command -v ss >/dev/null 2>&1; then
-                  if [ -z "$(ss -H -ltn 'sport = :8000' 2>/dev/null || true)" ]; then
-                    return 0
-                  fi
-                else
-                  return 0
-                fi
-                sleep 1
-                i=$((i + 1))
-              done
-              echo "Host :8000 still listed; retrying docker run"
-              ss -ltnp | grep 8000 || true
-            }
-
-            start_container() {
-              image="$1"
-              attempt=1
-              while [ "${attempt}" -le 20 ]; do
-                free_host_port_8000
-                wait_for_8000_free
-                docker rm -f supportpro-backend 2>/dev/null || true
-
-                set +e
-                docker run -d \
-                  --name supportpro-backend \
-                  --network app-network \
-                  -p 8000:8000 \
-                  --env-file .env \
-                  --restart always \
-                  "${image}"
-                rc=$?
-                set -e
-
-                if [ "${rc}" -eq 0 ]; then
-                  return 0
-                fi
-
-                echo "docker run exit ${rc} (attempt ${attempt}/20)"
-                docker rm -f supportpro-backend 2>/dev/null || true
-                if [ "${attempt}" -ge 8 ]; then
-                  fuser -k 8000/tcp 2>/dev/null || true
-                fi
-                if [ "${attempt}" -lt 5 ]; then
-                  sleep 2
-                else
-                  sleep 5
-                fi
-                attempt=$((attempt + 1))
-              done
-
-              echo "Failed to bind host :8000 after retries"
-              docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
-              ss -ltnp | grep 8000 || true
-              return 1
-            }
-
-            # The entrypoint re-runs migrations before listening, so allow up to 90s.
-            wait_for_health() {
-              i=1
-              while [ "${i}" -le 30 ]; do
-                if curl -fsS http://localhost:8000/health >/dev/null 2>&1; then
-                  return 0
-                fi
-                restarts="$(docker inspect -f '{{.RestartCount}}' supportpro-backend 2>/dev/null || echo 0)"
-                if [ "${restarts}" -gt 0 ]; then
-                  echo "Container restarted ${restarts} time(s); treating as crash loop"
-                  return 1
-                fi
-                sleep 3
-                i=$((i + 1))
-              done
-              echo "/health did not return 200 within 90s"
-              return 1
-            }
-
-            echo "==> Replacing running server"
-            if start_container salesplat/supportpro-backend:latest && wait_for_health; then
-              echo "==> Deploy complete"
-              exit 0
-            fi
-
-            echo "==> New release is unhealthy; last 100 log lines:"
-            docker logs --tail 100 supportpro-backend 2>&1 || true
-
-            if [ -z "${previous_image}" ]; then
-              echo "No previous image recorded; nothing to roll back to"
-              exit 1
-            fi
-
-            echo "==> Rolling back to ${previous_image}"
-            if start_container "${previous_image}" && wait_for_health; then
-              echo "==> Rollback complete; previous release is serving"
-            else
-              echo "==> Rollback also failed; production needs manual attention"
-            fi
-            exit 1
+      - name: Point :latest at the release that just passed its health check
+        run: |
+          docker buildx imagetools create \
+            --tag "salesplat/supportpro-backend:latest" \
+            "salesplat/supportpro-backend:${DEPLOY_SHA}"
