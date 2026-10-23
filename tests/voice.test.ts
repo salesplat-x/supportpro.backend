@@ -162,7 +162,8 @@ describe("POST /voice/transcribe", () => {
   it("returns the transcription text, not audio", async () => {
     const res = await send("transcribe");
     expect(res.status).toBe(200);
-    expect(JSON.parse(res.body.toString()).data.transcription).toBe("hello grace");
+    const body = JSON.parse((res.body as Buffer).toString()) as { data: { transcription: string } };
+    expect(body.data.transcription).toBe("hello grace");
     expect(mockSpeech).not.toHaveBeenCalled();
   });
 

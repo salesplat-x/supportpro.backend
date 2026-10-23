@@ -6,8 +6,22 @@ jest.mock("../src/utils/retry.js", () => ({
   withRetry: (fn: () => Promise<unknown>, options?: unknown) => withRetry(fn, options),
 }));
 
+interface PostConfig {
+  headers: Record<string, string | undefined>;
+  responseType: string;
+  timeout: number;
+  signal?: AbortSignal;
+}
+type PostCall = [url: string, payload: Record<string, unknown>, config: PostConfig];
+
 // Re-created by load(): resetModules gives the integration its own mocked axios instance.
-let post: jest.Mock;
+let post: jest.Mock<Promise<unknown>, PostCall>;
+
+const postCall = (index = 0): PostCall => {
+  const call = post.mock.calls[index];
+  if (!call) throw new Error(`axios.post was not called ${index + 1} time(s)`);
+  return call;
+};
 
 const load = (overrides: Record<string, string | undefined> = {}) => {
   jest.resetModules();
@@ -22,7 +36,7 @@ const load = (overrides: Record<string, string | undefined> = {}) => {
     },
   }));
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  post = require("axios").post as jest.Mock;
+  post = (require("axios") as { post: typeof post }).post;
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   return require("../src/utils/integrations/elevenlabs.js") as typeof import("../src/utils/integrations/elevenlabs");
 };
@@ -33,7 +47,7 @@ describe("ElevenLabs integration", () => {
     post.mockResolvedValue({ data: new ArrayBuffer(3) });
     await mod.synthesizeSpeech("hello");
 
-    const [url, payload, config] = post.mock.calls[0];
+    const [url, payload, config] = postCall();
     expect(url).toBe("https://api.elevenlabs.io/v1/text-to-speech/voice%2Fid");
     expect(payload).toEqual({ text: "hello", model_id: "model-1" });
     expect(config.headers["xi-api-key"]).toBe("key-123");
@@ -45,7 +59,7 @@ describe("ElevenLabs integration", () => {
     const mod = load({ elevenlabsModelId: undefined });
     post.mockResolvedValue({ data: new ArrayBuffer(1) });
     await mod.synthesizeSpeech("hello");
-    expect(post.mock.calls[0][1]).toEqual({ text: "hello" });
+    expect(postCall()[1]).toEqual({ text: "hello" });
   });
 
   it("uses the /stream endpoint and returns the response stream", async () => {
@@ -54,8 +68,8 @@ describe("ElevenLabs integration", () => {
     post.mockResolvedValue({ data: body });
     const result = await mod.synthesizeSpeechStream("hello");
 
-    expect(post.mock.calls[0][0]).toMatch(/\/stream$/);
-    expect(post.mock.calls[0][2].responseType).toBe("stream");
+    expect(postCall()[0]).toMatch(/\/stream$/);
+    expect(postCall()[2].responseType).toBe("stream");
     expect(result).toBe(body);
   });
 
@@ -78,7 +92,7 @@ describe("ElevenLabs integration", () => {
       const { signal } = new AbortController();
       await mod[fn]("hello", { signal });
 
-      const config = post.mock.calls[0][2] as { timeout: number; signal: AbortSignal };
+      const config = postCall()[2];
       expect(config.timeout).toBe(20_000);
       expect(config.signal).toBe(signal);
       expect(withRetry).toHaveBeenCalledWith(
