@@ -14,6 +14,7 @@ import { UserRole, Currency, CompensationPeriod, CvEmbeddingStatus } from "../ty
 import type { Organization } from "./Organization.js";
 import type { Role } from "./Role.js";
 import type { PreScreening } from "./PreScreening.js";
+import { toPublicUser } from "../utils/publicUser.js";
 
 @Entity("users")
 @Index("idx_users_talent_score", ["userRole", "prescreeningScore"], {
@@ -190,4 +191,14 @@ export class User {
 
   @UpdateDateColumn()
   updatedAt!: Date;
+
+  /**
+   * Express serialises responses with JSON.stringify, which calls this. It keeps
+   * the password hash and token fields out of every response, including users
+   * nested inside other objects, even if a route forgets toPublicUser.
+   */
+  // Optional so plain `{ ...user }` copies (which drop class methods) still type as User.
+  toJSON?(): Record<string, unknown> {
+    return toPublicUser(this);
+  }
 }
