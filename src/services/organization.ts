@@ -86,6 +86,18 @@ export interface OrganizationPayload {
   twitter?: string | null;
 }
 
+/** The only client fields POST /v1/organizations/ copies (email and domain are normalised separately). */
+const CREATABLE_ORGANIZATION_FIELDS = [
+  "name",
+  "phone",
+  "address",
+  "industry",
+  "website",
+  "facebook",
+  "linkedin",
+  "twitter",
+] as const satisfies readonly (keyof OrganizationPayload)[];
+
 /** The only fields an owner may change through PATCH /v1/organizations/:id. */
 export const EDITABLE_ORGANIZATION_FIELDS = [
   "name",
@@ -308,12 +320,17 @@ export const createOrganization = async (
     }
   }
 
-  // logoUrl is never accepted here — it's only ever set through the logo upload
-  // endpoint, never as a client-supplied string — so drop it even if a caller
-  // still sends one (payload is untyped req.body at the controller boundary).
-  const { logoUrl: _logoUrl, ...createFields } = payload as OrganizationPayload & {
-    logoUrl?: string;
-  };
+  // Explicit allow-list (payload is untyped req.body at the controller boundary).
+  // Plan, billing, verification, ownership and logo fields are never taken from
+  // the client: the plan comes from payments, verification from the admin
+  // routes, and logoUrl only from the logo upload endpoint.
+  const source = payload as unknown as Record<string, unknown>;
+  const createFields = Object.fromEntries(
+    CREATABLE_ORGANIZATION_FIELDS.filter((field) => source[field] !== undefined).map((field) => [
+      field,
+      source[field],
+    ])
+  ) as Partial<OrganizationPayload>;
 
   const org = orgRepo().create({
     ...createFields,
