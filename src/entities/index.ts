@@ -28,3 +28,4 @@ export { OrganizationInvite } from "./OrganizationInvite.js";
 export { FeatureUsageCounter } from "./FeatureUsageCounter.js";
 export { OrganizationPlanHistory } from "./OrganizationPlanHistory.js";
 export { OnboardingEmail } from "./OnboardingEmail.js";
+export { ApplicationFollowUpEmail } from "./ApplicationFollowUpEmail.js";

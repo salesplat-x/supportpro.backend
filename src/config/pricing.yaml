@@ -17,57 +17,6 @@ hero:
   subtitle: Simple, transparent pricing that grows with you. Try any plan free for 30 days.
 
 plans:
-  - key: prod_test
-    name: Production Test
-    description: Low-cost plan for verifying Paystack charges in production.
-    priceCaption: Internal testing only
-    cta: Get started
-    secondaryCta: Chat to sales
-    badge: Production testing
-    highlighted: false
-    monthlyAmountNgn: 2000
-    yearlyAmountNgn: 19200
-    monthlyAmountUsd: 1
-    yearlyAmountUsd: 10
-    featuresIntro: null
-    features:
-      - {
-          key: job_listings,
-          label: "1 active job listing",
-          kind: metered,
-          limit: 1,
-          period: concurrent,
-        }
-      - {
-          key: candidate_views,
-          label: "Up to 10 candidate profile views/month",
-          kind: metered,
-          limit: 10,
-          period: monthly,
-        }
-      - {
-          key: scout_cv_scans,
-          label: "Up to 10 AI CV scans/month",
-          kind: metered,
-          limit: 10,
-          period: monthly,
-        }
-      - {
-          key: talent_searches,
-          label: "Up to 5 AI talent searches/month",
-          kind: metered,
-          limit: 5,
-          period: monthly,
-        }
-      - {
-          key: direct_outreach,
-          label: "Up to 3 direct candidate messages/month",
-          kind: metered,
-          limit: 3,
-          period: monthly,
-        }
-      - { text: "Paystack production charge verification", included: true }
-
   - key: sme_basic
     name: SME Basic
     description: Basic features free for 7 days, then a flat monthly rate.
@@ -309,7 +258,7 @@ plans:
     yearlyAmountUsd: 6192
     featuresIntro: "Everything in Advance, plus:"
     inherits: advance
-    features:
+    features: &enterpriseFeatures
       - {
           key: job_listings,
           label: "Unlimited job listings",
@@ -356,6 +305,23 @@ plans:
       - { text: "Custom integrations (coming soon)", included: true }
       - { text: "Custom reporting (coming soon)", included: true }
       - { text: "Dedicated success manager & SLA", included: true }
+
+  - key: production_enterprise
+    name: Production Enterprise
+    description: Enterprise features at ₦1,000 for verifying live Paystack charges.
+    priceCaption: Internal testing only
+    cta: Get started
+    secondaryCta: Chat to sales
+    badge: Production
+    badgeTone: success
+    highlighted: false
+    monthlyAmountNgn: 1000
+    yearlyAmountNgn: 9600
+    monthlyAmountUsd: 0.65
+    yearlyAmountUsd: 6.24
+    featuresIntro: "Everything in Advance, plus:"
+    inherits: advance
+    features: *enterpriseFeatures
 
   # Hidden legacy tier — not shown on the pricing page, not purchasable.
   # Exists only so pre-rewrite "paid" organizations still resolve a display name

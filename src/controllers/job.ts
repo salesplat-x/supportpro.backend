@@ -17,7 +17,9 @@ export const generateContent = async (req: Request, res: Response) => {
 };
 
 export const generateContentFromFile = async (req: Request, res: Response) => {
-  const result = await jobService.generateJobContentFromFile(req.file);
+  const result = await jobService.generateJobContentFromFile(req.file, {
+    richText: req.body?.richText === "true",
+  });
   sendSuccessResponse(res, "Job content generated", { content: result });
 };
 
@@ -55,8 +57,8 @@ export const jobsPosted = async (req: Request, res: Response) => {
 };
 
 export const fetch = async (req: Request, res: Response) => {
-  const talentId = req.user?.userRole === UserRole.Talent ? req.user.id : undefined;
-  const result = await jobService.fetchJob(req.params["_id"]!, talentId, !!req.user);
+  const viewer = req.user ? { id: req.user.id, role: req.user.userRole } : undefined;
+  const result = await jobService.fetchJob(req.params["_id"]!, viewer);
   sendSuccessResponse(res, "Job fetched", { job: result });
 };
 

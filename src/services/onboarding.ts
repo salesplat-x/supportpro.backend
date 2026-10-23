@@ -8,6 +8,7 @@ import { AppError, ConflictError, NotFoundError, ValidationError } from "../util
 import EmailService from "../utils/integrations/email/emailService.js";
 import { composeOnboardingEmail } from "../utils/integrations/openai.js";
 import logger from "../utils/logger.js";
+import { RESEND_WINDOW_MS } from "./followUpShared.js";
 import {
   followUpStatus,
   FollowUpStatus,
@@ -25,12 +26,10 @@ import {
   talentStageFrom,
   talentSteps,
 } from "./onboardingRules.js";
+import { getProfileCompletion } from "./user.js";
 
 const userRepo = () => AppDataSource.getRepository(User);
 const emailRepo = () => AppDataSource.getRepository(OnboardingEmail);
-
-/** A second email inside this window needs the admin to confirm, to stop double-sends. */
-export const RESEND_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 // ---- SQL mirrors of onboardingRules.ts -------------------------------------------------
 // Each fact is one boolean SQL expression over a users alias. The stage CASE is built from
@@ -216,7 +215,7 @@ export const onboardingSummaries = async (
 // ---- Single user ----------------------------------------------------------------------
 
 const loadOnboardingUser = async (userId: string) => {
-  const user = await userRepo().findOne({ where: { id: userId } });
+  const user = await userRepo().findOne({ where: { id: userId }, relations: { userRoles: true } });
   if (!user) {
     throw new NotFoundError("User not found");
   }
@@ -226,6 +225,23 @@ const loadOnboardingUser = async (userId: string) => {
   const role = user.userRole as OnboardingRole;
   const facts = (await loadFacts(role, [user.id])).get(user.id)!;
   return { user, role, facts, stage: stageFrom(role, facts) };
+};
+
+/**
+ * The signed-in user's own stage, for the product tour. A talent needs every profile field
+ * before the pre-assessment can be generated, which is stricter than the CV-and-roles rule
+ * the admin stage uses, so they stay on the profile step until it is complete.
+ */
+export const getMyOnboarding = async (userId: string) => {
+  const { user, role, stage } = await loadOnboardingUser(userId);
+  if (
+    role === UserRole.Talent &&
+    stage === "take_assessment" &&
+    !getProfileCompletion(user).isProfileComplete
+  ) {
+    return { role, stage: "complete_profile" as OnboardingStage };
+  }
+  return { role, stage };
 };
 
 export const getUserOnboarding = async (userId: string) => {

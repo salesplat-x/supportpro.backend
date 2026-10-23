@@ -16,7 +16,13 @@ import {
   CvEmbeddingStatus,
 } from "../src/types/enums.js";
 import { generateHashedPassword, signToken } from "../src/utils/crypto.js";
-import { createTalent, createRecruiter, createAdmin, createRole } from "./helpers/fixtures.js";
+import {
+  createTalent,
+  createRecruiter,
+  createAdmin,
+  createRole,
+  createCompleteTalent,
+} from "./helpers/fixtures.js";
 import { uploadToSpaces, deleteFromSpaces } from "../src/utils/integrations/spaces.js";
 import { extractText } from "../src/utils/text.js";
 
@@ -118,55 +124,76 @@ describe("GET /v1/user/me", () => {
   });
 });
 
-describe("POST /v1/user/me/tour", () => {
-  it("new users have not finished the tour", async () => {
-    const { token } = await createTalentWithToken();
+describe("GET /v1/user/me/onboarding", () => {
+  const getOnboarding = (token: string) =>
+    request(app).get("/v1/user/me/onboarding").set("Authorization", `Bearer ${token}`);
 
-    const res = await request(app).get("/v1/user/me").set("Authorization", `Bearer ${token}`);
+  it("puts a talent without a CV on the profile step", async () => {
+    const { token } = await createTalent();
 
-    expect(res.status).toBe(200);
-    expect(res.body.data.user.tourCompletedAt).toBeNull();
-  });
-
-  it("marks the tour finished, and GET /me reflects it", async () => {
-    const { token } = await createTalentWithToken();
-
-    const res = await request(app).post("/v1/user/me/tour").set("Authorization", `Bearer ${token}`);
+    const res = await getOnboarding(token);
 
     expect(res.status).toBe(200);
-    expect(res.body.data.tourCompletedAt).toBeTruthy();
-
-    const me = await request(app).get("/v1/user/me").set("Authorization", `Bearer ${token}`);
-    expect(me.body.data.user.tourCompletedAt).toBe(res.body.data.tourCompletedAt);
+    expect(res.body.data.onboarding).toEqual({ role: "talent", stage: "complete_profile" });
   });
 
-  it("keeps the first completion time when called again", async () => {
-    const { token } = await createTalentWithToken();
+  it("moves a talent with a complete profile to the assessment", async () => {
+    const role = await createRole();
+    const { token } = await createCompleteTalent(role);
 
-    const first = await request(app)
-      .post("/v1/user/me/tour")
-      .set("Authorization", `Bearer ${token}`);
-    const second = await request(app)
-      .post("/v1/user/me/tour")
-      .set("Authorization", `Bearer ${token}`);
+    const res = await getOnboarding(token);
 
-    expect(second.status).toBe(200);
-    expect(second.body.data.tourCompletedAt).toBe(first.body.data.tourCompletedAt);
+    expect(res.body.data.onboarding.stage).toBe("take_assessment");
+  });
+
+  it("keeps a talent on the profile step until every profile field is set", async () => {
+    const role = await createRole();
+    const { user, token } = await createCompleteTalent(role);
+    await testDataSource.getRepository(User).update(user.id, { bio: "" });
+
+    const res = await getOnboarding(token);
+
+    expect(res.body.data.onboarding.stage).toBe("complete_profile");
+  });
+
+  it("asks a scored talent without an application to apply", async () => {
+    const role = await createRole();
+    const { user, token } = await createCompleteTalent(role);
+    await testDataSource.getRepository(User).update(user.id, { prescreeningScore: 80 });
+
+    const res = await getOnboarding(token);
+
+    expect(res.body.data.onboarding.stage).toBe("apply_to_job");
+  });
+
+  it("puts a recruiter without a company on the company step", async () => {
+    const { token } = await createRecruiter();
+
+    const res = await getOnboarding(token);
+
+    expect(res.body.data.onboarding).toEqual({ role: "recruiter", stage: "create_company" });
   });
 
   it("works before the email is verified", async () => {
     const { user } = await createTalentWithToken();
     await testDataSource.getRepository(User).update(user.id, { emailVerifiedAt: null });
 
-    const res = await request(app)
-      .post("/v1/user/me/tour")
-      .set("Authorization", `Bearer ${signToken(user)}`);
+    const res = await getOnboarding(signToken(user));
 
     expect(res.status).toBe(200);
+    expect(res.body.data.onboarding.stage).toBe("verify_email");
+  });
+
+  it("rejects admins, who have no onboarding", async () => {
+    const { token } = await createAdmin();
+
+    const res = await getOnboarding(token);
+
+    expect(res.status).toBe(400);
   });
 
   it("returns 401 without a token", async () => {
-    const res = await request(app).post("/v1/user/me/tour");
+    const res = await request(app).get("/v1/user/me/onboarding");
     expect(res.status).toBe(401);
   });
 });

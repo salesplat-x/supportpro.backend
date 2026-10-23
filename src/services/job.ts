@@ -108,18 +108,40 @@ const toPublicAiConfig = (aiConfig?: AIConfig | null): PublicJobAiConfig | null 
   return { id: aiConfig.id };
 };
 
-export type PublicJob = Omit<Job, "organization" | "postedBy" | "aiConfig"> & {
+/**
+ * noOfApplicants is hiring-team data: talents and anonymous visitors never
+ * receive it, so it is only added back when the caller opts in.
+ */
+export type PublicJob = Omit<Job, "organization" | "postedBy" | "aiConfig" | "noOfApplicants"> & {
+  noOfApplicants?: number;
   organization: PublicJobOrganization | null;
   postedBy: PublicJobPoster | null;
   aiConfig: PublicJobAiConfig | null;
 };
 
-const toPublicJob = (job: Job): PublicJob => ({
-  ...job,
-  organization: toPublicOrganization(job.organization),
-  postedBy: toPublicPoster(job.postedBy),
-  aiConfig: toPublicAiConfig(job.aiConfig),
-});
+type PublicJobOptions = { includeApplicantCount?: boolean };
+
+const toPublicJob = (job: Job, options: PublicJobOptions = {}): PublicJob => {
+  const { noOfApplicants, ...rest } = job;
+  return {
+    ...rest,
+    ...(options.includeApplicantCount ? { noOfApplicants } : {}),
+    organization: toPublicOrganization(job.organization),
+    postedBy: toPublicPoster(job.postedBy),
+    aiConfig: toPublicAiConfig(job.aiConfig),
+  };
+};
+
+export type JobViewer = { id: string; role: UserRole };
+
+const canSeeApplicantCount = async (job: Job, viewer?: JobViewer): Promise<boolean> => {
+  if (!viewer) return false;
+  if (viewer.role === UserRole.Admin) return true;
+  if (viewer.role !== UserRole.Recruiter) return false;
+  if (job.postedById === viewer.id) return true;
+  if (!job.organizationId) return false;
+  return (await getActiveOrganizationId(viewer.id)) === job.organizationId;
+};
 
 const aiConfigRepo = () => AppDataSource.getRepository(AIConfig);
 
@@ -329,6 +351,7 @@ export interface GenerateJobContentPayload {
   keywords?: string[];
   prompt?: string;
   sourceText?: string;
+  richText?: boolean;
 }
 
 export interface GeneratedJobContent {
@@ -420,7 +443,8 @@ const JOB_DESCRIPTION_FILE_TYPES = [
 const MAX_SOURCE_TEXT_LENGTH = 30000;
 
 export const generateJobContentFromFile = async (
-  file: Express.Multer.File | undefined
+  file: Express.Multer.File | undefined,
+  options: { richText?: boolean } = {}
 ): Promise<GeneratedJobContent> => {
   if (!file) {
     throw new ValidationError("Upload a job description file");
@@ -447,7 +471,10 @@ export const generateJobContentFromFile = async (
     throw new ValidationError("We couldn't find any text in this file");
   }
 
-  return generateJobContent({ sourceText: text.trim().slice(0, MAX_SOURCE_TEXT_LENGTH) });
+  return generateJobContent({
+    sourceText: text.trim().slice(0, MAX_SOURCE_TEXT_LENGTH),
+    ...(options.richText ? { richText: true } : {}),
+  });
 };
 
 export type GenerateJobFieldPayload = GenerateJobFieldContext;
@@ -597,7 +624,8 @@ export const deleteJob = async (userId: string, jobId: string): Promise<void> =>
 };
 
 export const fetchAllJobs = async (
-  payload: FetchJobsParams
+  payload: FetchJobsParams,
+  options: PublicJobOptions = {}
 ): Promise<
   (PublicJob & {
     hasApplied?: boolean;
@@ -679,7 +707,7 @@ export const fetchAllJobs = async (
   const jobs = await qb.orderBy("job.createdAt", order).skip(offset).take(limit).getMany();
 
   if (!payload.talentId || jobs.length === 0) {
-    return jobs.map(toPublicJob);
+    return jobs.map((job) => toPublicJob(job, options));
   }
 
   const applied = await applicationRepo().find({
@@ -692,7 +720,7 @@ export const fetchAllJobs = async (
 
   return jobs.map((job) => {
     const application = applicationByJobId.get(job.id);
-    return Object.assign(toPublicJob(job), {
+    return Object.assign(toPublicJob(job, options), {
       hasApplied: !!application,
       applicationStage: application?.currentStage ?? null,
       applicationStages: application?.stages ?? null,
@@ -713,13 +741,15 @@ export const fetchRecruiterJobs = async (
   const activeOrgId = await getActiveOrganizationId(userId);
   if (!activeOrgId) return [];
 
-  return fetchAllJobs({ ...payload, postedBy: undefined, organizationId: activeOrgId });
+  return fetchAllJobs(
+    { ...payload, postedBy: undefined, organizationId: activeOrgId },
+    { includeApplicantCount: true }
+  );
 };
 
 export const fetchJob = async (
   jobId: string,
-  talentId?: string,
-  isAuthenticated?: boolean
+  viewer?: JobViewer
 ): Promise<
   PublicJob & {
     hasApplied?: boolean;
@@ -735,18 +765,21 @@ export const fetchJob = async (
   if (!job) {
     throw new NotFoundError("Job not found");
   }
-  if (!isAuthenticated && job.status !== JobStatus.Active) {
+  if (!viewer && job.status !== JobStatus.Active) {
     throw new NotFoundError("Job not found");
   }
-  if (!talentId) {
-    return toPublicJob(job);
+  const publicJob = toPublicJob(job, {
+    includeApplicantCount: await canSeeApplicantCount(job, viewer),
+  });
+  if (viewer?.role !== UserRole.Talent) {
+    return publicJob;
   }
 
   const existingApplication = await applicationRepo().findOne({
-    where: { talentId, jobId },
+    where: { talentId: viewer.id, jobId },
     select: { id: true, currentStage: true, stages: true },
   });
-  return Object.assign(toPublicJob(job), {
+  return Object.assign(publicJob, {
     hasApplied: !!existingApplication,
     applicationStage: existingApplication?.currentStage ?? null,
     applicationId: existingApplication?.id ?? null,

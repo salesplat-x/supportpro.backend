@@ -5,16 +5,28 @@ import { validateAccess, requireVerifiedEmail } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { UserRole } from "../types/enums.js";
 import {
+  adminApplicationFollowUpEmailValidator,
+  adminOverviewQueryValidator,
+  adminApplicationIdParamValidator,
   adminIdParamValidator,
   adminJobsQueryValidator,
   adminOnboardingEmailValidator,
   adminUserIdParamValidator,
   adminOrganizationsQueryValidator,
   adminRecruitersQueryValidator,
+  adminStuckApplicationsQueryValidator,
   adminTalentsQueryValidator,
 } from "../validators/admin.js";
 
 const router = Router();
+
+router.get(
+  "/overview",
+  validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(adminOverviewQueryValidator),
+  asyncHandler(admin.overview, "load overview")
+);
 
 router.get(
   "/talents",
@@ -117,6 +129,42 @@ router.post(
   requireVerifiedEmail,
   validate(adminOnboardingEmailValidator),
   asyncHandler(admin.sendOnboardingEmail, "send onboarding email")
+);
+router.get(
+  "/users/:_id/stuck-applications",
+  validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(adminUserIdParamValidator),
+  asyncHandler(admin.talentStuckApplications, "load talent's stuck applications")
+);
+
+router.get(
+  "/applications",
+  validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(adminStuckApplicationsQueryValidator),
+  asyncHandler(admin.listStuckApplications, "load stuck applications")
+);
+router.get(
+  "/applications/:_id/follow-up",
+  validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(adminApplicationIdParamValidator),
+  asyncHandler(admin.applicationFollowUp, "load application follow-up")
+);
+router.post(
+  "/applications/:_id/follow-up/draft",
+  validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(adminApplicationIdParamValidator),
+  asyncHandler(admin.draftApplicationFollowUpEmail, "draft application follow-up email")
+);
+router.post(
+  "/applications/:_id/follow-up/emails",
+  validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(adminApplicationFollowUpEmailValidator),
+  asyncHandler(admin.sendApplicationFollowUpEmail, "send application follow-up email")
 );
 
 export default (app: Router) => app.use("/admin", router);

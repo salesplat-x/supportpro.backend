@@ -28,6 +28,7 @@ export const generateJobContentValidator = [
   body("experienceLevel").optional().isString(),
   body("keywords").optional().isArray(),
   body("keywords.*").optional().isString(),
+  body("richText").optional().isBoolean().withMessage("richText must be a boolean").toBoolean(),
   body().custom((value) => {
     if (!value?.role && !value?.prompt && !value?.sourceText) {
       throw new Error("Provide a role, a description of the job, or an existing job description");
@@ -48,6 +49,7 @@ export const generateJobFieldValidator = [
     .isIn(["regenerate", "shorter", "detailed", "friendlier"])
     .withMessage("action must be one of: regenerate, shorter, detailed, friendlier"),
   body("currentText").optional().isString().isLength({ max: 30000 }),
+  body("richText").optional().isBoolean().withMessage("richText must be a boolean").toBoolean(),
   body("job").optional().isObject(),
   body("job.role").optional().isString(),
   body("job.experienceLevel").optional().isString(),

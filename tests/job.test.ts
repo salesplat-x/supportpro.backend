@@ -393,6 +393,35 @@ describe("POST /v1/jobs/generate — AI-generated job content", () => {
     expect(res.status).toBe(400);
   });
 
+  it("richText flag is forwarded to the AI only when the client sends it", async () => {
+    const { token } = await createRecruiter();
+
+    await request(app)
+      .post("/v1/jobs/generate")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ sourceText: "We are hiring a designer.", richText: true });
+    expect(mockGenerateJobContent).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sourceText: "We are hiring a designer.", richText: true })
+    );
+
+    await request(app)
+      .post("/v1/jobs/generate")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ sourceText: "We are hiring a designer." });
+    expect(mockGenerateJobContent.mock.lastCall?.[0]).not.toHaveProperty("richText");
+  });
+
+  it("Non-boolean richText → 400", async () => {
+    const { token } = await createRecruiter();
+
+    const res = await request(app)
+      .post("/v1/jobs/generate")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ role: "Designer", richText: "yes please" });
+
+    expect(res.status).toBe(400);
+  });
+
   it("Free-text description → 200 with every job field extracted and invalid values dropped", async () => {
     const { token } = await createRecruiter();
     mockGenerateJobContent.mockResolvedValueOnce({
@@ -520,6 +549,25 @@ describe("POST /v1/jobs/generate/file — job draft from an uploaded job descrip
     expect(res.body.data.content.jobBrief).toContain("About the Role");
   });
 
+  it("richText form field asks the AI for formatted text", async () => {
+    const { token } = await createRecruiter();
+
+    const res = await request(app)
+      .post("/v1/jobs/generate/file")
+      .set("Authorization", `Bearer ${token}`)
+      .field("richText", "true")
+      .attach("file", Buffer.from("We are hiring a Product Designer in Abuja."), {
+        filename: "jd.txt",
+        contentType: "text/plain",
+      });
+
+    expect(res.status).toBe(200);
+    expect(mockGenerateJobContent).toHaveBeenLastCalledWith({
+      sourceText: "We are hiring a Product Designer in Abuja.",
+      richText: true,
+    });
+  });
+
   it("Unsupported file type → 400", async () => {
     const { token } = await createRecruiter();
 
@@ -558,6 +606,20 @@ describe("POST /v1/jobs/generate/field — AI help for a single job field", () =
 
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ text: "A shorter brief." });
+  });
+
+  it("richText flag is forwarded with the field request", async () => {
+    const { token } = await createRecruiter();
+
+    const res = await request(app)
+      .post("/v1/jobs/generate/field")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ field: "requirements", richText: true, job: { role: "Backend Engineer" } });
+
+    expect(res.status).toBe(200);
+    expect(mockGenerateJobField).toHaveBeenLastCalledWith(
+      expect.objectContaining({ field: "requirements", richText: true })
+    );
   });
 
   it("Skill suggestions → 200 without skills the job already has", async () => {

@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import * as onboardingService from "../services/onboarding.js";
 import * as userService from "../services/user.js";
 import { sendSuccessResponse } from "../utils/response.js";
 
@@ -27,9 +28,9 @@ export const removeAvatar = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Profile picture removed", { user: withoutCvText(result) });
 };
 
-export const completeTour = async (req: Request, res: Response) => {
-  const tourCompletedAt = await userService.completeTour(req.user.id);
-  sendSuccessResponse(res, "Tour completed", { tourCompletedAt });
+export const myOnboarding = async (req: Request, res: Response) => {
+  const onboarding = await onboardingService.getMyOnboarding(req.user.id);
+  sendSuccessResponse(res, "Onboarding fetched", { onboarding });
 };
 
 export const me = async (req: Request, res: Response) => {

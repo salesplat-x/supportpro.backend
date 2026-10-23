@@ -34,6 +34,7 @@ import { OrganizationInvite } from "../entities/OrganizationInvite.js";
 import { FeatureUsageCounter } from "../entities/FeatureUsageCounter.js";
 import { OrganizationPlanHistory } from "../entities/OrganizationPlanHistory.js";
 import { OnboardingEmail } from "../entities/OnboardingEmail.js";
+import { ApplicationFollowUpEmail } from "../entities/ApplicationFollowUpEmail.js";
 
 const ALL_ENTITIES = [
   User,
@@ -66,6 +67,7 @@ const ALL_ENTITIES = [
   FeatureUsageCounter,
   OrganizationPlanHistory,
   OnboardingEmail,
+  ApplicationFollowUpEmail,
 ];
 
 async function run(): Promise<void> {

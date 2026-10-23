@@ -19,6 +19,7 @@ export interface PricingPlan {
   description: string;
   priceCaption?: string;
   badge?: string;
+  badgeTone?: "success";
   cta: string;
   secondaryCta?: string;
   highlighted: boolean;
