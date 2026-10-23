@@ -37,6 +37,12 @@ const optionalEnvVars = {
   // Longest recording the voice endpoints accept. Whisper bills per minute, and a 10 MB
   // Opus file can hold over an hour, so length is capped as well as size.
   voiceMaxDurationSeconds: positiveNumberOr(process.env.VOICE_MAX_DURATION_SECONDS, 120),
+  // Each voice provider call (Whisper, the reply model, ElevenLabs) gives up after this long.
+  voiceCallTimeoutMs: positiveNumberOr(process.env.VOICE_CALL_TIMEOUT_MS, 20_000),
+  // The whole voice request ends by then (fallback clip or 504), inside Cloudflare's ~100 s cutoff.
+  voiceRequestDeadlineMs: positiveNumberOr(process.env.VOICE_REQUEST_DEADLINE_MS, 60_000),
+  // Voice calls get their own pool so they can't hold the shared OpenAI slots.
+  voiceConcurrency: positiveNumberOr(process.env.VOICE_CONCURRENCY, 2),
 } as const;
 
 const requiredEnvVars = {

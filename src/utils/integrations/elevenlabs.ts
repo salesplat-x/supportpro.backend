@@ -26,32 +26,48 @@ const request = (text: string, stream: boolean) => {
   };
 };
 
+export interface SpeechOptions {
+  /** Aborted when the voice request's overall deadline passes. */
+  signal?: AbortSignal;
+}
+
+const ATTEMPTS = 2;
+
 /** Synthesizes `text` into a complete mp3 buffer. */
-export const synthesizeSpeech = async (text: string): Promise<Buffer> => {
+export const synthesizeSpeech = async (
+  text: string,
+  { signal }: SpeechOptions = {}
+): Promise<Buffer> => {
   const { url, payload, headers } = request(text, false);
   const response = await withRetry(
     () =>
       axios.post<ArrayBuffer>(url, payload, {
         headers,
         responseType: "arraybuffer",
-        timeout: 30_000,
+        timeout: env.voiceCallTimeoutMs,
+        signal,
       }),
-    { label: "ElevenLabs text-to-speech" }
+    { retries: ATTEMPTS, label: "ElevenLabs text-to-speech" }
   );
   return Buffer.from(response.data);
 };
 
 /** Synthesizes `text` and returns the mp3 as a stream so audio can start playing early. */
-export const synthesizeSpeechStream = async (text: string): Promise<Readable> => {
+export const synthesizeSpeechStream = async (
+  text: string,
+  { signal }: SpeechOptions = {}
+): Promise<Readable> => {
   const { url, payload, headers } = request(text, true);
   const response = await withRetry(
     () =>
       axios.post<Readable>(url, payload, {
         headers,
         responseType: "stream",
-        timeout: 30_000,
+        // Bounds the wait for the response to start; once audio flows the stream runs on.
+        timeout: env.voiceCallTimeoutMs,
+        signal,
       }),
-    { label: "ElevenLabs text-to-speech stream" }
+    { retries: ATTEMPTS, label: "ElevenLabs text-to-speech stream" }
   );
   return response.data;
 };

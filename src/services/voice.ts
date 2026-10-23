@@ -10,6 +10,7 @@ import {
 import { AudioUnreadableError, probeAudioDurationSeconds } from "../utils/audioDuration.js";
 import { getErrorStatus } from "../utils/retry.js";
 import env from "../config/env.js";
+import { AppError } from "../utils/errors/AppError.js";
 import { ValidationError } from "../utils/errors/ValidationError.js";
 import logger from "../utils/logger.js";
 
@@ -66,12 +67,39 @@ const assertWithinLengthLimit = async (input: VoiceAudioInput): Promise<void> =>
   }
 };
 
-/** Speech-to-text only. Unreadable audio is the caller's problem (400); anything else is ours. */
-export const transcribe = async (input: VoiceAudioInput): Promise<string> => {
+/** The voice request ran past its overall deadline. */
+export class VoiceTimeoutError extends AppError {
+  constructor() {
+    super(504, "VOICE_TIMEOUT", "That took too long. Please try again in a moment.");
+  }
+}
+
+/**
+ * Runs `work` under the voice request's overall deadline (VOICE_REQUEST_DEADLINE_MS), kept
+ * well inside Cloudflare's ~100 s cutoff so the user always gets our answer, never a 524.
+ * When it passes, the signal aborts whatever provider call is still running.
+ */
+const withDeadline = async <T>(work: (signal: AbortSignal) => Promise<T>): Promise<T> => {
+  const controller = new AbortController();
+  let timer: NodeJS.Timeout | undefined;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new VoiceTimeoutError());
+    }, env.voiceRequestDeadlineMs);
+  });
+  try {
+    return await Promise.race([work(controller.signal), deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+const transcribeWithin = async (input: VoiceAudioInput, signal: AbortSignal): Promise<string> => {
   await assertWithinLengthLimit(input);
   let text: string;
   try {
-    text = await transcribeAudio(input.buffer, `voice.${input.extension}`);
+    text = await transcribeAudio(input.buffer, `voice.${input.extension}`, { signal });
   } catch (err) {
     if (getErrorStatus(err) === 400) {
       throw new ValidationError(UNREADABLE_AUDIO);
@@ -84,15 +112,19 @@ export const transcribe = async (input: VoiceAudioInput): Promise<string> => {
   return text;
 };
 
+/** Speech-to-text only. Unreadable audio is the caller's problem (400); anything else is ours. */
+export const transcribe = (input: VoiceAudioInput): Promise<string> =>
+  withDeadline((signal) => transcribeWithin(input, signal));
+
 /**
  * Speech in, reply text out. Shared by the buffered and streamed endpoints so both fail
  * the same way: bad audio raises a ValidationError, anything else propagates to the caller.
  */
-const reply = async (input: VoiceAudioInput): Promise<string> => {
-  const userText = await transcribe(input);
+const reply = async (input: VoiceAudioInput, signal: AbortSignal): Promise<string> => {
+  const userText = await transcribeWithin(input, signal);
   logger.info(`Voice message transcribed (${userText.length} chars)`);
 
-  const aiReply = await generateVoiceReply(userText);
+  const aiReply = await generateVoiceReply(userText, { signal });
   if (!aiReply) {
     throw new Error("The model returned an empty reply");
   }
@@ -131,8 +163,10 @@ export const voiceChat = async (input: VoiceAudioInput): Promise<VoiceAudioResul
     return { audio: await fs.promises.readFile(fallbackPath()), fallback: true };
   }
   try {
-    const text = await reply(input);
-    return { audio: await synthesizeSpeech(text), fallback: false };
+    const audio = await withDeadline(async (signal) =>
+      synthesizeSpeech(await reply(input, signal), { signal })
+    );
+    return { audio, fallback: false };
   } catch (err) {
     recoverWithFallback(err);
     return { audio: await fs.promises.readFile(fallbackPath()), fallback: true };
@@ -145,8 +179,11 @@ export const voiceChatStream = async (input: VoiceAudioInput): Promise<VoiceStre
     return { audio: fs.createReadStream(fallbackPath()), fallback: true };
   }
   try {
-    const text = await reply(input);
-    return { audio: await synthesizeSpeechStream(text), fallback: false };
+    // The deadline covers the wait for audio to start; once it flows the stream runs on.
+    const audio = await withDeadline(async (signal) =>
+      synthesizeSpeechStream(await reply(input, signal), { signal })
+    );
+    return { audio, fallback: false };
   } catch (err) {
     recoverWithFallback(err);
     return { audio: fs.createReadStream(fallbackPath()), fallback: true };

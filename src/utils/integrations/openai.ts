@@ -21,6 +21,32 @@ const runCompletion = (params: OpenAI.Chat.Completions.ChatCompletionCreateParam
     withRetry(() => openai.chat.completions.create(params), { label: "OpenAI chat completion" })
   );
 
+// Voice requests are synchronous and user-facing, so they get their own small pool (a burst
+// of long recordings can't starve CV scoring or scouting) and tight limits per call.
+const voiceLimiter = createLimiter(env.voiceConcurrency);
+const VOICE_ATTEMPTS = 2;
+
+export interface VoiceCallOptions {
+  /** Aborted when the voice request's overall deadline passes. */
+  signal?: AbortSignal;
+}
+
+const voiceRequestOptions = ({ signal }: VoiceCallOptions) => ({
+  timeout: env.voiceCallTimeoutMs,
+  // withRetry already retries; SDK retries on top would multiply the attempts.
+  maxRetries: 0,
+  ...(signal ? { signal } : {}),
+});
+
+const runVoiceCall = <T>(label: string, signal: AbortSignal | undefined, call: () => Promise<T>) =>
+  voiceLimiter.run(() => {
+    // The request may have been given up on while this call waited for a slot.
+    if (signal?.aborted) {
+      return Promise.reject(new Error(`${label} skipped: the voice request was abandoned`));
+    }
+    return withRetry(call, { retries: VOICE_ATTEMPTS, label });
+  });
+
 const runEmbedding = (params: OpenAI.Embeddings.EmbeddingCreateParams) =>
   limiter.run(() =>
     withRetry(() => openai.embeddings.create(params), { label: "OpenAI embedding" })
@@ -1052,29 +1078,37 @@ const VOICE_SYSTEM_PROMPT =
  * Speech-to-text. The filename's extension tells Whisper which audio format it is
  * receiving, so callers must pass one it supports (mp3, mp4, m4a, wav, webm, ogg, flac).
  */
-export const transcribeAudio = async (audio: Buffer, filename: string): Promise<string> => {
-  const transcription = await limiter.run(() =>
-    withRetry(
-      async () =>
-        openai.audio.transcriptions.create({
-          file: await toFile(audio, filename),
-          model: "whisper-1",
-        }),
-      { label: "OpenAI transcription" }
+export const transcribeAudio = async (
+  audio: Buffer,
+  filename: string,
+  options: VoiceCallOptions = {}
+): Promise<string> => {
+  const transcription = await runVoiceCall("OpenAI transcription", options.signal, async () =>
+    openai.audio.transcriptions.create(
+      { file: await toFile(audio, filename), model: "whisper-1" },
+      voiceRequestOptions(options)
     )
   );
   return transcription.text.trim();
 };
 
 /** Short conversational reply for the voice assistant. Capped because TTS bills per character. */
-export const generateVoiceReply = async (userText: string): Promise<string> => {
-  const completion = await runCompletion({
-    model: "gpt-4o",
-    max_tokens: 300,
-    messages: [
-      { role: "system", content: VOICE_SYSTEM_PROMPT },
-      { role: "user", content: userText },
-    ],
-  });
+export const generateVoiceReply = async (
+  userText: string,
+  options: VoiceCallOptions = {}
+): Promise<string> => {
+  const completion = await runVoiceCall("OpenAI voice reply", options.signal, () =>
+    openai.chat.completions.create(
+      {
+        model: "gpt-4o",
+        max_tokens: 300,
+        messages: [
+          { role: "system", content: VOICE_SYSTEM_PROMPT },
+          { role: "user", content: userText },
+        ],
+      },
+      voiceRequestOptions(options)
+    )
+  );
   return completion.choices[0]?.message?.content?.trim() ?? "";
 };
