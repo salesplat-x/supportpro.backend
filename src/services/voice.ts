@@ -2,7 +2,11 @@ import fs from "fs";
 import path from "path";
 import { Readable } from "stream";
 import { generateVoiceReply, transcribeAudio } from "../utils/integrations/openai.js";
-import { synthesizeSpeech, synthesizeSpeechStream } from "../utils/integrations/elevenlabs.js";
+import {
+  isElevenLabsConfigured,
+  synthesizeSpeech,
+  synthesizeSpeechStream,
+} from "../utils/integrations/elevenlabs.js";
 import { AudioUnreadableError, probeAudioDurationSeconds } from "../utils/audioDuration.js";
 import { getErrorStatus } from "../utils/retry.js";
 import env from "../config/env.js";
@@ -108,8 +112,24 @@ const recoverWithFallback = (err: unknown): void => {
   }
 };
 
+/**
+ * Without text-to-speech there is no spoken reply to give, so transcribing and asking the
+ * model would be paid for and thrown away. Answer with the fallback clip straight away.
+ */
+const voiceRepliesOff = (): boolean => {
+  if (isElevenLabsConfigured()) return false;
+  logger.warn("Voice replies are off (ElevenLabs is not configured); serving the fallback clip");
+  if (!fs.existsSync(fallbackPath())) {
+    throw new Error(`Voice fallback clip is missing at ${fallbackPath()}`);
+  }
+  return true;
+};
+
 /** Audio in, spoken reply out (complete mp3). */
 export const voiceChat = async (input: VoiceAudioInput): Promise<VoiceAudioResult> => {
+  if (voiceRepliesOff()) {
+    return { audio: await fs.promises.readFile(fallbackPath()), fallback: true };
+  }
   try {
     const text = await reply(input);
     return { audio: await synthesizeSpeech(text), fallback: false };
@@ -121,6 +141,9 @@ export const voiceChat = async (input: VoiceAudioInput): Promise<VoiceAudioResul
 
 /** Audio in, spoken reply streamed out so playback can begin before synthesis finishes. */
 export const voiceChatStream = async (input: VoiceAudioInput): Promise<VoiceStreamResult> => {
+  if (voiceRepliesOff()) {
+    return { audio: fs.createReadStream(fallbackPath()), fallback: true };
+  }
   try {
     const text = await reply(input);
     return { audio: await synthesizeSpeechStream(text), fallback: false };
