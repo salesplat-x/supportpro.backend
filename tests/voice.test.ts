@@ -3,11 +3,13 @@
  * (not the caller's bad audio) are answered with the canned fallback clip.
  * OpenAI and ElevenLabs are mocked, and no database is needed.
  */
+import { execFile } from "child_process";
 import express from "express";
 import fs from "fs";
 import path from "path";
 import { Readable } from "stream";
 import request from "supertest";
+import env from "../src/config/env.js";
 import { errorHandler } from "../src/middleware/errorHandler.js";
 import voiceRoutes from "../src/routes/voice.js";
 import { transcribeAudio, generateVoiceReply } from "../src/utils/integrations/openai.js";
@@ -23,6 +25,11 @@ jest.mock("../src/middleware/auth.js", () => ({
     next();
   },
   requireVerifiedEmail: (_req: any, _res: any, next: any) => next(),
+}));
+// ffprobe is stood in for, so the length check runs without the binary installed.
+jest.mock("child_process", () => ({
+  ...jest.requireActual<typeof import("child_process")>("child_process"),
+  execFile: jest.fn(),
 }));
 jest.mock("../src/utils/integrations/openai.js", () => ({
   transcribeAudio: jest.fn(),
@@ -41,6 +48,34 @@ const mockTranscribe = transcribeAudio as jest.Mock;
 const mockReply = generateVoiceReply as jest.Mock;
 const mockSpeech = synthesizeSpeech as jest.Mock;
 const mockSpeechStream = synthesizeSpeechStream as jest.Mock;
+const mockExecFile = execFile as unknown as jest.Mock;
+
+type ExecCallback = (err: Error | null, stdout: string, stderr: string) => void;
+
+/**
+ * Answers ffprobe calls: the container-header query gets `formatDuration`, the packet scan
+ * gets `packets`. Browser recordings (MediaRecorder webm) have no duration in the header.
+ */
+const fakeProbe = (formatDuration: string, packets = "") =>
+  mockExecFile.mockImplementation(
+    (_cmd: string, args: string[], _opts: unknown, cb: ExecCallback) => {
+      cb(null, args.includes("format=duration") ? `${formatDuration}\n` : packets, "");
+    }
+  );
+
+const probeFails = (err: Error) =>
+  mockExecFile.mockImplementation(
+    (_cmd: string, _args: string[], _opts: unknown, cb: ExecCallback) => {
+      cb(err, "", "Invalid data found when processing input");
+    }
+  );
+
+const errorMessage = (body: Buffer): string =>
+  (JSON.parse(body.toString()) as { error: { message: string } }).error.message;
+
+const setEnv = (key: string, value: unknown) => {
+  (env as unknown as Record<string, unknown>)[key] = value;
+};
 
 const fallbackBytes = fs.readFileSync(path.join(process.cwd(), "templates", "fallback.mp3"));
 const speech = Buffer.from("synthesised-mp3-bytes");
@@ -75,6 +110,7 @@ beforeEach(() => {
   mockReply.mockResolvedValue("Hi there!");
   mockSpeech.mockResolvedValue(speech);
   mockSpeechStream.mockResolvedValue(Readable.from([speech]));
+  fakeProbe("5.000000");
 });
 
 describe("auth and upload validation", () => {
@@ -192,5 +228,101 @@ describe("POST /voice/stream", () => {
     mockTranscribe.mockResolvedValue("");
     const res = await send("stream");
     expect(res.status).toBe(400);
+  });
+});
+
+describe("recording length cap", () => {
+  const defaultMax = (env as unknown as Record<string, unknown>).voiceMaxDurationSeconds;
+  afterEach(() => setEnv("voiceMaxDurationSeconds", defaultMax));
+
+  it("defaults to 2 minutes", () => {
+    expect(defaultMax).toBe(120);
+  });
+
+  it.each(["transcribe", "chat", "stream"])(
+    "rejects a recording over the limit on %s before any paid call",
+    async (route) => {
+      fakeProbe("120.500000");
+      const res = await send(route);
+      expect(res.status).toBe(400);
+      expect(errorMessage(res.body as Buffer)).toBe(
+        "That recording is too long. Please keep it under 2 minutes."
+      );
+      expect(mockTranscribe).not.toHaveBeenCalled();
+      expect(mockReply).not.toHaveBeenCalled();
+      expect(mockSpeech).not.toHaveBeenCalled();
+    }
+  );
+
+  it("accepts a recording exactly at the limit", async () => {
+    fakeProbe("120.000000");
+    const res = await send("transcribe");
+    expect(res.status).toBe(200);
+    expect(mockTranscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("measures the upload with ffprobe", async () => {
+    await send("transcribe");
+    expect(mockExecFile).toHaveBeenCalledWith(
+      "ffprobe",
+      expect.arrayContaining(["-show_entries", "format=duration"]),
+      expect.objectContaining({ timeout: expect.any(Number) as unknown }),
+      expect.any(Function)
+    );
+  });
+
+  it("counts packets when the header has no duration (browser webm)", async () => {
+    const packets = Array.from(
+      { length: 4 },
+      (_, i) => `pts_time=${(i * 50).toFixed(6)}|duration_time=0.020000`
+    ).join("\n");
+    fakeProbe("N/A", `${packets}\n`);
+    const res = await send("chat");
+    expect(res.status).toBe(400);
+    expect(errorMessage(res.body as Buffer)).toMatch(/too long/);
+    expect(mockTranscribe).not.toHaveBeenCalled();
+  });
+
+  it("lets a short browser webm through after counting its packets", async () => {
+    fakeProbe(
+      "N/A",
+      "pts_time=0.000000|duration_time=0.020000\npts_time=2.980000|duration_time=0.020000\n"
+    );
+    const res = await send("transcribe");
+    expect(res.status).toBe(200);
+  });
+
+  it("reports a file ffprobe cannot read as a client error, without calling Whisper", async () => {
+    probeFails(Object.assign(new Error("Command failed: ffprobe"), { code: 1 }));
+    const res = await send("transcribe");
+    expect(res.status).toBe(400);
+    expect(mockTranscribe).not.toHaveBeenCalled();
+  });
+
+  it("treats audio with no measurable length as unreadable", async () => {
+    fakeProbe("N/A", "");
+    const res = await send("transcribe");
+    expect(res.status).toBe(400);
+    expect(mockTranscribe).not.toHaveBeenCalled();
+  });
+
+  it("fails closed, without paying for Whisper, when ffprobe is missing", async () => {
+    probeFails(Object.assign(new Error("spawn ffprobe ENOENT"), { code: "ENOENT" }));
+    const transcribeRes = await send("transcribe");
+    expect(transcribeRes.status).toBe(500);
+
+    const chatRes = await send("chat");
+    expect(chatRes.headers["x-voice-fallback"]).toBe("true");
+    expect(mockTranscribe).not.toHaveBeenCalled();
+  });
+
+  it("uses VOICE_MAX_DURATION_SECONDS when it is set", async () => {
+    setEnv("voiceMaxDurationSeconds", 30);
+    fakeProbe("45.000000");
+    const res = await send("transcribe");
+    expect(res.status).toBe(400);
+    expect(errorMessage(res.body as Buffer)).toBe(
+      "That recording is too long. Please keep it under 30 seconds."
+    );
   });
 });
