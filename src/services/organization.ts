@@ -40,7 +40,7 @@ const memberRepo = () => AppDataSource.getRepository(OrganizationMember);
 const joinReqRepo = () => AppDataSource.getRepository(OrganizationJoinRequest);
 const inviteRepo = () => AppDataSource.getRepository(OrganizationInvite);
 
-const INVITE_EXPIRY_DAYS = 7;
+export const INVITE_EXPIRY_DAYS = 7;
 
 const assertCompanyHasOpenSeat = async (organizationId: string): Promise<void> => {
   const org = await orgRepo().findOne({ where: { id: organizationId } });
@@ -695,7 +695,7 @@ export const removeLogo = async (
   return saved;
 };
 
-const generateInviteToken = (): string => crypto.randomBytes(32).toString("hex");
+export const generateInviteToken = (): string => crypto.randomBytes(32).toString("hex");
 
 const resolveInviteStatus = (invite: OrganizationInvite): OrganizationInviteStatus => {
   if (

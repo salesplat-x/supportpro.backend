@@ -55,3 +55,16 @@ export const verificationLimiter = rateLimit({
   message: { status: false, message: "Too many attempts, please try again later." },
   skip: () => env.app_env === "test",
 });
+
+export const staffWriteLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id ?? "unauthenticated",
+  message: {
+    status: false,
+    message: "You've added or invited a lot of staff in the last hour — please try again later.",
+  },
+  skip: () => env.app_env === "test",
+});

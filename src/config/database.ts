@@ -32,6 +32,9 @@ import { FeatureUsageCounter } from "../entities/FeatureUsageCounter.js";
 import { OrganizationPlanHistory } from "../entities/OrganizationPlanHistory.js";
 import { OnboardingEmail } from "../entities/OnboardingEmail.js";
 import { ApplicationFollowUpEmail } from "../entities/ApplicationFollowUpEmail.js";
+import { StaffMember } from "../entities/StaffMember.js";
+import { StaffActivity } from "../entities/StaffActivity.js";
+import { StaffAccessLog } from "../entities/StaffAccessLog.js";
 
 const databaseConfig: DataSourceOptions = {
   type: "postgres",
@@ -72,6 +75,9 @@ const databaseConfig: DataSourceOptions = {
     OrganizationPlanHistory,
     OnboardingEmail,
     ApplicationFollowUpEmail,
+    StaffMember,
+    StaffActivity,
+    StaffAccessLog,
   ],
   migrations: [path.join(__dirname, "../migrations/*.{js,ts}")],
   synchronize: false,
