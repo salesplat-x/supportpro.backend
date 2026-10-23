@@ -31,6 +31,9 @@ import {
 import * as paystack from "../src/utils/integrations/paystack.js";
 import { DEFAULT_BILLING_PLAN_KEY } from "../src/types/enums.js";
 import { uploadToSpaces, deleteFromSpaces } from "../src/utils/integrations/spaces.js";
+import { apiData } from "./helpers/http.js";
+import { AddOrganizationCompanyValues1789000600000 } from "../src/migrations/1789000600000-AddOrganizationCompanyValues.js";
+import type { QueryRunner } from "typeorm";
 
 const mockUploadToSpaces = uploadToSpaces as jest.Mock;
 const mockDeleteFromSpaces = deleteFromSpaces as jest.Mock;
@@ -1061,6 +1064,9 @@ describe("Organization domain field", () => {
 // ---------------------------------------------------------------------------
 
 describe("Organization companyValues field", () => {
+  const orgFrom = (res: Parameters<typeof apiData>[0]) =>
+    apiData<{ organization: Organization }>(res).organization;
+
   const patchValues = (orgId: string, token: string, companyValues: unknown) =>
     request(app)
       .patch(`/v1/organizations/${orgId}`)
@@ -1086,7 +1092,7 @@ describe("Organization companyValues field", () => {
     ]);
 
     expect(res.status).toBe(200);
-    expect(res.body.data.organization.companyValues).toEqual([
+    expect(orgFrom(res).companyValues).toEqual([
       "Ownership",
       "Customer obsession",
       "Bias for action",
@@ -1102,7 +1108,7 @@ describe("Organization companyValues field", () => {
     const res = await patchValues(org.id, token, ["Be kind, be direct", "Learn fast"]);
 
     expect(res.status).toBe(200);
-    expect(res.body.data.organization.companyValues).toEqual(["Be kind, be direct", "Learn fast"]);
+    expect(orgFrom(res).companyValues).toEqual(["Be kind, be direct", "Learn fast"]);
   });
 
   it("drops duplicate values (case-insensitive), keeping the first spelling", async () => {
@@ -1112,7 +1118,7 @@ describe("Organization companyValues field", () => {
     const res = await patchValues(org.id, token, ["Integrity", "integrity ", "Teamwork"]);
 
     expect(res.status).toBe(200);
-    expect(res.body.data.organization.companyValues).toEqual(["Integrity", "Teamwork"]);
+    expect(orgFrom(res).companyValues).toEqual(["Integrity", "Teamwork"]);
   });
 
   it("an empty list clears the values", async () => {
@@ -1122,7 +1128,7 @@ describe("Organization companyValues field", () => {
     const res = await patchValues(org.id, token, []);
 
     expect(res.status).toBe(200);
-    expect(res.body.data.organization.companyValues).toEqual([]);
+    expect(orgFrom(res).companyValues).toEqual([]);
   });
 
   it("is listed with the company in GET /organizations/me", async () => {
@@ -1134,7 +1140,7 @@ describe("Organization companyValues field", () => {
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(JSON.stringify(res.body.data)).toContain('"companyValues":["Integrity","Teamwork"]');
+    expect(JSON.stringify(apiData(res))).toContain('"companyValues":["Integrity","Teamwork"]');
   });
 
   it.each([
@@ -1162,7 +1168,7 @@ describe("Organization companyValues field", () => {
     const res = await patchValues(org.id, token, values);
 
     expect(res.status).toBe(200);
-    expect(res.body.data.organization.companyValues).toEqual(values);
+    expect(orgFrom(res).companyValues).toEqual(values);
   });
 
   it("Non-owner recruiter cannot change company values → 403", async () => {
@@ -1178,15 +1184,11 @@ describe("Organization companyValues field", () => {
   });
 
   it("AddOrganizationCompanyValues migration adds a non-null jsonb column defaulting to []", async () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const mod =
-      require("../src/migrations/1789000600000-AddOrganizationCompanyValues.js") as Record<
-        string,
-        new () => { up(q: unknown): Promise<void>; down(q: unknown): Promise<void> }
-      >;
-    const Migration = Object.values(mod)[0]!;
+    const Migration = AddOrganizationCompanyValues1789000600000;
     const queries: string[] = [];
-    const runner = { query: (sql: string) => Promise.resolve(void queries.push(sql)) };
+    const runner = {
+      query: (sql: string) => Promise.resolve(void queries.push(sql)),
+    } as unknown as QueryRunner;
 
     await new Migration().up(runner);
     expect(queries).toEqual([

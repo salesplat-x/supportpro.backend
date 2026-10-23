@@ -3,7 +3,13 @@
  * The OpenAI SDK is mocked: these tests check what we ask for, not the model.
  */
 
-const createCompletion = jest.fn();
+type Params = {
+  model: string;
+  response_format?: { type: string };
+  messages: { role: string; content: string }[];
+};
+
+const createCompletion = jest.fn<Promise<unknown>, [Params]>();
 
 jest.mock("openai", () => ({
   __esModule: true,
@@ -22,13 +28,7 @@ import {
   CULTURE_FIT_GENERAL_CATEGORIES,
 } from "../src/config/assessmentQuestions.js";
 
-type Params = {
-  model: string;
-  response_format?: { type: string };
-  messages: { role: string; content: string }[];
-};
-
-const lastParams = (): Params => createCompletion.mock.lastCall?.[0] as Params;
+const lastParams = (): Params => createCompletion.mock.lastCall![0];
 const systemPrompt = () => lastParams().messages.find((m) => m.role === "system")?.content ?? "";
 const userPrompt = () => lastParams().messages.find((m) => m.role === "user")?.content ?? "";
 const fullPrompt = () => `${systemPrompt()}\n${userPrompt()}`;

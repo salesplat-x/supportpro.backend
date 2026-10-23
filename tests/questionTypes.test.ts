@@ -13,6 +13,7 @@ import { createRecruiter, createRole, createJob } from "./helpers/fixtures.js";
 import { Question } from "../src/entities/Question.js";
 import { Answer } from "../src/entities/Answer.js";
 import { QuestionType } from "../src/types/enums.js";
+import { AddProblemSolvingCultureFitQuestionTypes1789000500000 } from "../src/migrations/1789000500000-AddProblemSolvingCultureFitQuestionTypes.js";
 
 const PROBLEM_SOLVING = "problem_solving";
 const CULTURE_FIT = "culture_fit";
@@ -76,16 +77,8 @@ describe("questions and answers tables", () => {
 });
 
 describe("AddProblemSolvingCultureFitQuestionTypes migration", () => {
-  const loadMigration = () =>
-    // Loaded lazily so the other tests in this file still run before it exists.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    require("../src/migrations/1789000500000-AddProblemSolvingCultureFitQuestionTypes.js") as Record<
-      string,
-      new () => { up(q: QueryRunner): Promise<void>; down(q: QueryRunner): Promise<void> }
-    >;
-
   it("adds both values to the questions and answers enum types, idempotently", async () => {
-    const Migration = Object.values(loadMigration())[0]!;
+    const Migration = AddProblemSolvingCultureFitQuestionTypes1789000500000;
     const queries: string[] = [];
     const runner = {
       query: jest.fn((sql: string) => {
@@ -106,7 +99,7 @@ describe("AddProblemSolvingCultureFitQuestionTypes migration", () => {
   });
 
   it("applies cleanly against a real database and is safe to run twice", async () => {
-    const Migration = Object.values(loadMigration())[0]!;
+    const Migration = AddProblemSolvingCultureFitQuestionTypes1789000500000;
     const runner = testDataSource.createQueryRunner();
     try {
       await new Migration().up(runner);

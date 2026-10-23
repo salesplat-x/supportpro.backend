@@ -23,9 +23,12 @@ import {
 import { Question } from "../src/entities/Question.js";
 import { User } from "../src/entities/User.js";
 import { Organization } from "../src/entities/Organization.js";
-import { Job } from "../src/entities/Job.js";
 import { QuestionType } from "../src/types/enums.js";
 import * as AI from "../src/utils/integrations/openai.js";
+import { apiData } from "./helpers/http.js";
+
+type GeneratedData = { questions: Question[]; basedOnCompanyValues?: boolean };
+const dataOf = (res: Parameters<typeof apiData>[0]) => apiData<GeneratedData>(res);
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
   __esModule: true,
@@ -124,7 +127,7 @@ describe("POST /v1/questions/problem-solving", () => {
     const res = await postProblemSolving(token, { jobId: job.id, count: 3 });
 
     expect(res.status).toBe(200);
-    expect(res.body.data.questions).toHaveLength(3);
+    expect(dataOf(res).questions).toHaveLength(3);
     const stored = await storedQuestions(job.id, QuestionType.ProblemSolving);
     expect(stored).toHaveLength(3);
     expect(stored.map((q) => q.category).sort()).toEqual([
@@ -277,7 +280,9 @@ describe("POST /v1/questions/problem-solving", () => {
     const res = await postProblemSolving(token, { jobId: job.id, count: 2 });
 
     expect(res.status).toBe(502);
-    expect(res.body.error.message).toMatch(/couldn't generate/i);
+    expect((res.body as { error: { message: string } }).error.message).toMatch(
+      /couldn't generate/i
+    );
     expect(mockProblemSolving).toHaveBeenCalledTimes(2);
     expect(await storedQuestions(job.id, QuestionType.ProblemSolving)).toHaveLength(0);
   });
@@ -352,7 +357,7 @@ describe("POST /v1/questions/culture-fit", () => {
     const res = await postCultureFit(token, { jobId: job.id, count: 2 });
 
     expect(res.status).toBe(200);
-    expect(res.body.data.basedOnCompanyValues).toBe(true);
+    expect(dataOf(res).basedOnCompanyValues).toBe(true);
     const stored = await storedQuestions(job.id, QuestionType.CultureFit);
     expect(stored.map((q) => q.category).sort()).toEqual(["Customer obsession", "Ownership"]);
     expect(stored.every((q) => q.criteria)).toBe(true);
@@ -389,7 +394,7 @@ describe("POST /v1/questions/culture-fit", () => {
     const res = await postCultureFit(token, { jobId: job.id, count: 1 });
 
     expect(res.status).toBe(200);
-    expect(res.body.data.basedOnCompanyValues).toBe(false);
+    expect(dataOf(res).basedOnCompanyValues).toBe(false);
     expect(mockCultureFit).toHaveBeenCalledWith(expect.objectContaining({ companyValues: [] }));
     const stored = await storedQuestions(job.id, QuestionType.CultureFit);
     expect(stored[0]!.category).toBe("collaboration");
@@ -466,9 +471,9 @@ describe("GET /v1/questions — problem-solving and culture-fit", () => {
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.data.questions).toHaveLength(1);
-    expect(res.body.data.questions[0].question).toBe(text);
-    expect(res.body.data.questions[0].criteria).toBeTruthy();
+    expect(dataOf(res).questions).toHaveLength(1);
+    expect(dataOf(res).questions[0]!.question).toBe(text);
+    expect(dataOf(res).questions[0]!.criteria).toBeTruthy();
   });
 
   it("a recruiter from another company cannot see them → 403", async () => {
@@ -514,6 +519,3 @@ describe("GET /v1/questions — problem-solving and culture-fit", () => {
     expect(res.status).toBe(404);
   });
 });
-
-// Keeps the Job import meaningful for readers: questions hang off a job row.
-export type { Job };
