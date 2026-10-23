@@ -1,3 +1,10 @@
+import http from "node:http";
+
+// supertest opens a throwaway server per request. Node's default keep-alive pool can hand
+// the next request a socket whose server is already closed, which surfaces as "socket hang up"
+// or a request that never resolves.
+http.globalAgent = new http.Agent({ keepAlive: false });
+
 // Provides dummy env vars so env.ts can be imported without a real .env.
 // PG_* vars are overridden at runtime by the Testcontainer in tests/helpers/db.ts.
 process.env.PG_HOST ||= "localhost";
