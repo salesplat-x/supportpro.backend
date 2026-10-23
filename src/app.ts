@@ -14,6 +14,7 @@ import swaggerDocs from "./swagger.js";
 import { reconcileDurableJobs } from "./services/reconciliation.js";
 import { asyncHandler } from "./middleware/asyncHandler.js";
 import { SWEEP_INTERVAL_MS } from "./utils/durableJobs.js";
+import { getAppVersion } from "./utils/version.js";
 
 export function createApp(): Application {
   const app = express();
@@ -48,11 +49,19 @@ export function createApp(): Application {
     asyncHandler(async (_req, res) => {
       try {
         await AppDataSource.query("SELECT 1");
-        res.json({ status: "ok", db: "connected", timestamp: new Date().toISOString() });
+        res.json({
+          status: "ok",
+          db: "connected",
+          version: getAppVersion(),
+          timestamp: new Date().toISOString(),
+        });
       } catch {
-        res
-          .status(503)
-          .json({ status: "error", db: "disconnected", timestamp: new Date().toISOString() });
+        res.status(503).json({
+          status: "error",
+          db: "disconnected",
+          version: getAppVersion(),
+          timestamp: new Date().toISOString(),
+        });
       }
     })
   );
