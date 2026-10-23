@@ -4,7 +4,7 @@
  * OpenAI and ElevenLabs are mocked, and no database is needed.
  */
 import { execFile } from "child_process";
-import express from "express";
+import express, { NextFunction, Request, Response } from "express";
 import fs from "fs";
 import path from "path";
 import { Readable } from "stream";
@@ -20,16 +20,24 @@ import {
 } from "../src/utils/integrations/elevenlabs.js";
 
 jest.mock("../src/middleware/auth.js", () => ({
-  loginRequired: (req: any, res: any, next: any) => {
+  // Stands in for JWT checks: any Authorization header logs in. "X-Test-User" picks the user
+  // id and "X-Test-Unverified" logs in someone who hasn't verified their email yet.
+  loginRequired: (req: Request, res: Response, next: NextFunction) => {
     if (!req.headers.authorization) {
       res.status(401).json({ success: false, error: { code: "AUTHENTICATION_ERROR" } });
       return;
     }
-    req.user = { id: "user-1", emailVerifiedAt: new Date() };
+    const id = req.header("x-test-user") ?? "user-1";
+    const emailVerifiedAt = req.header("x-test-unverified") ? null : new Date();
+    (req as unknown as { user: unknown }).user = { id, emailVerifiedAt };
     next();
   },
-  requireVerifiedEmail: (_req: any, _res: any, next: any) => next(),
+  // The real check, so an unverified user is refused exactly as in production.
+  requireVerifiedEmail: jest.requireActual<typeof import("../src/middleware/auth")>(
+    "../src/middleware/auth.js"
+  ).requireVerifiedEmail,
 }));
+
 // ffprobe is stood in for, so the length check runs without the binary installed.
 jest.mock("child_process", () => ({
   ...jest.requireActual<typeof import("child_process")>("child_process"),
@@ -95,11 +103,17 @@ app.use(errorHandler);
 
 const send = (
   route: string,
-  opts: { type?: string; data?: Buffer | null; auth?: boolean } = {}
+  opts: {
+    type?: string;
+    data?: Buffer | null;
+    auth?: boolean;
+    headers?: Record<string, string>;
+  } = {}
 ) => {
   const { type = "audio/webm;codecs=opus", data = Buffer.from("audio"), auth = true } = opts;
   const req = request(app).post(`/v1/voice/${route}`);
   if (auth) req.set(AUTH);
+  if (opts.headers) req.set(opts.headers);
   if (data) req.attach("audio", data, { filename: "blob", contentType: type });
   return req.buffer(true).parse((res, cb) => {
     const chunks: Buffer[] = [];
@@ -433,4 +447,53 @@ describe("overall request deadline", () => {
     await send("chat");
     expect(seen?.aborted).toBe(true);
   }, 5000);
+});
+
+describe("access and upload limits", () => {
+  it.each(["transcribe", "chat", "stream"])(
+    "refuses %s to a user who hasn't verified their email (403)",
+    async (route) => {
+      const res = await send(route, { headers: { "X-Test-Unverified": "1" } });
+      expect(res.status).toBe(403);
+      expect(
+        (JSON.parse((res.body as Buffer).toString()) as { error: { code: string } }).error.code
+      ).toBe("EMAIL_VERIFICATION_REQUIRED");
+      expect(mockTranscribe).not.toHaveBeenCalled();
+    }
+  );
+
+  it("rejects a file over 10 MB before measuring or transcribing it", async () => {
+    const res = await send("transcribe", { data: Buffer.alloc(10 * 1024 * 1024 + 1) });
+    expect(res.status).toBe(400);
+    expect(
+      (JSON.parse((res.body as Buffer).toString()) as { error: { code: string } }).error.code
+    ).toBe("LIMIT_FILE_SIZE");
+    expect(mockExecFile).not.toHaveBeenCalled();
+    expect(mockTranscribe).not.toHaveBeenCalled();
+  });
+
+  describe("rate limit", () => {
+    const appEnv = env.app_env;
+    // The limiter is skipped under NODE_ENV=test; switch it on for these requests only.
+    beforeEach(() => setEnv("app_env", "dev"));
+    afterEach(() => setEnv("app_env", appEnv));
+
+    it("allows 20 voice requests per user in 15 minutes and refuses the 21st (429)", async () => {
+      const headers = { "X-Test-User": "rate-limited-user" };
+      for (let i = 0; i < 20; i++) {
+        const ok = await send("transcribe", { headers });
+        expect(ok.status).toBe(200);
+      }
+      const refused = await send("transcribe", { headers });
+      expect(refused.status).toBe(429);
+      expect(JSON.parse((refused.body as Buffer).toString())).toEqual({
+        status: false,
+        message:
+          "You've sent a lot of voice messages recently — please try again in a few minutes.",
+      });
+
+      const otherUser = await send("transcribe", { headers: { "X-Test-User": "someone-else" } });
+      expect(otherUser.status).toBe(200);
+    });
+  });
 });
