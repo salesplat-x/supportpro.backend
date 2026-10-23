@@ -5,6 +5,28 @@ export const MAX_COMPANY_VALUES = 10;
 /** Longest single company value, in characters, after trimming. */
 export const MAX_COMPANY_VALUE_LENGTH = 200;
 
+/** Reasoning skills a problem-solving question can test (stored as its category). */
+export const PROBLEM_SOLVING_CATEGORIES = [
+  "logical",
+  "numerical",
+  "analytical",
+  "prioritisation",
+  "estimation",
+  "creative",
+] as const;
+
+/** Working-style areas used for culture-fit questions when a company lists no values. */
+export const CULTURE_FIT_GENERAL_CATEGORIES = [
+  "collaboration",
+  "communication",
+  "ownership",
+  "adaptability",
+  "feedback",
+] as const;
+
+/** Ceiling on the job brief text sent with a culture-fit request. */
+export const MAX_CULTURE_FIT_JOB_BRIEF_CHARS = 4_000;
+
 /**
  * Trims each value and drops duplicates (case-insensitive), keeping the first
  * spelling. Validation has already rejected non-text, empty and over-long values.
