@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# Fake `docker` for tests/deploy.test.ts and scripts/demo-rollback.sh.
+# Keeps a tiny world in $FAKE_DOCKER_STATE instead of touching a real daemon:
+#   remote/<ref>   image id the registry returns for a tag (what `pull` fetches)
+#   refs/<ref>     image id a local tag points at
+#   versions/<id>  the version that image reports on /health
+#   container      image id the supportpro-backend container is running
+#   unhealthy      image ids whose /health fails (one per line)
+#   fail_migrate   image ids whose migrations fail (one per line)
+#   calls.log      every docker command, one per line
+set -euo pipefail
+S="${FAKE_DOCKER_STATE:?FAKE_DOCKER_STATE must be set}"
+mkdir -p "$S/refs" "$S/remote" "$S/versions"
+echo "docker $*" >>"$S/calls.log"
+
+key() { printf '%s' "$1" | tr '/:' '__'; }
+listed() { [ -f "$S/$1" ] && grep -qxF -- "$2" "$S/$1"; }
+resolve() {
+  if [ -f "$S/refs/$(key "$1")" ]; then
+    cat "$S/refs/$(key "$1")"
+  elif [[ "$1" == sha256:* ]]; then
+    echo "$1"
+  else
+    echo "Unable to find image '$1' locally" >&2
+    return 1
+  fi
+}
+
+cmd="${1:-}"
+shift || true
+case "$cmd" in
+  inspect)
+    format=""
+    target=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -f | --format) format="$2"; shift 2 ;;
+        *) target="$1"; shift ;;
+      esac
+    done
+    if [ "$target" != "supportpro-backend" ] || [ ! -f "$S/container" ]; then
+      echo "Error: No such object: $target" >&2
+      exit 1
+    fi
+    case "$format" in
+      *RestartCount*) cat "$S/restarts" 2>/dev/null || echo 0 ;;
+      *Image*) cat "$S/container" ;;
+      *) echo "{}" ;;
+    esac
+    ;;
+  pull)
+    ref="$1"
+    if [ -f "$S/remote/$(key "$ref")" ]; then
+      cp "$S/remote/$(key "$ref")" "$S/refs/$(key "$ref")"
+      echo "Status: Downloaded newer image for $ref"
+    else
+      echo "Error response from daemon: manifest for $ref not found: manifest unknown" >&2
+      exit 1
+    fi
+    ;;
+  run)
+    detached=0
+    image=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -d | --detach) detached=1; shift ;;
+        --rm) shift ;;
+        --name | --network | --env-file | --entrypoint | -p | --publish | --restart | -e | --env) shift 2 ;;
+        -*) shift ;;
+        *) image="$1"; shift; break ;;
+      esac
+    done
+    id="$(resolve "$image")"
+    if [ "$detached" -eq 1 ]; then
+      echo "$id" >"$S/container"
+      echo "fakecontainer$RANDOM"
+    else
+      case "$*" in
+        *migrate*)
+          if listed fail_migrate "$id"; then
+            echo "QueryFailedError: migration failed (fake)" >&2
+            exit 1
+          fi
+          echo "migrations ok (fake)"
+          ;;
+        *) echo "one-off ok (fake): $*" ;;
+      esac
+    fi
+    ;;
+  tag)
+    id="$(resolve "$1")"
+    echo "$id" >"$S/refs/$(key "$2")"
+    ;;
+  rm)
+    for a in "$@"; do
+      if [ "$a" = "supportpro-backend" ]; then rm -f "$S/container"; fi
+    done
+    ;;
+  logs) echo "fake log: server exited (status 1)" ;;
+  ps | update | compose) ;;
+  *) echo "fake docker: unsupported command '$cmd'" >&2; exit 64 ;;
+esac

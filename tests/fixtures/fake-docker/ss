@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# No-op stand-in so the deploy tests never wait or touch real ports.
+exit 0

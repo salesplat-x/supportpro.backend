@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Fake `curl` for the deploy tests: answers /health for whatever image the fake
+# docker says is running. See tests/fixtures/fake-docker/docker.
+set -euo pipefail
+S="${FAKE_DOCKER_STATE:?FAKE_DOCKER_STATE must be set}"
+key() { printf '%s' "$1" | tr '/:' '__'; }
+echo "curl $*" >>"$S/calls.log"
+if [ ! -f "$S/container" ]; then
+  echo "curl: (7) Failed to connect to localhost port 8000" >&2
+  exit 7
+fi
+id="$(cat "$S/container")"
+if [ -f "$S/unhealthy" ] && grep -qxF -- "$id" "$S/unhealthy"; then
+  echo "curl: (22) The requested URL returned error: 503" >&2
+  exit 22
+fi
+version="$(cat "$S/versions/$(key "$id")" 2>/dev/null || echo unknown)"
+printf '{"status":"ok","db":"connected","version":"%s"}\n' "$version"
