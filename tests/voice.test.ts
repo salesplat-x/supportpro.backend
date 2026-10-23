@@ -154,12 +154,16 @@ describe("POST /voice/transcribe", () => {
 
   it("gives Whisper a supported extension even when the MIME type carries codecs", async () => {
     await send("transcribe", { type: "audio/webm;codecs=opus" });
-    expect(mockTranscribe).toHaveBeenCalledWith(expect.any(Buffer), "voice.webm");
+    expect(mockTranscribe).toHaveBeenCalledWith(expect.any(Buffer), "voice.webm", {
+      signal: expect.any(AbortSignal) as unknown,
+    });
   });
 
   it("maps mp4 audio to m4a", async () => {
     await send("transcribe", { type: "audio/mp4" });
-    expect(mockTranscribe).toHaveBeenCalledWith(expect.any(Buffer), "voice.m4a");
+    expect(mockTranscribe).toHaveBeenCalledWith(expect.any(Buffer), "voice.m4a", {
+      signal: expect.any(AbortSignal) as unknown,
+    });
   });
 
   it("reports unreadable audio as a client error", async () => {
@@ -188,8 +192,12 @@ describe("POST /voice/chat", () => {
     expect(res.headers["content-type"]).toContain("audio/mpeg");
     expect(res.headers["x-voice-fallback"]).toBe("false");
     expect(res.body).toEqual(speech);
-    expect(mockReply).toHaveBeenCalledWith("hello grace");
-    expect(mockSpeech).toHaveBeenCalledWith("Hi there!");
+    expect(mockReply).toHaveBeenCalledWith("hello grace", {
+      signal: expect.any(AbortSignal) as unknown,
+    });
+    expect(mockSpeech).toHaveBeenCalledWith("Hi there!", {
+      signal: expect.any(AbortSignal) as unknown,
+    });
   });
 
   it("does not hide unreadable audio behind the fallback clip", async () => {
@@ -220,7 +228,9 @@ describe("POST /voice/stream", () => {
     expect(res.headers["content-type"]).toContain("audio/mpeg");
     expect(res.headers["x-voice-fallback"]).toBe("false");
     expect(res.body).toEqual(speech);
-    expect(mockSpeechStream).toHaveBeenCalledWith("Hi there!");
+    expect(mockSpeechStream).toHaveBeenCalledWith("Hi there!", {
+      signal: expect.any(AbortSignal) as unknown,
+    });
   });
 
   it("streams the fallback clip when synthesis cannot start", async () => {
@@ -366,4 +376,61 @@ describe("when text-to-speech is not set up", () => {
     expect(res.status).toBe(200);
     expect(mockTranscribe).toHaveBeenCalledTimes(1);
   });
+});
+
+describe("overall request deadline", () => {
+  const defaultDeadline = (env as unknown as Record<string, unknown>).voiceRequestDeadlineMs;
+  beforeEach(() => setEnv("voiceRequestDeadlineMs", 200));
+  afterEach(() => setEnv("voiceRequestDeadlineMs", defaultDeadline));
+
+  /** A provider call that never answers, until the request's signal gives up on it. */
+  const hangUntilAborted = (...args: unknown[]) =>
+    new Promise((_resolve, reject) => {
+      const options = args[args.length - 1] as { signal?: AbortSignal } | undefined;
+      options?.signal?.addEventListener("abort", () =>
+        reject(Object.assign(new Error("Request was aborted."), { name: "AbortError" }))
+      );
+    });
+
+  it("defaults to 60 s, well under the proxy's ~100 s cutoff", () => {
+    expect(defaultDeadline).toBe(60_000);
+  });
+
+  it.each([
+    ["chat", "transcription hangs", () => mockTranscribe.mockImplementation(hangUntilAborted)],
+    ["chat", "the model hangs", () => mockReply.mockImplementation(hangUntilAborted)],
+    ["chat", "text-to-speech hangs", () => mockSpeech.mockImplementation(hangUntilAborted)],
+    ["stream", "text-to-speech hangs", () => mockSpeechStream.mockImplementation(hangUntilAborted)],
+  ])(
+    "%s serves the fallback clip when %s past the deadline",
+    async (route, _name, arrange) => {
+      arrange();
+      const started = Date.now();
+      const res = await send(route);
+      expect(res.status).toBe(200);
+      expect(res.headers["x-voice-fallback"]).toBe("true");
+      expect(res.body).toEqual(fallbackBytes);
+      expect(Date.now() - started).toBeLessThan(2000);
+    },
+    5000
+  );
+
+  it("transcribe answers 504 when Whisper hangs past the deadline", async () => {
+    mockTranscribe.mockImplementation(hangUntilAborted);
+    const res = await send("transcribe");
+    expect(res.status).toBe(504);
+    expect(
+      (JSON.parse((res.body as Buffer).toString()) as { error: { code: string } }).error.code
+    ).toBe("VOICE_TIMEOUT");
+  }, 5000);
+
+  it("aborts the provider call it gave up on", async () => {
+    let seen: AbortSignal | undefined;
+    mockTranscribe.mockImplementation((...args: unknown[]) => {
+      seen = (args[2] as { signal?: AbortSignal } | undefined)?.signal;
+      return hangUntilAborted(...args);
+    });
+    await send("chat");
+    expect(seen?.aborted).toBe(true);
+  }, 5000);
 });

@@ -1,8 +1,9 @@
 import { Readable } from "stream";
 
 jest.mock("axios");
+const withRetry = jest.fn((fn: () => Promise<unknown>, _options?: unknown) => fn());
 jest.mock("../src/utils/retry.js", () => ({
-  withRetry: (fn: () => Promise<unknown>) => fn(),
+  withRetry: (fn: () => Promise<unknown>, options?: unknown) => withRetry(fn, options),
 }));
 
 // Re-created by load(): resetModules gives the integration its own mocked axios instance.
@@ -16,6 +17,7 @@ const load = (overrides: Record<string, string | undefined> = {}) => {
       elevenlabsApiKey: "key-123",
       elevenlabsVoiceId: "voice/id",
       elevenlabsModelId: "model-1",
+      voiceCallTimeoutMs: 20_000,
       ...overrides,
     },
   }));
@@ -63,4 +65,26 @@ describe("ElevenLabs integration", () => {
     await expect(mod.synthesizeSpeech("hello")).rejects.toThrow(/not configured/);
     expect(post).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ["synthesizeSpeech", { data: new ArrayBuffer(1) }],
+    ["synthesizeSpeechStream", { data: Readable.from(["x"]) }],
+  ] as const)(
+    "%s uses the voice per-call timeout, the abort signal and at most 2 attempts",
+    async (fn, response) => {
+      const mod = load();
+      post.mockResolvedValue(response);
+      withRetry.mockClear();
+      const { signal } = new AbortController();
+      await mod[fn]("hello", { signal });
+
+      const config = post.mock.calls[0][2] as { timeout: number; signal: AbortSignal };
+      expect(config.timeout).toBe(20_000);
+      expect(config.signal).toBe(signal);
+      expect(withRetry).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({ retries: 2 })
+      );
+    }
+  );
 });
