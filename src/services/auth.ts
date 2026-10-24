@@ -34,6 +34,7 @@ export const createUser = async (
   ip?: string,
   redirectPath?: string
 ): Promise<{ user: Omit<User, "password">; token: string }> => {
+  const { firstName, lastName, middleName, country } = payload;
   const email = payload.email.toLowerCase();
 
   const existing = await userRepo().findOne({ where: { email } });
@@ -42,7 +43,10 @@ export const createUser = async (
   const hashedPassword = await generateHashedPassword(payload.password);
 
   const user = userRepo().create({
-    ...payload,
+    firstName,
+    lastName,
+    middleName,
+    country,
     email,
     password: hashedPassword,
     // role is always set by the route (register vs. register/recruiter), never
