@@ -297,15 +297,16 @@ export const createOrganization = async (
     }
   }
 
-  // logoUrl is never accepted here — it's only ever set through the logo upload
-  // endpoint, never as a client-supplied string — so drop it even if a caller
-  // still sends one (payload is untyped req.body at the controller boundary).
-  const { logoUrl: _logoUrl, ...createFields } = payload as OrganizationPayload & {
-    logoUrl?: string;
-  };
-
+  const { name, phone, address, industry, website, facebook, linkedin, twitter } = payload;
   const org = orgRepo().create({
-    ...createFields,
+    name,
+    phone,
+    address,
+    industry,
+    website,
+    facebook,
+    linkedin,
+    twitter,
     email,
     domain,
     ownerId,
@@ -582,22 +583,11 @@ export const updateOrganization = async (
 ): Promise<Organization> => {
   const org = await assertOwnership(ownerId, organizationId);
 
-  // logoUrl is never accepted here — same reasoning as createOrganization above.
-  const {
-    email: _email,
-    website: _website,
-    domain: _domain,
-    logoUrl: _logoUrl,
-    ...allowed
-  } = payload as UpdateOrganizationPayload & {
-    email?: string;
-    website?: string;
-    domain?: string;
-    logoUrl?: string;
-  };
-
+  const { name, phone, address, industry, twitter, linkedin, facebook } = payload;
   const updates = Object.fromEntries(
-    Object.entries(allowed).filter(([, value]) => value !== undefined)
+    Object.entries({ name, phone, address, industry, twitter, linkedin, facebook }).filter(
+      ([, value]) => value !== undefined
+    )
   ) as UpdateOrganizationPayload;
 
   if (Object.keys(updates).length === 0) {
