@@ -298,3 +298,197 @@ describe("hostile input is refused, not crashed on", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("simultaneous requests", () => {
+  it("lets exactly one of several identical adds create the person", async () => {
+    const { owner, org } = await setupCompany();
+    const body = staffBody({ email: "twin@example.com" });
+
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        request(app).post(staffPath(org.id)).set(authHeader(owner.token)).send(body)
+      )
+    );
+
+    expect(results.map((r) => r.status).sort()).toEqual([201, 409, 409, 409, 409]);
+    expect(
+      await testDataSource.getRepository(StaffMember).countBy({ organizationId: org.id })
+    ).toBe(1);
+  });
+
+  it("sends one invite email when identical adds with an invite race", async () => {
+    const { owner, org } = await setupCompany();
+    const body = staffBody({ email: "twin@example.com", sendInvite: true });
+
+    const results = await Promise.all(
+      Array.from({ length: 3 }, () =>
+        request(app).post(staffPath(org.id)).set(authHeader(owner.token)).send(body)
+      )
+    );
+
+    expect(results.map((r) => r.status).sort()).toEqual([201, 409, 409]);
+    expect(sendStaffInvite()).toHaveBeenCalledTimes(1);
+  });
+
+  it("ends employment once when two people end the same record", async () => {
+    const { owner, org } = await setupCompany();
+    const staff = await createStaff(app, owner.token, org.id);
+
+    const results = await Promise.all([
+      endStaff(owner.token, org.id, staff.id),
+      endStaff(owner.token, org.id, staff.id),
+    ]);
+
+    expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+    expect(await activityTypes(staff.id)).toEqual(["created", "ended"]);
+  });
+
+  it("sends one resend when the button is pressed twice at once", async () => {
+    const { org, hr, staff } = await invitedStaff();
+    await expireCooldown(staff.id);
+    sendStaffInvite().mockClear();
+
+    const results = await Promise.all([
+      invite(hr.token, org.id, staff.id),
+      invite(hr.token, org.id, staff.id),
+    ]);
+
+    expect(results.map((r) => r.status).sort()).toEqual([200, 429]);
+    expect(sendStaffInvite()).toHaveBeenCalledTimes(1);
+    expect((await staffRow(staff.id)).inviteTokenHash).toBe(sha256(tokenFromLastEmail()));
+    expect(await activityTypes(staff.id)).toEqual(["created", "invited", "invite_resent"]);
+  });
+
+  it("joins once when the person clicks accept twice at once", async () => {
+    const { staff, inviteToken } = await invitedStaff("full@example.com");
+    const talent = await createCompleteTalent(await createRole(), { email: "full@example.com" });
+
+    const results = await Promise.all([
+      accept(talent.token, inviteToken),
+      accept(talent.token, inviteToken),
+    ]);
+
+    expect(results.map((r) => r.status)).toEqual([200, 200]);
+    expect(await activityTypes(staff.id)).toEqual(["created", "invited", "joined"]);
+    expect((await staffRow(staff.id)).userId).toBe(talent.user.id);
+  });
+
+  it("leaves no live invite when a resend races the end of employment", async () => {
+    const { org, hr, staff } = await invitedStaff();
+    await expireCooldown(staff.id);
+
+    const [resend, ended] = await Promise.all([
+      invite(hr.token, org.id, staff.id),
+      endStaff(hr.token, org.id, staff.id),
+    ]);
+
+    expect([200, 409]).toContain(resend.status);
+    expect(ended.status).toBe(200);
+    expect(await staffRow(staff.id)).toMatchObject({ status: "ended", inviteTokenHash: null });
+  });
+
+  it("never fails when a manager leaves while someone is being assigned to them", async () => {
+    const { owner, org } = await setupCompany();
+    const boss = await createStaff(app, owner.token, org.id, { fullName: "Bola Boss" });
+
+    const [added, ended] = await Promise.all([
+      postStaff(app, owner.token, org.id, { managerId: boss.id }),
+      endStaff(owner.token, org.id, boss.id),
+    ]);
+
+    expect([201, 400]).toContain(added.status);
+    expect(ended.status).toBe(200);
+  });
+
+  it("never fails when an edit races the end of the same record", async () => {
+    const { owner, org } = await setupCompany();
+    const staff = await createStaff(app, owner.token, org.id);
+
+    const [edit, ended] = await Promise.all([
+      request(app)
+        .patch(staffPath(org.id, `/${staff.id}`))
+        .set(authHeader(owner.token))
+        .send({ jobTitle: "Lead Designer" }),
+      endStaff(owner.token, org.id, staff.id),
+    ]);
+
+    expect([200, 409]).toContain(edit.status);
+    expect(ended.status).toBe(200);
+    expect(await staffRow(staff.id)).toMatchObject({ status: "ended" });
+  });
+});
+
+describe("callers who should never get in", () => {
+  const routes = (orgId: string, staffId: string): [string, "get" | "post" | "patch", string][] => [
+    ["access", "get", staffPath(orgId, "/access")],
+    ["list", "get", staffPath(orgId)],
+    ["options", "get", staffPath(orgId, "/options")],
+    ["access log", "get", staffPath(orgId, "/access-log")],
+    ["add", "post", staffPath(orgId)],
+    ["open", "get", staffPath(orgId, `/${staffId}`)],
+    ["edit", "patch", staffPath(orgId, `/${staffId}`)],
+    ["end", "post", staffPath(orgId, `/${staffId}/end`)],
+    ["invite", "post", staffPath(orgId, `/${staffId}/invite`)],
+    ["activity", "get", staffPath(orgId, `/${staffId}/activity`)],
+  ];
+
+  it("turns away callers with no token, a bad token or a talent token on every staff route", async () => {
+    const { owner, org } = await setupCompany();
+    const staff = await createStaff(app, owner.token, org.id);
+    const talent = await createTalent();
+
+    for (const [name, method, path] of routes(org.id, staff.id)) {
+      const body = {
+        jobTitle: "Hacker",
+        fullName: "X",
+        email: "x@example.com",
+        startDate: "2026-01-01",
+      };
+      const anonymous = await request(app)[method](path).send(body);
+      const garbage = await request(app)[method](path).set(authHeader("not-a-token")).send(body);
+      const wrongRole = await request(app)[method](path).set(authHeader(talent.token)).send(body);
+
+      expect([name, anonymous.status]).toEqual([name, 401]);
+      expect([name, garbage.status]).toEqual([name, 401]);
+      expect([name, wrongRole.status]).toEqual([name, 403]);
+    }
+
+    expect(await testDataSource.getRepository(StaffMember).count()).toBe(1);
+    expect(await testDataSource.getRepository(StaffAccessLog).count()).toBe(0);
+    expect((await staffRow(staff.id)).jobTitle).toBe("Product Designer");
+    expect(sendStaffInvite()).not.toHaveBeenCalled();
+  });
+
+  it("lets only a talent account accept an invite, and only with a well-formed link", async () => {
+    const { owner, inviteToken } = await invitedStaff("full@example.com");
+    const talent = await createCompleteTalent(await createRole(), { email: "full@example.com" });
+
+    expect((await request(app).post(`/v1/staff-invites/${inviteToken}/accept`)).status).toBe(401);
+    expect((await accept(owner.token, inviteToken)).status).toBe(403);
+    expect((await accept(talent.token, "not-a-token")).status).toBe(400);
+    expect((await accept(talent.token, "f".repeat(64))).status).toBe(404);
+    expect((await request(app).get("/v1/staff-invites/not-a-token")).status).toBe(400);
+    expect((await request(app).get(`/v1/staff-invites/${"f".repeat(64)}`)).status).toBe(404);
+  });
+
+  it("does not show the staff view to the unauthenticated invite preview", async () => {
+    const { inviteToken } = await invitedStaff("full@example.com");
+
+    const res = await request(app).get(`/v1/staff-invites/${inviteToken}`);
+
+    expect(res.status).toBe(200);
+    expect(Object.keys(apiData<{ invite: Record<string, unknown> }>(res).invite).sort()).toEqual(
+      [
+        "expiresAt",
+        "invitedByName",
+        "invitedEmail",
+        "inviteeExists",
+        "jobTitle",
+        "organizationLogoUrl",
+        "organizationName",
+        "status",
+      ].sort()
+    );
+    expect(JSON.stringify(res.body)).not.toContain("tokenHash");
+  });
+});
