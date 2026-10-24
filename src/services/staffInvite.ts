@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { EntityManager } from "typeorm";
 import env from "../config/env.js";
 import { AppDataSource } from "../database/dataSource.js";
 import { Organization } from "../entities/Organization.js";
@@ -35,7 +36,6 @@ const INVITE_RESEND_COOLDOWN_MS = 60_000;
 const EMAIL_TIMEOUT_MS = 10_000;
 
 const userRepo = () => AppDataSource.getRepository(User);
-const memberRepo = () => AppDataSource.getRepository(OrganizationMember);
 
 export type StaffInvitePreview =
   | { status: "expired" | "accepted" }
@@ -59,19 +59,24 @@ export interface JoinedStaff {
 const hashToken = (token: string): string =>
   crypto.createHash("sha256").update(token).digest("hex");
 
-export const assertCanInvite = async (org: Organization, email: string): Promise<void> => {
+export const assertCanInvite = async (
+  org: Organization,
+  email: string,
+  em: EntityManager = AppDataSource.manager
+): Promise<void> => {
   if (org.status === OrganizationStatus.Rejected) {
     throw new AuthorizationError("This company can't send invites right now");
   }
 
-  const account = await userRepo().findOne({ where: { email }, select: { id: true } });
+  const members = em.getRepository(OrganizationMember);
+  const account = await em.getRepository(User).findOne({ where: { email }, select: { id: true } });
   const accountOnTeam =
     !!account &&
     (org.ownerId === account.id ||
-      (await memberRepo().exists({ where: { userId: account.id, organizationId: org.id } })));
+      (await members.exists({ where: { userId: account.id, organizationId: org.id } })));
   const workEmailOnTeam =
     !accountOnTeam &&
-    (await memberRepo()
+    (await members
       .createQueryBuilder("member")
       .where("member.organizationId = :organizationId", { organizationId: org.id })
       .andWhere("LOWER(member.workEmail) = :email", { email })
@@ -168,7 +173,7 @@ export const inviteStaff = async (
     if (current.invitedAt && Date.now() - current.invitedAt.getTime() < INVITE_RESEND_COOLDOWN_MS) {
       throw new AppError(429, "RATE_LIMITED", "Wait a minute before resending this invite");
     }
-    await assertCanInvite(org, current.email);
+    await assertCanInvite(org, current.email, em);
 
     const resend = !!current.inviteTokenHash;
     const issued = issueInvite(current, actor);
