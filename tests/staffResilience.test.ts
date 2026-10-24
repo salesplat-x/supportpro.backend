@@ -199,3 +199,38 @@ describe("a stalled email provider", () => {
     expect(jest.getTimerCount()).toBe(before);
   });
 });
+
+describe("previewing an invite when the open cannot be logged", () => {
+  it("does not mark the invite opened, so the next visit still logs it", async () => {
+    const { staff, inviteToken } = await invitedStaff();
+
+    await testDataSource.query(`ALTER TABLE "staff_activities" RENAME TO "staff_activities_x"`);
+    try {
+      const res = await request(app).get(`/v1/staff-invites/${inviteToken}`);
+      expect(res.status).toBe(500);
+      expect((await staffRow(staff.id)).inviteOpenedAt).toBeNull();
+    } finally {
+      await testDataSource.query(`ALTER TABLE "staff_activities_x" RENAME TO "staff_activities"`);
+    }
+
+    const retry = await request(app).get(`/v1/staff-invites/${inviteToken}`);
+    expect(retry.status).toBe(200);
+    expect((await staffRow(staff.id)).inviteOpenedAt).not.toBeNull();
+    expect((await activityTypes(staff.id)).filter((type) => type === "invite_opened")).toHaveLength(
+      1
+    );
+  });
+
+  it("logs the first open once when the link is opened several times at the same moment", async () => {
+    const { staff, inviteToken } = await invitedStaff();
+
+    const results = await Promise.all(
+      Array.from({ length: 4 }, () => request(app).get(`/v1/staff-invites/${inviteToken}`))
+    );
+
+    expect(results.map((r) => r.status)).toEqual([200, 200, 200, 200]);
+    expect((await activityTypes(staff.id)).filter((type) => type === "invite_opened")).toHaveLength(
+      1
+    );
+  });
+});

@@ -201,17 +201,19 @@ export const previewStaffInvite = async (token: string): Promise<StaffInvitePrev
     userRepo().findOne({ where: { email: staff.email }, select: { id: true } }),
   ]);
 
-  const opened = await AppDataSource.getRepository(StaffMember)
-    .createQueryBuilder()
-    .update(StaffMember)
-    .set({ inviteOpenedAt: new Date() })
-    .where(`"id" = :id AND "invite_opened_at" IS NULL`, { id: staff.id })
-    .execute();
-  if (opened.affected) {
-    await recordActivities(AppDataSource.manager, staff, [
-      { type: StaffActivityType.InviteOpened, actorId: null, actorName: staff.fullName },
-    ]);
-  }
+  await AppDataSource.transaction(async (em) => {
+    const opened = await em
+      .createQueryBuilder()
+      .update(StaffMember)
+      .set({ inviteOpenedAt: new Date() })
+      .where(`"id" = :id AND "invite_opened_at" IS NULL`, { id: staff.id })
+      .execute();
+    if (opened.affected) {
+      await recordActivities(em, staff, [
+        { type: StaffActivityType.InviteOpened, actorId: null, actorName: staff.fullName },
+      ]);
+    }
+  });
 
   return {
     status: "pending",
