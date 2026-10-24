@@ -458,6 +458,18 @@ export const generateCvEmbeddingForUser = async (userId: string): Promise<void> 
     await recordCvEmbeddingFailure(userId, err);
     throw err;
   }
+
+  // The dynamic import avoids a circular dependency (applicationStage.ts reaches
+  // user.ts through prescreening.ts).
+  try {
+    const { rescoreCvSimilarityForTalent } = await import("./applicationStage.js");
+    await rescoreCvSimilarityForTalent(userId);
+  } catch (err) {
+    logger.error("CV similarity rescore failed after CV embedding", {
+      userId,
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
 };
 
 export const reconcileDueCvEmbeddings = async (): Promise<{

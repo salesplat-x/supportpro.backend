@@ -38,6 +38,7 @@ import {
   type StoredResponse,
 } from "../utils/answerResponses.js";
 import logger from "../utils/logger.js";
+import { convertSimilarityToPercentage } from "../utils/text.js";
 
 const applicationRepo = () => AppDataSource.getRepository(Application);
 
@@ -50,6 +51,10 @@ const answerRepo = () => AppDataSource.getRepository(Answer);
 const questionRepo = () => AppDataSource.getRepository(Question);
 
 const talentEmbeddingRepo = () => AppDataSource.getRepository(TalentEmbedding);
+
+const userRepo = () => AppDataSource.getRepository(User);
+
+const CV_SIMILARITY_MAX_ATTEMPTS = 2;
 
 export type QuestionAnswerPair = {
   question: string;
@@ -567,7 +572,87 @@ export const processNextStage = async (
     application.status = ApplicationStatus.Pending;
   }
 
+  if (nextStage === ScreeningStage.CvSimilarity && aiConfig) {
+    const score = await computeCvSimilarityScore(application.jobId, talent.id);
+    if (score !== null) {
+      return runCvSimilarityGate(talent, application, aiConfig, score);
+    }
+  }
+
   return application;
+};
+
+// Scores the talent's best-matching CV chunk against the job. Null means one of
+// the embeddings doesn't exist yet — never a score of zero distance.
+export const computeCvSimilarityScore = async (
+  jobId: string,
+  talentId: string
+): Promise<number | null> => {
+  const rows: Array<{ distance: number | null }> = await AppDataSource.query(
+    `
+    SELECT MIN(te.cv_embedding::vector <=> j.job_embedding::vector) AS distance
+    FROM talent_embeddings te
+    JOIN jobs j ON j.id = $1
+    WHERE te.user_id = $2
+      AND te.cv_embedding IS NOT NULL
+      AND j.job_embedding IS NOT NULL
+    `,
+    [jobId, talentId]
+  );
+  const distance = rows[0]?.distance;
+  if (distance === null || distance === undefined) return null;
+  return convertSimilarityToPercentage(Math.min(Math.max(Number(distance), 0), 1));
+};
+
+export const runCvSimilarityGate = async (
+  talent: User,
+  application: Application,
+  aiConfig: AIConfig,
+  score: number
+): Promise<Application> => {
+  application.cvSimilarityScore = score;
+  application.cvSimilarityAttempts = (application.cvSimilarityAttempts ?? 0) + 1;
+
+  const passed = score >= (aiConfig.minCvSimilarityScore ?? 0);
+  if (passed || application.cvSimilarityAttempts >= CV_SIMILARITY_MAX_ATTEMPTS) {
+    return processNextStage(talent, application, ScreeningStage.CvSimilarity, aiConfig);
+  }
+
+  application.status = ApplicationStatus.RetakeAssessment;
+  return application;
+};
+
+// Runs once a talent's CV embedding is (re)generated: refreshes the match score
+// on every open application, and puts any application waiting at the CV stage
+// through the gate — this is also the retry path after a CV re-upload.
+export const rescoreCvSimilarityForTalent = async (talentId: string): Promise<void> => {
+  const talent = await userRepo().findOne({ where: { id: talentId } });
+  if (!talent) return;
+
+  const applications = await applicationRepo().find({
+    where: { talentId, currentStage: Not(ScreeningStage.Completed) },
+    relations: { job: { aiConfig: true } },
+  });
+
+  for (const application of applications) {
+    const aiConfig = application.job?.aiConfig;
+    if (!aiConfig?.cvSimilarity) continue;
+
+    const score = await computeCvSimilarityScore(application.jobId, talentId);
+    if (score === null) continue;
+
+    const awaitingGate =
+      application.currentStage === ScreeningStage.CvSimilarity &&
+      (application.status === ApplicationStatus.Pending ||
+        application.status === ApplicationStatus.RetakeAssessment);
+
+    if (awaitingGate) {
+      await applicationRepo().save(await runCvSimilarityGate(talent, application, aiConfig, score));
+    } else {
+      application.cvSimilarityScore = score;
+      await applicationRepo().save(application);
+    }
+  }
 };
 
 // Advances every one of the talent's applications currently parked at the (global,
