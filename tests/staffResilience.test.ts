@@ -234,3 +234,19 @@ describe("previewing an invite when the open cannot be logged", () => {
     );
   });
 });
+
+describe("a person with a very long name", () => {
+  it("can still add and invite staff", async () => {
+    const company = await setupCompany();
+    const hr = await addMember(company.org, {
+      canManagePeople: true,
+      firstName: "A".repeat(150),
+      lastName: "B".repeat(150),
+    });
+
+    const res = await postStaff(app, hr.token, company.org.id, { sendInvite: true });
+
+    expect(res.status).toBe(201);
+    expect(apiData<{ inviteEmailSent: boolean }>(res).inviteEmailSent).toBe(true);
+  });
+});

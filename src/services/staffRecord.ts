@@ -32,8 +32,10 @@ export interface StaffView {
   createdAt: Date;
 }
 
+const PERSON_NAME_COLUMN_LENGTH = 241;
+
 export const fullNameOf = (person: Pick<User, "firstName" | "lastName">): string =>
-  `${person.firstName} ${person.lastName}`.trim();
+  `${person.firstName} ${person.lastName}`.trim().slice(0, PERSON_NAME_COLUMN_LENGTH);
 
 export const isUniqueViolation = (err: unknown): boolean => {
   const candidate = err as { code?: string; driverError?: { code?: string } } | null;
