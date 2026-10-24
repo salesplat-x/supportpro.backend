@@ -2,11 +2,13 @@ import { body, param, query, type ValidationChain } from "express-validator";
 import { StaffStatus } from "../entities/StaffMember.js";
 
 const NO_LINE_BREAKS = /^[^\r\n]*$/;
+const NO_NUL = /^[^\0]*$/;
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const MIN_YEAR = 1900;
 const MAX_YEAR = 2100;
 const MAX_TEXT = 120;
 const MAX_EMAIL = 254;
+const MAX_OFFSET = 1_000_000;
 
 const orgParam = param("_id").isUUID().withMessage("Invalid company id");
 const staffParam = param("staffId").isUUID().withMessage("Invalid staff id");
@@ -21,7 +23,10 @@ const text = (chain: ValidationChain, label: string): ValidationChain =>
     .withMessage(`${label} must be between 1 and ${MAX_TEXT} characters`)
     .bail()
     .matches(NO_LINE_BREAKS)
-    .withMessage(`${label} can't contain line breaks`);
+    .withMessage(`${label} can't contain line breaks`)
+    .bail()
+    .matches(NO_NUL)
+    .withMessage(`${label} can't contain control characters`);
 
 const nullableText = (chain: ValidationChain, label: string): ValidationChain =>
   chain
@@ -34,7 +39,10 @@ const nullableText = (chain: ValidationChain, label: string): ValidationChain =>
     .withMessage(`${label} must be at most ${MAX_TEXT} characters`)
     .bail()
     .matches(NO_LINE_BREAKS)
-    .withMessage(`${label} can't contain line breaks`);
+    .withMessage(`${label} can't contain line breaks`)
+    .bail()
+    .matches(NO_NUL)
+    .withMessage(`${label} can't contain control characters`);
 
 const dateOnly = (chain: ValidationChain, label: string): ValidationChain =>
   chain
@@ -59,17 +67,29 @@ const flag = (field: string, label: string): ValidationChain =>
     .bail()
     .toBoolean();
 
+const once = (chain: ValidationChain, label: string): ValidationChain =>
+  chain
+    .optional()
+    .custom((value: unknown) => typeof value === "string")
+    .withMessage(`${label} can only be given once`)
+    .bail();
+
 const pagination = [
-  query("limit").optional().isInt({ min: 1, max: 100 }).withMessage("limit must be 1-100").toInt(),
-  query("offset").optional().isInt({ min: 0 }).withMessage("offset must be 0 or more").toInt(),
+  once(query("limit"), "limit")
+    .isInt({ min: 1, max: 100 })
+    .withMessage("limit must be 1-100")
+    .toInt(),
+  once(query("offset"), "offset")
+    .isInt({ min: 0, max: MAX_OFFSET })
+    .withMessage(`offset must be 0-${MAX_OFFSET}`)
+    .toInt(),
 ];
 
 export const companyParamValidator = [orgParam];
 
 export const staffOptionsValidator = [
   orgParam,
-  query("includeEnded")
-    .optional()
+  once(query("includeEnded"), "includeEnded")
     .isIn(["true", "false"])
     .withMessage("includeEnded must be true or false")
     .bail()
@@ -79,11 +99,17 @@ export const staffOptionsValidator = [
 export const listStaffValidator = [
   orgParam,
   ...pagination,
-  query("status")
-    .optional()
+  once(query("status"), "status")
     .isIn(Object.values(StaffStatus))
     .withMessage(`status must be one of: ${Object.values(StaffStatus).join(", ")}`),
-  query("search").optional().isString().trim().isLength({ max: 100 }),
+  query("search")
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 100 })
+    .bail()
+    .matches(NO_NUL)
+    .withMessage("search can't contain control characters"),
 ];
 
 export const createStaffValidator = [
@@ -125,8 +151,8 @@ export const endStaffValidator = [
 export const accessLogValidator = [
   orgParam,
   ...pagination,
-  query("staffId").optional().isUUID().withMessage("Invalid staff id"),
-  query("actorId").optional().isUUID().withMessage("Invalid person id"),
+  once(query("staffId"), "staffId").isUUID().withMessage("Invalid staff id"),
+  once(query("actorId"), "actorId").isUUID().withMessage("Invalid person id"),
   dateOnly(query("from").optional(), "From date"),
   dateOnly(query("to").optional(), "To date"),
 ];

@@ -250,3 +250,51 @@ describe("a person with a very long name", () => {
     expect(apiData<{ inviteEmailSent: boolean }>(res).inviteEmailSent).toBe(true);
   });
 });
+
+describe("hostile input is refused, not crashed on", () => {
+  const NUL = "\u0000";
+  const SOME_ID = "6f1c3d52-9b0e-4a53-8a31-2d4f7c9e1b10";
+
+  it.each([
+    ["full name", { fullName: `Ada${NUL}Obi` }],
+    ["job title", { jobTitle: `Designer${NUL}` }],
+    ["department", { department: `Design${NUL}` }],
+  ])("refuses a NUL byte in the %s when adding and when editing", async (_label, bad) => {
+    const { owner, org } = await setupCompany();
+    const staff = await createStaff(app, owner.token, org.id);
+
+    expect((await postStaff(app, owner.token, org.id, bad)).status).toBe(400);
+    const edit = await request(app)
+      .patch(staffPath(org.id, `/${staff.id}`))
+      .set(authHeader(owner.token))
+      .send(bad);
+    expect(edit.status).toBe(400);
+  });
+
+  it.each([
+    ["a NUL byte in search", "", "search=%00"],
+    ["an offset beyond the database range", "", "offset=99999999999999999999"],
+    ["a repeated limit", "", "limit=1&limit=2"],
+    ["a repeated offset", "", "offset=1&offset=2"],
+    ["a repeated status", "", "status=active&status=ended"],
+    ["a repeated search", "", "search=a&search=b"],
+    ["a repeated includeEnded", "/options", "includeEnded=true&includeEnded=false"],
+    ["a repeated staffId", "/access-log", `staffId=${SOME_ID}&staffId=${SOME_ID}`],
+    ["a repeated actorId", "/access-log", `actorId=${SOME_ID}&actorId=${SOME_ID}`],
+    ["a repeated from date", "/access-log", "from=2026-01-01&from=2026-01-02"],
+    ["a repeated to date", "/access-log", "to=2026-01-01&to=2026-01-02"],
+    [
+      "an access log offset beyond the database range",
+      "/access-log",
+      "offset=99999999999999999999",
+    ],
+  ])("answers 400 to %s", async (_label, suffix, query) => {
+    const { owner, org } = await setupCompany();
+
+    const res = await request(app)
+      .get(`${staffPath(org.id, suffix)}?${query}`)
+      .set(authHeader(owner.token));
+
+    expect(res.status).toBe(400);
+  });
+});
