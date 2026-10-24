@@ -32,6 +32,7 @@ import { getProfileCompletion } from "./user.js";
 
 const DAY_MS = 86_400_000;
 const INVITE_RESEND_COOLDOWN_MS = 60_000;
+const EMAIL_TIMEOUT_MS = 10_000;
 
 const userRepo = () => AppDataSource.getRepository(User);
 const memberRepo = () => AppDataSource.getRepository(OrganizationMember);
@@ -96,6 +97,20 @@ export const issueInvite = (staff: StaffMember, actor: Actor): string => {
   return token;
 };
 
+const withTimeout = async <T>(work: Promise<T>, ms: number): Promise<T> => {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("The email provider did not respond")), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 /** Never throws: a failed email is recorded on the timeline so HR can resend. */
 export const sendInviteEmail = async (
   org: Organization,
@@ -107,15 +122,18 @@ export const sendInviteEmail = async (
     if (!env.website) {
       throw new Error("FRONTEND_CALLBACK_URL is not configured");
     }
-    await new EmailService().sendStaffInvite({
-      email: staff.email,
-      firstName: staff.fullName.split(" ")[0] ?? staff.fullName,
-      companyName: org.name,
-      companyLogoUrl: org.logoUrl,
-      inviterName: fullNameOf(actor),
-      jobTitle: staff.jobTitle,
-      inviteLink: `${env.website}/join-staff/${token}`,
-    });
+    await withTimeout(
+      new EmailService().sendStaffInvite({
+        email: staff.email,
+        firstName: staff.fullName.split(" ")[0] ?? staff.fullName,
+        companyName: org.name,
+        companyLogoUrl: org.logoUrl,
+        inviterName: fullNameOf(actor),
+        jobTitle: staff.jobTitle,
+        inviteLink: `${env.website}/join-staff/${token}`,
+      }),
+      EMAIL_TIMEOUT_MS
+    );
     return true;
   } catch (err) {
     logger.error(`Staff invite email failed for staff ${staff.id}: ${(err as Error).message}`);

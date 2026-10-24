@@ -139,3 +139,63 @@ describe("an invite email that fails", () => {
     }
   });
 });
+
+describe("a stalled email provider", () => {
+  const fakeOnlyTimeouts = () =>
+    jest.useFakeTimers({
+      doNotFake: [
+        "nextTick",
+        "setImmediate",
+        "clearImmediate",
+        "setInterval",
+        "clearInterval",
+        "Date",
+        "queueMicrotask",
+        "performance",
+        "hrtime",
+      ],
+    });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  async function loadRecord() {
+    const { owner, org } = await setupCompany();
+    const created = await createStaff(app, owner.token, org.id);
+    return {
+      owner,
+      created,
+      organization: await testDataSource
+        .getRepository(Organization)
+        .findOneByOrFail({ id: org.id }),
+      record: await staffRow(created.id),
+    };
+  }
+
+  it("is given up on and recorded as a failed invite instead of holding the request open", async () => {
+    const { owner, created, organization, record } = await loadRecord();
+    sendStaffInvite().mockImplementationOnce(() => new Promise<void>(() => undefined));
+
+    fakeOnlyTimeouts();
+    const pending = sendInviteEmail(organization, record, "a".repeat(64), owner.user);
+    await jest.advanceTimersByTimeAsync(15_000);
+    jest.useRealTimers();
+
+    await expect(pending).resolves.toBe(false);
+    expect(sendStaffInvite()).toHaveBeenCalledTimes(1);
+    expect(await activityTypes(created.id)).toContain("invite_failed");
+  }, 20_000);
+
+  it("leaves no timer behind when the email goes out normally", async () => {
+    const { owner, organization, record } = await loadRecord();
+
+    fakeOnlyTimeouts();
+    const before = jest.getTimerCount();
+    await expect(sendInviteEmail(organization, record, "b".repeat(64), owner.user)).resolves.toBe(
+      true
+    );
+
+    expect(jest.getTimerCount()).toBe(before);
+  });
+});
