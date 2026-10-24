@@ -119,9 +119,15 @@ export const sendInviteEmail = async (
     return true;
   } catch (err) {
     logger.error(`Staff invite email failed for staff ${staff.id}: ${(err as Error).message}`);
-    await recordActivities(AppDataSource.manager, staff, [
-      activityEntry(StaffActivityType.InviteFailed, actor, { reason: "email_not_sent" }),
-    ]);
+    try {
+      await recordActivities(AppDataSource.manager, staff, [
+        activityEntry(StaffActivityType.InviteFailed, actor, { reason: "email_not_sent" }),
+      ]);
+    } catch (recordErr) {
+      logger.error(
+        `Could not record the failed invite email for staff ${staff.id}: ${(recordErr as Error).message}`
+      );
+    }
     return false;
   }
 };
