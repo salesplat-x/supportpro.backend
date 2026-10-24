@@ -36,6 +36,7 @@
     "cleanup:notifications": "npx ts-node src/scripts/cleanupNotifications.ts",
     "recompute:ranks": "npx ts-node src/scripts/recomputeApplicationRanks.ts",
     "backfill:verdicts": "npx ts-node src/scripts/backfillMatchVerdicts.ts",
+    "backfill:cv-scores": "npx ts-node src/scripts/backfillCvSimilarityScores.ts",
     "seed": "TS_NODE_PROJECT=tsconfig.dev.json node -r dotenv/config ./node_modules/.bin/ts-node src/scripts/seed.ts",
     "plans:sync": "TS_NODE_PROJECT=tsconfig.dev.json node -r dotenv/config ./node_modules/.bin/ts-node src/scripts/syncPlans.ts",
     "seed:admin": "TS_NODE_PROJECT=tsconfig.dev.json node -r dotenv/config ./node_modules/.bin/ts-node src/scripts/seedAdmin.ts",

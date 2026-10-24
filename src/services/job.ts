@@ -43,8 +43,10 @@ import {
 import { workModeNeedsLocation } from "../utils/workMode.js";
 import { createStages } from "./aiConfig.js";
 import {
+  computeCvSimilarityScore,
   getAssessmentRetryDate,
   processNextStage,
+  runCvSimilarityGate,
   loadRecommendationsByApplicationIds,
   overlayVerdictFromRecommendation,
   triggerMatchVerdict,
@@ -912,7 +914,7 @@ export const topTalents = async (
   let newApplicants = 0;
 
   for (const r of res) {
-    const cvSimilarityScore = convertSimilarityToPercentage(r.similarity);
+    const cvSimilarityScore = convertSimilarityToPercentage(Math.min(Math.max(r.similarity, 0), 1));
     const existing = existingAppMap.get(r.user_id);
 
     if (existing) {
@@ -1048,44 +1050,16 @@ export const gradeCv = async (
     throw new ValidationError("This feature was not configured for this job");
   }
 
-  // Get CV similarity score
-  const rows: Array<{ similarity_score: number }> = await AppDataSource.query(
-    `
-    WITH jd_cte AS (
-      SELECT job_embedding::vector FROM jobs WHERE id = $1
-    ),
-    talent_cte AS (
-      SELECT cv_embedding::vector FROM talent_embeddings WHERE user_id = $2 LIMIT 1
-    )
-    SELECT ABS((SELECT job_embedding::vector FROM jd_cte) <=> (SELECT cv_embedding::vector FROM talent_cte)) AS similarity_score
-    `,
-    [jobId, userId]
-  );
-  const rawScore = rows[0]?.similarity_score ?? 0;
-  const cvSimilarityScore = convertSimilarityToPercentage(rawScore);
-
-  application.cvSimilarityScore = cvSimilarityScore;
-  application.cvSimilarityAttempts = (application.cvSimilarityAttempts ?? 0) + 1;
-
-  const minScore = aiConfig.minCvSimilarityScore ?? 0;
-  const MAX_ATTEMPTS = 2; // 1 initial + 1 retry
-  const passed = cvSimilarityScore >= minScore;
-  const attemptsExhausted = application.cvSimilarityAttempts >= MAX_ATTEMPTS;
-
-  if (passed || attemptsExhausted) {
-    const user = await userRepo().findOne({ where: { id: userId } });
-    if (user) {
-      application = await processNextStage(
-        user,
-        application,
-        ScreeningStage.CvSimilarity,
-        aiConfig
-      );
-    }
-  } else {
-    application.currentStage = ScreeningStage.CvSimilarity;
-    application.status = ApplicationStatus.RetakeAssessment;
+  const cvSimilarityScore = await computeCvSimilarityScore(jobId, userId);
+  if (cvSimilarityScore === null) {
+    throw new ValidationError("Your CV is still being processed. Please try again shortly");
   }
+
+  const user = await userRepo().findOne({ where: { id: userId } });
+  if (!user) {
+    throw new NotFoundError("Authenticated user no longer exists");
+  }
+  application = await runCvSimilarityGate(user, application, aiConfig, cvSimilarityScore);
 
   application = await applicationRepo().save(application);
   return { cvSimilarityScore, application };
@@ -1329,6 +1303,9 @@ export const apply = async (user: User, payload: ApplyPayload): Promise<Applicat
     recruiterId: job.postedById,
     currentStage: entryStage as Application["currentStage"],
     status: ApplicationStatus.Pending,
+    cvSimilarityScore: aiConfig.cvSimilarity
+      ? await computeCvSimilarityScore(jobId, user.id)
+      : null,
   });
 
   const saved = await applicationRepo().save(application);
