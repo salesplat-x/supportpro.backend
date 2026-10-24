@@ -33,7 +33,6 @@ import { createNotification } from "./notification.js";
 import { purgeOrganizationCascade } from "./cascadeDelete.js";
 import { disablePaystackSubscriptions } from "./payment.js";
 import logger from "../utils/logger.js";
-import { normalizeCompanyValues } from "../config/assessmentQuestions.js";
 
 const orgRepo = () => AppDataSource.getRepository(Organization);
 const userRepo = () => AppDataSource.getRepository(User);
@@ -41,7 +40,7 @@ const memberRepo = () => AppDataSource.getRepository(OrganizationMember);
 const joinReqRepo = () => AppDataSource.getRepository(OrganizationJoinRequest);
 const inviteRepo = () => AppDataSource.getRepository(OrganizationInvite);
 
-export const INVITE_EXPIRY_DAYS = 7;
+const INVITE_EXPIRY_DAYS = 7;
 
 const assertCompanyHasOpenSeat = async (organizationId: string): Promise<void> => {
   const org = await orgRepo().findOne({ where: { id: organizationId } });
@@ -95,7 +94,6 @@ export interface UpdateOrganizationPayload {
   facebook?: string | null;
   linkedin?: string | null;
   twitter?: string | null;
-  companyValues?: string[];
 }
 
 export interface OrganizationMemberUserView {
@@ -111,7 +109,6 @@ export interface OrganizationMemberView {
   organizationId: string;
   workEmail: string;
   role: string;
-  canManagePeople: boolean;
   createdAt: Date;
   user: OrganizationMemberUserView;
 }
@@ -139,7 +136,6 @@ const toMemberView = (member: OrganizationMember): OrganizationMemberView => ({
   organizationId: member.organizationId,
   workEmail: member.workEmail,
   role: member.role,
-  canManagePeople: member.canManagePeople,
   createdAt: member.createdAt,
   user: toMemberUserView(member.user),
 });
@@ -580,30 +576,6 @@ export const listOrganizationMembers = async (
   return loadOrganizationMembers(organizationId);
 };
 
-export const setMemberCanManagePeople = async (
-  ownerId: string,
-  organizationId: string,
-  memberId: string,
-  canManagePeople: boolean
-): Promise<OrganizationMemberView> => {
-  const org = await assertOwnership(ownerId, organizationId);
-
-  const member = await memberRepo().findOne({
-    where: { id: memberId, organizationId },
-    relations: { user: true },
-  });
-  if (!member) {
-    throw new NotFoundError("Member not found");
-  }
-  if (member.role === "owner" || member.userId === org.ownerId) {
-    throw new ValidationError("The company owner always has access to People");
-  }
-
-  member.canManagePeople = canManagePeople;
-  await memberRepo().save(member);
-  return toMemberView(member);
-};
-
 export const updateOrganization = async (
   ownerId: string,
   organizationId: string,
@@ -611,26 +583,15 @@ export const updateOrganization = async (
 ): Promise<Organization> => {
   const org = await assertOwnership(ownerId, organizationId);
 
-  const { name, phone, address, industry, twitter, linkedin, facebook, companyValues } = payload;
+  const { name, phone, address, industry, twitter, linkedin, facebook } = payload;
   const updates = Object.fromEntries(
-    Object.entries({
-      name,
-      phone,
-      address,
-      industry,
-      twitter,
-      linkedin,
-      facebook,
-      companyValues,
-    }).filter(([, value]) => value !== undefined)
+    Object.entries({ name, phone, address, industry, twitter, linkedin, facebook }).filter(
+      ([, value]) => value !== undefined
+    )
   ) as UpdateOrganizationPayload;
 
   if (Object.keys(updates).length === 0) {
     return org;
-  }
-
-  if (updates.companyValues) {
-    updates.companyValues = normalizeCompanyValues(updates.companyValues);
   }
 
   if (updates.phone) {
@@ -708,7 +669,7 @@ export const removeLogo = async (
   return saved;
 };
 
-export const generateInviteToken = (): string => crypto.randomBytes(32).toString("hex");
+const generateInviteToken = (): string => crypto.randomBytes(32).toString("hex");
 
 const resolveInviteStatus = (invite: OrganizationInvite): OrganizationInviteStatus => {
   if (
