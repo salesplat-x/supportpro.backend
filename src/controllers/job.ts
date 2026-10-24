@@ -140,6 +140,15 @@ export const retryVerdicts = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Retried missing AI matches", result);
 };
 
+export const retryCvScore = async (req: Request, res: Response) => {
+  const application = await jobService.retryCvSimilarityScore(
+    req.user.id,
+    req.params["jobId"]!,
+    req.params["applicationId"]!
+  );
+  sendSuccessResponse(res, "CV match score calculated", { application });
+};
+
 export const apply = async (req: Request, res: Response) => {
   const result = hideAssessmentResultsFromCandidate(
     await jobService.apply(req.user, { jobId: req.params["jobId"]! })

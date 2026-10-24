@@ -3,6 +3,8 @@
  * CV stage, and whenever the talent's CV embedding is regenerated.
  */
 
+import request from "supertest";
+import { createApp } from "../src/app.js";
 import {
   computeCvSimilarityScore,
   processNextStage,
@@ -26,12 +28,13 @@ import {
 import { Application } from "../src/entities/Application.js";
 import { Job } from "../src/entities/Job.js";
 import { TalentEmbedding } from "../src/entities/TalentEmbedding.js";
-import type { User } from "../src/entities/User.js";
+import { User } from "../src/entities/User.js";
 import type { AIConfig } from "../src/entities/AIConfig.js";
 import { ApplicationStatus, ScreeningStage } from "../src/types/enums.js";
 
 jest.mock("../src/utils/integrations/openai.js", () => ({
   __esModule: true,
+  createEmbedding: jest.fn(),
   assessApplicationMatch: jest.fn().mockResolvedValue({
     message: { content: JSON.stringify({ verdict: "high", reasoning: "Good fit." }) },
   }),
@@ -46,8 +49,15 @@ const vector = (lead: number): number[] => {
 
 const asLiteral = (values: number[]) => `[${values.toString()}]`;
 
+const ai = jest.requireMock("../src/utils/integrations/openai.js") as {
+  createEmbedding: jest.Mock;
+};
+
+let app: ReturnType<typeof createApp>;
+
 beforeAll(async () => {
   await startTestDatabase();
+  app = createApp();
 }, 120_000);
 
 afterAll(async () => {
@@ -73,14 +83,19 @@ const embedCv = async (userId: string, ...leads: number[]) => {
   }
 };
 
-const setup = async (): Promise<{ talent: User; job: Job; aiConfig: AIConfig }> => {
-  const { user: recruiter } = await createRecruiter();
+const setup = async (): Promise<{
+  talent: User;
+  job: Job;
+  aiConfig: AIConfig;
+  recruiterToken: string;
+}> => {
+  const { user: recruiter, token: recruiterToken } = await createRecruiter();
   const { user: talent } = await createTalent();
   const role = await createRole();
   const aiConfig = await createAIConfig(recruiter);
   const job = await createJob(recruiter, role, { aiConfigId: aiConfig.id });
   await testDataSource.getRepository(Job).update(job.id, { jobEmbedding: asLiteral(vector(1)) });
-  return { talent, job, aiConfig };
+  return { talent, job, aiConfig, recruiterToken };
 };
 
 const reload = (id: string) => testDataSource.getRepository(Application).findOneByOrFail({ id });
@@ -209,5 +224,59 @@ describe("rescoreCvSimilarityForTalent", () => {
     const updated = await reload(retake.id);
     expect(updated.cvSimilarityAttempts).toBe(2);
     expect(updated.currentStage).toBe(ScreeningStage.Personalized);
+  });
+});
+
+describe("POST /v1/jobs/:jobId/applications/:applicationId/cv-score", () => {
+  const retry = (token: string, jobId: string, applicationId: string) =>
+    request(app)
+      .post(`/v1/jobs/${jobId}/applications/${applicationId}/cv-score`)
+      .set("Authorization", `Bearer ${token}`);
+
+  it("saves the score for a past application once the CV embedding exists", async () => {
+    const { talent, job, aiConfig, recruiterToken } = await setup();
+    const application = await createApplication(talent, job, { stages: aiConfig.stages });
+    await embedCv(talent.id, 1);
+
+    const res = await retry(recruiterToken, job.id, application.id);
+
+    expect(res.status).toBe(200);
+    expect((await reload(application.id)).cvSimilarityScore).toBe(100);
+  });
+
+  it("re-embeds a CV that never processed, then saves the score", async () => {
+    const { talent, job, aiConfig, recruiterToken } = await setup();
+    await testDataSource
+      .getRepository(User)
+      .update(talent.id, { cvText: "Five years of TypeScript." });
+    ai.createEmbedding.mockResolvedValue([{ embedding: vector(1) }]);
+    const application = await createApplication(talent, job, { stages: aiConfig.stages });
+
+    const res = await retry(recruiterToken, job.id, application.id);
+
+    expect(res.status).toBe(200);
+    expect((await reload(application.id)).cvSimilarityScore).toBe(100);
+  });
+
+  it("fails and leaves the score empty when the talent has no CV", async () => {
+    const { talent, job, aiConfig, recruiterToken } = await setup();
+    const application = await createApplication(talent, job, { stages: aiConfig.stages });
+
+    const res = await retry(recruiterToken, job.id, application.id);
+
+    expect(res.status).toBe(400);
+    expect((await reload(application.id)).cvSimilarityScore).toBeNull();
+  });
+
+  it("rejects a recruiter who doesn't own the job", async () => {
+    const { talent, job, aiConfig } = await setup();
+    const { token: otherToken } = await createRecruiter();
+    const application = await createApplication(talent, job, { stages: aiConfig.stages });
+    await embedCv(talent.id, 1);
+
+    const res = await retry(otherToken, job.id, application.id);
+
+    expect(res.status).toBe(403);
+    expect((await reload(application.id)).cvSimilarityScore).toBeNull();
   });
 });

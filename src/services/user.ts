@@ -537,7 +537,11 @@ export const reprocessCv = async (recruiterId: string, talentId: string): Promis
   if (!owns) {
     throw new AuthorizationError("You are not authorized to perform this action");
   }
+  await regenerateCvEmbedding(talentId);
+};
 
+/** Clears any exhausted retry state and re-embeds the talent's stored CV text now. */
+export const regenerateCvEmbedding = async (talentId: string): Promise<void> => {
   const user = await userRepo()
     .createQueryBuilder("user")
     .addSelect("user.cvText")
