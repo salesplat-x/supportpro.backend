@@ -46,6 +46,7 @@ import {
   computeCvSimilarityScore,
   getAssessmentRetryDate,
   processNextStage,
+  rescoreCvSimilarity,
   runCvSimilarityGate,
   loadRecommendationsByApplicationIds,
   overlayVerdictFromRecommendation,
@@ -53,6 +54,7 @@ import {
   resetMatchVerdictRetry,
 } from "./applicationStage.js";
 import { isPrescreeningScoreValid } from "./prescreening.js";
+import { regenerateCvEmbedding } from "./user.js";
 
 const jobRepo = () => AppDataSource.getRepository(Job);
 
@@ -1083,7 +1085,11 @@ export interface JobApplicationsParams {
 
 export interface JobApplicationsResult {
   applications: Application[];
-  aiConfig: { minCvSimilarityScore: number | null; minPrescreeningScore: number | null } | null;
+  aiConfig: {
+    cvSimilarity: boolean;
+    minCvSimilarityScore: number | null;
+    minPrescreeningScore: number | null;
+  } | null;
 }
 
 export const jobApplications = async (
@@ -1189,11 +1195,58 @@ export const jobApplications = async (
     ),
     aiConfig: job.aiConfig
       ? {
+          cvSimilarity: job.aiConfig.cvSimilarity,
           minCvSimilarityScore: job.aiConfig.minCvSimilarityScore,
           minPrescreeningScore: job.aiConfig.minPrescreeningScore,
         }
       : null,
   };
+};
+
+// Recruiter-triggered retry for an application with no CV match score. When the
+// talent's CV embedding is missing or failed it's regenerated first.
+export const retryCvSimilarityScore = async (
+  userId: string,
+  jobId: string,
+  applicationId: string
+): Promise<Application> => {
+  const job = await jobRepo().findOne({ where: { id: jobId }, relations: { aiConfig: true } });
+  if (!job) {
+    throw new NotFoundError("Job not found");
+  }
+  await assertRecruiterJobAccess(userId, UserRole.Recruiter, job);
+
+  if (!job.aiConfig?.cvSimilarity) {
+    throw new ValidationError("CV matching is not configured for this job");
+  }
+
+  const application = await applicationRepo().findOne({
+    where: { id: applicationId, jobId },
+    relations: { talent: true },
+  });
+  if (!application) {
+    throw new NotFoundError("Application not found");
+  }
+
+  const scored = await rescoreCvSimilarity(application.talent, application, job.aiConfig);
+  if (scored) return scored;
+
+  try {
+    await regenerateCvEmbedding(application.talentId);
+  } catch (err) {
+    logger.error(
+      `CV re-embed failed during score retry for application ${applicationId}: ${
+        (err as Error).message
+      }`
+    );
+    throw new ValidationError("This talent's CV could not be processed. Please try again later");
+  }
+
+  const reloaded = await applicationRepo().findOne({ where: { id: applicationId } });
+  if (reloaded?.cvSimilarityScore === null || reloaded?.cvSimilarityScore === undefined) {
+    throw new ValidationError("The CV match score could not be calculated. Please try again later");
+  }
+  return reloaded;
 };
 
 export interface RetryVerdictsResult {

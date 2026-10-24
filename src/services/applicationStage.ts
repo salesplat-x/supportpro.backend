@@ -637,22 +637,30 @@ export const rescoreCvSimilarityForTalent = async (talentId: string): Promise<vo
   for (const application of applications) {
     const aiConfig = application.job?.aiConfig;
     if (!aiConfig?.cvSimilarity) continue;
-
-    const score = await computeCvSimilarityScore(application.jobId, talentId);
-    if (score === null) continue;
-
-    const awaitingGate =
-      application.currentStage === ScreeningStage.CvSimilarity &&
-      (application.status === ApplicationStatus.Pending ||
-        application.status === ApplicationStatus.RetakeAssessment);
-
-    if (awaitingGate) {
-      await applicationRepo().save(await runCvSimilarityGate(talent, application, aiConfig, score));
-    } else {
-      application.cvSimilarityScore = score;
-      await applicationRepo().save(application);
-    }
+    await rescoreCvSimilarity(talent, application, aiConfig);
   }
+};
+
+// Saves a fresh score on one application, gating it when it's waiting at the
+// CV stage. Returns null (nothing saved) while an embedding is missing.
+export const rescoreCvSimilarity = async (
+  talent: User,
+  application: Application,
+  aiConfig: AIConfig
+): Promise<Application | null> => {
+  const score = await computeCvSimilarityScore(application.jobId, talent.id);
+  if (score === null) return null;
+
+  const awaitingGate =
+    application.currentStage === ScreeningStage.CvSimilarity &&
+    (application.status === ApplicationStatus.Pending ||
+      application.status === ApplicationStatus.RetakeAssessment);
+
+  if (awaitingGate) {
+    return applicationRepo().save(await runCvSimilarityGate(talent, application, aiConfig, score));
+  }
+  application.cvSimilarityScore = score;
+  return applicationRepo().save(application);
 };
 
 // Advances every one of the talent's applications currently parked at the (global,

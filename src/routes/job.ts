@@ -15,6 +15,7 @@ import {
   retryVerdictsValidator,
   draftApplicantMessagesValidator,
   singleFitReportValidator,
+  retryCvScoreValidator,
   bulkFitReportValidator,
   generateJobContentValidator,
   generateJobFieldValidator,
@@ -125,6 +126,13 @@ router.post(
   requireVerifiedEmail,
   validate(retryVerdictsValidator),
   asyncHandler(job.retryVerdicts, "retry AI matches")
+);
+router.post(
+  "/:jobId/applications/:applicationId/cv-score",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(retryCvScoreValidator),
+  asyncHandler(job.retryCvScore, "retry CV match score")
 );
 router.post(
   "/:jobId/applicants/messages/draft",
