@@ -29,12 +29,7 @@ import {
 } from "./helpers/fixtures.js";
 import { apiData } from "./helpers/http.js";
 import { addMember, authHeader, setupCompany } from "./helpers/company.js";
-import {
-  createStaff,
-  postStaff,
-  staffPath,
-  type StaffViewShape,
-} from "./helpers/staff.js";
+import { createStaff, postStaff, staffPath, type StaffViewShape } from "./helpers/staff.js";
 import { OrganizationStatus } from "../src/types/enums.js";
 import env from "../src/config/env.js";
 import { assertCanManagePeople } from "../src/services/peopleAccess.js";
