@@ -22,6 +22,8 @@ import errorLogRoutes from "./errorLog.js";
 import prescreeningRoutes from "./prescreening.js";
 import adminRoutes from "./admin.js";
 import feedbackRoutes from "./feedback.js";
+import staffRoutes from "./staff.js";
+import staffInviteRoutes from "./staffInvite.js";
 
 const v1Router = Router();
 
@@ -37,6 +39,8 @@ messageRoutes(v1Router);
 conversationRoutes(v1Router);
 notificationRoutes(v1Router);
 organizationRoutes(v1Router);
+staffRoutes(v1Router);
+staffInviteRoutes(v1Router);
 aiConfigRoutes(v1Router);
 paymentRoutes(v1Router);
 pricingRoutes(v1Router);

@@ -2,10 +2,10 @@ import { body } from "express-validator";
 import { passwordRules } from "./shared.js";
 
 // Restricts the post-verification redirect to the apply wizard or a company
-// invite join page, so this field can never be used as an open redirect.
+// invite or staff invite join page, so this field can never be used as an open redirect.
 const redirectPathRule = body("redirectPath")
   .optional()
-  .matches(/^\/apply\/[A-Za-z0-9-]+$|^\/join-company\/[a-f0-9]+$/)
+  .matches(/^\/apply\/[A-Za-z0-9-]+$|^\/join-company\/[a-f0-9]+$|^\/join-staff\/[a-f0-9]+$/)
   .withMessage("Invalid redirect path");
 
 export const registerValidator = [
