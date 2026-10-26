@@ -14,6 +14,7 @@ const TEMPLATE_TITLES: Record<string, string> = {
   "onboarding-follow-up": "Finish getting started on Auxhr",
   "applicant-message": "You have a new message",
   "application-follow-up": "Finish your application",
+  "staff-invite": "You've been added to a team",
 };
 
 const TEMPLATE_PREHEADERS: Record<string, string> = {
@@ -26,6 +27,7 @@ const TEMPLATE_PREHEADERS: Record<string, string> = {
   "onboarding-follow-up": "A couple of quick steps and you're all set.",
   "applicant-message": "A recruiter sent you a message on Auxhr.",
   "application-follow-up": "A quick next step on your application.",
+  "staff-invite": "Accept your invite and join your team on Auxhr.",
 };
 
 export const renderTemplate = (templateName: string, data: Record<string, unknown>): string => {

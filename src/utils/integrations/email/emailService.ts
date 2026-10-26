@@ -2,7 +2,11 @@ import logger from "../../logger.js";
 import { UserRole } from "../../../types/enums.js";
 import env from "../../../config/env.js";
 import ResendProvider from "./providers/resend.provider.js";
-import { companyInvitePlainText, verificationPlainText } from "./plainText.js";
+import {
+  companyInvitePlainText,
+  staffInvitePlainText,
+  verificationPlainText,
+} from "./plainText.js";
 import { renderTemplate } from "./template.js";
 import type { EmailPayload, EmailProvider } from "./types.js";
 
@@ -155,6 +159,26 @@ class EmailService {
       html,
       text: companyInvitePlainText(details),
       tags: [{ name: "category", value: "company-invite" }],
+    });
+  }
+
+  /** Unlike sendEmail it throws, so the caller can record that the invite did not go out. */
+  async sendStaffInvite(details: {
+    email: string;
+    firstName: string;
+    companyName: string;
+    companyLogoUrl?: string | null;
+    inviterName: string;
+    jobTitle: string;
+    inviteLink: string;
+  }): Promise<void> {
+    const html = renderTemplate("staff-invite", details);
+    await this.provider.send({
+      to: details.email,
+      subject: `${details.companyName} has added you to their team`,
+      html,
+      text: staffInvitePlainText(details),
+      tags: [{ name: "category", value: "staff-invite" }],
     });
   }
 

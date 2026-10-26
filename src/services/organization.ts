@@ -41,7 +41,7 @@ const memberRepo = () => AppDataSource.getRepository(OrganizationMember);
 const joinReqRepo = () => AppDataSource.getRepository(OrganizationJoinRequest);
 const inviteRepo = () => AppDataSource.getRepository(OrganizationInvite);
 
-const INVITE_EXPIRY_DAYS = 7;
+export const INVITE_EXPIRY_DAYS = 7;
 
 const assertCompanyHasOpenSeat = async (organizationId: string): Promise<void> => {
   const org = await orgRepo().findOne({ where: { id: organizationId } });
@@ -111,6 +111,7 @@ export interface OrganizationMemberView {
   organizationId: string;
   workEmail: string;
   role: string;
+  canManagePeople: boolean;
   createdAt: Date;
   user: OrganizationMemberUserView;
 }
@@ -138,6 +139,7 @@ const toMemberView = (member: OrganizationMember): OrganizationMemberView => ({
   organizationId: member.organizationId,
   workEmail: member.workEmail,
   role: member.role,
+  canManagePeople: member.canManagePeople,
   createdAt: member.createdAt,
   user: toMemberUserView(member.user),
 });
@@ -299,15 +301,16 @@ export const createOrganization = async (
     }
   }
 
-  // logoUrl is never accepted here — it's only ever set through the logo upload
-  // endpoint, never as a client-supplied string — so drop it even if a caller
-  // still sends one (payload is untyped req.body at the controller boundary).
-  const { logoUrl: _logoUrl, ...createFields } = payload as OrganizationPayload & {
-    logoUrl?: string;
-  };
-
+  const { name, phone, address, industry, website, facebook, linkedin, twitter } = payload;
   const org = orgRepo().create({
-    ...createFields,
+    name,
+    phone,
+    address,
+    industry,
+    website,
+    facebook,
+    linkedin,
+    twitter,
     email,
     domain,
     ownerId,
@@ -577,6 +580,30 @@ export const listOrganizationMembers = async (
   return loadOrganizationMembers(organizationId);
 };
 
+export const setMemberCanManagePeople = async (
+  ownerId: string,
+  organizationId: string,
+  memberId: string,
+  canManagePeople: boolean
+): Promise<OrganizationMemberView> => {
+  const org = await assertOwnership(ownerId, organizationId);
+
+  const member = await memberRepo().findOne({
+    where: { id: memberId, organizationId },
+    relations: { user: true },
+  });
+  if (!member) {
+    throw new NotFoundError("Member not found");
+  }
+  if (member.role === "owner" || member.userId === org.ownerId) {
+    throw new ValidationError("The company owner always has access to People");
+  }
+
+  member.canManagePeople = canManagePeople;
+  await memberRepo().save(member);
+  return toMemberView(member);
+};
+
 export const updateOrganization = async (
   ownerId: string,
   organizationId: string,
@@ -584,22 +611,11 @@ export const updateOrganization = async (
 ): Promise<Organization> => {
   const org = await assertOwnership(ownerId, organizationId);
 
-  // logoUrl is never accepted here — same reasoning as createOrganization above.
-  const {
-    email: _email,
-    website: _website,
-    domain: _domain,
-    logoUrl: _logoUrl,
-    ...allowed
-  } = payload as UpdateOrganizationPayload & {
-    email?: string;
-    website?: string;
-    domain?: string;
-    logoUrl?: string;
-  };
-
+  const { name, phone, address, industry, twitter, linkedin, facebook } = payload;
   const updates = Object.fromEntries(
-    Object.entries(allowed).filter(([, value]) => value !== undefined)
+    Object.entries({ name, phone, address, industry, twitter, linkedin, facebook }).filter(
+      ([, value]) => value !== undefined
+    )
   ) as UpdateOrganizationPayload;
 
   if (Object.keys(updates).length === 0) {
@@ -685,7 +701,7 @@ export const removeLogo = async (
   return saved;
 };
 
-const generateInviteToken = (): string => crypto.randomBytes(32).toString("hex");
+export const generateInviteToken = (): string => crypto.randomBytes(32).toString("hex");
 
 const resolveInviteStatus = (invite: OrganizationInvite): OrganizationInviteStatus => {
   if (

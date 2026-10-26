@@ -28,3 +28,22 @@ export const companyInvitePlainText = (details: {
     "",
     "If you were not expecting this invitation, you can ignore this email.",
   ].join("\n");
+
+export const staffInvitePlainText = (details: {
+  firstName: string;
+  inviterName: string;
+  companyName: string;
+  jobTitle: string;
+  email: string;
+  inviteLink: string;
+}): string =>
+  [
+    `Hi ${details.firstName},`,
+    "",
+    `${details.companyName} has added you as ${details.jobTitle}. Accept to see your contracts, pay and first-week tasks.`,
+    "",
+    `${details.inviterName} sent this invite. Use ${details.email} to create your Auxhr account or sign in, then complete your profile to join:`,
+    details.inviteLink,
+    "",
+    "This link expires in 7 days. If you were not expecting this invitation, you can ignore this email.",
+  ].join("\n");

@@ -33,6 +33,16 @@ export const updateOrganizationValidator = [
     .withMessage(`Each company value must be 1-${MAX_COMPANY_VALUE_LENGTH} characters`),
 ];
 
+export const setMemberCanManagePeopleValidator = [
+  param("_id").isUUID().withMessage("Invalid company id"),
+  param("memberId").isUUID().withMessage("Invalid member id"),
+  body("canManagePeople")
+    .isBoolean({ strict: true })
+    .withMessage("canManagePeople must be true or false")
+    .bail()
+    .toBoolean(),
+];
+
 export const deleteOrganizationValidator = [idParam("_id")];
 
 export const joinRequestOrganizationValidator = [

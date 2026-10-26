@@ -37,6 +37,9 @@ export class OrganizationMember {
   @Column({ type: "varchar", default: "member" })
   role!: string;
 
+  @Column({ type: "boolean", name: "can_manage_people", default: false })
+  canManagePeople!: boolean;
+
   @Column({ type: "timestamp", default: () => "CURRENT_TIMESTAMP", name: "verified_at" })
   verifiedAt!: Date;
 
