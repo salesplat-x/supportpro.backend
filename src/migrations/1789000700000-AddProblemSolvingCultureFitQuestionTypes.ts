@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class AddProblemSolvingCultureFitQuestionTypes1789000500000 implements MigrationInterface {
-  name = "AddProblemSolvingCultureFitQuestionTypes1789000500000";
+export class AddProblemSolvingCultureFitQuestionTypes1789000700000 implements MigrationInterface {
+  name = "AddProblemSolvingCultureFitQuestionTypes1789000700000";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Postgres forbids using a newly-added enum value in the same transaction

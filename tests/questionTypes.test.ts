@@ -13,7 +13,7 @@ import { createRecruiter, createRole, createJob } from "./helpers/fixtures.js";
 import { Question } from "../src/entities/Question.js";
 import { Answer } from "../src/entities/Answer.js";
 import { QuestionType } from "../src/types/enums.js";
-import { AddProblemSolvingCultureFitQuestionTypes1789000500000 } from "../src/migrations/1789000500000-AddProblemSolvingCultureFitQuestionTypes.js";
+import { AddProblemSolvingCultureFitQuestionTypes1789000700000 } from "../src/migrations/1789000700000-AddProblemSolvingCultureFitQuestionTypes.js";
 
 const PROBLEM_SOLVING = "problem_solving";
 const CULTURE_FIT = "culture_fit";
@@ -78,7 +78,7 @@ describe("questions and answers tables", () => {
 
 describe("AddProblemSolvingCultureFitQuestionTypes migration", () => {
   it("adds both values to the questions and answers enum types, idempotently", async () => {
-    const Migration = AddProblemSolvingCultureFitQuestionTypes1789000500000;
+    const Migration = AddProblemSolvingCultureFitQuestionTypes1789000700000;
     const queries: string[] = [];
     const runner = {
       query: jest.fn((sql: string) => {
@@ -99,7 +99,7 @@ describe("AddProblemSolvingCultureFitQuestionTypes migration", () => {
   });
 
   it("applies cleanly against a real database and is safe to run twice", async () => {
-    const Migration = AddProblemSolvingCultureFitQuestionTypes1789000500000;
+    const Migration = AddProblemSolvingCultureFitQuestionTypes1789000700000;
     const runner = testDataSource.createQueryRunner();
     try {
       await new Migration().up(runner);

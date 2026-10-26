@@ -38,7 +38,7 @@ import {
 import * as organizationService from "../src/services/organization.js";
 import { uploadToSpaces, deleteFromSpaces } from "../src/utils/integrations/spaces.js";
 import { apiData } from "./helpers/http.js";
-import { AddOrganizationCompanyValues1789000600000 } from "../src/migrations/1789000600000-AddOrganizationCompanyValues.js";
+import { AddOrganizationCompanyValues1789000800000 } from "../src/migrations/1789000800000-AddOrganizationCompanyValues.js";
 import type { QueryRunner } from "typeorm";
 
 const mockUploadToSpaces = uploadToSpaces as jest.Mock;
@@ -1351,7 +1351,7 @@ describe("Organization companyValues field", () => {
   });
 
   it("AddOrganizationCompanyValues migration adds a non-null jsonb column defaulting to []", async () => {
-    const Migration = AddOrganizationCompanyValues1789000600000;
+    const Migration = AddOrganizationCompanyValues1789000800000;
     const queries: string[] = [];
     const runner = {
       query: (sql: string) => Promise.resolve(void queries.push(sql)),
