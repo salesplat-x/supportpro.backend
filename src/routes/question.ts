@@ -21,6 +21,7 @@ import {
   ensurePersonalityQuestionsValidator,
   generateAssessmentQuestionsValidator,
   candidateAssessmentQuestionsValidator,
+  companyAssessmentAnswersValidator,
 } from "../validators/question.js";
 
 const router = Router();
@@ -113,6 +114,22 @@ router.post(
   validate(answerPersonalizedValidator),
   asyncHandler(question.answerPersonalizedQuestions, "submit personalized answers")
 );
+router.post(
+  "/answer/problem-solving",
+  validateAccess([UserRole.Talent]),
+  requireVerifiedEmail,
+  validate(companyAssessmentAnswersValidator),
+  asyncHandler(question.answerProblemSolving, "submit problem-solving answers")
+);
+
+router.post(
+  "/answer/culture-fit",
+  validateAccess([UserRole.Talent]),
+  requireVerifiedEmail,
+  validate(companyAssessmentAnswersValidator),
+  asyncHandler(question.answerCultureFit, "submit culture-fit answers")
+);
+
 router.get(
   "/:_id",
   validate(questionIdParamValidator),

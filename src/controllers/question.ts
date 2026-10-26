@@ -78,6 +78,23 @@ export const candidateCultureFitQuestions = candidateAssessmentHandler(
   "Culture-fit questions loaded"
 );
 
+const companyAssessmentAnswerHandler =
+  (type: QuestionType.ProblemSolving | QuestionType.CultureFit, message: string) =>
+  async (req: Request, res: Response) => {
+    const result = await answerService.submitCompanyAssessmentAnswers(req.user.id, type, req.body);
+    sendSuccessResponse(res, message, result);
+  };
+
+export const answerProblemSolving = companyAssessmentAnswerHandler(
+  QuestionType.ProblemSolving,
+  "Problem-solving answers submitted"
+);
+
+export const answerCultureFit = companyAssessmentAnswerHandler(
+  QuestionType.CultureFit,
+  "Culture-fit answers submitted"
+);
+
 export const evaluatePersonalityType = async (req: Request, res: Response) => {
   const result = await answerService.evaluatePersonalityType(req.user.id, req.body);
   sendSuccessResponse(res, "Personality evaluated", result);

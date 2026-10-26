@@ -76,3 +76,29 @@ export const generateAssessmentQuestionsValidator = [
 export const candidateAssessmentQuestionsValidator = [
   query("jobId").isUUID().withMessage("jobId must be a valid job id"),
 ];
+
+/** Longest answer a candidate may give to one problem-solving or culture-fit question. */
+export const MAX_ASSESSMENT_ANSWER_LENGTH = 5000;
+
+// Day 4: a candidate's answers, keyed by question id.
+export const companyAssessmentAnswersValidator = [
+  body("jobId").isUUID().withMessage("jobId must be a valid job id"),
+  body("answers")
+    .isObject()
+    .withMessage("answers must be an object")
+    .custom((answers: Record<string, unknown>) => {
+      const entries = Object.entries(answers);
+      if (entries.length === 0) {
+        throw new Error("answers must not be empty");
+      }
+      for (const [, value] of entries) {
+        if (typeof value !== "string" || !value.trim()) {
+          throw new Error("Every answer must be some text");
+        }
+        if (value.length > MAX_ASSESSMENT_ANSWER_LENGTH) {
+          throw new Error(`Each answer can be at most ${MAX_ASSESSMENT_ANSWER_LENGTH} characters`);
+        }
+      }
+      return true;
+    }),
+];

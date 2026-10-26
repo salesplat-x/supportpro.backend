@@ -46,6 +46,8 @@ export class Answer {
     questionId: string;
     answer: string;
     score?: number;
+    /** Day 4: the grader's one-line reason for the score (problem-solving / culture-fit). */
+    feedback?: string;
     dichotomyPreference?: string;
   }>;
 
