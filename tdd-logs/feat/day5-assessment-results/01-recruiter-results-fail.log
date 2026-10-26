@@ -1,0 +1,101 @@
+$ npx jest tests/assessmentResults.test.ts
+(node:2177988) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2178001) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+2026-10-26 18:19:35:1935 [32minfo[39m: [32mDocs available at http://localhost:3003/v1/docs[39m
+2026-10-26 18:19:35:1935 [37mhttp[39m: [37mGET /v1/applications/618a3db2-29c1-4133-bf78-abccfda602dd 200 3717 - 34.807 ms[39m
+2026-10-26 18:19:35:1935 [37mhttp[39m: [37mGET /v1/applications/85a5aae6-9cc3-41e4-bdee-52880891dc2f 200 3720 - 13.267 ms[39m
+2026-10-26 18:19:35:1935 [37mhttp[39m: [37mGET /v1/applications/66263895-2511-4028-b2c1-d7a906308f16 403 114 - 10.974 ms[39m
+2026-10-26 18:19:36:1936 [37mhttp[39m: [37mGET /v1/applications/c08e728b-4d47-4b5d-92ea-456e5708401d 200 3717 - 12.763 ms[39m
+2026-10-26 18:19:36:1936 [37mhttp[39m: [37mGET /v1/applications 200 2683 - 8.767 ms[39m
+2026-10-26 18:19:36:1936 [37mhttp[39m: [37mGET /v1/applications 200 2683 - 8.677 ms[39m
+[0m[7m[1m[31m FAIL [39m[22m[27m[0m [2mtests/[22m[1massessmentResults.test.ts[22m ([0m[1m[41m10.006 s[49m[22m[0m)
+  Day 5 — recruiter reads problem-solving and culture-fit results
+    [31m✕[39m [2mthe job's recruiter sees both scores and the graded answers with feedback (231 ms)[22m
+    [31m✕[39m [2mreturns empty answer lists and null scores when the candidate hasn't taken the tests (177 ms)[22m
+    [32m✓[39m [2ma recruiter from another company still gets 403 (192 ms)[22m
+  Day 5 — candidates never see their scores or the grading
+    [31m✕[39m [2mhides scores, graded answers and feedback from the candidate's own application (180 ms)[22m
+    [31m✕[39m [2mhides the scores from the candidate's application list (164 ms)[22m
+    [32m✓[39m [2mstill shows the scores in the recruiter's application list (174 ms)[22m
+
+[1m[31m  [1m● [22m[1mDay 5 — recruiter reads problem-solving and culture-fit results › the job's recruiter sees both scores and the graded answers with feedback[39m[22m
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoEqual[2m([22m[32mexpected[39m[2m) // deep equality[22m
+
+    Expected: [32m[{"answer": "Call them, then find the cause.", "feedback": "Clear triage, light on root cause.", "maxScore": 5, "question": "A key client churns overnight. What do you do first?", "score": 4}][39m
+    Received: [31mundefined[39m
+
+[2m      148 |     expect(a.problemSolvingScore).toBe(80);[22m
+[2m      149 |     expect(a.cultureFitScore).toBe(100);[22m
+[2m    > 150 |     expect(a.problemSolvingAnswers).toEqual([[22m
+[2m          |                                     ^[22m
+[2m      151 |       {[22m
+[2m      152 |         question: "A key client churns overnight. What do you do first?",[22m
+[2m      153 |         answer: "Call them, then find the cause.",[22m
+
+[2m      [2mat [22m[2m[0m[36mtests/assessmentResults.test.ts[39m[0m[2m:150:37[22m[2m[22m
+[2m      [2mat fulfilled ([22m[2m[0m[36mtests/assessmentResults.test.ts[39m[0m[2m:8:58)[22m[2m[22m
+
+[1m[31m  [1m● [22m[1mDay 5 — recruiter reads problem-solving and culture-fit results › returns empty answer lists and null scores when the candidate hasn't taken the tests[39m[22m
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoEqual[2m([22m[32mexpected[39m[2m) // deep equality[22m
+
+    Expected: [32m[][39m
+    Received: [31mundefined[39m
+
+[2m      182 |     expect(res.body.data.application.problemSolvingScore).toBeNull();[22m
+[2m      183 |     expect(res.body.data.application.cultureFitScore).toBeNull();[22m
+[2m    > 184 |     expect(res.body.data.application.problemSolvingAnswers).toEqual([]);[22m
+[2m          |                                                             ^[22m
+[2m      185 |     expect(res.body.data.application.cultureFitAnswers).toEqual([]);[22m
+[2m      186 |   });[22m
+[2m      187 |[22m
+
+[2m      [2mat [22m[2m[0m[36mtests/assessmentResults.test.ts[39m[0m[2m:184:61[22m[2m[22m
+[2m      [2mat fulfilled ([22m[2m[0m[36mtests/assessmentResults.test.ts[39m[0m[2m:8:58)[22m[2m[22m
+
+[1m[31m  [1m● [22m[1mDay 5 — candidates never see their scores or the grading › hides scores, graded answers and feedback from the candidate's own application[39m[22m
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mnot[2m.[22mtoHaveProperty[2m([22m[32mpath[39m[2m)[22m
+
+    Expected path: not [32m"problemSolvingScore"[39m
+
+    Received value: [31m80[39m
+
+[2m      206 |     expect(res.status).toBe(200);[22m
+[2m      207 |     const a = res.body.data.application;[22m
+[2m    > 208 |     expect(a).not.toHaveProperty("problemSolvingScore");[22m
+[2m          |                   ^[22m
+[2m      209 |     expect(a).not.toHaveProperty("cultureFitScore");[22m
+[2m      210 |     expect(a).not.toHaveProperty("problemSolvingAnswers");[22m
+[2m      211 |     expect(a).not.toHaveProperty("cultureFitAnswers");[22m
+
+[2m      [2mat [22m[2m[0m[36mtests/assessmentResults.test.ts[39m[0m[2m:208:19[22m[2m[22m
+[2m      [2mat fulfilled ([22m[2m[0m[36mtests/assessmentResults.test.ts[39m[0m[2m:8:58)[22m[2m[22m
+
+[1m[31m  [1m● [22m[1mDay 5 — candidates never see their scores or the grading › hides the scores from the candidate's application list[39m[22m
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mnot[2m.[22mtoHaveProperty[2m([22m[32mpath[39m[2m)[22m
+
+    Expected path: not [32m"problemSolvingScore"[39m
+
+    Received value: [31m80[39m
+
+[2m      222 |     const list = res.body.data.applications ?? res.body.data;[22m
+[2m      223 |     expect(list.length).toBe(1);[22m
+[2m    > 224 |     expect(list[0]).not.toHaveProperty("problemSolvingScore");[22m
+[2m          |                         ^[22m
+[2m      225 |     expect(list[0]).not.toHaveProperty("cultureFitScore");[22m
+[2m      226 |   });[22m
+[2m      227 |[22m
+
+[2m      [2mat [22m[2m[0m[36mtests/assessmentResults.test.ts[39m[0m[2m:224:25[22m[2m[22m
+[2m      [2mat fulfilled ([22m[2m[0m[36mtests/assessmentResults.test.ts[39m[0m[2m:8:58)[22m[2m[22m
+
+[1mTest Suites: [22m[1m[31m1 failed[39m[22m, 1 total
+[1mTests:       [22m[1m[31m4 failed[39m[22m, [1m[32m2 passed[39m[22m, 6 total
+[1mSnapshots:   [22m0 total
+[1mTime:[22m        10.399 s
+[2mRan all test suites[22m[2m matching [22mtests/assessmentResults.test.ts[2m.[22m
