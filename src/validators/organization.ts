@@ -21,6 +21,16 @@ export const updateOrganizationValidator = [
   body("facebook").optional().isString(),
 ];
 
+export const setMemberCanManagePeopleValidator = [
+  param("_id").isUUID().withMessage("Invalid company id"),
+  param("memberId").isUUID().withMessage("Invalid member id"),
+  body("canManagePeople")
+    .isBoolean({ strict: true })
+    .withMessage("canManagePeople must be true or false")
+    .bail()
+    .toBoolean(),
+];
+
 export const deleteOrganizationValidator = [idParam("_id")];
 
 export const joinRequestOrganizationValidator = [
