@@ -43,6 +43,11 @@ export const CANDIDATE_HIDDEN_APPLICATION_FIELDS = [
 ] as const;
 
 export const hideAssessmentResultsFromCandidate = (application: Application): Application => {
+  // The candidate may know a test is done (so the page can say so), never how it went.
+  Object.assign(application, {
+    problemSolvingSubmitted: application.problemSolvingScore != null,
+    cultureFitSubmitted: application.cultureFitScore != null,
+  });
   for (const field of CANDIDATE_HIDDEN_APPLICATION_FIELDS) {
     delete (application as Partial<Application>)[field];
   }
