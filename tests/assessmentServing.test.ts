@@ -94,6 +94,8 @@ const getServed = (token: string, type: keyof typeof PATHS, jobId: string) =>
   request(app).get(PATHS[type]).query({ jobId }).set("Authorization", `Bearer ${token}`);
 
 const servedOf = (res: request.Response): ServedQuestion[] => res.body.data.questions;
+const errorMessage = (res: request.Response): string =>
+  (res.body as { error: { message: string } }).error.message;
 
 describe.each([
   [QuestionType.ProblemSolving, "problemSolvingQuestions", 3],
@@ -135,7 +137,7 @@ describe.each([
     const { job, token } = await jobWithApplicant({}, 0);
     const res = await getServed(token, type, job.id);
     expect(res.status).toBe(409);
-    expect(res.body.message).toMatch(/isn't ready yet/i);
+    expect(errorMessage(res)).toMatch(/isn't ready yet/i);
   });
 
   it("the test is switched off for this job → 400", async () => {
@@ -145,7 +147,7 @@ describe.each([
     });
     const res = await getServed(token, type, job.id);
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/not switched on/i);
+    expect(errorMessage(res)).toMatch(/not switched on/i);
   });
 
   it("a candidate who hasn't applied → 400", async () => {

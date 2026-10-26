@@ -71,3 +71,8 @@ export const generateAssessmentQuestionsValidator = [
     .withMessage(`count must be a whole number from 1 to ${MAX_GENERATED_QUESTIONS_PER_REQUEST}`)
     .toInt(),
 ];
+
+// Day 4: a candidate loading their problem-solving or culture-fit questions.
+export const candidateAssessmentQuestionsValidator = [
+  query("jobId").isUUID().withMessage("jobId must be a valid job id"),
+];
