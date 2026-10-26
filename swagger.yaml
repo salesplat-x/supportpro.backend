@@ -1661,13 +1661,13 @@ paths:
                     an empty list clears them.
                   items:
                     type: string
+                    minLength: 1
+                    maxLength: 200
                 indeedFeedEnabled:
                   type: boolean
                   description: >-
                     Publish the company's open jobs at GET /organizations/{_id}/jobs.xml
                     for Indeed. Off by default.
-                    minLength: 1
-                    maxLength: 200
       responses:
         "200":
           description: Company updated
