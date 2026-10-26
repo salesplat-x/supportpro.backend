@@ -78,6 +78,10 @@ export class Organization {
   @Column({ type: "jsonb", default: "[]", name: "company_values" })
   companyValues!: string[];
 
+  /** Day 8: when on, the company's open jobs are published at GET /v1/organizations/:id/jobs.xml for Indeed. */
+  @Column({ type: "boolean", default: false, name: "indeed_feed_enabled" })
+  indeedFeedEnabled!: boolean;
+
   @Column({ type: "enum", enum: OrganizationStatus, default: OrganizationStatus.Pending })
   status!: OrganizationStatus;
 

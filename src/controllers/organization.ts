@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import * as organizationService from "../services/organization.js";
+import { buildIndeedFeed } from "../services/jobFeed.js";
 import { sendSuccessResponse } from "../utils/response.js";
 
 export const registerOrganization = async (req: Request, res: Response) => {
@@ -127,4 +128,10 @@ export const acceptOrganizationInvite = async (req: Request, res: Response) => {
     req.params["token"]!
   );
   sendSuccessResponse(res, "You have joined the company", { organization: result });
+};
+
+/** Day 8: public Indeed XML feed of the company's open jobs (404 unless switched on). */
+export const getJobFeed = async (req: Request, res: Response) => {
+  const xml = await buildIndeedFeed(req.params["_id"]!);
+  res.status(200).type("application/xml").send(xml);
 };
