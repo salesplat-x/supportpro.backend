@@ -45,11 +45,11 @@ afterEach(async () => {
   await clearAllTables();
 });
 
-async function companyWithJobs(feedOn = true) {
+async function companyWithJobs(feedOn = true, name = "Acme & Sons") {
   const { user: owner, token } = await createRecruiter();
-  const org = await createOrganization(owner, { name: "Acme & Sons", indeedFeedEnabled: feedOn });
+  const org = await createOrganization(owner, { name, indeedFeedEnabled: feedOn });
   const { user: refreshed } = { user: { ...owner, activeOrganizationId: org.id } };
-  const role = await createRole("customer-success-manager");
+  const role = await createRole();
   const open = await createJob(refreshed, role, {
     organizationId: org.id,
     jobBrief: "Look after our clients <daily> & keep them happy. ]]> Not a trick.",
@@ -106,7 +106,7 @@ describe("Day 8 — Indeed XML job feed", () => {
 
   it("leaves out draft and closed jobs and other companies' jobs", async () => {
     const { org, draft, closed } = await companyWithJobs();
-    const other = await companyWithJobs();
+    const other = await companyWithJobs(true, "Other Co");
 
     const res = await feed(org.id);
 
