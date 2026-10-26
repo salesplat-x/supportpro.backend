@@ -197,6 +197,32 @@ describe("Day 5 — recruiter reads problem-solving and culture-fit results", ()
 });
 
 describe("Day 5 — candidates never see their scores or the grading", () => {
+  it("tells the candidate which tests they have already submitted, without the score", async () => {
+    const { talentToken, app_ } = await setupScoredApplication();
+    const res = await request(app)
+      .get(`/v1/applications/${app_.id}`)
+      .set("Authorization", `Bearer ${talentToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.application.problemSolvingSubmitted).toBe(true);
+    expect(res.body.data.application.cultureFitSubmitted).toBe(true);
+  });
+
+  it("says a test is not yet submitted when there is no score", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role);
+    const { user: talent, token } = await createTalent();
+    const app_ = await createApplication(talent, job);
+
+    const res = await request(app)
+      .get(`/v1/applications/${app_.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.body.data.application.problemSolvingSubmitted).toBe(false);
+    expect(res.body.data.application.cultureFitSubmitted).toBe(false);
+  });
+
   it("hides scores, graded answers and feedback from the candidate's own application", async () => {
     const { talentToken, app_ } = await setupScoredApplication();
     const res = await request(app)
