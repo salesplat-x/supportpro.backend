@@ -2786,6 +2786,10 @@ paths:
           required: true
           schema:
             type: string
+      description: >-
+        The candidate can read their own application; the job's company (and admins) can read
+        any application for its jobs. Test scores and graded answers are only returned to the
+        company, never to the candidate.
       responses:
         "200":
           description: Successful response
@@ -2793,6 +2797,63 @@ paths:
             application/json:
               schema:
                 type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      count:
+                        type: number
+                      application:
+                        type: object
+                        properties:
+                          problemSolvingScore:
+                            type: number
+                            nullable: true
+                            description: >-
+                              Problem-solving result as a percentage (null until taken). Not sent to the candidate.
+                          cultureFitScore:
+                            type: number
+                            nullable: true
+                            description: >-
+                              Culture-fit result as a percentage (null until taken). Not sent to the candidate.
+                          problemSolvingAnswers:
+                            description: Graded problem-solving answers, in the order asked. Company only.
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                question:
+                                  type: string
+                                answer:
+                                  type: string
+                                score:
+                                  type: number
+                                  description: The AI's grade for this answer, 0-5.
+                                maxScore:
+                                  type: number
+                                  example: 5
+                                feedback:
+                                  type: string
+                                  description: One line on why it got that grade.
+                          cultureFitAnswers:
+                            description: Graded culture-fit answers, in the order asked. Company only.
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                question:
+                                  type: string
+                                answer:
+                                  type: string
+                                score:
+                                  type: number
+                                  description: The AI's grade for this answer, 0-5.
+                                maxScore:
+                                  type: number
+                                  example: 5
+                                feedback:
+                                  type: string
+                                  description: One line on why it got that grade.
       security:
         - bearerAuth: []
   /applications/{_id}/status:
