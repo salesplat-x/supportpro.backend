@@ -93,6 +93,48 @@ export const buildQuestionAnswerPairs = async (
   });
 };
 
+export type GradedAnswerPair = {
+  question: string;
+  answer: string;
+  score: number | null;
+  maxScore: number;
+  feedback: string | null;
+};
+
+type StoredGradedResponse = {
+  questionId?: string;
+  answer?: string;
+  score?: number;
+  feedback?: string;
+};
+
+/**
+ * The candidate's graded problem-solving or culture-fit answers, in the order
+ * they were asked, for the recruiter's view (plan Day 5). Each answer carries
+ * the AI's 0-5 grade and its one-line feedback. Never sent to the candidate.
+ */
+export const buildGradedAnswerPairs = async (
+  jobId: string,
+  userId: string,
+  questionType: QuestionType.ProblemSolving | QuestionType.CultureFit
+): Promise<GradedAnswerPair[]> => {
+  const answer = await answerRepo().findOne({ where: { userId, jobId, questionType } });
+  if (!answer || answer.responses.length === 0) return [];
+
+  const responses = answer.responses as StoredGradedResponse[];
+  const ids = responses.map((r) => r.questionId).filter((id): id is string => !!id);
+  const questions = ids.length ? await questionRepo().find({ where: { id: In(ids) } }) : [];
+  const questionsById = new Map(questions.map((q) => [q.id, q.question]));
+
+  return responses.map((r) => ({
+    question: (r.questionId && questionsById.get(r.questionId)) || "Unknown question",
+    answer: r.answer ?? "",
+    score: typeof r.score === "number" ? r.score : null,
+    maxScore: 5,
+    feedback: r.feedback ?? null,
+  }));
+};
+
 const persistRecommendation = async (
   applicationId: string,
   payload: {
