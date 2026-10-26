@@ -26,7 +26,9 @@ const assessmentCountValidator = (field: string) =>
     .customSanitizer(blankToUndefined)
     .optional()
     .isInt({ min: 1, max: MAX_ASSESSMENT_QUESTIONS_PER_CANDIDATE })
-    .withMessage(`${field} must be a whole number from 1 to ${MAX_ASSESSMENT_QUESTIONS_PER_CANDIDATE}`)
+    .withMessage(
+      `${field} must be a whole number from 1 to ${MAX_ASSESSMENT_QUESTIONS_PER_CANDIDATE}`
+    )
     .toInt();
 
 const assessmentSwitchValidators = [

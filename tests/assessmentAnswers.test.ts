@@ -29,6 +29,7 @@ import type { AIConfig } from "../src/entities/AIConfig.js";
 import type { Question } from "../src/entities/Question.js";
 import { JobStatus, QuestionType } from "../src/types/enums.js";
 import * as AI from "../src/utils/integrations/openai.js";
+import { apiData } from "./helpers/http.js";
 import { AddAssessmentScoresToApplications1789001100000 } from "../src/migrations/1789001100000-AddAssessmentScoresToApplications.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
@@ -44,7 +45,10 @@ jest.mock("../src/utils/integrations/openai.js", () => ({
   gradeCompanyAssessmentAnswers: jest.fn(),
 }));
 
-const mockGrade = AI.gradeCompanyAssessmentAnswers as jest.Mock;
+const mockGrade = AI.gradeCompanyAssessmentAnswers as jest.Mock<
+  Promise<unknown>,
+  [AI.GradeCompanyAssessmentContext]
+>;
 
 let app: ReturnType<typeof createApp>;
 
@@ -150,7 +154,7 @@ describe.each([QuestionType.ProblemSolving, QuestionType.CultureFit] as const)(
       const res = await submit(token, type, { jobId: job.id, answers: answersFor(questions) });
       expect(res.status).toBe(200);
       // The candidate is told it was received, not their score or the criteria.
-      expect(res.body.data).toEqual({ submitted: true, questionType: type, answered: 3 });
+      expect(apiData(res)).toEqual({ submitted: true, questionType: type, answered: 3 });
 
       const saved = await reloadApplication(application.id);
       expect(saved[scoreField]).toBe(80);
@@ -173,7 +177,7 @@ describe.each([QuestionType.ProblemSolving, QuestionType.CultureFit] as const)(
       await submit(token, type, { jobId: job.id, answers: answersFor(questions) });
 
       expect(mockGrade).toHaveBeenCalledTimes(1);
-      const context = mockGrade.mock.calls[0]![0] as AI.GradeCompanyAssessmentContext;
+      const context = mockGrade.mock.calls[0]![0];
       expect(context.type).toBe(type);
       expect(context.items).toHaveLength(3);
       const item = context.items.find((i) => i.questionId === questions[0]!.id)!;
@@ -202,7 +206,7 @@ describe.each([QuestionType.ProblemSolving, QuestionType.CultureFit] as const)(
       const res = await submit(token, type, { jobId: job.id, answers: answersFor(questions) });
       expect(res.status).toBe(200);
       expect(mockGrade).toHaveBeenCalledTimes(2);
-      const retryItems = (mockGrade.mock.calls[1]![0] as AI.GradeCompanyAssessmentContext).items;
+      const retryItems = mockGrade.mock.calls[1]![0].items;
       expect(retryItems.map((i) => i.questionId).sort()).toEqual(
         [questions[1]!.id, questions[2]!.id].sort()
       );
@@ -233,7 +237,9 @@ describe.each([QuestionType.ProblemSolving, QuestionType.CultureFit] as const)(
       mockGrade.mockResolvedValue(
         gradesReply(questions.map((q) => ({ questionId: q.id, score: 1 })))
       );
-      expect((await submit(token, type, { jobId: job.id, answers: answersFor(questions) })).status).toBe(200);
+      expect(
+        (await submit(token, type, { jobId: job.id, answers: answersFor(questions) })).status
+      ).toBe(200);
       const again = await submit(token, type, { jobId: job.id, answers: answersFor(questions) });
       expect(again.status).toBe(409);
       expect((await reloadApplication(application.id))[scoreField]).toBe(20);
@@ -297,7 +303,10 @@ describe.each([QuestionType.ProblemSolving, QuestionType.CultureFit] as const)(
     it("a recruiter can't submit candidate answers → 403", async () => {
       const { job, questions } = await servedApplicant(type);
       const { token: recruiterToken } = await createRecruiter();
-      const res = await submit(recruiterToken, type, { jobId: job.id, answers: answersFor(questions) });
+      const res = await submit(recruiterToken, type, {
+        jobId: job.id,
+        answers: answersFor(questions),
+      });
       expect(res.status).toBe(403);
     });
 
