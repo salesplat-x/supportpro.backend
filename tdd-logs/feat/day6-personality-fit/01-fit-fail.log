@@ -1,0 +1,58 @@
+(node:2192258) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2192271) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[0m[7m[1m[31m FAIL [39m[22m[27m[0m [2mtests/[22m[1mpersonalityFit.test.ts[22m
+  [1m● [22mTest suite failed to run
+
+    [96mtests/personalityFit.test.ts[0m:[93m29[0m:[93m62[0m - [91merror[0m[90m TS2307: [0mCannot find module '../src/migrations/1789001200000-AddPersonalityFitToApplications.js' or its corresponding type declarations.
+
+    [7m29[0m import { AddPersonalityFitToApplications1789001200000 } from "../src/migrations/1789001200000-AddPersonalityFitToApplications.js";
+    [7m  [0m [91m                                                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+    [96mtests/personalityFit.test.ts[0m:[93m46[0m:[93m20[0m - [91merror[0m[90m TS2551: [0mProperty 'evaluatePersonalityFit' does not exist on type 'typeof import("/home/user/tab/work/supportpro/wt/day5/src/utils/integrations/openai")'. Did you mean 'evaluatePersonalityType'?
+
+    [7m46[0m const mockFit = AI.evaluatePersonalityFit as jest.Mock;
+    [7m  [0m [91m                   ~~~~~~~~~~~~~~~~~~~~~~[0m
+
+      [96msrc/utils/integrations/openai.ts[0m:[93m235[0m:[93m14[0m
+        [7m235[0m export const evaluatePersonalityType = async (
+        [7m   [0m [96m             ~~~~~~~~~~~~~~~~~~~~~~~[0m
+        'evaluatePersonalityType' is declared here.
+    [96mtests/personalityFit.test.ts[0m:[93m118[0m:[93m18[0m - [91merror[0m[90m TS2339: [0mProperty 'personalityFitScore' does not exist on type 'Application'.
+
+    [7m118[0m     expect(saved.personalityFitScore).toBe(78);
+    [7m   [0m [91m                 ~~~~~~~~~~~~~~~~~~~[0m
+    [96mtests/personalityFit.test.ts[0m:[93m119[0m:[93m18[0m - [91merror[0m[90m TS2339: [0mProperty 'personalityFitReason' does not exist on type 'Application'.
+
+    [7m119[0m     expect(saved.personalityFitReason).toBe("Plans ahead, suits the role.");
+    [7m   [0m [91m                 ~~~~~~~~~~~~~~~~~~~~[0m
+    [96mtests/personalityFit.test.ts[0m:[93m130[0m:[93m18[0m - [91merror[0m[90m TS2339: [0mProperty 'personalityFitScore' does not exist on type 'Application'.
+
+    [7m130[0m     expect(saved.personalityFitScore).toBeNull();
+    [7m   [0m [91m                 ~~~~~~~~~~~~~~~~~~~[0m
+    [96mtests/personalityFit.test.ts[0m:[93m131[0m:[93m18[0m - [91merror[0m[90m TS2339: [0mProperty 'personalityFitReason' does not exist on type 'Application'.
+
+    [7m131[0m     expect(saved.personalityFitReason).toBeNull();
+    [7m   [0m [91m                 ~~~~~~~~~~~~~~~~~~~~[0m
+    [96mtests/personalityFit.test.ts[0m:[93m143[0m:[93m18[0m - [91merror[0m[90m TS2339: [0mProperty 'personalityFitScore' does not exist on type 'Application'.
+
+    [7m143[0m     expect(saved.personalityFitScore).toBeNull();
+    [7m   [0m [91m                 ~~~~~~~~~~~~~~~~~~~[0m
+    [96mtests/personalityFit.test.ts[0m:[93m144[0m:[93m18[0m - [91merror[0m[90m TS2339: [0mProperty 'personalityFitReason' does not exist on type 'Application'.
+
+    [7m144[0m     expect(saved.personalityFitReason).toBeNull();
+    [7m   [0m [91m                 ~~~~~~~~~~~~~~~~~~~~[0m
+    [96mtests/personalityFit.test.ts[0m:[93m160[0m:[93m18[0m - [91merror[0m[90m TS2339: [0mProperty 'personalityFitScore' does not exist on type 'Application'.
+
+    [7m160[0m     expect(saved.personalityFitScore).toBeNull();
+    [7m   [0m [91m                 ~~~~~~~~~~~~~~~~~~~[0m
+    [96mtests/personalityFit.test.ts[0m:[93m161[0m:[93m18[0m - [91merror[0m[90m TS2339: [0mProperty 'personalityFitReason' does not exist on type 'Application'.
+
+    [7m161[0m     expect(saved.personalityFitReason).toBeNull();
+    [7m   [0m [91m                 ~~~~~~~~~~~~~~~~~~~~[0m
+
+[1mTest Suites: [22m[1m[31m1 failed[39m[22m, 1 total
+[1mTests:       [22m0 total
+[1mSnapshots:   [22m0 total
+[1mTime:[22m        4.438 s
+[2mRan all test suites[22m[2m matching [22mtests/personalityFit.test.ts[2m.[22m
