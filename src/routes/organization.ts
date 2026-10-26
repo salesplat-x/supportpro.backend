@@ -15,6 +15,7 @@ import {
   organizationLogoValidator,
   revokeOrganizationInviteValidator,
   sendOrganizationInviteValidator,
+  setMemberCanManagePeopleValidator,
   switchOrganizationValidator,
   updateOrganizationValidator,
 } from "../validators/organization.js";
@@ -71,6 +72,14 @@ router.get(
   requireVerifiedEmail,
   validate(switchOrganizationValidator),
   asyncHandler(organization.listOrganizationMembers, "load team members")
+);
+
+router.patch(
+  "/:_id/members/:memberId",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(setMemberCanManagePeopleValidator),
+  asyncHandler(organization.setMemberCanManagePeople, "update team member")
 );
 
 router.get(

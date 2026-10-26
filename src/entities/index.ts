@@ -29,3 +29,6 @@ export { FeatureUsageCounter } from "./FeatureUsageCounter.js";
 export { OrganizationPlanHistory } from "./OrganizationPlanHistory.js";
 export { OnboardingEmail } from "./OnboardingEmail.js";
 export { ApplicationFollowUpEmail } from "./ApplicationFollowUpEmail.js";
+export { StaffMember } from "./StaffMember.js";
+export { StaffActivity } from "./StaffActivity.js";
+export { StaffAccessLog } from "./StaffAccessLog.js";

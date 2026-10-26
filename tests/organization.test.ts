@@ -29,7 +29,13 @@ import {
   createJob,
 } from "./helpers/fixtures.js";
 import * as paystack from "../src/utils/integrations/paystack.js";
-import { DEFAULT_BILLING_PLAN_KEY } from "../src/types/enums.js";
+import {
+  BillingInterval,
+  BillingStatus,
+  DEFAULT_BILLING_PLAN_KEY,
+  OrganizationStatus,
+} from "../src/types/enums.js";
+import * as organizationService from "../src/services/organization.js";
 import { uploadToSpaces, deleteFromSpaces } from "../src/utils/integrations/spaces.js";
 
 const mockUploadToSpaces = uploadToSpaces as jest.Mock;
@@ -121,6 +127,42 @@ describe("POST /v1/organizations/ — create organization (Recruiter only)", () 
     expect(res.status).toBe(201);
     expect(res.body.data.organization.name).toBe("TechCorp Ltd");
     expect(res.body.data.organization.status).toBe("pending");
+  });
+
+  it("Create ignores plan, billing, verification and ownership fields in the body → defaults", async () => {
+    const { user: recruiter, token } = await recruiterForTechCorp();
+    const { user: someoneElse } = await createRecruiter();
+    const res = await request(app)
+      .post("/v1/organizations/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        ...validOrgBody,
+        status: OrganizationStatus.Verified,
+        billingPlan: "enterprise",
+        billingStatus: BillingStatus.PastDue,
+        billingInterval: BillingInterval.Annually,
+        billingPeriodEnd: "2099-12-31T00:00:00.000Z",
+        verifiedAt: "2026-01-01T00:00:00.000Z",
+        verifiedById: someoneElse.id,
+        ownerId: someoneElse.id,
+        logoKey: "organizations/someone-else/logo.png",
+      });
+
+    expect(res.status).toBe(201);
+    const createdId = (res.body as { data: { organization: Organization } }).data.organization.id;
+    const created = await testDataSource
+      .getRepository(Organization)
+      .findOneByOrFail({ id: createdId });
+    expect(created.name).toBe("TechCorp Ltd");
+    expect(created.status).toBe(OrganizationStatus.Pending);
+    expect(created.billingPlan).toBe(DEFAULT_BILLING_PLAN_KEY);
+    expect(created.billingStatus).toBe(BillingStatus.Active);
+    expect(created.billingInterval).toBeNull();
+    expect(created.billingPeriodEnd).toBeNull();
+    expect(created.verifiedAt).toBeNull();
+    expect(created.verifiedById).toBeNull();
+    expect(created.ownerId).toBe(recruiter.id);
+    expect(created.logoKey).toBeNull();
   });
 
   it("Admin cannot create organization → 403", async () => {
@@ -468,6 +510,131 @@ describe("PATCH /v1/organizations/:id — update organization", () => {
     expect(res.status).toBe(200);
     expect(res.body.data.organization.name).toBe("Renamed");
     expect(res.body.data.organization.logoUrl).toBe("https://original.example.com/logo.png");
+  });
+
+  it("Owner cannot self-verify or change the plan: protected fields are ignored → 200, unchanged", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const { user: someoneElse } = await createRecruiter();
+    const org = await createOrganization(recruiter, { name: "Acme Hiring" });
+    const before = await testDataSource.getRepository(Organization).findOneByOrFail({ id: org.id });
+    expect(before.status).toBe(OrganizationStatus.Pending);
+    expect(before.billingPlan).toBe(DEFAULT_BILLING_PLAN_KEY);
+
+    const res = await request(app)
+      .patch(`/v1/organizations/${org.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        name: "Acme Hiring Ltd",
+        status: OrganizationStatus.Verified,
+        verifiedAt: "2026-01-01T00:00:00.000Z",
+        verifiedById: someoneElse.id,
+        billingPlan: "enterprise",
+        billingStatus: BillingStatus.Active,
+        billingInterval: BillingInterval.Annually,
+        billingPeriodEnd: "2099-12-31T00:00:00.000Z",
+        ownerId: someoneElse.id,
+        logoKey: "organizations/someone-else/logo.png",
+        createdAt: "2000-01-01T00:00:00.000Z",
+      });
+
+    expect(res.status).toBe(200);
+    const returned = (res.body as { data: { organization: Organization } }).data.organization;
+    expect(returned.name).toBe("Acme Hiring Ltd");
+    expect(returned.status).toBe(OrganizationStatus.Pending);
+    expect(returned.billingPlan).toBe(DEFAULT_BILLING_PLAN_KEY);
+
+    const after = await testDataSource.getRepository(Organization).findOneByOrFail({ id: org.id });
+    expect(after.name).toBe("Acme Hiring Ltd");
+    expect(after.status).toBe(OrganizationStatus.Pending);
+    expect(after.verifiedAt).toBeNull();
+    expect(after.verifiedById).toBeNull();
+    expect(after.billingPlan).toBe(DEFAULT_BILLING_PLAN_KEY);
+    expect(after.billingStatus).toBe(before.billingStatus);
+    expect(after.billingInterval).toBe(before.billingInterval);
+    expect(after.billingPeriodEnd).toBe(before.billingPeriodEnd);
+    expect(after.ownerId).toBe(recruiter.id);
+    expect(after.logoKey).toBe(before.logoKey);
+    expect(after.createdAt.toISOString()).toBe(before.createdAt.toISOString());
+  });
+
+  it("Sending only protected fields changes nothing → 200, unchanged", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter, { name: "Only Extras" });
+
+    const res = await request(app)
+      .patch(`/v1/organizations/${org.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: OrganizationStatus.Verified, billingPlan: "enterprise" });
+
+    expect(res.status).toBe(200);
+    const after = await testDataSource.getRepository(Organization).findOneByOrFail({ id: org.id });
+    expect(after.name).toBe("Only Extras");
+    expect(after.status).toBe(OrganizationStatus.Pending);
+    expect(after.billingPlan).toBe(DEFAULT_BILLING_PLAN_KEY);
+  });
+
+  it("A changed id in the body cannot redirect the update to another company", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const { user: otherOwner } = await createRecruiter();
+    const org = await createOrganization(recruiter, { name: "Mine" });
+    const other = await createOrganization(otherOwner, { name: "Theirs" });
+
+    const res = await request(app)
+      .patch(`/v1/organizations/${org.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ id: other.id, name: "Overwritten" });
+
+    expect(res.status).toBe(200);
+    const repo = testDataSource.getRepository(Organization);
+    expect((await repo.findOneByOrFail({ id: org.id })).name).toBe("Overwritten");
+    const theirs = await repo.findOneByOrFail({ id: other.id });
+    expect(theirs.name).toBe("Theirs");
+    expect(theirs.ownerId).toBe(otherOwner.id);
+  });
+
+  it("Every editable field still updates when sent beside protected ones", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+
+    const editable = {
+      name: "Editable Co",
+      phone: "+2348058272524",
+      address: "1 New Road, Abuja",
+      industry: "Logistics",
+      twitter: "https://x.com/editableco",
+      linkedin: "https://linkedin.com/company/editableco",
+      facebook: "https://facebook.com/editableco",
+    };
+    const res = await request(app)
+      .patch(`/v1/organizations/${org.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ ...editable, status: OrganizationStatus.Verified, billingPlan: "enterprise" });
+
+    expect(res.status).toBe(200);
+    const after = await testDataSource.getRepository(Organization).findOneByOrFail({ id: org.id });
+    expect(after).toMatchObject(editable);
+    expect(after.status).toBe(OrganizationStatus.Pending);
+    expect(after.billingPlan).toBe(DEFAULT_BILLING_PLAN_KEY);
+  });
+
+  it("Service layer ignores protected fields even if a caller skips the HTTP validator", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const org = await createOrganization(recruiter, { name: "Direct Call" });
+
+    const payload = {
+      name: "Direct Call Renamed",
+      status: OrganizationStatus.Verified,
+      billingPlan: "enterprise",
+      ownerId: null,
+    } as unknown as organizationService.UpdateOrganizationPayload;
+    const result = await organizationService.updateOrganization(recruiter.id, org.id, payload);
+
+    expect(result.name).toBe("Direct Call Renamed");
+    const after = await testDataSource.getRepository(Organization).findOneByOrFail({ id: org.id });
+    expect(after.name).toBe("Direct Call Renamed");
+    expect(after.status).toBe(OrganizationStatus.Pending);
+    expect(after.billingPlan).toBe(DEFAULT_BILLING_PLAN_KEY);
+    expect(after.ownerId).toBe(recruiter.id);
   });
 
   it("Non-owner recruiter cannot update → 403", async () => {
