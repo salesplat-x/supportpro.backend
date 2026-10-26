@@ -1,0 +1,27 @@
+$ timeout -k 10 400 npx jest --config /home/user/tab/work/supportpro/wt/jest.local.config.js tests/gradedAnswers.test.ts tests/assessmentQuestionPrompts.test.ts 
+FAIL tests/gradedAnswers.test.ts
+  ● Test suite failed to run
+
+    tests/gradedAnswers.test.ts:11:8 - error TS2307: Cannot find module '../src/utils/gradedAnswers.js' or its corresponding type declarations.
+
+    11 } from "../src/utils/gradedAnswers.js";
+              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+FAIL tests/assessmentQuestionPrompts.test.ts
+  ● Test suite failed to run
+
+    tests/assessmentQuestionPrompts.test.ts:25:3 - error TS2724: '"../src/utils/integrations/openai.js"' has no exported member named 'gradeCompanyAssessmentAnswers'. Did you mean 'gradeAssessmentAnswers'?
+
+    25   gradeCompanyAssessmentAnswers,
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+      src/utils/integrations/openai.ts:34:14
+        34 export const gradeAssessmentAnswers = async (
+                        ~~~~~~~~~~~~~~~~~~~~~~
+        'gradeAssessmentAnswers' is declared here.
+
+Test Suites: 2 failed, 2 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        4.113 s
+Ran all test suites matching tests/gradedAnswers.test.ts|tests/assessmentQuestionPrompts.test.ts.
