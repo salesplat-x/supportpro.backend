@@ -1592,6 +1592,33 @@ paths:
                 - address
       security:
         - bearerAuth: []
+  /organizations/{_id}/jobs.xml:
+    get:
+      summary: Public — the company's open jobs as an Indeed XML feed
+      description: >-
+        No login. Lists the company's active jobs in Indeed's XML feed format.
+        Only served when the company has switched indeedFeedEnabled on.
+      tags:
+        - organizations
+      security: []
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The feed
+          content:
+            application/xml:
+              schema:
+                type: string
+        "400":
+          description: Invalid company id
+        "404":
+          description: No such company, or its feed is switched off
   /organizations/{_id}:
     patch:
       summary: Recruiter (company owner) — update company details
@@ -1634,6 +1661,11 @@ paths:
                     an empty list clears them.
                   items:
                     type: string
+                indeedFeedEnabled:
+                  type: boolean
+                  description: >-
+                    Publish the company's open jobs at GET /organizations/{_id}/jobs.xml
+                    for Indeed. Off by default.
                     minLength: 1
                     maxLength: 200
       responses:
