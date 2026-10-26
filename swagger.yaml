@@ -2816,6 +2816,16 @@ paths:
                             nullable: true
                             description: >-
                               Culture-fit result as a percentage (null until taken). Not sent to the candidate.
+                          personalityFitScore:
+                            type: number
+                            nullable: true
+                            description: >-
+                              The AI's 0-100 judgement of how the applicant's personality (MBTI) fits this job, made right after the personality check (null until then, or if the AI call failed). Not sent to the candidate.
+                          personalityFitReason:
+                            type: string
+                            nullable: true
+                            description: >-
+                              The AI's short reason for personalityFitScore. Not sent to the candidate.
                           problemSolvingAnswers:
                             description: Graded problem-solving answers, in the order asked. Company only.
                             type: array
