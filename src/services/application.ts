@@ -40,6 +40,8 @@ const organizationRepo = () => AppDataSource.getRepository(Organization);
 export const CANDIDATE_HIDDEN_APPLICATION_FIELDS = [
   "problemSolvingScore",
   "cultureFitScore",
+  "personalityFitScore",
+  "personalityFitReason",
 ] as const;
 
 export const hideAssessmentResultsFromCandidate = (application: Application): Application => {

@@ -4,6 +4,7 @@ import { Question } from "../entities/Question.js";
 import { Application } from "../entities/Application.js";
 import { User } from "../entities/User.js";
 import { Job } from "../entities/Job.js";
+import { Role } from "../entities/Role.js";
 import { IsNull } from "typeorm";
 import {
   NotFoundError,
@@ -446,7 +447,76 @@ export const evaluatePersonalityType = async (
   application.mbtiType = mbtiType;
   application = await applicationRepo().save(application);
 
+  // Day 6: right after the MBTI type is saved, the AI judges how it fits the
+  // job. Only reached when the personality check is on (checked above).
+  application = await savePersonalityFit(application, job, mbtiType);
+
   return { application, mbtiType, score: mbtiType };
+};
+
+/** Reads the AI's fit reply; anything not a 0-100 score with a reason is ignored. */
+export const parsePersonalityFit = (
+  content: string | null | undefined
+): { personalityFitScore: number; personalityFitReason: string } | null => {
+  if (!content) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return null;
+  }
+  const { personalityFitScore, personalityFitReason } = (parsed ?? {}) as Record<string, unknown>;
+  if (
+    typeof personalityFitScore !== "number" ||
+    !Number.isFinite(personalityFitScore) ||
+    personalityFitScore < 0 ||
+    personalityFitScore > 100 ||
+    typeof personalityFitReason !== "string" ||
+    !personalityFitReason.trim()
+  ) {
+    return null;
+  }
+  return { personalityFitScore, personalityFitReason: personalityFitReason.trim() };
+};
+
+const savePersonalityFit = async (
+  application: Application,
+  job: Job,
+  mbtiType: string
+): Promise<Application> => {
+  try {
+    const role = job.roleId
+      ? await AppDataSource.getRepository(Role).findOne({ where: { id: job.roleId } })
+      : null;
+    const response = await AI.evaluatePersonalityFit({
+      mbtiType,
+      job: {
+        title: role?.name ?? null,
+        jobBrief: job.jobBrief,
+        requirements: job.requirements ?? null,
+        skills: job.skills ?? null,
+        goals: job.goals ?? null,
+        experienceLevel: job.experienceLevel,
+      },
+    });
+    const fit = parsePersonalityFit(response?.message?.content);
+    if (!fit) {
+      logger.warn(
+        `Personality fit for application ${application.id}: unusable AI reply, left empty`
+      );
+      return application;
+    }
+    Object.assign(application, fit);
+    return await applicationRepo().save(application);
+  } catch (error) {
+    // The MBTI result is already saved; a failed fit call must not undo it.
+    logger.warn(
+      `Personality fit for application ${application.id} failed, left empty: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+    return application;
+  }
 };
 
 // ---------------------------------------------------------------------------
