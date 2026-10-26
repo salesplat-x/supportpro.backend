@@ -25,6 +25,7 @@ import {
 import { Application } from "../src/entities/Application.js";
 import type { AIConfig } from "../src/entities/AIConfig.js";
 import { QuestionType } from "../src/types/enums.js";
+import { apiData } from "./helpers/http.js";
 import { AddAssessmentQuestionsToApplications1789001000000 } from "../src/migrations/1789001000000-AddAssessmentQuestionsToApplications.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
@@ -74,16 +75,24 @@ async function jobWithApplicant(
   });
   const job = await createJob(recruiter, await createRole(), { aiConfigId: config.id });
   for (let i = 1; i <= poolSize; i++) {
-    await createQuestion(QuestionType.ProblemSolving, { jobId: job.id }, {
-      question: `Reasoning scenario ${i}: how would you work it out?`,
-      category: "logical",
-      criteria: `Secret criteria PS-${i}`,
-    });
-    await createQuestion(QuestionType.CultureFit, { jobId: job.id }, {
-      question: `Tell us about a time you showed ownership (${i}).`,
-      category: "Ownership",
-      criteria: `Secret criteria CF-${i}`,
-    });
+    await createQuestion(
+      QuestionType.ProblemSolving,
+      { jobId: job.id },
+      {
+        question: `Reasoning scenario ${i}: how would you work it out?`,
+        category: "logical",
+        criteria: `Secret criteria PS-${i}`,
+      }
+    );
+    await createQuestion(
+      QuestionType.CultureFit,
+      { jobId: job.id },
+      {
+        question: `Tell us about a time you showed ownership (${i}).`,
+        category: "Ownership",
+        criteria: `Secret criteria CF-${i}`,
+      }
+    );
   }
   const { user: talent, token } = await createCompleteTalent();
   const application = apply ? await createApplication(talent, job) : null;
@@ -93,7 +102,8 @@ async function jobWithApplicant(
 const getServed = (token: string, type: keyof typeof PATHS, jobId: string) =>
   request(app).get(PATHS[type]).query({ jobId }).set("Authorization", `Bearer ${token}`);
 
-const servedOf = (res: request.Response): ServedQuestion[] => res.body.data.questions;
+const servedOf = (res: request.Response): ServedQuestion[] =>
+  apiData<{ questions: ServedQuestion[] }>(res).questions;
 const errorMessage = (res: request.Response): string =>
   (res.body as { error: { message: string } }).error.message;
 

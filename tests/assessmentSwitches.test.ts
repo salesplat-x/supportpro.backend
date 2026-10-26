@@ -17,6 +17,9 @@ import { createRecruiter, createAIConfig, createJob, createRole } from "./helper
 import { AIConfig } from "../src/entities/AIConfig.js";
 import { AddAssessmentSwitchesToAIConfigs1789000900000 } from "../src/migrations/1789000900000-AddAssessmentSwitchesToAIConfigs.js";
 import { MAX_ASSESSMENT_QUESTIONS_PER_CANDIDATE } from "../src/config/assessmentQuestions.js";
+import { apiData } from "./helpers/http.js";
+
+const createdId = (res: request.Response) => apiData<{ aiConfig: AIConfig }>(res).aiConfig.id;
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
   __esModule: true,
@@ -53,8 +56,7 @@ const baseConfigBody = {
   noOfEIQuestions: 3,
 };
 
-const savedConfig = (id: string) =>
-  testDataSource.getRepository(AIConfig).findOneByOrFail({ id });
+const savedConfig = (id: string) => testDataSource.getRepository(AIConfig).findOneByOrFail({ id });
 
 async function recruiterWithJob() {
   const { user: recruiter, token } = await createRecruiter();
@@ -80,7 +82,7 @@ describe("POST /v1/ai-config/ with the Day 4 switches", () => {
       noOfCultureFitQuestions: 3,
     });
     expect(res.status).toBe(201);
-    const config = await savedConfig(res.body.data.aiConfig.id);
+    const config = await savedConfig(createdId(res));
     expect(config.problemSolvingAssessment).toBe(true);
     expect(config.noOfProblemSolvingQuestions).toBe(4);
     expect(config.cultureFitAssessment).toBe(true);
@@ -91,7 +93,7 @@ describe("POST /v1/ai-config/ with the Day 4 switches", () => {
     const { token, job } = await recruiterWithJob();
     const res = await createConfig(token, { ...baseConfigBody, jobId: job.id });
     expect(res.status).toBe(201);
-    const config = await savedConfig(res.body.data.aiConfig.id);
+    const config = await savedConfig(createdId(res));
     expect(config.problemSolvingAssessment).toBe(false);
     expect(config.noOfProblemSolvingQuestions).toBeNull();
     expect(config.cultureFitAssessment).toBe(false);
@@ -108,7 +110,7 @@ describe("POST /v1/ai-config/ with the Day 4 switches", () => {
       cultureFitAssessment: true,
       noOfCultureFitQuestions: 2,
     });
-    const config = await savedConfig(withTests.body.data.aiConfig.id);
+    const config = await savedConfig(createdId(withTests));
     expect(Object.keys(config.stages ?? {}).sort()).toEqual(
       ["cv_similarity", "personality", "personalized", "prescreening"].sort()
     );
