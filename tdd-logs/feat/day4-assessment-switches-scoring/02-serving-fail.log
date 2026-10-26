@@ -1,0 +1,19 @@
+$ timeout -k 10 400 npx jest --config /home/user/tab/work/supportpro/wt/jest.local.config.js tests/assessmentServing.test.ts 
+FAIL tests/assessmentServing.test.ts
+  ● Test suite failed to run
+
+    tests/assessmentServing.test.ts:28:67 - error TS2307: Cannot find module '../src/migrations/1789001000000-AddAssessmentQuestionsToApplications.js' or its corresponding type declarations.
+
+    28 import { AddAssessmentQuestionsToApplications1789001000000 } from "../src/migrations/1789001000000-AddAssessmentQuestionsToApplications.js";
+                                                                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    tests/assessmentServing.test.ts:124:17 - error TS7053: Element implicitly has an 'any' type because expression of type '"problemSolvingQuestions" | "cultureFitQuestions"' can't be used to index type 'Application'.
+      Property 'problemSolvingQuestions' does not exist on type 'Application'.
+
+    124     expect([...(saved[column] ?? [])].sort()).toEqual([...first].sort());
+                        ~~~~~~~~~~~~~
+
+Test Suites: 1 failed, 1 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        3.759 s
+Ran all test suites matching tests/assessmentServing.test.ts.
