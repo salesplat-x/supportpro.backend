@@ -1,0 +1,39 @@
+$ timeout -k 10 400 npx jest --config /home/user/tab/work/supportpro/wt/jest.local.config.js tests/assessmentAnswers.test.ts 
+FAIL tests/assessmentAnswers.test.ts
+  ● Test suite failed to run
+
+    tests/assessmentAnswers.test.ts:32:64 - error TS2307: Cannot find module '../src/migrations/1789001100000-AddAssessmentScoresToApplications.js' or its corresponding type declarations.
+
+    32 import { AddAssessmentScoresToApplications1789001100000 } from "../src/migrations/1789001100000-AddAssessmentScoresToApplications.js";
+                                                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    tests/assessmentAnswers.test.ts:156:14 - error TS7053: Element implicitly has an 'any' type because expression of type '"problemSolvingScore" | "cultureFitScore"' can't be used to index type 'Application'.
+      Property 'problemSolvingScore' does not exist on type 'Application'.
+
+    156       expect(saved[scoreField]).toBe(80);
+                     ~~~~~~~~~~~~~~~~~
+    tests/assessmentAnswers.test.ts:209:14 - error TS7053: Element implicitly has an 'any' type because expression of type '"problemSolvingScore" | "cultureFitScore"' can't be used to index type 'Application'.
+      Property 'problemSolvingScore' does not exist on type 'Application'.
+
+    209       expect((await reloadApplication(application.id))[scoreField]).toBe(60);
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    tests/assessmentAnswers.test.ts:220:14 - error TS7053: Element implicitly has an 'any' type because expression of type '"problemSolvingScore" | "cultureFitScore"' can't be used to index type 'Application'.
+      Property 'problemSolvingScore' does not exist on type 'Application'.
+
+    220       expect((await reloadApplication(application.id))[scoreField]).toBeNull();
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    tests/assessmentAnswers.test.ts:228:14 - error TS7053: Element implicitly has an 'any' type because expression of type '"problemSolvingScore" | "cultureFitScore"' can't be used to index type 'Application'.
+      Property 'problemSolvingScore' does not exist on type 'Application'.
+
+    228       expect((await reloadApplication(application.id))[scoreField]).toBe(100);
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    tests/assessmentAnswers.test.ts:239:14 - error TS7053: Element implicitly has an 'any' type because expression of type '"problemSolvingScore" | "cultureFitScore"' can't be used to index type 'Application'.
+      Property 'problemSolvingScore' does not exist on type 'Application'.
+
+    239       expect((await reloadApplication(application.id))[scoreField]).toBe(20);
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Test Suites: 1 failed, 1 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        3.203 s
+Ran all test suites matching tests/assessmentAnswers.test.ts.
