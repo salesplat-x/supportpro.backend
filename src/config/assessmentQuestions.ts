@@ -30,6 +30,8 @@ export const DEFAULT_GENERATED_QUESTIONS = 5;
 export const MAX_GENERATED_QUESTIONS_PER_REQUEST = 10;
 /** Most problem-solving (or culture-fit) questions one job may hold — caps AI spend. */
 export const MAX_QUESTION_POOL_PER_TYPE = 30;
+/** Most problem-solving (or culture-fit) questions one candidate is asked per job. */
+export const MAX_ASSESSMENT_QUESTIONS_PER_CANDIDATE = 10;
 /** AI calls per generate request: the first, plus one retry for a bad or short reply. */
 export const MAX_GENERATION_ATTEMPTS = 2;
 

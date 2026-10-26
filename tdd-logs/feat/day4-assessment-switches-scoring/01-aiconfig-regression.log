@@ -1,0 +1,85 @@
+$ timeout -k 10 400 npx jest --config /home/user/tab/work/supportpro/wt/jest.local.config.js tests/aiConfig.test.ts 
+2026-10-26 17:51:01:511 info: Docs available at http://localhost:3003/v1/docs
+2026-10-26 17:51:01:511 http: POST /v1/ai-config/ 201 867 - 60.493 ms
+2026-10-26 17:51:01:511 http: POST /v1/ai-config/ 201 868 - 12.858 ms
+2026-10-26 17:51:02:512 http: POST /v1/ai-config/ 403 114 - 0.933 ms
+2026-10-26 17:51:02:512 http: POST /v1/ai-config/ 401 84 - 0.451 ms
+2026-10-26 17:51:02:512 http: POST /v1/ai-config/ 201 810 - 11.117 ms
+2026-10-26 17:51:03:513 http: POST /v1/ai-config/ 400 122 - 18.245 ms
+2026-10-26 17:51:03:513 http: POST /v1/ai-config/ 201 867 - 112.053 ms
+2026-10-26 17:51:03:513 http: POST /v1/ai-config/ 201 874 - 12.870 ms
+2026-10-26 17:51:03:513 http: POST /v1/ai-config/ 201 874 - 46.856 ms
+2026-10-26 17:51:04:514 http: POST /v1/ai-config/ 201 858 - 21.233 ms
+2026-10-26 17:51:04:514 http: POST /v1/ai-config/ 201 858 - 30.418 ms
+2026-10-26 17:51:04:514 http: POST /v1/ai-config/ 201 867 - 29.956 ms
+2026-10-26 17:51:04:514 http: POST /v1/ai-config/ 400 167 - 30.705 ms
+2026-10-26 17:51:05:515 http: POST /v1/ai-config/ 201 867 - 8.227 ms
+2026-10-26 17:51:05:515 http: POST /v1/ai-config/ 400 322 - 3.793 ms
+2026-10-26 17:51:05:515 http: POST /v1/ai-config/ 201 867 - 13.777 ms
+2026-10-26 17:51:06:516 http: POST /v1/ai-config/ 201 842 - 13.821 ms
+2026-10-26 17:51:06:516 http: GET /v1/ai-config/ 200 870 - 18.273 ms
+2026-10-26 17:51:06:516 http: GET /v1/ai-config/ 403 114 - 1.080 ms
+2026-10-26 17:51:06:516 http: GET /v1/ai-config/ 401 84 - 0.466 ms
+2026-10-26 17:51:07:517 http: GET /v1/ai-config/e528703d-52a3-43ee-8a0b-d776866b148f 200 866 - 5.597 ms
+2026-10-26 17:51:07:517 http: GET /v1/ai-config/d91cb37a-bf90-4775-b5f2-0080475e7c9c 403 114 - 5.015 ms
+2026-10-26 17:51:07:517 http: GET /v1/ai-config/00000000-0000-0000-0000-000000000000 404 91 - 4.396 ms
+2026-10-26 17:51:08:518 http: PATCH /v1/ai-config/07ef4881-ed17-46fe-b0d0-215aba44ebfd 200 859 - 28.960 ms
+2026-10-26 17:51:08:518 http: PATCH /v1/ai-config/e483c13d-cee5-459e-96ec-ef798186d119 403 114 - 18.178 ms
+2026-10-26 17:51:08:518 http: PATCH /v1/ai-config/00000000-0000-0000-0000-000000000000 404 91 - 15.606 ms
+2026-10-26 17:51:09:519 http: PATCH /v1/ai-config/3d23a1ed-007e-4800-97b5-4fd4942e9cfa 200 852 - 18.181 ms
+2026-10-26 17:51:09:519 http: PATCH /v1/ai-config/1eb4759c-c6b6-4547-b434-f2c164bc9368 200 808 - 32.797 ms
+2026-10-26 17:51:10:5110 http: PATCH /v1/ai-config/36a0b16f-733a-4afb-aa38-fd6308061002 200 839 - 146.341 ms
+2026-10-26 17:51:10:5110 http: PATCH /v1/ai-config/d6e73b73-7d74-4859-b470-4ec8ad93579f 200 839 - 14.661 ms
+2026-10-26 17:51:11:5111 http: PATCH /v1/ai-config/6523784f-ce6b-48ee-b727-f71385727769 200 839 - 25.502 ms
+2026-10-26 17:51:11:5111 http: PATCH /v1/ai-config/68ef6be7-0d17-4b8d-ada2-f3dfd94d77c2 200 839 - 17.608 ms
+2026-10-26 17:51:12:5112 http: DELETE /v1/ai-config/8fa03cd6-397f-4a61-8cda-6cfa02a7326c 200 45 - 29.431 ms
+2026-10-26 17:51:13:5113 http: DELETE /v1/ai-config/ddc3a677-1e4f-46b4-9d4f-982b32ebcd3c 403 114 - 19.547 ms
+2026-10-26 17:51:14:5114 http: DELETE /v1/ai-config/00000000-0000-0000-0000-000000000000 404 91 - 19.918 ms
+2026-10-26 17:51:15:5115 http: DELETE /v1/ai-config/some-id 403 114 - 7.403 ms
+PASS tests/aiConfig.test.ts (25.766 s)
+  POST /v1/ai-config/ — create AI config
+    ✓ Recruiter creates a config → 201 (466 ms)
+    ✓ Admin can create config → 201 (320 ms)
+    ✓ Talent cannot create → 403 (328 ms)
+    ✓ Unauthenticated → 401 (285 ms)
+    ✓ Stages are computed from assessment flags on create (388 ms)
+    ✓ Missing jobId → 400 (318 ms)
+    ✓ Links the created config to the job's aiConfigId (365 ms)
+    ✓ Two configs with the same name on different jobs both succeed → 201, 201 (426 ms)
+    ✓ Two configs with no name on different jobs both succeed → 201, 201 (336 ms)
+    ✓ noOfCvSimilarCandidates is no longer accepted or returned (343 ms)
+    ✓ Missing minPrescreeningScore → 400 (274 ms)
+    ✓ prescreeningAssessment is always forced true server-side (257 ms)
+    ✓ Personality evaluation enabled with zero dichotomy counts → 400 (292 ms)
+    ✓ Personality evaluation enabled with exactly one dichotomy count → 201 (298 ms)
+    ✓ Personality evaluation disabled with zero dichotomy counts → 201 (323 ms)
+  GET /v1/ai-config/ — list AI configs
+    ✓ Recruiter sees their own configs → 200 (301 ms)
+    ✓ Talent cannot access → 403 (258 ms)
+    ✓ Unauthenticated → 401 (217 ms)
+  GET /v1/ai-config/:_id — single AI config
+    ✓ Owner recruiter fetches their config → 200 (239 ms)
+    ✓ Another recruiter cannot fetch → 403 (246 ms)
+    ✓ Non-existent → 404 (496 ms)
+  PATCH /v1/ai-config/:_id — update AI config
+    ✓ Owner recruiter updates their config → 200 (423 ms)
+    ✓ Non-owner recruiter cannot update → 403 (248 ms)
+    ✓ Non-existent → 404 (310 ms)
+    ✓ Renaming to a name already used by another of the recruiter's configs → 200 (220 ms)
+  PATCH /v1/ai-config/:_id — resync untouched applications
+    ✓ Recomputes stages/currentStage for an untouched application when config flags change (269 ms)
+    ✓ Leaves an application alone if it has a Personality Answer row (898 ms)
+    ✓ Leaves an application alone if it has a Personalized Answer row (474 ms)
+    ✓ Leaves an application alone if it already has a recorded score/mbtiType (599 ms)
+    ✓ Only resyncs applications on jobs linked to the edited config (679 ms)
+  DELETE /v1/ai-config/:_id — delete AI config
+    ✓ Owner recruiter deletes their config → 200 (587 ms)
+    ✓ Non-owner recruiter cannot delete → 403 (1149 ms)
+    ✓ Non-existent → 404 (894 ms)
+    ✓ Talent cannot delete → 403 (651 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       34 passed, 34 total
+Snapshots:   0 total
+Time:        26.254 s
+Ran all test suites matching tests/aiConfig.test.ts.

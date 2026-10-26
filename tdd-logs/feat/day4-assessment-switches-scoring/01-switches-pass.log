@@ -1,0 +1,42 @@
+$ timeout -k 10 400 npx jest --config /home/user/tab/work/supportpro/wt/jest.local.config.js tests/assessmentSwitches.test.ts 
+2026-10-26 17:50:40:5040 info: Docs available at http://localhost:3003/v1/docs
+2026-10-26 17:50:40:5040 http: POST /v1/ai-config/ 201 860 - 59.039 ms
+2026-10-26 17:50:40:5040 http: POST /v1/ai-config/ 201 868 - 10.192 ms
+2026-10-26 17:50:40:5040 http: POST /v1/ai-config/ 201 860 - 10.487 ms
+2026-10-26 17:50:40:5040 http: POST /v1/ai-config/ 400 141 - 8.080 ms
+2026-10-26 17:50:41:5041 http: POST /v1/ai-config/ 400 133 - 5.489 ms
+2026-10-26 17:50:41:5041 http: POST /v1/ai-config/ 400 236 - 4.526 ms
+2026-10-26 17:50:41:5041 http: POST /v1/ai-config/ 400 236 - 6.602 ms
+2026-10-26 17:50:41:5041 http: POST /v1/ai-config/ 400 236 - 10.289 ms
+2026-10-26 17:50:42:5042 http: POST /v1/ai-config/ 400 236 - 4.695 ms
+2026-10-26 17:50:42:5042 http: POST /v1/ai-config/ 400 175 - 7.348 ms
+2026-10-26 17:50:42:5042 http: PATCH /v1/ai-config/8e837163-c8d2-4887-97b7-79c706b94cd4 200 863 - 12.015 ms
+2026-10-26 17:50:42:5042 http: PATCH /v1/ai-config/8e837163-c8d2-4887-97b7-79c706b94cd4 200 864 - 8.570 ms
+2026-10-26 17:50:42:5042 http: PATCH /v1/ai-config/053e9def-8698-455e-b788-bbd41c9c9f30 200 863 - 7.911 ms
+2026-10-26 17:50:43:5043 http: PATCH /v1/ai-config/eeff3359-75bd-478e-9d3d-fe267f86bd35 400 133 - 17.492 ms
+2026-10-26 17:50:43:5043 http: PATCH /v1/ai-config/8da2ea2e-7e5b-4b7b-bdf4-88699b50f051 200 863 - 29.147 ms
+PASS tests/assessmentSwitches.test.ts (17.548 s)
+  POST /v1/ai-config/ with the Day 4 switches
+    ✓ saves both switches and their question counts (307 ms)
+    ✓ leaves both tests off, with no counts, when they aren't sent (220 ms)
+    ✓ does not add the new tests to the screening stages (233 ms)
+    ✓ problemSolvingAssessment on without noOfProblemSolvingQuestions → 400 (241 ms)
+    ✓ cultureFitAssessment on without noOfCultureFitQuestions → 400 (207 ms)
+    ✓ a question count of 0 → 400 (225 ms)
+    ✓ a question count of 11 → 400 (322 ms)
+    ✓ a question count of 2.5 → 400 (208 ms)
+    ✓ a question count of "lots" → 400 (215 ms)
+    ✓ a switch that isn't true/false → 400 (224 ms)
+  PATCH /v1/ai-config/:id with the Day 4 switches
+    ✓ turns a test on with a count, then off again (339 ms)
+    ✓ changing only the count of a test that is already on is allowed (192 ms)
+    ✓ turning a test on when the config has no count for it → 400 (197 ms)
+    ✓ turning a test on reuses a count saved earlier (240 ms)
+  AddAssessmentSwitchesToAIConfigs migration
+    ✓ adds two off-by-default switches and two nullable counts, and removes them on down (189 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       15 passed, 15 total
+Snapshots:   0 total
+Time:        17.849 s
+Ran all test suites matching tests/assessmentSwitches.test.ts.
