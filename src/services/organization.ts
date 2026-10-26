@@ -622,9 +622,7 @@ export const updateOrganization = async (
       linkedin,
       facebook,
       companyValues,
-    }).filter(
-      ([, value]) => value !== undefined
-    )
+    }).filter(([, value]) => value !== undefined)
   ) as UpdateOrganizationPayload;
 
   if (Object.keys(updates).length === 0) {
