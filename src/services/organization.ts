@@ -611,9 +611,18 @@ export const updateOrganization = async (
 ): Promise<Organization> => {
   const org = await assertOwnership(ownerId, organizationId);
 
-  const { name, phone, address, industry, twitter, linkedin, facebook } = payload;
+  const { name, phone, address, industry, twitter, linkedin, facebook, companyValues } = payload;
   const updates = Object.fromEntries(
-    Object.entries({ name, phone, address, industry, twitter, linkedin, facebook }).filter(
+    Object.entries({
+      name,
+      phone,
+      address,
+      industry,
+      twitter,
+      linkedin,
+      facebook,
+      companyValues,
+    }).filter(
       ([, value]) => value !== undefined
     )
   ) as UpdateOrganizationPayload;
