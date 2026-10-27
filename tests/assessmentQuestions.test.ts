@@ -14,6 +14,7 @@ import {
 } from "./helpers/db.js";
 import {
   createRecruiter,
+  createAdmin,
   createCompleteTalent,
   createRole,
   createJob,
@@ -517,5 +518,90 @@ describe("GET /v1/questions — problem-solving and culture-fit", () => {
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(404);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /v1/questions/:_id — problem-solving and culture-fit stay company-only
+// ---------------------------------------------------------------------------
+
+describe("GET /v1/questions/:_id — problem-solving and culture-fit", () => {
+  type SingleData = { question: Question };
+  const singleOf = (res: Parameters<typeof apiData>[0]) => apiData<SingleData>(res);
+
+  async function jobWithAssessmentQuestion(type: QuestionType) {
+    const setup = await companyWithJob();
+    const question = await createQuestion(
+      type,
+      { jobId: setup.job.id },
+      { question: "Hidden question?", criteria: "Secret scoring criteria." }
+    );
+    return { ...setup, question };
+  }
+
+  it.each([QuestionType.ProblemSolving, QuestionType.CultureFit])(
+    "anonymous callers cannot read a %s question → 404",
+    async (type) => {
+      const { question } = await jobWithAssessmentQuestion(type);
+
+      const res = await request(app).get(`/v1/questions/${question.id}`);
+
+      expect(res.status).toBe(404);
+      expect(JSON.stringify(res.body)).not.toContain("Secret scoring criteria.");
+    }
+  );
+
+  it("a talent cannot read one → 404", async () => {
+    const { question } = await jobWithAssessmentQuestion(QuestionType.ProblemSolving);
+    const { token } = await createCompleteTalent(await createRole());
+
+    const res = await request(app)
+      .get(`/v1/questions/${question.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it("a recruiter from another company cannot read one → 404", async () => {
+    const { question } = await jobWithAssessmentQuestion(QuestionType.CultureFit);
+    const { user: outsider, token } = await createRecruiter();
+    await createOrganization(outsider);
+
+    const res = await request(app)
+      .get(`/v1/questions/${question.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it("a member of the job's company reads it with criteria → 200", async () => {
+    const { token, question } = await jobWithAssessmentQuestion(QuestionType.ProblemSolving);
+
+    const res = await request(app)
+      .get(`/v1/questions/${question.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(singleOf(res).question.criteria).toBe("Secret scoring criteria.");
+  });
+
+  it("an admin reads it → 200", async () => {
+    const { question } = await jobWithAssessmentQuestion(QuestionType.CultureFit);
+    const { token } = await createAdmin();
+
+    const res = await request(app)
+      .get(`/v1/questions/${question.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+  });
+
+  it("other question types are still readable without signing in → 200", async () => {
+    const role = await createRole();
+    const question = await createQuestion(QuestionType.Prescreening, { roleId: role.id });
+
+    const res = await request(app).get(`/v1/questions/${question.id}`);
+
+    expect(res.status).toBe(200);
   });
 });

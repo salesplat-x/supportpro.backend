@@ -187,10 +187,27 @@ export const fetchQuestions = async (
   });
 };
 
-export const fetchQuestion = async (questionId: string): Promise<Question> => {
+const COMPANY_ONLY_TYPES: QuestionType[] = [QuestionType.ProblemSolving, QuestionType.CultureFit];
+
+export const fetchQuestion = async (
+  questionId: string,
+  user?: Pick<User, "id" | "userRole">
+): Promise<Question> => {
   const question = await questionRepo().findOne({ where: { id: questionId } });
   if (!question) {
     throw new NotFoundError("Question not found");
+  }
+  if (COMPANY_ONLY_TYPES.includes(question.type)) {
+    // Answered with 404 so outsiders can't tell the question exists.
+    try {
+      if (!user || !question.jobId) throw new AuthorizationError("Not a company member");
+      await loadJobForCompanyMember(user, question.jobId);
+    } catch (err) {
+      if (err instanceof AuthorizationError || err instanceof NotFoundError) {
+        throw new NotFoundError("Question not found");
+      }
+      throw err;
+    }
   }
   return question;
 };
