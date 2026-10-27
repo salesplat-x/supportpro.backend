@@ -2,7 +2,8 @@ import { Request, Response } from "express";
 import * as questionService from "../services/question.js";
 import * as answerService from "../services/answer.js";
 import { sendSuccessResponse } from "../utils/response.js";
-import { QuestionType } from "../types/enums.js";
+import { QuestionType, UserRole } from "../types/enums.js";
+import { hideAssessmentResultsFromCandidate } from "../services/application.js";
 
 export const create = async (req: Request, res: Response) => {
   const result = await questionService.createQuestion(req.body);
@@ -29,11 +30,13 @@ export const answerPrescreening = async (req: Request, res: Response) => {
 
 export const generatePersonalizedQuestions = async (req: Request, res: Response) => {
   const result = await questionService.generatePersonalizedQuestions(req.body);
+  if (req.user.userRole === UserRole.Talent) hideAssessmentResultsFromCandidate(result.application);
   sendSuccessResponse(res, "Personalized questions generated", result);
 };
 
 export const answerPersonalizedQuestions = async (req: Request, res: Response) => {
   const result = await answerService.answerPersonalizedQuestions(req.user.id, req.body);
+  hideAssessmentResultsFromCandidate(result.application);
   sendSuccessResponse(res, "Personalized answers submitted", result);
 };
 
@@ -97,6 +100,7 @@ export const answerCultureFit = companyAssessmentAnswerHandler(
 
 export const evaluatePersonalityType = async (req: Request, res: Response) => {
   const result = await answerService.evaluatePersonalityType(req.user.id, req.body);
+  hideAssessmentResultsFromCandidate(result.application);
   sendSuccessResponse(res, "Personality evaluated", result);
 };
 

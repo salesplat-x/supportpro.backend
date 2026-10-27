@@ -1,0 +1,148 @@
+2026-10-27 18:49:31:4931 [32minfo[39m: [32mDocs available at http://localhost:3003/v1/docs[39m
+2026-10-27 18:49:31:4931 [37mhttp[39m: [37mPATCH /v1/jobs/applications/31c439c5-62c7-48e5-9569-5884155c415b 201 1095 - 14.172 ms[39m
+2026-10-27 18:49:31:4931 [37mhttp[39m: [37mPATCH /v1/jobs/prescreening-check/53ee4edc-e380-4248-94dc-389b5b672204 200 1100 - 4.316 ms[39m
+2026-10-27 18:49:31:4931 [37mhttp[39m: [37mPATCH /v1/jobs/cv-similarity/857ae1ef-f855-49a5-90c3-1e9e69690b28 200 1220 - 10.303 ms[39m
+2026-10-27 18:49:31:4931 [37mhttp[39m: [37mGET /v1/user/applications 200 2923 - 7.658 ms[39m
+2026-10-27 18:49:31:4931 [37mhttp[39m: [37mPOST /v1/questions/personalized 200 1490 - 7.568 ms[39m
+2026-10-27 18:49:32:4932 [37mhttp[39m: [37mPOST /v1/questions/answer/personalized 200 1164 - 9.324 ms[39m
+2026-10-27 18:49:32:4932 [37mhttp[39m: [37mPOST /v1/questions/answer/personality 200 1166 - 11.085 ms[39m
+2026-10-27 18:49:32:4932 [37mhttp[39m: [37mGET /v1/applications/e997f5fc-1c2f-467f-85c4-40f7ffeecfdc 200 3879 - 17.673 ms[39m
+FAIL tests/assessmentHardening.test.ts
+  ● scores never reach candidates through other endpoints › PATCH /jobs/applications/:jobId (applying again)
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "problemSolvingScore"
+    Received string:        "{\"status\":true,\"message\":\"Application submitted\",\"data\":{\"application\":{\"id\":\"2edda273-abe0-4863-a8ef-c4ba7a67c416\",\"jobId\":\"31c439c5-62c7-48e5-9569-5884155c415b\",\"talentId\":\"d508e73a-4e2c-41a9-ba3d-0c307ab3d54b\",\"recruiterId\":\"aacec5d8-0ede-471c-b8b7-2baacf0941be\",\"roleId\":null,\"applicationType\":\"by application\",\"status\":\"pending\",\"currentStage\":\"prescreening\",\"personalizedQuestions\":null,\"personalityQuestions\":null,\"problemSolvingQuestions\":null,\"cultureFitQuestions\":null,\"problemSolvingScore\":73,\"cultureFitScore\":41,\"personalizedScore\":null,\"cvSimilarityScore\":null,\"cvSimilarityAttempts\":0,\"personalizedAttempts\":0,\"rank\":null,\"averageScore\":null,\"mbtiType\":null,\"stages\":null,\"matchVerdict\":null,\"overallFitScore\":null,\"matchVerdictStatus\":null,\"matchVerdictAttempts\":0,\"matchVerdictNextRetryAt\":null,\"matchVerdictLockedAt\":null,\"matchVerdictLastError\":null,\"matchVerdictReasoning\":null,\"matchRecommendation\":null,\"matchStrengths\":null,\"matchWeaknesses\":null,\"matchRisks\":null,\"assessmentRetryDate\":null,\"createdAt\":\"2026-10-27T16:49:31.503Z\",\"updatedAt\":\"2026-10-27T16:49:31.503Z\"}}}"
+
+      130 |   expect(res.status).toBeLessThan(300);
+      131 |   const body = JSON.stringify(res.body);
+    > 132 |   expect(body).not.toContain("problemSolvingScore");
+          |                    ^
+      133 |   expect(body).not.toContain("cultureFitScore");
+      134 | };
+      135 |
+
+      at expectNoScores (tests/assessmentHardening.test.ts:132:20)
+      at tests/assessmentHardening.test.ts:144:5
+      at fulfilled (tests/assessmentHardening.test.ts:38:58)
+
+  ● scores never reach candidates through other endpoints › PATCH /jobs/prescreening-check/:jobId
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "problemSolvingScore"
+    Received string:        "{\"status\":true,\"message\":\"Prescreening stage checked\",\"data\":{\"application\":{\"id\":\"cd8f89e0-a9a0-415d-8ea4-d55be35fb141\",\"jobId\":\"53ee4edc-e380-4248-94dc-389b5b672204\",\"talentId\":\"768fe44a-283e-45ba-abf1-fe113b95adca\",\"recruiterId\":\"ff1da675-211e-455b-b295-aae601dc317b\",\"roleId\":null,\"applicationType\":\"by application\",\"status\":\"pending\",\"currentStage\":\"prescreening\",\"personalizedQuestions\":null,\"personalityQuestions\":null,\"problemSolvingQuestions\":null,\"cultureFitQuestions\":null,\"problemSolvingScore\":73,\"cultureFitScore\":41,\"personalizedScore\":null,\"cvSimilarityScore\":null,\"cvSimilarityAttempts\":0,\"personalizedAttempts\":0,\"rank\":null,\"averageScore\":null,\"mbtiType\":null,\"stages\":null,\"matchVerdict\":null,\"overallFitScore\":null,\"matchVerdictStatus\":null,\"matchVerdictAttempts\":0,\"matchVerdictNextRetryAt\":null,\"matchVerdictLockedAt\":null,\"matchVerdictLastError\":null,\"matchVerdictReasoning\":null,\"matchRecommendation\":null,\"matchStrengths\":null,\"matchWeaknesses\":null,\"matchRisks\":null,\"assessmentRetryDate\":null,\"createdAt\":\"2026-10-27T16:49:31.626Z\",\"updatedAt\":\"2026-10-27T16:49:31.626Z\"}}}"
+
+      130 |   expect(res.status).toBeLessThan(300);
+      131 |   const body = JSON.stringify(res.body);
+    > 132 |   expect(body).not.toContain("problemSolvingScore");
+          |                    ^
+      133 |   expect(body).not.toContain("cultureFitScore");
+      134 | };
+      135 |
+
+      at expectNoScores (tests/assessmentHardening.test.ts:132:20)
+      at tests/assessmentHardening.test.ts:154:5
+      at fulfilled (tests/assessmentHardening.test.ts:38:58)
+
+  ● scores never reach candidates through other endpoints › PATCH /jobs/cv-similarity/:jobId
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "problemSolvingScore"
+    Received string:        "{\"status\":true,\"message\":\"CV graded\",\"data\":{\"cvSimilarityScore\":100,\"application\":{\"id\":\"38cceaca-c9c2-4f35-a1fd-fcbce4cb5555\",\"jobId\":\"857ae1ef-f855-49a5-90c3-1e9e69690b28\",\"talentId\":\"bb03df84-90a4-4f45-87e7-cf6426d8ddb4\",\"recruiterId\":\"c2da0034-baa3-4b7a-a805-a4e093a129ba\",\"roleId\":null,\"applicationType\":\"by application\",\"status\":\"pending\",\"currentStage\":\"personalized\",\"personalizedQuestions\":null,\"personalityQuestions\":null,\"problemSolvingQuestions\":null,\"cultureFitQuestions\":null,\"problemSolvingScore\":73,\"cultureFitScore\":41,\"personalizedScore\":null,\"cvSimilarityScore\":100,\"cvSimilarityAttempts\":1,\"personalizedAttempts\":0,\"rank\":null,\"averageScore\":null,\"mbtiType\":null,\"stages\":{\"personality\":\"completed\",\"personalized\":\"personality\",\"prescreening\":\"cv_similarity\",\"cv_similarity\":\"personalized\"},\"matchVerdict\":null,\"overallFitScore\":null,\"matchVerdictStatus\":null,\"matchVerdictAttempts\":0,\"matchVerdictNextRetryAt\":null,\"matchVerdictLockedAt\":null,\"matchVerdictLastError\":null,\"matchVerdictReasoning\":null,\"matchRecommendation\":null,\"matchStrengths\":null,\"matchWeaknesses\":null,\"matchRisks\":null,\"assessmentRetryDate\":null,\"createdAt\":\"2026-10-27T16:49:31.726Z\",\"updatedAt\":\"2026-10-27T16:49:31.738Z\"}}}"
+
+      130 |   expect(res.status).toBeLessThan(300);
+      131 |   const body = JSON.stringify(res.body);
+    > 132 |   expect(body).not.toContain("problemSolvingScore");
+          |                    ^
+      133 |   expect(body).not.toContain("cultureFitScore");
+      134 | };
+      135 |
+
+      at expectNoScores (tests/assessmentHardening.test.ts:132:20)
+      at tests/assessmentHardening.test.ts:167:5
+      at fulfilled (tests/assessmentHardening.test.ts:38:58)
+
+  ● scores never reach candidates through other endpoints › GET /user/applications
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "problemSolvingScore"
+    Received string:        "{\"status\":true,\"message\":\"Applications fetched\",\"data\":{\"applications\":[{\"id\":\"6651e148-3edb-4b6e-91a6-e17baaf07258\",\"jobId\":\"b54e0627-75e8-485f-bdd5-7c76231ffd93\",\"talentId\":\"bb430ec4-1274-4535-8370-bea2c540998e\",\"recruiterId\":\"ae94fed0-257f-4203-8900-bf649b3e1cbe\",\"roleId\":null,\"applicationType\":\"by application\",\"status\":\"pending\",\"currentStage\":\"prescreening\",\"personalizedQuestions\":null,\"personalityQuestions\":null,\"problemSolvingQuestions\":null,\"cultureFitQuestions\":null,\"problemSolvingScore\":73,\"cultureFitScore\":41,\"personalizedScore\":null,\"cvSimilarityScore\":null,\"cvSimilarityAttempts\":0,\"personalizedAttempts\":0,\"rank\":null,\"averageScore\":null,\"mbtiType\":null,\"stages\":null,\"matchVerdict\":null,\"overallFitScore\":null,\"matchVerdictStatus\":null,\"matchVerdictAttempts\":0,\"matchVerdictNextRetryAt\":null,\"matchVerdictLockedAt\":null,\"matchVerdictLastError\":null,\"matchVerdictReasoning\":null,\"matchRecommendation\":null,\"matchStrengths\":null,\"matchWeaknesses\":null,\"matchRisks\":null,\"assessmentRetryDate\":null,\"createdAt\":\"2026-10-27T16:49:31.825Z\",\"updatedAt\":\"2026-10-27T16:49:31.825Z\",\"job\":{\"id\":\"b54e0627-75e8-485f-bdd5-7c76231ffd93\",\"roleId\":\"3d8436d6-df6d-4664-bc4d-461041c0e850\",\"postedById\":\"ae94fed0-257f-4203-8900-bf649b3e1cbe\",\"organizationId\":null,\"aiConfigId\":\"2b1eaceb-5b54-4c00-94a4-31af90cfc853\",\"jobBrief\":\"We are looking for a talented engineer to join our team.\",\"status\":\"active\",\"maxSalary\":100000,\"minSalary\":50000,\"compensationPeriod\":\"yearly\",\"experienceLevel\":\"4-6 years\",\"locationCity\":null,\"locationState\":\"Lagos\",\"locationCountry\":\"Nigeria\",\"workMode\":[\"remote\"],\"currency\":null,\"requirements\":null,\"skills\":null,\"goals\":null,\"noOfApplicants\":0,\"createdAt\":\"2026-10-27T16:49:31.816Z\",\"updatedAt\":\"2026-10-27T16:49:31.816Z\",\"postedBy\":{\"id\":\"ae94fed0-257f-4203-8900-bf649b3e1cbe\",\"email\":\"user_7_1793123371808@example.com\",\"firstName\":\"Test\",\"lastName\":\"User\",\"middleName\":null,\"userRole\":\"recruiter\",\"country\":null,\"activeOrganizationId\":null,\"emailVerifiedAt\":\"2026-10-27T17:49:31.810Z\",\"welcomeEmailSentAt\":null,\"active\":true,\"tokenVersion\":0,\"bio\":null,\"profileImageUrl\":null,\"profileImageKey\":null,\"cvFileName\":null,\"cvUrl\":null,\"cvKey\":null,\"cvUploadedAt\":null,\"cvEmbeddingStatus\":null,\"cvEmbeddingAttempts\":0,\"cvEmbeddingNextRetryAt\":null,\"cvEmbeddingLockedAt\":null,\"cvEmbeddingLastError\":null,\"workType\":null,\"locationCity\":null,\"locationState\":null,\"locationCountry\":null,\"experience\":null,\"currency\":\"NGN\",\"maxSalary\":null,\"minSalary\":null,\"compensationPeriod\":\"yearly\",\"prescreeningScore\":null,\"prescreeningScoredAt\":null,\"assessmentRetryDate\":null,\"roleChangeCount\":0,\"activePreScreeningId\":null,\"createdAt\":\"2026-10-27T16:49:31.810Z\",\"updatedAt\":\"2026-10-27T16:49:31.810Z\"},\"role\":{\"id\":\"3d8436d6-df6d-4664-bc4d-461041c0e850\",\"name\":\"role_1793123371815\",\"description\":null,\"createdAt\":\"2026-10-27T16:49:31.815Z\",\"updatedAt\":\"2026-10-27T16:49:31.815Z\"},\"organization\":null}}]}}"
+
+      130 |   expect(res.status).toBeLessThan(300);
+      131 |   const body = JSON.stringify(res.body);
+    > 132 |   expect(body).not.toContain("problemSolvingScore");
+          |                    ^
+      133 |   expect(body).not.toContain("cultureFitScore");
+      134 | };
+      135 |
+
+      at expectNoScores (tests/assessmentHardening.test.ts:132:20)
+      at tests/assessmentHardening.test.ts:177:5
+      at fulfilled (tests/assessmentHardening.test.ts:38:58)
+
+  ● scores never reach candidates through other endpoints › POST /questions/personalized (talent, questions already generated)
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "problemSolvingScore"
+    Received string:        "{\"status\":true,\"message\":\"Personalized questions generated\",\"data\":{\"questions\":[{\"id\":\"41edc00b-447c-482a-b71d-a06caadfe1a8\",\"roleId\":null,\"jobId\":\"b46c288d-88ec-424c-a6b0-3e331e43cb19\",\"type\":\"personalized\",\"question\":\"What is your experience with TypeScript?\",\"criteria\":\"Assess depth of TypeScript knowledge\",\"category\":\"technical\",\"createdAt\":\"2026-10-27T16:49:31.928Z\",\"updatedAt\":\"2026-10-27T16:49:31.928Z\"}],\"application\":{\"id\":\"4cc07949-10ba-49e5-8d59-f7f8d14a4526\",\"jobId\":\"b46c288d-88ec-424c-a6b0-3e331e43cb19\",\"talentId\":\"4fcd16ee-66a4-4069-9d17-27e7e30313f5\",\"recruiterId\":\"e70f4d79-7ede-42bf-b39d-dcb4cd3916be\",\"roleId\":null,\"applicationType\":\"by application\",\"status\":\"pending\",\"currentStage\":\"prescreening\",\"personalizedQuestions\":[\"41edc00b-447c-482a-b71d-a06caadfe1a8\"],\"personalityQuestions\":null,\"problemSolvingQuestions\":null,\"cultureFitQuestions\":null,\"problemSolvingScore\":73,\"cultureFitScore\":41,\"personalizedScore\":null,\"cvSimilarityScore\":null,\"cvSimilarityAttempts\":0,\"personalizedAttempts\":0,\"rank\":null,\"averageScore\":null,\"mbtiType\":null,\"stages\":null,\"matchVerdict\":null,\"overallFitScore\":null,\"matchVerdictStatus\":null,\"matchVerdictAttempts\":0,\"matchVerdictNextRetryAt\":null,\"matchVerdictLockedAt\":null,\"matchVerdictLastError\":null,\"matchVerdictReasoning\":null,\"matchRecommendation\":null,\"matchStrengths\":null,\"matchWeaknesses\":null,\"matchRisks\":null,\"assessmentRetryDate\":null,\"createdAt\":\"2026-10-27T16:49:31.930Z\",\"updatedAt\":\"2026-10-27T16:49:31.930Z\"}}}"
+
+      130 |   expect(res.status).toBeLessThan(300);
+      131 |   const body = JSON.stringify(res.body);
+    > 132 |   expect(body).not.toContain("problemSolvingScore");
+          |                    ^
+      133 |   expect(body).not.toContain("cultureFitScore");
+      134 | };
+      135 |
+
+      at expectNoScores (tests/assessmentHardening.test.ts:132:20)
+      at tests/assessmentHardening.test.ts:190:5
+      at fulfilled (tests/assessmentHardening.test.ts:38:58)
+
+  ● scores never reach candidates through other endpoints › POST /questions/answer/personalized
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "problemSolvingScore"
+    Received string:        "{\"status\":true,\"message\":\"Personalized answers submitted\",\"data\":{\"scorePercent\":0,\"application\":{\"id\":\"5d41d7fd-c760-4772-a38c-4b95c5ff5c37\",\"jobId\":\"443d73e0-d4e4-4c75-890e-322266f44828\",\"talentId\":\"0184ab10-2cf7-4a75-8791-2e521b323ca1\",\"recruiterId\":\"e171a57c-16b2-46aa-8c39-7184774c08da\",\"roleId\":null,\"applicationType\":\"by application\",\"status\":\"retake_assessment\",\"currentStage\":\"personalized\",\"personalizedQuestions\":[\"aad96820-6d0b-4e39-8221-138b9204c72d\"],\"personalityQuestions\":null,\"problemSolvingQuestions\":null,\"cultureFitQuestions\":null,\"problemSolvingScore\":73,\"cultureFitScore\":41,\"personalizedScore\":0,\"cvSimilarityScore\":null,\"cvSimilarityAttempts\":0,\"personalizedAttempts\":1,\"rank\":null,\"averageScore\":null,\"mbtiType\":null,\"stages\":null,\"matchVerdict\":null,\"overallFitScore\":null,\"matchVerdictStatus\":null,\"matchVerdictAttempts\":0,\"matchVerdictNextRetryAt\":null,\"matchVerdictLockedAt\":null,\"matchVerdictLastError\":null,\"matchVerdictReasoning\":null,\"matchRecommendation\":null,\"matchStrengths\":null,\"matchWeaknesses\":null,\"matchRisks\":null,\"assessmentRetryDate\":null,\"createdAt\":\"2026-10-27T16:49:32.044Z\",\"updatedAt\":\"2026-10-27T16:49:32.053Z\"}}}"
+
+      130 |   expect(res.status).toBeLessThan(300);
+      131 |   const body = JSON.stringify(res.body);
+    > 132 |   expect(body).not.toContain("problemSolvingScore");
+          |                    ^
+      133 |   expect(body).not.toContain("cultureFitScore");
+      134 | };
+      135 |
+
+      at expectNoScores (tests/assessmentHardening.test.ts:132:20)
+      at tests/assessmentHardening.test.ts:208:5
+      at fulfilled (tests/assessmentHardening.test.ts:38:58)
+
+  ● scores never reach candidates through other endpoints › POST /questions/answer/personality
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "problemSolvingScore"
+    Received string:        "{\"status\":true,\"message\":\"Personality evaluated\",\"data\":{\"application\":{\"id\":\"0feb8bee-a3e5-4b2d-b8ae-04f1fd5efb2e\",\"jobId\":\"c60e50f8-3305-498a-b93b-f4ecc297dac3\",\"talentId\":\"9fbdf34f-bdee-4861-aade-069d764ee730\",\"recruiterId\":\"b1474345-941f-44b5-ac49-5f3a8870de64\",\"roleId\":null,\"applicationType\":\"by application\",\"status\":\"pending\",\"currentStage\":\"prescreening\",\"personalizedQuestions\":null,\"personalityQuestions\":[\"c76c2c61-75fe-4469-9b7e-c9ed0a099183\"],\"problemSolvingQuestions\":null,\"cultureFitQuestions\":null,\"problemSolvingScore\":73,\"cultureFitScore\":41,\"personalizedScore\":null,\"cvSimilarityScore\":null,\"cvSimilarityAttempts\":0,\"personalizedAttempts\":0,\"rank\":null,\"averageScore\":null,\"mbtiType\":\"INTJ\",\"stages\":null,\"matchVerdict\":null,\"overallFitScore\":null,\"matchVerdictStatus\":null,\"matchVerdictAttempts\":0,\"matchVerdictNextRetryAt\":null,\"matchVerdictLockedAt\":null,\"matchVerdictLastError\":null,\"matchVerdictReasoning\":null,\"matchRecommendation\":null,\"matchStrengths\":null,\"matchWeaknesses\":null,\"matchRisks\":null,\"assessmentRetryDate\":null,\"createdAt\":\"2026-10-27T16:49:32.144Z\",\"updatedAt\":\"2026-10-27T16:49:32.157Z\"},\"mbtiType\":\"INTJ\",\"score\":\"INTJ\"}}"
+
+      130 |   expect(res.status).toBeLessThan(300);
+      131 |   const body = JSON.stringify(res.body);
+    > 132 |   expect(body).not.toContain("problemSolvingScore");
+          |                    ^
+      133 |   expect(body).not.toContain("cultureFitScore");
+      134 | };
+      135 |
+
+      at expectNoScores (tests/assessmentHardening.test.ts:132:20)
+      at tests/assessmentHardening.test.ts:223:5
+      at fulfilled (tests/assessmentHardening.test.ts:38:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       7 failed, 3 skipped, 1 passed, 11 total
+Snapshots:   0 total
+Time:        4.498 s, estimated 5 s
+Ran all test suites matching tests/assessmentHardening.test.ts with tests matching "scores never reach".

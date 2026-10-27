@@ -1,0 +1,33 @@
+2026-10-27 18:50:42:5042 [32minfo[39m: [32mDocs available at http://localhost:3003/v1/docs[39m
+2026-10-27 18:50:42:5042 [37mhttp[39m: [37mPOST /v1/questions/answer/problem-solving 200 133 - 177.706 ms[39m
+2026-10-27 18:50:42:5042 [37mhttp[39m: [37mPOST /v1/questions/answer/problem-solving 200 133 - 177.536 ms[39m
+FAIL tests/assessmentHardening.test.ts
+  ● a double submit is graded and saved once › two parallel submits → one 200, one 409, one stored answer
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Array [
+        200,
+    -   409,
+    +   200,
+      ]
+
+      335 |       submitProblemSolving(token, job.id, pool),
+      336 |     ]);
+    > 337 |     expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+          |                                                 ^
+      338 |
+      339 |     const answers = await testDataSource
+      340 |       .getRepository(Answer)
+
+      at tests/assessmentHardening.test.ts:337:49
+      at fulfilled (tests/assessmentHardening.test.ts:38:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 15 skipped, 16 total
+Snapshots:   0 total
+Time:        3.863 s, estimated 5 s
+Ran all test suites matching tests/assessmentHardening.test.ts with tests matching "double submit".

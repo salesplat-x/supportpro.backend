@@ -5,6 +5,7 @@ import { draftApplicantMessages } from "../services/applicantMessaging.js";
 import { generateSingleFitReport, generateBulkFitReport } from "../services/fitReport.js";
 import { JobStatus, UserRole } from "../types/enums.js";
 import { sendSuccessResponse } from "../utils/response.js";
+import { hideAssessmentResultsFromCandidate } from "../services/application.js";
 
 export const create = async (req: Request, res: Response) => {
   const result = await jobService.createJob(req.user.id, req.body);
@@ -81,6 +82,7 @@ export const topTalents = async (req: Request, res: Response) => {
 
 export const gradeCv = async (req: Request, res: Response) => {
   const result = await jobService.gradeCv(req.user.id, req.params["jobId"]!);
+  hideAssessmentResultsFromCandidate(result.application);
   sendSuccessResponse(res, "CV graded", result);
 };
 
@@ -139,7 +141,9 @@ export const retryVerdicts = async (req: Request, res: Response) => {
 };
 
 export const apply = async (req: Request, res: Response) => {
-  const result = await jobService.apply(req.user, { jobId: req.params["jobId"]! });
+  const result = hideAssessmentResultsFromCandidate(
+    await jobService.apply(req.user, { jobId: req.params["jobId"]! })
+  );
   sendSuccessResponse(res, "Application submitted", { application: result }, 201);
 };
 
@@ -149,6 +153,8 @@ export const activatePayment = async (req: Request, res: Response) => {
 };
 
 export const checkPrescreening = async (req: Request, res: Response) => {
-  const result = await jobService.checkPrescreeningAdvance(req.user.id, req.params["jobId"]!);
+  const result = hideAssessmentResultsFromCandidate(
+    await jobService.checkPrescreeningAdvance(req.user.id, req.params["jobId"]!)
+  );
   sendSuccessResponse(res, "Prescreening stage checked", { application: result });
 };

@@ -1,0 +1,27 @@
+2026-10-27 18:53:30:5330 [32minfo[39m: [32mDocs available at http://localhost:3003/v1/docs[39m
+2026-10-27 18:53:30:5330 [37mhttp[39m: [37mPOST /v1/questions/problem-solving 200 716 - 171.139 ms[39m
+2026-10-27 18:53:30:5330 [37mhttp[39m: [37mPOST /v1/questions/problem-solving 200 716 - 172.662 ms[39m
+FAIL tests/assessmentHardening.test.ts
+  ● parallel generate requests respect the pool cap › two parallel requests on a pool of 28 leave at most 30 questions, none repeated
+
+    expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 30
+    Received:    32
+
+      403 |       .getRepository(QuestionEntity)
+      404 |       .find({ where: { jobId: job.id, type: QuestionType.ProblemSolving } });
+    > 405 |     expect(stored.length).toBeLessThanOrEqual(30);
+          |                           ^
+      406 |     expect(new Set(stored.map((q) => q.question)).size).toBe(stored.length);
+      407 |   });
+      408 | });
+
+      at tests/assessmentHardening.test.ts:405:27
+      at fulfilled (tests/assessmentHardening.test.ts:38:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 16 skipped, 17 total
+Snapshots:   0 total
+Time:        4.802 s
+Ran all test suites matching tests/assessmentHardening.test.ts with tests matching "pool cap".

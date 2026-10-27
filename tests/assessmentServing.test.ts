@@ -1,9 +1,3 @@
-/**
- * Serving problem-solving and culture-fit questions to candidates (plan Day 4).
- * Each applicant gets a random set of the recruiter's chosen size from the
- * job's pool, the same set every time they come back, and never the scoring
- * criteria.
- */
 import request from "supertest";
 import type { QueryRunner } from "typeorm";
 import { createApp } from "../src/app.js";
@@ -59,7 +53,6 @@ const PATHS = {
   [QuestionType.CultureFit]: "/v1/questions/candidate/culture-fit",
 } as const;
 
-/** A job with the given switches, a pool of `poolSize` questions per type, and an applicant. */
 async function jobWithApplicant(
   configOverrides: Partial<AIConfig> = {},
   poolSize = 6,

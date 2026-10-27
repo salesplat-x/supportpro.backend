@@ -449,10 +449,6 @@ export const evaluatePersonalityType = async (
   return { application, mbtiType, score: mbtiType };
 };
 
-// ---------------------------------------------------------------------------
-// Problem-solving and culture-fit answers and scoring (plan Day 4)
-// ---------------------------------------------------------------------------
-
 type CompanyAssessmentType = QuestionType.ProblemSolving | QuestionType.CultureFit;
 
 const COMPANY_ASSESSMENT = {
@@ -475,11 +471,6 @@ export interface CompanyAssessmentAnswersPayload {
   answers: Record<string, string>;
 }
 
-/**
- * Grades every answer, calling the AI up to MAX_GENERATION_ATTEMPTS times and
- * asking again only for answers still without a usable grade. Returns null if
- * any answer is still ungraded, so nothing partial is ever saved.
- */
 const gradeAllAnswers = async (
   type: CompanyAssessmentType,
   items: AI.CompanyAssessmentAnswerItem[]
@@ -497,7 +488,6 @@ const gradeAllAnswers = async (
       );
       for (const grade of parsed) graded.set(grade.questionId, grade);
     } catch (err) {
-      // A failed call or an unusable reply: log it and try again for what is missing.
       const what = err instanceof GradedAnswersParseError ? "reply unusable" : "call failed";
       logger.warn(
         `AI ${label} grading ${what} (attempt ${attempt}/${MAX_GENERATION_ATTEMPTS}): ${
@@ -509,12 +499,6 @@ const gradeAllAnswers = async (
   return graded.size === items.length ? graded : null;
 };
 
-/**
- * A candidate submits answers to the problem-solving or culture-fit questions
- * they were given. Each answer is graded 0-5 against its question's criteria;
- * the score is the total over the most possible, as a percentage, saved on the
- * application. One submission per test; the candidate isn't shown the score.
- */
 export const submitCompanyAssessmentAnswers = async (
   userId: string,
   type: CompanyAssessmentType,
@@ -588,10 +572,16 @@ export const submitCompanyAssessmentAnswers = async (
   }
 
   const ordered = assignedIds.map((id) => graded.get(id)!);
-  application[settings.score] = scorePercent(ordered.map((g) => g.score));
+  const score = scorePercent(ordered.map((g) => g.score));
 
   await AppDataSource.transaction(async (manager) => {
-    await manager.save(Application, application);
+    const [, updated] = (await manager.query(
+      `UPDATE "applications" SET "${settings.score}" = $1 WHERE id = $2 AND "${settings.score}" IS NULL RETURNING id`,
+      [score, application.id]
+    )) as [unknown[], number];
+    if (updated === 0) {
+      throw new ConflictError(`You have already submitted your ${settings.label} answers`);
+    }
     await manager.save(
       Answer,
       manager.create(Answer, {

@@ -130,8 +130,6 @@ export const fetchQuestions = async (
     return withStoredAnswers(user.id, payload.jobId, QuestionType.Personality, questions);
   }
 
-  // Problem-solving / culture-fit questions carry scoring criteria: only the
-  // job's company can see them (candidates get them once Day 4/5 serves them).
   if (
     payload.questionType === QuestionType.ProblemSolving ||
     payload.questionType === QuestionType.CultureFit
@@ -187,10 +185,13 @@ export const fetchQuestions = async (
   });
 };
 
-export const fetchQuestion = async (questionId: string): Promise<Question> => {
+export const fetchQuestion = async (questionId: string): Promise<Question | CandidateQuestion> => {
   const question = await questionRepo().findOne({ where: { id: questionId } });
   if (!question) {
     throw new NotFoundError("Question not found");
+  }
+  if (question.type === QuestionType.ProblemSolving || question.type === QuestionType.CultureFit) {
+    return toCandidateQuestion(question);
   }
   return question;
 };
@@ -212,6 +213,19 @@ export const deleteQuestion = async (userId: string, questionId: string): Promis
     question.job.organizationId,
     question.job.postedById
   );
+
+  if (question.type === QuestionType.ProblemSolving || question.type === QuestionType.CultureFit) {
+    const column = ASSESSMENT_SETTINGS[question.type].assigned;
+    const givenTo = await applicationRepo()
+      .createQueryBuilder("a")
+      .where(`',' || a."${column}" || ',' LIKE :pattern`, { pattern: `%,${question.id},%` })
+      .getCount();
+    if (givenTo > 0) {
+      throw new ValidationError(
+        "This question has already been given to candidates, so it can't be deleted"
+      );
+    }
+  }
 
   await questionRepo().remove(question);
 };
@@ -494,10 +508,6 @@ export const getOrAssignPersonalityQuestionsForApplicant = async (
   return questionRepo().createQueryBuilder("q").whereInIds(selectedIds).getMany();
 };
 
-// ---------------------------------------------------------------------------
-// Problem-solving and culture-fit questions (plan Day 3)
-// ---------------------------------------------------------------------------
-
 type CompanyAssessmentType = QuestionType.ProblemSolving | QuestionType.CultureFit;
 
 const ASSESSMENT_LABEL: Record<CompanyAssessmentType, string> = {
@@ -505,7 +515,6 @@ const ASSESSMENT_LABEL: Record<CompanyAssessmentType, string> = {
   [QuestionType.CultureFit]: "culture-fit",
 };
 
-/** Loads the job and checks the caller belongs to the company that owns it. */
 const loadJobForCompanyMember = async (
   user: Pick<User, "id" | "userRole">,
   jobId: string,
@@ -553,11 +562,6 @@ const generationFailedError = (label: string) =>
 
 const questionKey = (text: string) => text.toLowerCase().replace(/\s+/g, " ").trim();
 
-/**
- * Calls the AI up to MAX_GENERATION_ATTEMPTS times, asking only for what is
- * still missing, and keeps every usable question. A malformed reply or a failed
- * call is logged and retried; if nothing usable comes back, a clear 502.
- */
 const collectGeneratedQuestions = async (
   label: string,
   count: number,
@@ -613,7 +617,11 @@ const collectGeneratedQuestions = async (
   return collected;
 };
 
-/** How many more questions of this type the job may hold; 400 when it is full. */
+const poolFullError = (type: CompanyAssessmentType) =>
+  new ValidationError(
+    `This job already has the maximum of ${MAX_QUESTION_POOL_PER_TYPE} ${ASSESSMENT_LABEL[type]} questions. Delete some before generating more.`
+  );
+
 const remainingPoolSpace = async (
   job: Job,
   type: CompanyAssessmentType,
@@ -626,9 +634,7 @@ const remainingPoolSpace = async (
   });
   const space = MAX_QUESTION_POOL_PER_TYPE - existingRows.length;
   if (space <= 0) {
-    throw new ValidationError(
-      `This job already has the maximum of ${MAX_QUESTION_POOL_PER_TYPE} ${ASSESSMENT_LABEL[type]} questions. Delete some before generating more.`
-    );
+    throw poolFullError(type);
   }
   return { count: Math.min(requested, space), existing: existingRows.map((q) => q.question) };
 };
@@ -638,17 +644,37 @@ const saveGeneratedQuestions = (
   type: CompanyAssessmentType,
   generated: GeneratedQuestion[]
 ): Promise<Question[]> =>
-  questionRepo().save(
-    generated.map((item) =>
-      questionRepo().create({
-        type,
-        jobId: job.id,
-        question: item.question,
-        category: item.category,
-        criteria: item.criteria,
+  AppDataSource.transaction(async (manager) => {
+    await manager.findOne(Job, { where: { id: job.id }, lock: { mode: "pessimistic_write" } });
+    const existing = await manager.find(Question, {
+      where: { jobId: job.id, type },
+      select: { id: true, question: true },
+    });
+    const space = MAX_QUESTION_POOL_PER_TYPE - existing.length;
+    if (space <= 0) {
+      throw poolFullError(type);
+    }
+    const seen = new Set(existing.map((q) => questionKey(q.question)));
+    const fresh = generated
+      .filter((item) => {
+        const key = questionKey(item.question);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
       })
-    )
-  );
+      .slice(0, space);
+    return manager.save(
+      fresh.map((item) =>
+        manager.create(Question, {
+          type,
+          jobId: job.id,
+          question: item.question,
+          category: item.category,
+          criteria: item.criteria,
+        })
+      )
+    );
+  });
 
 export interface GenerateAssessmentQuestionsPayload {
   jobId: string;
@@ -667,7 +693,6 @@ export const generateProblemSolvingQuestions = async (
     payload.count ?? DEFAULT_GENERATED_QUESTIONS
   );
 
-  // Job-agnostic by design: nothing about the job goes to the AI.
   const generated = await collectGeneratedQuestions(
     ASSESSMENT_LABEL[type],
     count,
@@ -691,8 +716,6 @@ export const generateCultureFitQuestions = async (
     payload.count ?? DEFAULT_GENERATED_QUESTIONS
   );
 
-  // No values yet (or a pre-tenancy job with no company): still useful — the
-  // AI asks about general ways of working, and the caller is told so.
   const companyValues = job.organization?.companyValues ?? [];
   const basedOnCompanyValues = companyValues.length > 0;
 
@@ -717,11 +740,6 @@ export const generateCultureFitQuestions = async (
   };
 };
 
-// ---------------------------------------------------------------------------
-// Problem-solving and culture-fit questions for candidates (plan Day 4)
-// ---------------------------------------------------------------------------
-
-/** What a candidate sees of a question: never the scoring criteria or category. */
 export interface CandidateQuestion {
   id: string;
   question: string;
@@ -749,11 +767,14 @@ export const toCandidateQuestion = (q: Question): CandidateQuestion => ({
   questionType: q.type,
 });
 
-/**
- * Gives an applicant their problem-solving or culture-fit questions. The first
- * call picks a random set of the recruiter's chosen size from the job's pool and
- * stores it on the application; later calls return the same set.
- */
+const loadAssignedQuestions = async (ids: string[]): Promise<CandidateQuestion[]> => {
+  if (ids.length === 0) return [];
+  const assigned = await questionRepo().createQueryBuilder("q").whereInIds(ids).getMany();
+  const order = new Map(ids.map((id, i) => [id, i]));
+  assigned.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+  return assigned.map(toCandidateQuestion);
+};
+
 export const getOrAssignAssessmentQuestionsForApplicant = async (
   userId: string,
   type: CompanyAssessmentType,
@@ -775,13 +796,7 @@ export const getOrAssignAssessmentQuestionsForApplicant = async (
 
   const alreadyAssigned = application[settings.assigned];
   if (alreadyAssigned?.length) {
-    const assigned = await questionRepo()
-      .createQueryBuilder("q")
-      .whereInIds(alreadyAssigned)
-      .getMany();
-    const order = new Map(alreadyAssigned.map((id, i) => [id, i]));
-    assigned.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
-    return { questions: assigned.map(toCandidateQuestion) };
+    return { questions: await loadAssignedQuestions(alreadyAssigned) };
   }
 
   const pool = await questionRepo().find({ where: { jobId, type } });
@@ -794,7 +809,13 @@ export const getOrAssignAssessmentQuestionsForApplicant = async (
   }
   const count = config[settings.count] ?? pool.length;
   const selected = shuffle(pool).slice(0, count);
-  application[settings.assigned] = selected.map((q) => q.id);
-  await applicationRepo().save(application);
+  const [, claimed] = (await AppDataSource.query(
+    `UPDATE "applications" SET "${settings.assigned}" = $1 WHERE id = $2 AND "${settings.assigned}" IS NULL RETURNING id`,
+    [selected.map((q) => q.id).join(","), application.id]
+  )) as [unknown[], number];
+  if (claimed === 0) {
+    const current = await applicationRepo().findOneByOrFail({ id: application.id });
+    return { questions: await loadAssignedQuestions(current[settings.assigned] ?? []) };
+  }
   return { questions: selected.map(toCandidateQuestion) };
 };

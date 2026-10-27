@@ -1,10 +1,3 @@
-/**
- * Candidates answer their problem-solving and culture-fit questions, and the
- * answers are scored against each question's criteria (plan Day 4).
- * End-of-day proof: "a test job's applicant answers and gets a score".
- * Scoring rule: the AI grades each answer 0-5 against its criteria; the score is
- * total / (5 x answers) as a percentage. The AI is mocked.
- */
 import request from "supertest";
 import type { QueryRunner } from "typeorm";
 import { createApp } from "../src/app.js";
@@ -86,7 +79,6 @@ const SETTINGS = {
 
 type AssessmentType = keyof typeof SETTINGS;
 
-/** A test job with both tests on, 3 questions per type, an applicant who has been served them. */
 async function servedApplicant(type: AssessmentType, configOverrides: Partial<AIConfig> = {}) {
   const { user: recruiter } = await createRecruiter();
   const config = await createAIConfig(recruiter, {
@@ -153,7 +145,6 @@ describe.each([QuestionType.ProblemSolving, QuestionType.CultureFit] as const)(
 
       const res = await submit(token, type, { jobId: job.id, answers: answersFor(questions) });
       expect(res.status).toBe(200);
-      // The candidate is told it was received, not their score or the criteria.
       expect(apiData(res)).toEqual({ submitted: true, questionType: type, answered: 3 });
 
       const saved = await reloadApplication(application.id);
@@ -276,9 +267,10 @@ describe.each([QuestionType.ProblemSolving, QuestionType.CultureFit] as const)(
 
     it("before the candidate has loaded their questions → 400", async () => {
       const { job, token, application, questions } = await servedApplicant(type);
-      await testDataSource
-        .getRepository(Application)
-        .update({ id: application.id }, { [SETTINGS[type].assigned]: null });
+      await testDataSource.query(
+        `UPDATE "applications" SET "${SETTINGS[type].assigned}" = NULL WHERE id = $1`,
+        [application.id]
+      );
       const res = await submit(token, type, { jobId: job.id, answers: answersFor(questions) });
       expect(res.status).toBe(400);
     });

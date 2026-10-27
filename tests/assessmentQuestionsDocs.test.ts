@@ -1,7 +1,3 @@
-/**
- * API docs (swagger.yaml) for the Day 3 endpoints and the companyValues field.
- */
-
 import fs from "fs";
 import path from "path";
 import yaml from "js-yaml";
