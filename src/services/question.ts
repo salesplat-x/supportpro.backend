@@ -9,7 +9,13 @@ import {
   User,
   Answer,
 } from "../entities";
-import { NotFoundError, ValidationError, AuthorizationError, AppError } from "../utils/errors";
+import {
+  NotFoundError,
+  ValidationError,
+  AuthorizationError,
+  AppError,
+  ConflictError,
+} from "../utils/errors";
 import { QuestionType, JobStatus, UserRole } from "../types/enums.js";
 import { calculateTimeLeft, sortDirection } from "../utils/text.js";
 import * as AI from "../utils/integrations/openai.js";
@@ -630,6 +636,11 @@ const collectGeneratedQuestions = async (
   return collected;
 };
 
+const poolFullError = (type: CompanyAssessmentType) =>
+  new ValidationError(
+    `This job already has the maximum of ${MAX_QUESTION_POOL_PER_TYPE} ${ASSESSMENT_LABEL[type]} questions. Delete some before generating more.`
+  );
+
 /** How many more questions of this type the job may hold; 400 when it is full. */
 const remainingPoolSpace = async (
   job: Job,
@@ -643,29 +654,56 @@ const remainingPoolSpace = async (
   });
   const space = MAX_QUESTION_POOL_PER_TYPE - existingRows.length;
   if (space <= 0) {
-    throw new ValidationError(
-      `This job already has the maximum of ${MAX_QUESTION_POOL_PER_TYPE} ${ASSESSMENT_LABEL[type]} questions. Delete some before generating more.`
-    );
+    throw poolFullError(type);
   }
   return { count: Math.min(requested, space), existing: existingRows.map((q) => q.question) };
 };
 
+/**
+ * The pool is checked again under a lock on the job row, because another
+ * request may have filled it or saved the same questions during the AI call.
+ */
 const saveGeneratedQuestions = (
   job: Job,
   type: CompanyAssessmentType,
   generated: GeneratedQuestion[]
 ): Promise<Question[]> =>
-  questionRepo().save(
-    generated.map((item) =>
-      questionRepo().create({
-        type,
-        jobId: job.id,
-        question: item.question,
-        category: item.category,
-        criteria: item.criteria,
-      })
-    )
-  );
+  AppDataSource.transaction(async (manager) => {
+    await manager.findOne(Job, {
+      where: { id: job.id },
+      select: { id: true },
+      lock: { mode: "pessimistic_write" },
+    });
+    const repo = manager.getRepository(Question);
+    const pool = await repo.find({
+      where: { jobId: job.id, type },
+      select: { id: true, question: true },
+    });
+    const space = MAX_QUESTION_POOL_PER_TYPE - pool.length;
+    if (space <= 0) {
+      throw poolFullError(type);
+    }
+
+    const taken = new Set(pool.map((q) => questionKey(q.question)));
+    const fresh = generated.filter((item) => !taken.has(questionKey(item.question)));
+    if (fresh.length === 0) {
+      throw new ConflictError(
+        `These ${ASSESSMENT_LABEL[type]} questions were just added by another request. Refresh to see them.`
+      );
+    }
+
+    return repo.save(
+      fresh.slice(0, space).map((item) =>
+        repo.create({
+          type,
+          jobId: job.id,
+          question: item.question,
+          category: item.category,
+          criteria: item.criteria,
+        })
+      )
+    );
+  });
 
 export interface GenerateAssessmentQuestionsPayload {
   jobId: string;

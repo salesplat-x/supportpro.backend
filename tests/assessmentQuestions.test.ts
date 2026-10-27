@@ -654,3 +654,73 @@ describe("GET /v1/questions — non-text query values", () => {
     expect(mockProblemSolving).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Concurrency, retries and pool boundaries
+// ---------------------------------------------------------------------------
+
+describe("generation under concurrency and failure", () => {
+  const seedPool = async (jobId: string, n: number) => {
+    const repo = testDataSource.getRepository(Question);
+    await repo.save(
+      Array.from({ length: n }, (_, i) =>
+        repo.create({ type: QuestionType.ProblemSolving, jobId, question: `Existing ${i}` })
+      )
+    );
+  };
+
+  /** Holds every AI reply until `expected` calls are waiting, so requests overlap. */
+  const overlappingReplies = (expected: number, reply: (call: number) => unknown) => {
+    let waiting = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    mockProblemSolving.mockImplementation(async () => {
+      const call = ++waiting;
+      if (waiting === expected) release();
+      await gate;
+      return reply(call);
+    });
+  };
+
+  it("two overlapping requests never push the pool past 30", async () => {
+    const { token, job } = await companyWithJob();
+    await seedPool(job.id, 25);
+    overlappingReplies(2, (call) => aiReply(reasoningQuestions(5, call * 100)));
+
+    const [a, b] = await Promise.all([
+      postProblemSolving(token, { jobId: job.id, count: 5 }),
+      postProblemSolving(token, { jobId: job.id, count: 5 }),
+    ]);
+
+    expect([a.status, b.status].sort()).toEqual([200, 400]);
+    expect(await storedQuestions(job.id, QuestionType.ProblemSolving)).toHaveLength(30);
+  });
+
+  it("two overlapping requests with the same AI reply store each question once", async () => {
+    const { token, job } = await companyWithJob();
+    overlappingReplies(2, () => aiReply(reasoningQuestions(3)));
+
+    const [a, b] = await Promise.all([
+      postProblemSolving(token, { jobId: job.id, count: 3 }),
+      postProblemSolving(token, { jobId: job.id, count: 3 }),
+    ]);
+
+    expect([a.status, b.status].sort()).toEqual([200, 409]);
+
+    const stored = await storedQuestions(job.id, QuestionType.ProblemSolving);
+    expect(stored).toHaveLength(3);
+    expect(new Set(stored.map((q) => q.question)).size).toBe(3);
+  });
+
+  it("with 29 in the pool asks the AI for 1 and stores 1", async () => {
+    const { token, job } = await companyWithJob();
+    await seedPool(job.id, 29);
+    mockProblemSolving.mockResolvedValueOnce(aiReply(reasoningQuestions(1)));
+
+    const res = await postProblemSolving(token, { jobId: job.id, count: 10 });
+
+    expect(res.status).toBe(200);
+    expect(mockProblemSolving).toHaveBeenCalledWith(expect.objectContaining({ count: 1 }));
+    expect(await storedQuestions(job.id, QuestionType.ProblemSolving)).toHaveLength(30);
+  });
+});
