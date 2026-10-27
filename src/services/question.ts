@@ -578,8 +578,9 @@ const questionKey = (text: string) => text.toLowerCase().replace(/\s+/g, " ").tr
 
 /**
  * Calls the AI up to MAX_GENERATION_ATTEMPTS times, asking only for what is
- * still missing, and keeps every usable question. A malformed reply or a failed
- * call is logged and retried; if nothing usable comes back, a clear 502.
+ * still missing, and keeps every usable question. A malformed or short reply is
+ * retried; a failed call is not, since runCompletion already retried transient
+ * errors. If nothing usable comes back, a clear 502.
  */
 const collectGeneratedQuestions = async (
   label: string,
@@ -608,7 +609,7 @@ const collectGeneratedQuestions = async (
           err instanceof Error ? err.message : String(err)
         }`
       );
-      continue;
+      break;
     }
 
     let parsed: GeneratedQuestion[];

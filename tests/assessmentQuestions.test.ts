@@ -712,6 +712,30 @@ describe("generation under concurrency and failure", () => {
     expect(new Set(stored.map((q) => q.question)).size).toBe(3);
   });
 
+  it("does not call the AI a second time after the call itself fails", async () => {
+    const { token, job } = await companyWithJob();
+    mockProblemSolving.mockRejectedValue(Object.assign(new Error("Unauthorized"), { status: 401 }));
+
+    const res = await postProblemSolving(token, { jobId: job.id, count: 2 });
+
+    expect(res.status).toBe(502);
+    expect(mockProblemSolving).toHaveBeenCalledTimes(1);
+    expect(await storedQuestions(job.id, QuestionType.ProblemSolving)).toHaveLength(0);
+  });
+
+  it("keeps a short first reply when the follow-up call fails → 200", async () => {
+    const { token, job } = await companyWithJob();
+    mockProblemSolving
+      .mockResolvedValueOnce(aiReply(reasoningQuestions(3)))
+      .mockRejectedValueOnce(new Error("connect ECONNREFUSED"));
+
+    const res = await postProblemSolving(token, { jobId: job.id, count: 5 });
+
+    expect(res.status).toBe(200);
+    expect(dataOf(res).questions).toHaveLength(3);
+    expect(await storedQuestions(job.id, QuestionType.ProblemSolving)).toHaveLength(3);
+  });
+
   it("with 29 in the pool asks the AI for 1 and stores 1", async () => {
     const { token, job } = await companyWithJob();
     await seedPool(job.id, 29);
