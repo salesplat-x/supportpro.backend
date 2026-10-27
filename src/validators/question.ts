@@ -29,13 +29,19 @@ export const evaluatePersonalityValidator = [
   body("answers").isObject().withMessage("answers must be an object"),
 ];
 
+// qs turns `a[]=x` or a repeated key into an array, which validators check element by element.
+const isPlainText = (value: unknown) => typeof value === "string";
+
 export const getQuestionsValidator = [
   query("questionType")
+    .custom(isPlainText)
+    .withMessage("questionType must be a single value")
+    .bail()
     .isIn(Object.values(QuestionType))
     .withMessage(`questionType must be one of: ${Object.values(QuestionType).join(", ")}`),
-  query("jobId").optional().isString(),
-  query("roleId").optional().isString(),
-  query("talentId").optional().isString(),
+  query("jobId").optional().custom(isPlainText),
+  query("roleId").optional().custom(isPlainText),
+  query("talentId").optional().custom(isPlainText),
   ...paginationRules,
 ];
 
@@ -64,9 +70,12 @@ export const ensurePersonalityQuestionsValidator = [
 
 // Problem-solving and culture-fit generation share one request shape.
 export const generateAssessmentQuestionsValidator = [
-  body("jobId").isUUID().withMessage("jobId must be a valid job id"),
+  body("jobId").custom(isPlainText).bail().isUUID().withMessage("jobId must be a valid job id"),
   body("count")
     .optional()
+    .not()
+    .isArray()
+    .bail()
     .isInt({ min: 1, max: MAX_GENERATED_QUESTIONS_PER_REQUEST })
     .withMessage(`count must be a whole number from 1 to ${MAX_GENERATED_QUESTIONS_PER_REQUEST}`)
     .toInt(),

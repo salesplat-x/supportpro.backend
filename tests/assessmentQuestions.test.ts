@@ -605,3 +605,52 @@ describe("GET /v1/questions/:_id — problem-solving and culture-fit", () => {
     expect(res.status).toBe(200);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Query strings that arrive as arrays or objects
+// ---------------------------------------------------------------------------
+
+describe("GET /v1/questions — non-text query values", () => {
+  it.each([
+    ["questionType as a list", (jobId: string) => `questionType[]=problem_solving&jobId=${jobId}`],
+    [
+      "questionType repeated",
+      (jobId: string) => `questionType=problem_solving&questionType=culture_fit&jobId=${jobId}`,
+    ],
+    ["jobId as a list", (jobId: string) => `questionType=problem_solving&jobId[]=${jobId}`],
+    ["jobId as an object", (jobId: string) => `questionType=problem_solving&jobId[id]=${jobId}`],
+  ])("rejects %s → 400 without leaking criteria", async (_label, query) => {
+    const { job } = await companyWithJob();
+    await createQuestion(
+      QuestionType.ProblemSolving,
+      { jobId: job.id },
+      { question: "Hidden question?", criteria: "Secret scoring criteria." }
+    );
+    const { token } = await createCompleteTalent(await createRole());
+
+    const res = await request(app)
+      .get(`/v1/questions?${query(job.id)}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(res.body)).not.toContain("Secret scoring criteria.");
+  });
+
+  it("rejects a generate request whose count is a list → 400", async () => {
+    const { token, job } = await companyWithJob();
+
+    const res = await postProblemSolving(token, { jobId: job.id, count: [5, 6] });
+
+    expect(res.status).toBe(400);
+    expect(mockProblemSolving).not.toHaveBeenCalled();
+  });
+
+  it("rejects a generate request whose jobId is a list → 400", async () => {
+    const { token, job } = await companyWithJob();
+
+    const res = await postProblemSolving(token, { jobId: [job.id] });
+
+    expect(res.status).toBe(400);
+    expect(mockProblemSolving).not.toHaveBeenCalled();
+  });
+});
