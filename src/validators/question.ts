@@ -83,7 +83,7 @@ export const generateAssessmentQuestionsValidator = [
 
 // Day 4: a candidate loading their problem-solving or culture-fit questions.
 export const candidateAssessmentQuestionsValidator = [
-  query("jobId").isUUID().withMessage("jobId must be a valid job id"),
+  query("jobId").custom(isPlainText).bail().isUUID().withMessage("jobId must be a valid job id"),
 ];
 
 /** Longest answer a candidate may give to one problem-solving or culture-fit question. */
@@ -91,7 +91,7 @@ export const MAX_ASSESSMENT_ANSWER_LENGTH = 5000;
 
 // Day 4: a candidate's answers, keyed by question id.
 export const companyAssessmentAnswersValidator = [
-  body("jobId").isUUID().withMessage("jobId must be a valid job id"),
+  body("jobId").custom(isPlainText).bail().isUUID().withMessage("jobId must be a valid job id"),
   body("answers")
     .isObject()
     .withMessage("answers must be an object")

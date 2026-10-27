@@ -23,6 +23,7 @@ import {
   createQuestion,
 } from "./helpers/fixtures.js";
 import { Application } from "../src/entities/Application.js";
+import { Question } from "../src/entities/Question.js";
 import type { AIConfig } from "../src/entities/AIConfig.js";
 import { QuestionType } from "../src/types/enums.js";
 import { apiData } from "./helpers/http.js";
@@ -208,5 +209,63 @@ describe("AddAssessmentQuestionsToApplications migration", () => {
       `ALTER TABLE "applications" DROP COLUMN "cultureFitQuestions"`,
       `ALTER TABLE "applications" DROP COLUMN "problemSolvingQuestions"`,
     ]);
+  });
+});
+
+describe("serving under concurrency and recovery", () => {
+  it("two overlapping first loads give the applicant one set", async () => {
+    const { token, job, application } = await jobWithApplicant();
+
+    const responses = await Promise.all(
+      Array.from({ length: 6 }, () => getServed(token, QuestionType.ProblemSolving, job.id))
+    );
+
+    expect(responses.map((r) => r.status)).toEqual(Array(6).fill(200));
+    const ids = (res: request.Response) => servedOf(res).map((q) => q.id);
+    const [a] = responses as [request.Response];
+    for (const res of responses) expect(ids(res)).toEqual(ids(a));
+    const saved = await testDataSource
+      .getRepository(Application)
+      .findOneByOrFail({ id: application!.id });
+    expect(saved.problemSolvingQuestions).toEqual(ids(a));
+  });
+
+  it("serves a full new set when one of the applicant's questions was deleted", async () => {
+    const { token, job, application } = await jobWithApplicant();
+    const first = servedOf(await getServed(token, QuestionType.ProblemSolving, job.id));
+    await testDataSource.getRepository(Question).delete({ id: first[0]!.id });
+
+    const res = await getServed(token, QuestionType.ProblemSolving, job.id);
+
+    expect(res.status).toBe(200);
+    expect(servedOf(res)).toHaveLength(3);
+    const saved = await testDataSource
+      .getRepository(Application)
+      .findOneByOrFail({ id: application!.id });
+    expect(saved.problemSolvingQuestions).toEqual(servedOf(res).map((q) => q.id));
+    expect(saved.problemSolvingQuestions).not.toContain(first[0]!.id);
+  });
+
+  it("keeps the set once the applicant has been scored, even if a question was deleted", async () => {
+    const { token, job, application } = await jobWithApplicant();
+    const first = servedOf(await getServed(token, QuestionType.ProblemSolving, job.id));
+    await testDataSource
+      .getRepository(Application)
+      .update(application!.id, { problemSolvingScore: 60 });
+    await testDataSource.getRepository(Question).delete({ id: first[0]!.id });
+
+    const res = await getServed(token, QuestionType.ProblemSolving, job.id);
+
+    expect(servedOf(res)).toHaveLength(2);
+  });
+
+  it("a jobId sent as a list → 400", async () => {
+    const { token, job } = await jobWithApplicant();
+
+    const res = await request(app)
+      .get(`${PATHS[QuestionType.ProblemSolving]}?jobId[]=${job.id}&jobId[]=${job.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(400);
   });
 });

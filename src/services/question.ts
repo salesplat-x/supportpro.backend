@@ -790,12 +790,14 @@ export const ASSESSMENT_SETTINGS = {
     flag: "problemSolvingAssessment",
     count: "noOfProblemSolvingQuestions",
     assigned: "problemSolvingQuestions",
+    score: "problemSolvingScore",
   },
   [QuestionType.CultureFit]: {
     label: "culture-fit",
     flag: "cultureFitAssessment",
     count: "noOfCultureFitQuestions",
     assigned: "cultureFitQuestions",
+    score: "cultureFitScore",
   },
 } as const;
 
@@ -824,33 +826,46 @@ export const getOrAssignAssessmentQuestionsForApplicant = async (
   if (!config?.[settings.flag]) {
     throw new ValidationError(`The ${settings.label} test is not switched on for this job`);
   }
-  const application = await applicationRepo().findOne({ where: { jobId, talentId: userId } });
-  if (!application) {
-    throw new ValidationError("You must apply for this job before this stage is available");
-  }
+  // Locked so overlapping first loads can't hand the applicant two different sets.
+  return AppDataSource.transaction(async (manager) => {
+    const application = await manager.findOne(Application, {
+      where: { jobId, talentId: userId },
+      lock: { mode: "pessimistic_write" },
+    });
+    if (!application) {
+      throw new ValidationError("You must apply for this job before this stage is available");
+    }
 
-  const alreadyAssigned = application[settings.assigned];
-  if (alreadyAssigned?.length) {
-    const assigned = await questionRepo()
-      .createQueryBuilder("q")
-      .whereInIds(alreadyAssigned)
-      .getMany();
-    const order = new Map(alreadyAssigned.map((id, i) => [id, i]));
-    assigned.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
-    return { questions: assigned.map(toCandidateQuestion) };
-  }
+    const alreadyAssigned = application[settings.assigned] ?? [];
+    if (alreadyAssigned.length) {
+      const assigned = await manager
+        .getRepository(Question)
+        .createQueryBuilder("q")
+        .whereInIds(alreadyAssigned)
+        .getMany();
+      // A recruiter deleted one of these before the applicant answered: serve a
+      // fresh set rather than leave them unable to submit.
+      const scored = application[settings.score] !== null;
+      if (assigned.length === alreadyAssigned.length || scored) {
+        const order = new Map(alreadyAssigned.map((id, i) => [id, i]));
+        assigned.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+        return { questions: assigned.map(toCandidateQuestion) };
+      }
+    }
 
-  const pool = await questionRepo().find({ where: { jobId, type } });
-  if (pool.length === 0) {
-    throw new AppError(
-      409,
-      "ASSESSMENT_NOT_READY",
-      `The ${settings.label} test for this job isn't ready yet. Please try again later.`
-    );
-  }
-  const count = config[settings.count] ?? pool.length;
-  const selected = shuffle(pool).slice(0, count);
-  application[settings.assigned] = selected.map((q) => q.id);
-  await applicationRepo().save(application);
-  return { questions: selected.map(toCandidateQuestion) };
+    const pool = await manager.find(Question, { where: { jobId, type } });
+    if (pool.length === 0) {
+      throw new AppError(
+        409,
+        "ASSESSMENT_NOT_READY",
+        `The ${settings.label} test for this job isn't ready yet. Please try again later.`
+      );
+    }
+    const count = config[settings.count] ?? pool.length;
+    const selected = shuffle(pool).slice(0, count);
+    await manager.update(Application, application.id, {
+      [settings.assigned]: selected.map((q) => q.id),
+    });
+    return { questions: selected.map(toCandidateQuestion) };
+  });
 };

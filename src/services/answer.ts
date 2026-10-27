@@ -497,13 +497,15 @@ const gradeAllAnswers = async (
       );
       for (const grade of parsed) graded.set(grade.questionId, grade);
     } catch (err) {
-      // A failed call or an unusable reply: log it and try again for what is missing.
-      const what = err instanceof GradedAnswersParseError ? "reply unusable" : "call failed";
+      // An unusable reply is asked again; a failed call is not, since
+      // runCompletion already retried transient errors.
+      const unusable = err instanceof GradedAnswersParseError;
       logger.warn(
-        `AI ${label} grading ${what} (attempt ${attempt}/${MAX_GENERATION_ATTEMPTS}): ${
+        `AI ${label} grading ${unusable ? "reply unusable" : "call failed"} (attempt ${attempt}/${MAX_GENERATION_ATTEMPTS}): ${
           err instanceof Error ? err.message : String(err)
         }`
       );
+      if (!unusable) break;
     }
   }
   return graded.size === items.length ? graded : null;
@@ -546,6 +548,18 @@ export const submitCompanyAssessmentAnswers = async (
     throw new ValidationError(`Load your ${settings.label} questions before answering them`);
   }
 
+  const questions = await questionRepo()
+    .createQueryBuilder("q")
+    .whereInIds(assignedIds)
+    .andWhere("q.job_id = :jobId", { jobId })
+    .andWhere("q.type = :type", { type })
+    .getMany();
+  if (questions.length !== assignedIds.length) {
+    throw new ValidationError(
+      `Some of your ${settings.label} questions are no longer available. Please reload them and answer again.`
+    );
+  }
+
   const assigned = new Set(assignedIds);
   const answeredIds = Object.keys(answers);
   if (answeredIds.some((id) => !assigned.has(id))) {
@@ -555,18 +569,6 @@ export const submitCompanyAssessmentAnswers = async (
   if (missing.length > 0) {
     throw new ValidationError(
       `Please answer all ${assignedIds.length} ${settings.label} questions (${missing.length} missing)`
-    );
-  }
-
-  const questions = await questionRepo()
-    .createQueryBuilder("q")
-    .whereInIds(assignedIds)
-    .andWhere("q.job_id = :jobId", { jobId })
-    .andWhere("q.type = :type", { type })
-    .getMany();
-  if (questions.length !== assignedIds.length) {
-    throw new ValidationError(
-      `Some of your ${settings.label} questions are no longer available. Please contact the recruiter.`
     );
   }
 
@@ -588,10 +590,26 @@ export const submitCompanyAssessmentAnswers = async (
   }
 
   const ordered = assignedIds.map((id) => graded.get(id)!);
-  application[settings.score] = scorePercent(ordered.map((g) => g.score));
+  const score = scorePercent(ordered.map((g) => g.score));
 
+  // Re-checked under a lock: another submission may have finished during grading.
   await AppDataSource.transaction(async (manager) => {
-    await manager.save(Application, application);
+    const locked = await manager.findOne(Application, {
+      where: { id: application.id },
+      lock: { mode: "pessimistic_write" },
+    });
+    if (!locked) {
+      throw new NotFoundError("Application not found");
+    }
+    if (locked[settings.score] !== null) {
+      throw new ConflictError(`You have already submitted your ${settings.label} answers`);
+    }
+    if ((locked[settings.assigned] ?? []).join(",") !== assignedIds.join(",")) {
+      throw new ValidationError(
+        `Your ${settings.label} questions have changed. Please reload them and answer again.`
+      );
+    }
+    await manager.update(Application, application.id, { [settings.score]: score });
     await manager.save(
       Answer,
       manager.create(Answer, {
