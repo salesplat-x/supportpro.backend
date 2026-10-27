@@ -70,6 +70,14 @@ export class Organization {
   @Column({ type: "varchar", nullable: true, default: null, name: "logo_key" })
   logoKey!: string | null;
 
+  /**
+   * The company's values, in the recruiter's own words (e.g. "Ownership").
+   * Culture-fit questions are written against these. At most
+   * MAX_COMPANY_VALUES entries of up to MAX_COMPANY_VALUE_LENGTH characters.
+   */
+  @Column({ type: "jsonb", default: "[]", name: "company_values" })
+  companyValues!: string[];
+
   @Column({ type: "enum", enum: OrganizationStatus, default: OrganizationStatus.Pending })
   status!: OrganizationStatus;
 
