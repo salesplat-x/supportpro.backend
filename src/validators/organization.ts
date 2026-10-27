@@ -1,6 +1,7 @@
 import { body, param } from "express-validator";
 import { idParam, phoneRule } from "./shared.js";
 import { isValidLinkedinUrl } from "../utils/emailDomain.js";
+import { MAX_COMPANY_VALUES, MAX_COMPANY_VALUE_LENGTH } from "../config/assessmentQuestions.js";
 
 export const switchOrganizationValidator = [idParam("_id")];
 
@@ -19,6 +20,17 @@ export const updateOrganizationValidator = [
   body("twitter").optional().isString(),
   body("linkedin").optional().isString(),
   body("facebook").optional().isString(),
+  body("companyValues")
+    .optional()
+    .isArray({ max: MAX_COMPANY_VALUES })
+    .withMessage(`companyValues must be a list of at most ${MAX_COMPANY_VALUES} values`),
+  body("companyValues.*")
+    .isString()
+    .withMessage("Each company value must be text")
+    .bail()
+    .trim()
+    .isLength({ min: 1, max: MAX_COMPANY_VALUE_LENGTH })
+    .withMessage(`Each company value must be 1-${MAX_COMPANY_VALUE_LENGTH} characters`),
 ];
 
 export const setMemberCanManagePeopleValidator = [
