@@ -9,7 +9,13 @@ import {
   User,
   Answer,
 } from "../entities";
-import { NotFoundError, ValidationError, AuthorizationError, AppError } from "../utils/errors";
+import {
+  NotFoundError,
+  ValidationError,
+  AuthorizationError,
+  AppError,
+  ConflictError,
+} from "../utils/errors";
 import { QuestionType, JobStatus, UserRole } from "../types/enums.js";
 import { calculateTimeLeft, sortDirection } from "../utils/text.js";
 import * as AI from "../utils/integrations/openai.js";
@@ -187,10 +193,27 @@ export const fetchQuestions = async (
   });
 };
 
-export const fetchQuestion = async (questionId: string): Promise<Question> => {
+const COMPANY_ONLY_TYPES: QuestionType[] = [QuestionType.ProblemSolving, QuestionType.CultureFit];
+
+export const fetchQuestion = async (
+  questionId: string,
+  user?: Pick<User, "id" | "userRole">
+): Promise<Question> => {
   const question = await questionRepo().findOne({ where: { id: questionId } });
   if (!question) {
     throw new NotFoundError("Question not found");
+  }
+  if (COMPANY_ONLY_TYPES.includes(question.type)) {
+    // Answered with 404 so outsiders can't tell the question exists.
+    try {
+      if (!user || !question.jobId) throw new AuthorizationError("Not a company member");
+      await loadJobForCompanyMember(user, question.jobId);
+    } catch (err) {
+      if (err instanceof AuthorizationError || err instanceof NotFoundError) {
+        throw new NotFoundError("Question not found");
+      }
+      throw err;
+    }
   }
   return question;
 };
@@ -555,8 +578,9 @@ const questionKey = (text: string) => text.toLowerCase().replace(/\s+/g, " ").tr
 
 /**
  * Calls the AI up to MAX_GENERATION_ATTEMPTS times, asking only for what is
- * still missing, and keeps every usable question. A malformed reply or a failed
- * call is logged and retried; if nothing usable comes back, a clear 502.
+ * still missing, and keeps every usable question. A malformed or short reply is
+ * retried; a failed call is not, since runCompletion already retried transient
+ * errors. If nothing usable comes back, a clear 502.
  */
 const collectGeneratedQuestions = async (
   label: string,
@@ -585,7 +609,7 @@ const collectGeneratedQuestions = async (
           err instanceof Error ? err.message : String(err)
         }`
       );
-      continue;
+      break;
     }
 
     let parsed: GeneratedQuestion[];
@@ -613,6 +637,11 @@ const collectGeneratedQuestions = async (
   return collected;
 };
 
+const poolFullError = (type: CompanyAssessmentType) =>
+  new ValidationError(
+    `This job already has the maximum of ${MAX_QUESTION_POOL_PER_TYPE} ${ASSESSMENT_LABEL[type]} questions. Delete some before generating more.`
+  );
+
 /** How many more questions of this type the job may hold; 400 when it is full. */
 const remainingPoolSpace = async (
   job: Job,
@@ -626,29 +655,56 @@ const remainingPoolSpace = async (
   });
   const space = MAX_QUESTION_POOL_PER_TYPE - existingRows.length;
   if (space <= 0) {
-    throw new ValidationError(
-      `This job already has the maximum of ${MAX_QUESTION_POOL_PER_TYPE} ${ASSESSMENT_LABEL[type]} questions. Delete some before generating more.`
-    );
+    throw poolFullError(type);
   }
   return { count: Math.min(requested, space), existing: existingRows.map((q) => q.question) };
 };
 
+/**
+ * The pool is checked again under a lock on the job row, because another
+ * request may have filled it or saved the same questions during the AI call.
+ */
 const saveGeneratedQuestions = (
   job: Job,
   type: CompanyAssessmentType,
   generated: GeneratedQuestion[]
 ): Promise<Question[]> =>
-  questionRepo().save(
-    generated.map((item) =>
-      questionRepo().create({
-        type,
-        jobId: job.id,
-        question: item.question,
-        category: item.category,
-        criteria: item.criteria,
-      })
-    )
-  );
+  AppDataSource.transaction(async (manager) => {
+    await manager.findOne(Job, {
+      where: { id: job.id },
+      select: { id: true },
+      lock: { mode: "pessimistic_write" },
+    });
+    const repo = manager.getRepository(Question);
+    const pool = await repo.find({
+      where: { jobId: job.id, type },
+      select: { id: true, question: true },
+    });
+    const space = MAX_QUESTION_POOL_PER_TYPE - pool.length;
+    if (space <= 0) {
+      throw poolFullError(type);
+    }
+
+    const taken = new Set(pool.map((q) => questionKey(q.question)));
+    const fresh = generated.filter((item) => !taken.has(questionKey(item.question)));
+    if (fresh.length === 0) {
+      throw new ConflictError(
+        `These ${ASSESSMENT_LABEL[type]} questions were just added by another request. Refresh to see them.`
+      );
+    }
+
+    return repo.save(
+      fresh.slice(0, space).map((item) =>
+        repo.create({
+          type,
+          jobId: job.id,
+          question: item.question,
+          category: item.category,
+          criteria: item.criteria,
+        })
+      )
+    );
+  });
 
 export interface GenerateAssessmentQuestionsPayload {
   jobId: string;
