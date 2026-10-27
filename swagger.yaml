@@ -1118,6 +1118,8 @@ paths:
           description: Not a recruiter, email not verified, or not a member of the job's company
         "404":
           description: Job not found
+        "409":
+          description: Another request saved the same questions while this one was generating; nothing was saved
         "502":
           description: The AI service gave no usable questions after a retry; nothing was saved
       security:
@@ -1198,6 +1200,8 @@ paths:
           description: Not a recruiter, email not verified, or not a member of the job's company
         "404":
           description: Job not found
+        "409":
+          description: Another request saved the same questions while this one was generating; nothing was saved
         "502":
           description: The AI service gave no usable questions after a retry; nothing was saved
       security:
@@ -1291,7 +1295,10 @@ paths:
         - bearerAuth: []
   /questions/{_id}:
     get:
-      summary: ""
+      summary: Fetch one question
+      description: >-
+        Sign-in is optional. Problem-solving and culture-fit questions carry scoring criteria, so they are
+        returned only to members of the company that owns the job (and admins); everyone else gets 404.
       tags:
         - questions
       parameters:
@@ -1307,6 +1314,11 @@ paths:
             application/json:
               schema:
                 type: object
+        "404":
+          description: Question not found, or a problem-solving/culture-fit question the caller may not see
+      security:
+        - {}
+        - bearerAuth: []
   /plans/:
     post:
       summary: Admin
