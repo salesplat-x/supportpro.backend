@@ -1,0 +1,39 @@
+FAIL tests/personalityFitDocs.test.ts
+  ● swagger.yaml — Day 6 personality fit on GET /applications/{_id} › documents that the recruiter sees when the fit is being worked out
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "boolean"
+    Received: undefined
+
+      36 |
+      37 |   it("documents that the recruiter sees when the fit is being worked out", () => {
+    > 38 |     expect(application()?.properties?.personalityFitPending?.type).toBe("boolean");
+         |                                                                    ^
+      39 |   });
+      40 |
+      41 |   it("documents the recruiter's retry endpoint and its error codes", () => {
+
+      at Object.<anonymous> (tests/personalityFitDocs.test.ts:38:68)
+
+  ● swagger.yaml — Day 6 personality fit on GET /applications/{_id} › documents the recruiter's retry endpoint and its error codes
+
+    expect(received).toBeDefined()
+
+    Received: undefined
+
+      41 |   it("documents the recruiter's retry endpoint and its error codes", () => {
+      42 |     const retry = spec.paths["/applications/{_id}/personality-fit"]?.["post"];
+    > 43 |     expect(retry).toBeDefined();
+         |                   ^
+      44 |     expect(Object.keys(retry!.responses).sort()).toEqual([
+      45 |       "200",
+      46 |       "400",
+
+      at Object.<anonymous> (tests/personalityFitDocs.test.ts:43:19)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 1 passed, 3 total
+Snapshots:   0 total
+Time:        1.532 s
+Ran all test suites matching tests/personalityFitDocs.test.ts.

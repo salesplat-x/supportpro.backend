@@ -1,0 +1,46 @@
+2026-10-28 01:23:46:2346 [32minfo[39m: [32mDocs available at http://localhost:3003/v1/docs[39m
+2026-10-28 01:23:46:2346 [37mhttp[39m: [37mPOST /v1/questions/answer/problem-solving 200 133 - 21.234 ms[39m
+2026-10-28 01:23:46:2346 [37mhttp[39m: [37mPOST /v1/questions/answer/problem-solving 200 133 - 9.362 ms[39m
+2026-10-28 01:23:46:2346 [37mhttp[39m: [37mPOST /v1/questions/answer/problem-solving 200 133 - 7.191 ms[39m
+2026-10-28 01:23:46:2346 [33mwarn[39m: [33mAI problem-solving grading reply unusable (attempt 1/2): The AI reply was not valid JSON[39m
+2026-10-28 01:23:46:2346 [33mwarn[39m: [33mAI problem-solving grading call failed (attempt 2/2): timeout[39m
+2026-10-28 01:23:46:2346 [37mhttp[39m: [37mPOST /v1/questions/answer/problem-solving 502 154 - 7.135 ms[39m
+2026-10-28 01:23:46:2346 [37mhttp[39m: [37mPOST /v1/questions/answer/problem-solving 200 133 - 6.535 ms[39m
+2026-10-28 01:23:46:2346 [37mhttp[39m: [37mPOST /v1/questions/answer/problem-solving 200 133 - 7.742 ms[39m
+2026-10-28 01:23:46:2346 [37mhttp[39m: [37mPOST /v1/questions/answer/problem-solving 409 113 - 4.225 ms[39m
+2026-10-28 01:23:46:2346 [37mhttp[39m: [37mPOST /v1/questions/answer/problem-solving 400 123 - 3.774 ms[39m
+2026-10-28 01:23:47:2347 [37mhttp[39m: [37mPOST /v1/questions/answer/problem-solving 400 122 - 3.802 ms[39m
+2026-10-28 01:23:47:2347 [37mhttp[39m: [37mPOST /v1/questions/answer/problem-solving 400 150 - 2.144 ms[39m
+2026-10-28 01:23:47:2347 [37mhttp[39m: [37mPOST /v1/questions/answer/problem-solving 400 123 - 3.616 ms[39m
+2026-10-28 01:23:47:2347 [37mhttp[39m: [37mPOST /v1/questions/answer/problem-solving 400 122 - 3.693 ms[39m
+2026-10-28 01:23:47:2347 [37mhttp[39m: [37mPOST /v1/questions/answer/problem-solving 400 111 - 3.187 ms[39m
+2026-10-28 01:23:47:2347 [37mhttp[39m: [37mPOST /v1/questions/answer/problem-solving 403 114 - 0.226 ms[39m
+2026-10-28 01:23:47:2347 [37mhttp[39m: [37mPOST /v1/questions/answer/problem-solving 400 182 - 2.102 ms[39m
+2026-10-28 01:23:47:2347 [37mhttp[39m: [37mPOST /v1/questions/answer/culture-fit 200 125 - 6.302 ms[39m
+2026-10-28 01:23:47:2347 [37mhttp[39m: [37mPOST /v1/questions/answer/culture-fit 200 125 - 5.993 ms[39m
+2026-10-28 01:23:47:2347 [37mhttp[39m: [37mPOST /v1/questions/answer/culture-fit 200 125 - 6.703 ms[39m
+2026-10-28 01:23:48:2348 [33mwarn[39m: [33mAI culture-fit grading reply unusable (attempt 1/2): The AI reply was not valid JSON[39m
+2026-10-28 01:23:48:2348 [33mwarn[39m: [33mAI culture-fit grading call failed (attempt 2/2): timeout[39m
+2026-10-28 01:23:48:2348 [37mhttp[39m: [37mPOST /v1/questions/answer/culture-fit 502 150 - 5.936 ms[39m
+2026-10-28 01:23:48:2348 [37mhttp[39m: [37mPOST /v1/questions/answer/culture-fit 200 125 - 7.311 ms[39m
+2026-10-28 01:23:48:2348 [37mhttp[39m: [37mPOST /v1/questions/answer/culture-fit 200 125 - 6.928 ms[39m
+2026-10-28 01:23:48:2348 [37mhttp[39m: [37mPOST /v1/questions/answer/culture-fit 409 109 - 3.336 ms[39m
+2026-10-28 01:23:48:2348 [37mhttp[39m: [37mPOST /v1/questions/answer/culture-fit 400 119 - 5.272 ms[39m
+2026-10-28 01:23:48:2348 [37mhttp[39m: [37mPOST /v1/questions/answer/culture-fit 400 118 - 4.132 ms[39m
+2026-10-28 01:23:48:2348 [37mhttp[39m: [37mPOST /v1/questions/answer/culture-fit 400 150 - 1.490 ms[39m
+2026-10-28 01:23:48:2348 [37mhttp[39m: [37mPOST /v1/questions/answer/culture-fit 400 119 - 4.746 ms[39m
+2026-10-28 01:23:48:2348 [37mhttp[39m: [37mPOST /v1/questions/answer/culture-fit 400 118 - 3.424 ms[39m
+2026-10-28 01:23:48:2348 [37mhttp[39m: [37mPOST /v1/questions/answer/culture-fit 400 111 - 2.904 ms[39m
+2026-10-28 01:23:48:2348 [37mhttp[39m: [37mPOST /v1/questions/answer/culture-fit 403 114 - 0.193 ms[39m
+2026-10-28 01:23:48:2348 [37mhttp[39m: [37mPOST /v1/questions/answer/culture-fit 400 182 - 1.713 ms[39m
+2026-10-28 01:23:49:2349 [37mhttp[39m: [37mPOST /v1/questions/answer/problem-solving 200 133 - 113.551 ms[39m
+2026-10-28 01:23:49:2349 [37mhttp[39m: [37mPOST /v1/questions/answer/problem-solving 409 113 - 114.082 ms[39m
+2026-10-28 01:23:49:2349 [37mhttp[39m: [37mPOST /v1/questions/answer/problem-solving 200 133 - 7.821 ms[39m
+2026-10-28 01:23:49:2349 [37mhttp[39m: [37mPOST /v1/questions/answer/culture-fit 200 125 - 111.350 ms[39m
+2026-10-28 01:23:49:2349 [37mhttp[39m: [37mPOST /v1/questions/answer/culture-fit 409 109 - 113.497 ms[39m
+2026-10-28 01:23:49:2349 [37mhttp[39m: [37mPOST /v1/questions/answer/culture-fit 200 125 - 9.067 ms[39m
+Test Suites: 1 passed, 1 total
+Tests:       31 passed, 31 total
+Snapshots:   0 total
+Time:        7.337 s, estimated 9 s
+Ran all test suites matching tests/assessmentAnswers.test.ts.

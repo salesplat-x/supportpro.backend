@@ -1,0 +1,39 @@
+2026-10-28 01:23:54:2354 [32minfo[39m: [32mDocs available at http://localhost:3003/v1/docs[39m
+2026-10-28 01:23:54:2354 [37mhttp[39m: [37mGET /v1/questions/candidate/problem-solving?jobId=322ace2d-944a-4f2c-a94f-97dddcb88277 200 506 - 18.921 ms[39m
+2026-10-28 01:23:54:2354 [37mhttp[39m: [37mGET /v1/questions/candidate/problem-solving?jobId=a99e4cdb-56d0-4a90-ad7f-7418e0f6c2fc 200 506 - 8.873 ms[39m
+2026-10-28 01:23:54:2354 [37mhttp[39m: [37mGET /v1/questions/candidate/problem-solving?jobId=a99e4cdb-56d0-4a90-ad7f-7418e0f6c2fc 200 506 - 6.165 ms[39m
+2026-10-28 01:23:54:2354 [37mhttp[39m: [37mGET /v1/questions/candidate/problem-solving?jobId=43644478-d9b8-4292-9697-279184a1bd38 200 224 - 9.910 ms[39m
+2026-10-28 01:23:54:2354 [37mhttp[39m: [37mGET /v1/questions/candidate/problem-solving?jobId=1b5bfb6e-f1b2-41e0-8331-8f94a5c9cbe9 409 148 - 5.895 ms[39m
+2026-10-28 01:23:54:2354 [37mhttp[39m: [37mGET /v1/questions/candidate/problem-solving?jobId=fef094f5-1100-40f1-a574-318db18f465a 400 122 - 5.461 ms[39m
+2026-10-28 01:23:54:2354 [37mhttp[39m: [37mGET /v1/questions/candidate/problem-solving?jobId=f340e137-9c0b-45fc-aa39-08ab93a1424a 400 124 - 4.265 ms[39m
+2026-10-28 01:23:55:2355 [37mhttp[39m: [37mGET /v1/questions/candidate/problem-solving?jobId=9c44861b-638a-4c9f-a863-07825342eb34 403 114 - 0.674 ms[39m
+2026-10-28 01:23:55:2355 [37mhttp[39m: [37mGET /v1/questions/candidate/problem-solving?jobId=8b1d3c3e-1b7a-4a59-9a5c-1f0f8f0e2a11 404 81 - 2.468 ms[39m
+2026-10-28 01:23:55:2355 [37mhttp[39m: [37mGET /v1/questions/candidate/problem-solving?jobId=not-a-uuid 400 144 - 1.562 ms[39m
+2026-10-28 01:23:55:2355 [37mhttp[39m: [37mGET /v1/questions/candidate/culture-fit?jobId=367ce534-0ec6-4248-905c-ac52bccd390f 200 349 - 5.476 ms[39m
+2026-10-28 01:23:55:2355 [37mhttp[39m: [37mGET /v1/questions/candidate/culture-fit?jobId=4514286a-b360-4cc2-a11f-b9eddd5172ff 200 349 - 4.821 ms[39m
+2026-10-28 01:23:55:2355 [37mhttp[39m: [37mGET /v1/questions/candidate/culture-fit?jobId=4514286a-b360-4cc2-a11f-b9eddd5172ff 200 349 - 3.839 ms[39m
+2026-10-28 01:23:55:2355 [37mhttp[39m: [37mGET /v1/questions/candidate/culture-fit?jobId=d15c1930-5de3-49c2-b4b8-ea64235dfc41 200 214 - 4.812 ms[39m
+2026-10-28 01:23:55:2355 [37mhttp[39m: [37mGET /v1/questions/candidate/culture-fit?jobId=a92f65a3-d449-4b9e-a384-30b47e942843 409 144 - 10.707 ms[39m
+2026-10-28 01:23:55:2355 [37mhttp[39m: [37mGET /v1/questions/candidate/culture-fit?jobId=713917f2-c541-49f1-b434-2fe6b555b780 400 118 - 3.164 ms[39m
+2026-10-28 01:23:55:2355 [37mhttp[39m: [37mGET /v1/questions/candidate/culture-fit?jobId=d16026d5-df50-47de-8354-52ddbf55ae1c 400 124 - 3.629 ms[39m
+2026-10-28 01:23:55:2355 [37mhttp[39m: [37mGET /v1/questions/candidate/culture-fit?jobId=44556aaf-4adb-442a-9245-c66baf6e2065 403 114 - 0.257 ms[39m
+2026-10-28 01:23:56:2356 [37mhttp[39m: [37mGET /v1/questions/candidate/culture-fit?jobId=8b1d3c3e-1b7a-4a59-9a5c-1f0f8f0e2a11 404 81 - 2.243 ms[39m
+2026-10-28 01:23:56:2356 [37mhttp[39m: [37mGET /v1/questions/candidate/culture-fit?jobId=not-a-uuid 400 144 - 1.358 ms[39m
+2026-10-28 01:23:56:2356 [37mhttp[39m: [37mGET /v1/questions/candidate/problem-solving?jobId=ad52765a-c7a6-47d5-b1ec-5675a45d04ed 200 506 - 4.699 ms[39m
+2026-10-28 01:23:56:2356 [37mhttp[39m: [37mGET /v1/questions/candidate/problem-solving?jobId=ad52765a-c7a6-47d5-b1ec-5675a45d04ed 200 506 - 5.880 ms[39m
+2026-10-28 01:23:56:2356 [37mhttp[39m: [37mGET /v1/questions/candidate/problem-solving?jobId=ad52765a-c7a6-47d5-b1ec-5675a45d04ed 200 506 - 4.401 ms[39m
+2026-10-28 01:23:56:2356 [37mhttp[39m: [37mGET /v1/questions/candidate/problem-solving?jobId=e3f11f19-dca7-47b0-8521-56ba349046b8 200 506 - 9.702 ms[39m
+2026-10-28 01:23:56:2356 [37mhttp[39m: [37mGET /v1/questions/candidate/problem-solving?jobId=e3f11f19-dca7-47b0-8521-56ba349046b8 200 506 - 15.474 ms[39m
+2026-10-28 01:23:56:2356 [37mhttp[39m: [37mGET /v1/questions/candidate/problem-solving?jobId=e3f11f19-dca7-47b0-8521-56ba349046b8 200 506 - 13.228 ms[39m
+2026-10-28 01:23:56:2356 [37mhttp[39m: [37mGET /v1/questions/candidate/problem-solving?jobId=e3f11f19-dca7-47b0-8521-56ba349046b8 200 506 - 14.157 ms[39m
+2026-10-28 01:23:56:2356 [37mhttp[39m: [37mGET /v1/questions/candidate/problem-solving?jobId=e3f11f19-dca7-47b0-8521-56ba349046b8 200 506 - 13.266 ms[39m
+2026-10-28 01:23:56:2356 [37mhttp[39m: [37mGET /v1/questions/candidate/culture-fit?jobId=500281ea-9f8b-4cd8-bed4-d744f6cab7dd 200 349 - 7.668 ms[39m
+2026-10-28 01:23:56:2356 [37mhttp[39m: [37mGET /v1/questions/candidate/culture-fit?jobId=500281ea-9f8b-4cd8-bed4-d744f6cab7dd 200 349 - 6.947 ms[39m
+2026-10-28 01:23:56:2356 [37mhttp[39m: [37mGET /v1/questions/candidate/culture-fit?jobId=500281ea-9f8b-4cd8-bed4-d744f6cab7dd 200 349 - 8.589 ms[39m
+2026-10-28 01:23:56:2356 [37mhttp[39m: [37mGET /v1/questions/candidate/culture-fit?jobId=500281ea-9f8b-4cd8-bed4-d744f6cab7dd 200 349 - 9.300 ms[39m
+2026-10-28 01:23:56:2356 [37mhttp[39m: [37mGET /v1/questions/candidate/culture-fit?jobId=500281ea-9f8b-4cd8-bed4-d744f6cab7dd 200 349 - 7.332 ms[39m
+Test Suites: 1 passed, 1 total
+Tests:       20 passed, 20 total
+Snapshots:   0 total
+Time:        6.322 s, estimated 7 s
+Ran all test suites matching tests/assessmentServing.test.ts.

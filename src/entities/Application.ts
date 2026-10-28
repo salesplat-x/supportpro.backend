@@ -117,6 +117,10 @@ export class Application {
   @Column({ type: "text", nullable: true, default: null })
   personalityFitReason!: string | null;
 
+  /** Set while an AI call for the personality fit is running, so only one runs at a time. */
+  @Column({ type: "timestamptz", nullable: true, default: null })
+  personalityFitLockedAt!: Date | null;
+
   @Column({ type: "jsonb", nullable: true, default: null })
   stages!: Record<string, string> | null;
 

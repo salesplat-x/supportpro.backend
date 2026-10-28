@@ -191,6 +191,30 @@ it("one applicant's set doesn't change another's", async () => {
   expect(again.map((q) => q.id).sort()).toEqual(mine.map((q) => q.id).sort());
 });
 
+it.each([QuestionType.ProblemSolving, QuestionType.CultureFit] as const)(
+  "gives every parallel first load of %s questions the same set",
+  async (type) => {
+    const { job, token, application } = await jobWithApplicant({}, 6);
+
+    const loads = await Promise.all(
+      Array.from({ length: 5 }, () => getServed(token, type, job.id))
+    );
+
+    const sets = loads.map((res) => {
+      expect(res.status).toBe(200);
+      return servedOf(res).map((q) => q.id);
+    });
+    const stored = await testDataSource
+      .getRepository(Application)
+      .findOneByOrFail({ id: application!.id });
+    const column =
+      type === QuestionType.ProblemSolving
+        ? stored.problemSolvingQuestions
+        : stored.cultureFitQuestions;
+    for (const set of sets) expect(set).toEqual(column);
+  }
+);
+
 describe("AddAssessmentQuestionsToApplications migration", () => {
   it("adds the two question-set columns and removes them on down", async () => {
     const queries: string[] = [];

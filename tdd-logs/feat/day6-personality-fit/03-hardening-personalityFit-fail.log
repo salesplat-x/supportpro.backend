@@ -1,0 +1,33 @@
+FAIL tests/personalityFit.test.ts
+  ● Test suite failed to run
+
+    [96mtests/personalityFit.test.ts[0m:[93m96[0m:[93m47[0m - [91merror[0m[90m TS2339: [0mProperty 'personalityFitLockedAt' does not exist on type 'Application'.
+
+    [7m96[0m   (await applications().find()).some((a) => a.personalityFitLockedAt !== null);
+    [7m  [0m [91m                                              ~~~~~~~~~~~~~~~~~~~~~~[0m
+    [96mtests/personalityFit.test.ts[0m:[93m365[0m:[93m18[0m - [91merror[0m[90m TS2339: [0mProperty 'personalityFitLockedAt' does not exist on type 'Application'.
+
+    [7m365[0m     expect(saved.personalityFitLockedAt).toBeNull();
+    [7m   [0m [91m                 ~~~~~~~~~~~~~~~~~~~~~~[0m
+    [96mtests/personalityFit.test.ts[0m:[93m375[0m:[93m29[0m - [91merror[0m[90m TS2339: [0mProperty 'personalityFitLockedAt' does not exist on type 'Application'.
+
+    [7m375[0m     expect((await reload()).personalityFitLockedAt).toBeNull();
+    [7m   [0m [91m                            ~~~~~~~~~~~~~~~~~~~~~~[0m
+    [96mtests/personalityFit.test.ts[0m:[93m383[0m:[93m51[0m - [91merror[0m[90m TS2353: [0mObject literal may only specify known properties, and 'personalityFitLockedAt' does not exist in type '_QueryDeepPartialEntity<Application>'.
+
+    [7m383[0m     await applications().update(application.id, { personalityFitLockedAt: new Date() });
+    [7m   [0m [91m                                                  ~~~~~~~~~~~~~~~~~~~~~~[0m
+    [96mtests/personalityFit.test.ts[0m:[93m389[0m:[93m51[0m - [91merror[0m[90m TS2353: [0mObject literal may only specify known properties, and 'personalityFitLockedAt' does not exist in type '_QueryDeepPartialEntity<Application>'.
+
+    [7m389[0m     await applications().update(application.id, { personalityFitLockedAt: null });
+    [7m   [0m [91m                                                  ~~~~~~~~~~~~~~~~~~~~~~[0m
+    [96mtests/personalityFit.test.ts[0m:[93m395[0m:[93m7[0m - [91merror[0m[90m TS2353: [0mObject literal may only specify known properties, and 'personalityFitLockedAt' does not exist in type '_QueryDeepPartialEntity<Application>'.
+
+    [7m395[0m       personalityFitLockedAt: new Date(Date.now() - 10 * 60 * 1000),
+    [7m   [0m [91m      ~~~~~~~~~~~~~~~~~~~~~~[0m
+
+Test Suites: 1 failed, 1 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        1.738 s, estimated 11 s
+Ran all test suites matching tests/personalityFit.test.ts.

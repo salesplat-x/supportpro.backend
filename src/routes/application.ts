@@ -41,5 +41,12 @@ router.patch(
   validate(updateApplicationStatusValidator),
   asyncHandler(application.updateStatus, "update application status")
 );
+router.post(
+  "/:_id/personality-fit",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(applicationIdParamValidator),
+  asyncHandler(application.retryPersonalityFit, "work out personality fit")
+);
 
 export default (app: Router) => app.use("/applications", router);

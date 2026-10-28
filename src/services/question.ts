@@ -775,13 +775,7 @@ export const getOrAssignAssessmentQuestionsForApplicant = async (
 
   const alreadyAssigned = application[settings.assigned];
   if (alreadyAssigned?.length) {
-    const assigned = await questionRepo()
-      .createQueryBuilder("q")
-      .whereInIds(alreadyAssigned)
-      .getMany();
-    const order = new Map(alreadyAssigned.map((id, i) => [id, i]));
-    assigned.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
-    return { questions: assigned.map(toCandidateQuestion) };
+    return { questions: await loadAssignedQuestions(alreadyAssigned) };
   }
 
   const pool = await questionRepo().find({ where: { jobId, type } });
@@ -794,7 +788,26 @@ export const getOrAssignAssessmentQuestionsForApplicant = async (
   }
   const count = config[settings.count] ?? pool.length;
   const selected = shuffle(pool).slice(0, count);
-  application[settings.assigned] = selected.map((q) => q.id);
-  await applicationRepo().save(application);
+  // First load wins: a parallel first load keeps the set already stored, so
+  // every tab shows the questions the submit will be checked against.
+  const result = await applicationRepo()
+    .createQueryBuilder()
+    .update(Application)
+    .set({ [settings.assigned]: selected.map((q) => q.id) })
+    .where("id = :id", { id: application.id })
+    .andWhere(`("${settings.assigned}" IS NULL OR "${settings.assigned}" = '')`)
+    .execute();
+  if (!result.affected) {
+    const stored = await applicationRepo().findOneByOrFail({ id: application.id });
+    return { questions: await loadAssignedQuestions(stored[settings.assigned] ?? []) };
+  }
   return { questions: selected.map(toCandidateQuestion) };
+};
+
+const loadAssignedQuestions = async (ids: string[]): Promise<CandidateQuestion[]> => {
+  if (ids.length === 0) return [];
+  const assigned = await questionRepo().createQueryBuilder("q").whereInIds(ids).getMany();
+  const order = new Map(ids.map((id, i) => [id, i]));
+  assigned.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+  return assigned.map(toCandidateQuestion);
 };
