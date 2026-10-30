@@ -1,7 +1,5 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-// Day 4: per-job on/off switches and per-candidate question counts for the
-// problem-solving and culture-fit tests. Both start off for every existing job.
 export class AddAssessmentSwitchesToAIConfigs1789000900000 implements MigrationInterface {
   name = "AddAssessmentSwitchesToAIConfigs1789000900000";
 

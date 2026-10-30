@@ -39,10 +39,6 @@ const ASSESSMENT_SWITCHES = [
   { flag: "cultureFitAssessment", count: "noOfCultureFitQuestions" },
 ] as const;
 
-/**
- * Day 4: a problem-solving or culture-fit test that is switched on needs a
- * question count — either in this request or already saved on the config.
- */
 export const assertAssessmentCounts = (merged: AIConfigPayload): void => {
   for (const { flag, count } of ASSESSMENT_SWITCHES) {
     if (merged[flag] === true && (merged[count] === null || merged[count] === undefined)) {

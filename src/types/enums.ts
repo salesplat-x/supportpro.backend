@@ -153,9 +153,7 @@ export enum QuestionType {
   Prescreening = "prescreening",
   Personality = "personality",
   Personalized = "personalized",
-  /** Reasoning questions that work for any job — no role knowledge needed. */
   ProblemSolving = "problem_solving",
-  /** Questions that test how the candidate's way of working fits the company's values. */
   CultureFit = "culture_fit",
 }
 

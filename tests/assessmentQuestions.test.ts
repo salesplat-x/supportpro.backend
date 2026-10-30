@@ -1,9 +1,3 @@
-/**
- * Problem-solving and culture-fit question generation (plan Day 3).
- * End-of-day proof: "Questions are created for a test job."
- * The AI is mocked; only company members may generate or see these questions.
- */
-
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import {
@@ -74,7 +68,6 @@ afterEach(async () => {
   jest.clearAllMocks();
 });
 
-/** A recruiter, their company, and a test job posted under it. */
 async function companyWithJob(orgOverrides: Partial<Organization> = {}) {
   const { user: recruiter, token } = await createRecruiter();
   const org = await createOrganization(recruiter, { name: "Acme Ltd", ...orgOverrides });
@@ -96,10 +89,6 @@ const postProblemSolving = (token: string, body: Record<string, unknown>) =>
 
 const postCultureFit = (token: string, body: Record<string, unknown>) =>
   request(app).post("/v1/questions/culture-fit").set("Authorization", `Bearer ${token}`).send(body);
-
-// ---------------------------------------------------------------------------
-// POST /v1/questions/problem-solving
-// ---------------------------------------------------------------------------
 
 describe("POST /v1/questions/problem-solving", () => {
   it("Day 3 proof: creates problem-solving questions for a test job → 200", async () => {
@@ -331,10 +320,6 @@ describe("POST /v1/questions/problem-solving", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// POST /v1/questions/culture-fit
-// ---------------------------------------------------------------------------
-
 describe("POST /v1/questions/culture-fit", () => {
   it("Day 3 proof: creates culture-fit questions from the company's values → 200", async () => {
     const { token, job } = await companyWithJob({
@@ -440,10 +425,6 @@ describe("POST /v1/questions/culture-fit", () => {
     expect(res.status).toBe(400);
   });
 });
-
-// ---------------------------------------------------------------------------
-// GET /v1/questions?questionType=problem_solving|culture_fit&jobId=…
-// ---------------------------------------------------------------------------
 
 describe("GET /v1/questions — problem-solving and culture-fit", () => {
   async function jobWithBothKinds() {

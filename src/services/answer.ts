@@ -449,10 +449,6 @@ export const evaluatePersonalityType = async (
   return { application, mbtiType, score: mbtiType };
 };
 
-// ---------------------------------------------------------------------------
-// Problem-solving and culture-fit answers and scoring (plan Day 4)
-// ---------------------------------------------------------------------------
-
 type CompanyAssessmentType = QuestionType.ProblemSolving | QuestionType.CultureFit;
 
 const COMPANY_ASSESSMENT = {
@@ -475,11 +471,6 @@ export interface CompanyAssessmentAnswersPayload {
   answers: Record<string, string>;
 }
 
-/**
- * Grades every answer, calling the AI up to MAX_GENERATION_ATTEMPTS times and
- * asking again only for answers still without a usable grade. Returns null if
- * any answer is still ungraded, so nothing partial is ever saved.
- */
 const gradeAllAnswers = async (
   type: CompanyAssessmentType,
   items: AI.CompanyAssessmentAnswerItem[]
@@ -497,8 +488,6 @@ const gradeAllAnswers = async (
       );
       for (const grade of parsed) graded.set(grade.questionId, grade);
     } catch (err) {
-      // An unusable reply is asked again; a failed call is not, since
-      // runCompletion already retried transient errors.
       const unusable = err instanceof GradedAnswersParseError;
       logger.warn(
         `AI ${label} grading ${unusable ? "reply unusable" : "call failed"} (attempt ${attempt}/${MAX_GENERATION_ATTEMPTS}): ${
@@ -511,12 +500,6 @@ const gradeAllAnswers = async (
   return graded.size === items.length ? graded : null;
 };
 
-/**
- * A candidate submits answers to the problem-solving or culture-fit questions
- * they were given. Each answer is graded 0-5 against its question's criteria;
- * the score is the total over the most possible, as a percentage, saved on the
- * application. One submission per test; the candidate isn't shown the score.
- */
 export const submitCompanyAssessmentAnswers = async (
   userId: string,
   type: CompanyAssessmentType,
@@ -592,7 +575,6 @@ export const submitCompanyAssessmentAnswers = async (
   const ordered = assignedIds.map((id) => graded.get(id)!);
   const score = scorePercent(ordered.map((g) => g.score));
 
-  // Re-checked under a lock: another submission may have finished during grading.
   await AppDataSource.transaction(async (manager) => {
     const locked = await manager.findOne(Application, {
       where: { id: application.id },
@@ -609,7 +591,10 @@ export const submitCompanyAssessmentAnswers = async (
         `Your ${settings.label} questions have changed. Please reload them and answer again.`
       );
     }
-    await manager.update(Application, application.id, { [settings.score]: score });
+    await manager.query(`UPDATE "applications" SET "${settings.score}" = $1 WHERE id = $2`, [
+      score,
+      application.id,
+    ]);
     await manager.save(
       Answer,
       manager.create(Answer, {

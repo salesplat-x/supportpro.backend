@@ -1,6 +1,3 @@
-/**
- * API docs (swagger.yaml) for the Day 4 switches, candidate questions and answers.
- */
 import fs from "fs";
 import path from "path";
 import yaml from "js-yaml";

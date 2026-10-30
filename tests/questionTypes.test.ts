@@ -1,7 +1,3 @@
-/**
- * Problem-solving and culture-fit question types (plan Day 3).
- */
-
 import { QueryRunner } from "typeorm";
 import {
   startTestDatabase,

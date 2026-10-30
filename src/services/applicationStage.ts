@@ -1,3 +1,4 @@
+import { MAX_ANSWER_SCORE } from "../utils/gradedAnswers.js";
 import { Not, IsNull, In, type FindOptionsRelations } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { AIConfig } from "../entities/AIConfig.js";
@@ -91,6 +92,43 @@ export const buildQuestionAnswerPairs = async (
       ...(question?.criteria ? { dichotomy: question.criteria } : {}),
     };
   });
+};
+
+export type GradedAnswerPair = {
+  question: string;
+  answer: string;
+  score: number | null;
+  maxScore: number;
+  feedback: string | null;
+};
+
+type StoredGradedResponse = {
+  questionId?: string;
+  answer?: string;
+  score?: number;
+  feedback?: string;
+};
+
+export const buildGradedAnswerPairs = async (
+  jobId: string,
+  userId: string,
+  questionType: QuestionType.ProblemSolving | QuestionType.CultureFit
+): Promise<GradedAnswerPair[]> => {
+  const answer = await answerRepo().findOne({ where: { userId, jobId, questionType } });
+  if (!answer || answer.responses.length === 0) return [];
+
+  const responses = answer.responses as StoredGradedResponse[];
+  const ids = responses.map((r) => r.questionId).filter((id): id is string => !!id);
+  const questions = ids.length ? await questionRepo().find({ where: { id: In(ids) } }) : [];
+  const questionsById = new Map(questions.map((q) => [q.id, q.question]));
+
+  return responses.map((r) => ({
+    question: (r.questionId && questionsById.get(r.questionId)) || "Unknown question",
+    answer: r.answer ?? "",
+    score: typeof r.score === "number" ? r.score : null,
+    maxScore: MAX_ANSWER_SCORE,
+    feedback: r.feedback ?? null,
+  }));
 };
 
 const persistRecommendation = async (

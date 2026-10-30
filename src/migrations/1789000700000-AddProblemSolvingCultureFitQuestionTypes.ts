@@ -4,9 +4,6 @@ export class AddProblemSolvingCultureFitQuestionTypes1789000700000 implements Mi
   name = "AddProblemSolvingCultureFitQuestionTypes1789000700000";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // Postgres forbids using a newly-added enum value in the same transaction
-    // that added it — kept in its own migration (nothing here uses the values)
-    // so they commit before any later migration might.
     for (const enumType of ["questions_type_enum", "answers_questiontype_enum"]) {
       for (const value of ["problem_solving", "culture_fit"]) {
         await queryRunner.query(
@@ -16,8 +13,5 @@ export class AddProblemSolvingCultureFitQuestionTypes1789000700000 implements Mi
     }
   }
 
-  public async down(): Promise<void> {
-    // Postgres has no native DROP VALUE for enums — the values are left in the
-    // types (harmless if unused), matching AddJobPendingPaymentStatus.
-  }
+  public async down(): Promise<void> {}
 }

@@ -1,8 +1,3 @@
-/**
- * Reading the AI's grades for problem-solving and culture-fit answers (plan Day 4).
- * A bad reply must never crash or invent a score: unusable entries are dropped
- * so the caller can ask again for just those answers.
- */
 import {
   parseGradedAnswers,
   GradedAnswersParseError,

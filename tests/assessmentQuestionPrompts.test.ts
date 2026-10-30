@@ -1,8 +1,3 @@
-/**
- * Prompts for the problem-solving and culture-fit question generators (plan Day 3).
- * The OpenAI SDK is mocked: these tests check what we ask for, not the model.
- */
-
 type Params = {
   model: string;
   response_format?: { type: string };
@@ -144,9 +139,6 @@ describe("generateCultureFitQuestions prompt", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Day 4: grading candidates' answers against each question's criteria
-// ---------------------------------------------------------------------------
 describe("gradeCompanyAssessmentAnswers prompt", () => {
   const items = [
     {

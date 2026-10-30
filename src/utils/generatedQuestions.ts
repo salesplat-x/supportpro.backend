@@ -1,6 +1,3 @@
-// Turns an AI reply into question rows that are safe to store, or throws a
-// GeneratedQuestionsParseError the caller can retry on. Never crashes on junk.
-
 export interface GeneratedQuestion {
   question: string;
   category: string;
@@ -8,11 +5,8 @@ export interface GeneratedQuestion {
 }
 
 export interface ParseGeneratedQuestionsOptions {
-  /** Most questions to return; extras are dropped. */
   max: number;
-  /** Allowed categories (matched case-insensitively). Anything else gets the fallback. */
   categories?: readonly string[];
-  /** Category for questions with no (allowed) category. */
   fallbackCategory?: string;
 }
 

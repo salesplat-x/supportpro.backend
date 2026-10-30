@@ -1,8 +1,3 @@
-/**
- * parseGeneratedQuestions — turns an AI reply into safe question rows, or a
- * clear error. It must never crash on a malformed reply.
- */
-
 import {
   parseGeneratedQuestions,
   GeneratedQuestionsParseError,
