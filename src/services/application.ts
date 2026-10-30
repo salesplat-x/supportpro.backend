@@ -19,6 +19,7 @@ import {
   loadRecommendationsByApplicationIds,
   overlayVerdictFromRecommendation,
   buildQuestionAnswerPairs,
+  buildGradedAnswerPairs,
   triggerMatchVerdict,
 } from "./applicationStage.js";
 import logger from "../utils/logger.js";
@@ -30,6 +31,22 @@ const notificationRepo = () => AppDataSource.getRepository(Notification);
 const applicationRepo = () => AppDataSource.getRepository(Application);
 
 const organizationRepo = () => AppDataSource.getRepository(Organization);
+
+export const CANDIDATE_HIDDEN_APPLICATION_FIELDS = [
+  "problemSolvingScore",
+  "cultureFitScore",
+] as const;
+
+export const hideAssessmentResultsFromCandidate = (application: Application): Application => {
+  Object.assign(application, {
+    problemSolvingSubmitted: application.problemSolvingScore != null,
+    cultureFitSubmitted: application.cultureFitScore != null,
+  });
+  for (const field of CANDIDATE_HIDDEN_APPLICATION_FIELDS) {
+    delete (application as Partial<Application>)[field];
+  }
+  return application;
+};
 
 const MAX_PAGE_SIZE = 100;
 
@@ -78,6 +95,16 @@ export const getApplication = async (
   ]);
 
   Object.assign(application, { personalityAnswers, personalizedAnswers });
+
+  if (application.talentId === userId) {
+    hideAssessmentResultsFromCandidate(application);
+  } else {
+    const [problemSolvingAnswers, cultureFitAnswers] = await Promise.all([
+      buildGradedAnswerPairs(application.jobId, application.talentId, QuestionType.ProblemSolving),
+      buildGradedAnswerPairs(application.jobId, application.talentId, QuestionType.CultureFit),
+    ]);
+    Object.assign(application, { problemSolvingAnswers, cultureFitAnswers });
+  }
 
   if (
     application.currentStage === ScreeningStage.Completed &&
@@ -134,6 +161,7 @@ export const getApplications = async (
   }
 
   const applications = await qb.skip(offset).take(limit).getMany();
+  if (userRole === UserRole.Talent) applications.forEach(hideAssessmentResultsFromCandidate);
   const recommendations = await loadRecommendationsByApplicationIds(applications.map((a) => a.id));
   return applications.map((application) =>
     overlayVerdictFromRecommendation(application, recommendations.get(application.id))

@@ -18,9 +18,6 @@ const dichotomyPairFields = [
 const personalityCountValidator = (field: string) =>
   body(field).customSanitizer(blankToUndefined).optional().isInt({ min: 1 }).toInt();
 
-// Day 4: problem-solving and culture-fit switches and their per-candidate counts.
-// "Count required while the switch is on" is checked in the service, because a
-// PATCH may rely on a count already saved on the config.
 const assessmentCountValidator = (field: string) =>
   body(field)
     .customSanitizer(blankToUndefined)

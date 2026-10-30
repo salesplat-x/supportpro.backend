@@ -1,9 +1,3 @@
-/**
- * Problem-solving and culture-fit switches on a job's AI setup (plan Day 4).
- * A recruiter turns each test on or off per job and sets how many questions
- * each candidate gets. Both are off by default, and neither changes the
- * existing screening stages.
- */
 import request from "supertest";
 import type { QueryRunner } from "typeorm";
 import { createApp } from "../src/app.js";
