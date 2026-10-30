@@ -19,7 +19,7 @@ export const fetchQuestions = async (req: Request, res: Response) => {
 };
 
 export const fetch = async (req: Request, res: Response) => {
-  const result = await questionService.fetchQuestion(req.params["_id"]!);
+  const result = await questionService.fetchQuestion(req.params["_id"]!, req.user);
   sendSuccessResponse(res, "Question fetched", { question: result });
 };
 

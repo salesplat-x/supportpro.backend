@@ -101,13 +101,16 @@ describe("scoring criteria never reach candidates", () => {
   });
 
   it("GET /questions/:id hides criteria of a culture-fit question", async () => {
-    const { job } = await jobWithPool(0);
+    const { job, talent, token } = await jobWithPool(0);
     const cf = await createQuestion(
       QuestionType.CultureFit,
       { jobId: job.id },
       { criteria: "Secret criteria CF", category: "Ownership" }
     );
-    const res = await request(app).get(`/v1/questions/${cf.id}`);
+    await createApplication(talent, job, { cultureFitQuestions: [cf.id] });
+    const res = await request(app)
+      .get(`/v1/questions/${cf.id}`)
+      .set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(JSON.stringify(res.body)).not.toContain("Secret criteria");
   });

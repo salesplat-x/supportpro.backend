@@ -488,12 +488,13 @@ const gradeAllAnswers = async (
       );
       for (const grade of parsed) graded.set(grade.questionId, grade);
     } catch (err) {
-      const what = err instanceof GradedAnswersParseError ? "reply unusable" : "call failed";
+      const unusable = err instanceof GradedAnswersParseError;
       logger.warn(
-        `AI ${label} grading ${what} (attempt ${attempt}/${MAX_GENERATION_ATTEMPTS}): ${
+        `AI ${label} grading ${unusable ? "reply unusable" : "call failed"} (attempt ${attempt}/${MAX_GENERATION_ATTEMPTS}): ${
           err instanceof Error ? err.message : String(err)
         }`
       );
+      if (!unusable) break;
     }
   }
   return graded.size === items.length ? graded : null;
@@ -530,6 +531,18 @@ export const submitCompanyAssessmentAnswers = async (
     throw new ValidationError(`Load your ${settings.label} questions before answering them`);
   }
 
+  const questions = await questionRepo()
+    .createQueryBuilder("q")
+    .whereInIds(assignedIds)
+    .andWhere("q.job_id = :jobId", { jobId })
+    .andWhere("q.type = :type", { type })
+    .getMany();
+  if (questions.length !== assignedIds.length) {
+    throw new ValidationError(
+      `Some of your ${settings.label} questions are no longer available. Please reload them and answer again.`
+    );
+  }
+
   const assigned = new Set(assignedIds);
   const answeredIds = Object.keys(answers);
   if (answeredIds.some((id) => !assigned.has(id))) {
@@ -539,18 +552,6 @@ export const submitCompanyAssessmentAnswers = async (
   if (missing.length > 0) {
     throw new ValidationError(
       `Please answer all ${assignedIds.length} ${settings.label} questions (${missing.length} missing)`
-    );
-  }
-
-  const questions = await questionRepo()
-    .createQueryBuilder("q")
-    .whereInIds(assignedIds)
-    .andWhere("q.job_id = :jobId", { jobId })
-    .andWhere("q.type = :type", { type })
-    .getMany();
-  if (questions.length !== assignedIds.length) {
-    throw new ValidationError(
-      `Some of your ${settings.label} questions are no longer available. Please contact the recruiter.`
     );
   }
 
@@ -575,13 +576,25 @@ export const submitCompanyAssessmentAnswers = async (
   const score = scorePercent(ordered.map((g) => g.score));
 
   await AppDataSource.transaction(async (manager) => {
-    const [, updated] = (await manager.query(
-      `UPDATE "applications" SET "${settings.score}" = $1 WHERE id = $2 AND "${settings.score}" IS NULL RETURNING id`,
-      [score, application.id]
-    )) as [unknown[], number];
-    if (updated === 0) {
+    const locked = await manager.findOne(Application, {
+      where: { id: application.id },
+      lock: { mode: "pessimistic_write" },
+    });
+    if (!locked) {
+      throw new NotFoundError("Application not found");
+    }
+    if (locked[settings.score] !== null) {
       throw new ConflictError(`You have already submitted your ${settings.label} answers`);
     }
+    if ((locked[settings.assigned] ?? []).join(",") !== assignedIds.join(",")) {
+      throw new ValidationError(
+        `Your ${settings.label} questions have changed. Please reload them and answer again.`
+      );
+    }
+    await manager.query(`UPDATE "applications" SET "${settings.score}" = $1 WHERE id = $2`, [
+      score,
+      application.id,
+    ]);
     await manager.save(
       Answer,
       manager.create(Answer, {

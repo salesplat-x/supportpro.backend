@@ -19,7 +19,7 @@ import {
 import { Application } from "../src/entities/Application.js";
 import { Answer } from "../src/entities/Answer.js";
 import type { AIConfig } from "../src/entities/AIConfig.js";
-import type { Question } from "../src/entities/Question.js";
+import { Question } from "../src/entities/Question.js";
 import { JobStatus, QuestionType } from "../src/types/enums.js";
 import * as AI from "../src/utils/integrations/openai.js";
 import { apiData } from "./helpers/http.js";
@@ -326,5 +326,139 @@ describe("AddAssessmentScoresToApplications migration", () => {
       `ALTER TABLE "applications" DROP COLUMN "cultureFitScore"`,
       `ALTER TABLE "applications" DROP COLUMN "problemSolvingScore"`,
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Concurrency, retries and bad input
+// ---------------------------------------------------------------------------
+
+describe("submitting under concurrency and failure", () => {
+  /** Holds every grading reply until `expected` calls are waiting, so requests overlap. */
+  const overlappingGrades = (expected: number, score = 4) => {
+    let waiting = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    mockGrade.mockImplementation(async ({ items }) => {
+      if (++waiting === expected) release();
+      await gate;
+      return gradesReply(items.map((item) => ({ questionId: item.questionId, score })));
+    });
+  };
+
+  it("two overlapping submissions of the same test store one score and one answer row", async () => {
+    const { token, job, talent, application, questions } = await servedApplicant(
+      QuestionType.ProblemSolving
+    );
+    overlappingGrades(2);
+
+    const [a, b] = await Promise.all([
+      submit(token, QuestionType.ProblemSolving, { jobId: job.id, answers: answersFor(questions) }),
+      submit(token, QuestionType.ProblemSolving, { jobId: job.id, answers: answersFor(questions) }),
+    ]);
+
+    expect([a.status, b.status].sort()).toEqual([200, 409]);
+    const rows = await testDataSource.getRepository(Answer).find({
+      where: { userId: talent.id, jobId: job.id, questionType: QuestionType.ProblemSolving },
+    });
+    expect(rows).toHaveLength(1);
+    expect((await reloadApplication(application.id)).problemSolvingScore).toBe(80);
+  });
+
+  it("overlapping problem-solving and culture-fit submissions keep both scores", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const config = await createAIConfig(recruiter, {
+      problemSolvingAssessment: true,
+      noOfProblemSolvingQuestions: 2,
+      cultureFitAssessment: true,
+      noOfCultureFitQuestions: 2,
+    });
+    const job = await createJob(recruiter, await createRole(), { aiConfigId: config.id });
+    const make = (type: QuestionType, i: number) =>
+      createQuestion(type, { jobId: job.id }, { question: `Question ${type} ${i}: what next?` });
+    const ps = [
+      await make(QuestionType.ProblemSolving, 1),
+      await make(QuestionType.ProblemSolving, 2),
+    ];
+    const cf = [await make(QuestionType.CultureFit, 1), await make(QuestionType.CultureFit, 2)];
+    const { token, user: talent } = await createCompleteTalent();
+    const application = await createApplication(talent, job, {
+      problemSolvingQuestions: ps.map((q) => q.id),
+      cultureFitQuestions: cf.map((q) => q.id),
+    } as Partial<Application>);
+    overlappingGrades(2, 5);
+
+    const [a, b] = await Promise.all([
+      submit(token, QuestionType.ProblemSolving, { jobId: job.id, answers: answersFor(ps) }),
+      submit(token, QuestionType.CultureFit, { jobId: job.id, answers: answersFor(cf) }),
+    ]);
+
+    expect([a.status, b.status]).toEqual([200, 200]);
+    const saved = await reloadApplication(application.id);
+    expect(saved.problemSolvingScore).toBe(100);
+    expect(saved.cultureFitScore).toBe(100);
+  });
+
+  it("does not call the grader a second time after the call itself fails", async () => {
+    const { token, job, application, questions } = await servedApplicant(QuestionType.CultureFit);
+    mockGrade.mockRejectedValue(Object.assign(new Error("Unauthorized"), { status: 401 }));
+
+    const res = await submit(token, QuestionType.CultureFit, {
+      jobId: job.id,
+      answers: answersFor(questions),
+    });
+
+    expect(res.status).toBe(502);
+    expect(mockGrade).toHaveBeenCalledTimes(1);
+    expect((await reloadApplication(application.id)).cultureFitScore).toBeNull();
+  });
+
+  it("after a recruiter deletes one of their questions, the candidate reloads and submits", async () => {
+    const { token, job, application, questions } = await servedApplicant(
+      QuestionType.ProblemSolving
+    );
+    await testDataSource.getRepository(Question).delete({ id: questions[0]!.id });
+
+    const stale = await submit(token, QuestionType.ProblemSolving, {
+      jobId: job.id,
+      answers: answersFor(questions.slice(1)),
+    });
+    expect(stale.status).toBe(400);
+    expect(errorMessage(stale)).toMatch(/reload/i);
+
+    const reload = await request(app)
+      .get("/v1/questions/candidate/problem-solving")
+      .query({ jobId: job.id })
+      .set("Authorization", `Bearer ${token}`);
+    const served = apiData<{ questions: Question[] }>(reload).questions;
+    expect(served.map((q) => q.id).sort()).toEqual(
+      questions
+        .slice(1)
+        .map((q) => q.id)
+        .sort()
+    );
+
+    mockGrade.mockImplementation(async ({ items }) =>
+      gradesReply(items.map((item) => ({ questionId: item.questionId, score: 5 })))
+    );
+    const res = await submit(token, QuestionType.ProblemSolving, {
+      jobId: job.id,
+      answers: answersFor(served),
+    });
+
+    expect(res.status).toBe(200);
+    expect((await reloadApplication(application.id)).problemSolvingScore).toBe(100);
+  });
+
+  it("a jobId sent as a list → 400", async () => {
+    const { token, job, questions } = await servedApplicant(QuestionType.ProblemSolving);
+
+    const res = await submit(token, QuestionType.ProblemSolving, {
+      jobId: [job.id],
+      answers: answersFor(questions),
+    });
+
+    expect(res.status).toBe(400);
+    expect(mockGrade).not.toHaveBeenCalled();
   });
 });

@@ -9,7 +9,13 @@ import {
   User,
   Answer,
 } from "../entities";
-import { NotFoundError, ValidationError, AuthorizationError, AppError } from "../utils/errors";
+import {
+  NotFoundError,
+  ValidationError,
+  AuthorizationError,
+  AppError,
+  ConflictError,
+} from "../utils/errors";
 import { QuestionType, JobStatus, UserRole } from "../types/enums.js";
 import { calculateTimeLeft, sortDirection } from "../utils/text.js";
 import * as AI from "../utils/integrations/openai.js";
@@ -185,13 +191,32 @@ export const fetchQuestions = async (
   });
 };
 
-export const fetchQuestion = async (questionId: string): Promise<Question | CandidateQuestion> => {
+const COMPANY_ONLY_TYPES: QuestionType[] = [QuestionType.ProblemSolving, QuestionType.CultureFit];
+
+export const fetchQuestion = async (
+  questionId: string,
+  user?: Pick<User, "id" | "userRole">
+): Promise<Question | CandidateQuestion> => {
   const question = await questionRepo().findOne({ where: { id: questionId } });
   if (!question) {
     throw new NotFoundError("Question not found");
   }
-  if (question.type === QuestionType.ProblemSolving || question.type === QuestionType.CultureFit) {
-    return toCandidateQuestion(question);
+  if (COMPANY_ONLY_TYPES.includes(question.type)) {
+    if (!user || !question.jobId) throw new NotFoundError("Question not found");
+    try {
+      await loadJobForCompanyMember(user, question.jobId);
+      return question;
+    } catch (err) {
+      if (!(err instanceof AuthorizationError || err instanceof NotFoundError)) throw err;
+    }
+    const column = ASSESSMENT_SETTINGS[question.type as CompanyAssessmentType].assigned;
+    const application = await applicationRepo().findOne({
+      where: { jobId: question.jobId, talentId: user.id },
+    });
+    if (application?.[column]?.includes(question.id)) {
+      return toCandidateQuestion(question);
+    }
+    throw new NotFoundError("Question not found");
   }
   return question;
 };
@@ -589,7 +614,7 @@ const collectGeneratedQuestions = async (
           err instanceof Error ? err.message : String(err)
         }`
       );
-      continue;
+      break;
     }
 
     let parsed: GeneratedQuestion[];
@@ -645,27 +670,32 @@ const saveGeneratedQuestions = (
   generated: GeneratedQuestion[]
 ): Promise<Question[]> =>
   AppDataSource.transaction(async (manager) => {
-    await manager.findOne(Job, { where: { id: job.id }, lock: { mode: "pessimistic_write" } });
-    const existing = await manager.find(Question, {
+    await manager.findOne(Job, {
+      where: { id: job.id },
+      select: { id: true },
+      lock: { mode: "pessimistic_write" },
+    });
+    const repo = manager.getRepository(Question);
+    const pool = await repo.find({
       where: { jobId: job.id, type },
       select: { id: true, question: true },
     });
-    const space = MAX_QUESTION_POOL_PER_TYPE - existing.length;
+    const space = MAX_QUESTION_POOL_PER_TYPE - pool.length;
     if (space <= 0) {
       throw poolFullError(type);
     }
-    const seen = new Set(existing.map((q) => questionKey(q.question)));
-    const fresh = generated
-      .filter((item) => {
-        const key = questionKey(item.question);
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .slice(0, space);
-    return manager.save(
-      fresh.map((item) =>
-        manager.create(Question, {
+
+    const taken = new Set(pool.map((q) => questionKey(q.question)));
+    const fresh = generated.filter((item) => !taken.has(questionKey(item.question)));
+    if (fresh.length === 0) {
+      throw new ConflictError(
+        `These ${ASSESSMENT_LABEL[type]} questions were just added by another request. Refresh to see them.`
+      );
+    }
+
+    return repo.save(
+      fresh.slice(0, space).map((item) =>
+        repo.create({
           type,
           jobId: job.id,
           question: item.question,
@@ -752,12 +782,14 @@ export const ASSESSMENT_SETTINGS = {
     flag: "problemSolvingAssessment",
     count: "noOfProblemSolvingQuestions",
     assigned: "problemSolvingQuestions",
+    score: "problemSolvingScore",
   },
   [QuestionType.CultureFit]: {
     label: "culture-fit",
     flag: "cultureFitAssessment",
     count: "noOfCultureFitQuestions",
     assigned: "cultureFitQuestions",
+    score: "cultureFitScore",
   },
 } as const;
 
@@ -766,14 +798,6 @@ export const toCandidateQuestion = (q: Question): CandidateQuestion => ({
   question: q.question,
   questionType: q.type,
 });
-
-const loadAssignedQuestions = async (ids: string[]): Promise<CandidateQuestion[]> => {
-  if (ids.length === 0) return [];
-  const assigned = await questionRepo().createQueryBuilder("q").whereInIds(ids).getMany();
-  const order = new Map(ids.map((id, i) => [id, i]));
-  assigned.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
-  return assigned.map(toCandidateQuestion);
-};
 
 export const getOrAssignAssessmentQuestionsForApplicant = async (
   userId: string,
@@ -789,33 +813,44 @@ export const getOrAssignAssessmentQuestionsForApplicant = async (
   if (!config?.[settings.flag]) {
     throw new ValidationError(`The ${settings.label} test is not switched on for this job`);
   }
-  const application = await applicationRepo().findOne({ where: { jobId, talentId: userId } });
-  if (!application) {
-    throw new ValidationError("You must apply for this job before this stage is available");
-  }
+  return AppDataSource.transaction(async (manager) => {
+    const application = await manager.findOne(Application, {
+      where: { jobId, talentId: userId },
+      lock: { mode: "pessimistic_write" },
+    });
+    if (!application) {
+      throw new ValidationError("You must apply for this job before this stage is available");
+    }
 
-  const alreadyAssigned = application[settings.assigned];
-  if (alreadyAssigned?.length) {
-    return { questions: await loadAssignedQuestions(alreadyAssigned) };
-  }
+    const alreadyAssigned = application[settings.assigned] ?? [];
+    if (alreadyAssigned.length) {
+      const assigned = await manager
+        .getRepository(Question)
+        .createQueryBuilder("q")
+        .whereInIds(alreadyAssigned)
+        .getMany();
+      const scored = application[settings.score] !== null;
+      if (assigned.length === alreadyAssigned.length || scored) {
+        const order = new Map(alreadyAssigned.map((id, i) => [id, i]));
+        assigned.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+        return { questions: assigned.map(toCandidateQuestion) };
+      }
+    }
 
-  const pool = await questionRepo().find({ where: { jobId, type } });
-  if (pool.length === 0) {
-    throw new AppError(
-      409,
-      "ASSESSMENT_NOT_READY",
-      `The ${settings.label} test for this job isn't ready yet. Please try again later.`
-    );
-  }
-  const count = config[settings.count] ?? pool.length;
-  const selected = shuffle(pool).slice(0, count);
-  const [, claimed] = (await AppDataSource.query(
-    `UPDATE "applications" SET "${settings.assigned}" = $1 WHERE id = $2 AND "${settings.assigned}" IS NULL RETURNING id`,
-    [selected.map((q) => q.id).join(","), application.id]
-  )) as [unknown[], number];
-  if (claimed === 0) {
-    const current = await applicationRepo().findOneByOrFail({ id: application.id });
-    return { questions: await loadAssignedQuestions(current[settings.assigned] ?? []) };
-  }
-  return { questions: selected.map(toCandidateQuestion) };
+    const pool = await manager.find(Question, { where: { jobId, type } });
+    if (pool.length === 0) {
+      throw new AppError(
+        409,
+        "ASSESSMENT_NOT_READY",
+        `The ${settings.label} test for this job isn't ready yet. Please try again later.`
+      );
+    }
+    const count = config[settings.count] ?? pool.length;
+    const selected = shuffle(pool).slice(0, count);
+    await manager.query(`UPDATE "applications" SET "${settings.assigned}" = $1 WHERE id = $2`, [
+      selected.map((q) => q.id).join(","),
+      application.id,
+    ]);
+    return { questions: selected.map(toCandidateQuestion) };
+  });
 };
