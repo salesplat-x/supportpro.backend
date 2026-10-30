@@ -2828,6 +2828,20 @@ paths:
                             nullable: true
                             description: >-
                               Culture-fit result as a percentage (null until taken). Not sent to the candidate.
+                          personalityFitScore:
+                            type: number
+                            nullable: true
+                            description: >-
+                              The AI's 0-100 judgement of how the applicant's personality (MBTI) fits this job, made right after the personality check (null until then, or if the AI call failed). Not sent to the candidate.
+                          personalityFitReason:
+                            type: string
+                            nullable: true
+                            description: >-
+                              The AI's short reason for personalityFitScore. Not sent to the candidate.
+                          personalityFitPending:
+                            type: boolean
+                            description: >-
+                              True while the AI is working out the personality fit, so the page can wait instead of offering a retry. Not sent to the candidate.
                           problemSolvingAnswers:
                             description: Graded problem-solving answers, in the order asked. Company only.
                             type: array
@@ -2900,6 +2914,53 @@ paths:
                     - shortlisted
               required:
                 - status
+      security:
+        - bearerAuth: []
+  /applications/{_id}/personality-fit:
+    post:
+      summary: Recruiter — retry the personality fit for an application
+      description: >-
+        Asks the AI again how the applicant's personality (MBTI) type fits the job, for when the automatic try after the personality test failed.
+        Returns the existing fit without calling the AI if one is already saved. Only the job's company can call it.
+      tags:
+        - applications
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The saved personality fit
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      personalityFitScore:
+                        type: number
+                        description: The AI's 0-100 judgement of the fit.
+                      personalityFitReason:
+                        type: string
+        "400":
+          description: The candidate hasn't finished the personality test, or the test is switched off for this job.
+        "403":
+          description: The application belongs to another company.
+        "404":
+          description: Application not found.
+        "409":
+          description: The fit is already being worked out.
+        "502":
+          description: The AI call failed or gave an unusable reply (PERSONALITY_FIT_FAILED). Safe to retry.
       security:
         - bearerAuth: []
   /questions/candidate/problem-solving:
