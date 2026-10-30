@@ -590,10 +590,6 @@ export const savePersonalityFit = async (applicationId: string): Promise<Persona
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-// ---------------------------------------------------------------------------
-// Problem-solving and culture-fit answers and scoring (plan Day 4)
-// ---------------------------------------------------------------------------
-
 type CompanyAssessmentType = QuestionType.ProblemSolving | QuestionType.CultureFit;
 
 const COMPANY_ASSESSMENT = {
@@ -616,11 +612,6 @@ export interface CompanyAssessmentAnswersPayload {
   answers: Record<string, string>;
 }
 
-/**
- * Grades every answer, calling the AI up to MAX_GENERATION_ATTEMPTS times and
- * asking again only for answers still without a usable grade. Returns null if
- * any answer is still ungraded, so nothing partial is ever saved.
- */
 const gradeAllAnswers = async (
   type: CompanyAssessmentType,
   items: AI.CompanyAssessmentAnswerItem[]
@@ -638,24 +629,18 @@ const gradeAllAnswers = async (
       );
       for (const grade of parsed) graded.set(grade.questionId, grade);
     } catch (err) {
-      // A failed call or an unusable reply: log it and try again for what is missing.
-      const what = err instanceof GradedAnswersParseError ? "reply unusable" : "call failed";
+      const unusable = err instanceof GradedAnswersParseError;
       logger.warn(
-        `AI ${label} grading ${what} (attempt ${attempt}/${MAX_GENERATION_ATTEMPTS}): ${
+        `AI ${label} grading ${unusable ? "reply unusable" : "call failed"} (attempt ${attempt}/${MAX_GENERATION_ATTEMPTS}): ${
           err instanceof Error ? err.message : String(err)
         }`
       );
+      if (!unusable) break;
     }
   }
   return graded.size === items.length ? graded : null;
 };
 
-/**
- * A candidate submits answers to the problem-solving or culture-fit questions
- * they were given. Each answer is graded 0-5 against its question's criteria;
- * the score is the total over the most possible, as a percentage, saved on the
- * application. One submission per test; the candidate isn't shown the score.
- */
 export const submitCompanyAssessmentAnswers = async (
   userId: string,
   type: CompanyAssessmentType,
@@ -687,6 +672,18 @@ export const submitCompanyAssessmentAnswers = async (
     throw new ValidationError(`Load your ${settings.label} questions before answering them`);
   }
 
+  const questions = await questionRepo()
+    .createQueryBuilder("q")
+    .whereInIds(assignedIds)
+    .andWhere("q.job_id = :jobId", { jobId })
+    .andWhere("q.type = :type", { type })
+    .getMany();
+  if (questions.length !== assignedIds.length) {
+    throw new ValidationError(
+      `Some of your ${settings.label} questions are no longer available. Please reload them and answer again.`
+    );
+  }
+
   const assigned = new Set(assignedIds);
   const answeredIds = Object.keys(answers);
   if (answeredIds.some((id) => !assigned.has(id))) {
@@ -696,18 +693,6 @@ export const submitCompanyAssessmentAnswers = async (
   if (missing.length > 0) {
     throw new ValidationError(
       `Please answer all ${assignedIds.length} ${settings.label} questions (${missing.length} missing)`
-    );
-  }
-
-  const questions = await questionRepo()
-    .createQueryBuilder("q")
-    .whereInIds(assignedIds)
-    .andWhere("q.job_id = :jobId", { jobId })
-    .andWhere("q.type = :type", { type })
-    .getMany();
-  if (questions.length !== assignedIds.length) {
-    throw new ValidationError(
-      `Some of your ${settings.label} questions are no longer available. Please contact the recruiter.`
     );
   }
 
@@ -732,16 +717,25 @@ export const submitCompanyAssessmentAnswers = async (
   const score = scorePercent(ordered.map((g) => g.score));
 
   await AppDataSource.transaction(async (manager) => {
-    // Write only this score, and only if a parallel submit hasn't already: a
-    // full save would write back stale values for columns changed meanwhile.
-    const result = await manager.update(
-      Application,
-      { id: application.id, [settings.score]: IsNull() },
-      { [settings.score]: score }
-    );
-    if (!result.affected) {
+    const locked = await manager.findOne(Application, {
+      where: { id: application.id },
+      lock: { mode: "pessimistic_write" },
+    });
+    if (!locked) {
+      throw new NotFoundError("Application not found");
+    }
+    if (locked[settings.score] !== null) {
       throw new ConflictError(`You have already submitted your ${settings.label} answers`);
     }
+    if ((locked[settings.assigned] ?? []).join(",") !== assignedIds.join(",")) {
+      throw new ValidationError(
+        `Your ${settings.label} questions have changed. Please reload them and answer again.`
+      );
+    }
+    await manager.query(`UPDATE "applications" SET "${settings.score}" = $1 WHERE id = $2`, [
+      score,
+      application.id,
+    ]);
     await manager.save(
       Answer,
       manager.create(Answer, {

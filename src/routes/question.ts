@@ -5,6 +5,7 @@ import { asyncHandler } from "../middleware/asyncHandler.js";
 import {
   validateAccess,
   loginRequired,
+  optionalAuth,
   requireCompletedProfile,
   requireVerifiedEmail,
 } from "../middleware/auth.js";
@@ -132,6 +133,7 @@ router.post(
 
 router.get(
   "/:_id",
+  optionalAuth,
   validate(questionIdParamValidator),
   asyncHandler(question.fetch, "load question")
 );

@@ -1093,12 +1093,9 @@ ${JSON.stringify(context.questions, null, 2)}`;
 
 export interface ProblemSolvingQuestionsContext {
   count: number;
-  /** Questions already in the job's pool, so new ones don't repeat them. */
   avoid?: string[];
 }
 
-// Problem-solving questions test reasoning, whatever the job — so nothing about
-// the job is sent: the same questions are fair for a driver and a data analyst.
 export const generateProblemSolvingQuestions = async (
   context: ProblemSolvingQuestionsContext
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
@@ -1141,7 +1138,6 @@ export interface CultureFitQuestionsContext {
   companyValues: string[];
   companyName?: string | null;
   jobBrief?: string | null;
-  /** Questions already in the job's pool, so new ones don't repeat them. */
   avoid?: string[];
 }
 
@@ -1204,17 +1200,11 @@ Generate ${count} culture-fit question${count > 1 ? "s" : ""}.${avoidText}`;
   return completion.choices[0];
 };
 
-// ---------------------------------------------------------------------------
-// Day 4: grading problem-solving and culture-fit answers
-// ---------------------------------------------------------------------------
-
 export interface CompanyAssessmentAnswerItem {
   questionId: string;
   question: string;
-  /** What a strong answer shows, written when the question was generated. */
   criteria: string;
   answer: string;
-  /** Culture-fit only: the company value the question tests. */
   companyValue?: string | null;
 }
 

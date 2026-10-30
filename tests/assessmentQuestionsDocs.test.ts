@@ -1,7 +1,3 @@
-/**
- * API docs (swagger.yaml) for the Day 3 endpoints and the companyValues field.
- */
-
 import fs from "fs";
 import path from "path";
 import yaml from "js-yaml";
@@ -46,10 +42,17 @@ describe("swagger.yaml — problem-solving and culture-fit generation", () => {
       expect(body.properties?.count).toMatchObject({ type: "integer", minimum: 1, maximum: 10 });
       expect(op.security).toEqual([{ bearerAuth: [] }]);
       expect(Object.keys(op.responses)).toEqual(
-        expect.arrayContaining(["200", "400", "401", "403", "404", "502"])
+        expect.arrayContaining(["200", "400", "401", "403", "404", "409", "502"])
       );
     }
   );
+
+  it("documents GET /questions/{_id} hiding company-only questions behind a 404", () => {
+    const op = operation("/questions/{_id}", "get");
+
+    expect(Object.keys(op.responses)).toEqual(expect.arrayContaining(["200", "404"]));
+    expect(op.security).toEqual([{}, { bearerAuth: [] }]);
+  });
 
   it("documents basedOnCompanyValues on the culture-fit response", () => {
     const schema = operation("/questions/culture-fit", "post").responses["200"]!.content![

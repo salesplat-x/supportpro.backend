@@ -40,11 +40,6 @@ const applicationRepo = () => AppDataSource.getRepository(Application);
 
 const organizationRepo = () => AppDataSource.getRepository(Organization);
 
-/**
- * Fields a candidate must never see on their own application: the scores the
- * recruiter uses to compare applicants (plan Day 5 — candidates aren't shown
- * their problem-solving or culture-fit result).
- */
 export const CANDIDATE_HIDDEN_APPLICATION_FIELDS = [
   "problemSolvingScore",
   "cultureFitScore",
@@ -54,7 +49,6 @@ export const CANDIDATE_HIDDEN_APPLICATION_FIELDS = [
 ] as const;
 
 export const hideAssessmentResultsFromCandidate = (application: Application): Application => {
-  // The candidate may know a test is done (so the page can say so), never how it went.
   Object.assign(application, {
     problemSolvingSubmitted: application.problemSolvingScore != null,
     cultureFitSubmitted: application.cultureFitScore != null,

@@ -239,7 +239,10 @@ describe("Day 6 — personality fit score after the MBTI type is saved", () => {
 describe("Day 6 — personality fit hardening", () => {
   it("sends the candidate no fit or company-test scores in the submit response", async () => {
     const { submit, reload, application } = await setup();
-    await applications().update(application.id, { cultureFitScore: 64, problemSolvingScore: 40 });
+    await testDataSource.query(
+      `UPDATE "applications" SET "cultureFitScore" = 64, "problemSolvingScore" = 40 WHERE id = $1`,
+      [application.id]
+    );
 
     const res = await submit();
 
@@ -301,7 +304,9 @@ describe("Day 6 — personality fit hardening", () => {
   it("keeps a company-test score saved while the personality AI call was running", async () => {
     const { submit, reload, application } = await setup();
     mockType.mockImplementation(async () => {
-      await applications().update(application.id, { cultureFitScore: 55 });
+      await testDataSource.query(`UPDATE "applications" SET "cultureFitScore" = 55 WHERE id = $1`, [
+        application.id,
+      ]);
       return aiReply({ mbtiType: "INTJ", responses: [] });
     });
 

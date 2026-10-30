@@ -1226,10 +1226,6 @@ describe("Organization domain field", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// companyValues — the company's values, used to write culture-fit questions
-// ---------------------------------------------------------------------------
-
 describe("Organization companyValues field", () => {
   const orgFrom = (res: Parameters<typeof apiData>[0]) =>
     apiData<{ organization: Organization }>(res).organization;

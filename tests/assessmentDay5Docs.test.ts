@@ -1,6 +1,3 @@
-/**
- * API docs (swagger.yaml) for Day 5: what a recruiter reads on an application.
- */
 import fs from "fs";
 import path from "path";
 import yaml from "js-yaml";
