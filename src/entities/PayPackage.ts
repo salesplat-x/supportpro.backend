@@ -12,6 +12,7 @@ import {
   type ValueTransformer,
 } from "typeorm";
 import type { Benefit } from "./Benefit.js";
+import type { CommissionPlan } from "./CommissionPlan.js";
 import type { StaffMember } from "./StaffMember.js";
 import type { User } from "./User.js";
 
@@ -68,6 +69,16 @@ export class PayPackage {
 
   @Column({ type: "date", name: "starts_on" })
   startsOn!: string;
+
+  @Column({ type: "uuid", name: "commission_plan_id", nullable: true })
+  commissionPlanId!: string | null;
+
+  @ManyToOne("CommissionPlan", { eager: false, onDelete: "NO ACTION", nullable: true })
+  @JoinColumn({
+    name: "commission_plan_id",
+    foreignKeyConstraintName: "FK_pay_packages_commission_plan",
+  })
+  commissionPlan!: CommissionPlan | null;
 
   @ManyToMany("Benefit", { eager: false })
   @JoinTable({

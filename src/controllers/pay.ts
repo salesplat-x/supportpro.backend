@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import * as commission from "../services/commission.js";
 import * as payService from "../services/pay.js";
 import { getClientIp } from "../utils/clientIp.js";
 import { sendSuccessResponse } from "../utils/response.js";
@@ -8,7 +9,16 @@ const staffId = (req: Request) => req.params["staffId"]!;
 const benefitId = (req: Request) => req.params["benefitId"]!;
 
 const packageInput = (req: Request): payService.PayPackageInput => {
-  const { currency, period, baseSalary, bonus, commissionTarget, startsOn, benefitIds } = req.body;
+  const {
+    currency,
+    period,
+    baseSalary,
+    bonus,
+    commissionTarget,
+    startsOn,
+    benefitIds,
+    commissionPlanId,
+  } = req.body;
   return {
     currency,
     period,
@@ -17,6 +27,7 @@ const packageInput = (req: Request): payService.PayPackageInput => {
     commissionTarget: commissionTarget ?? 0,
     startsOn,
     benefitIds: benefitIds ?? [],
+    commissionPlanId: commissionPlanId ?? null,
   };
 };
 
@@ -53,6 +64,11 @@ export const deleteShareGrant = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Share grant removed");
 };
 
+export const headcountCost = async (req: Request, res: Response) => {
+  const cost = await payService.getHeadcountCost(req.user, orgId(req), getClientIp(req));
+  sendSuccessResponse(res, "Headcount cost fetched", cost);
+};
+
 export const listBenefits = async (req: Request, res: Response) => {
   const benefits = await payService.listBenefits(req.user.id, orgId(req));
   sendSuccessResponse(res, "Benefits fetched", { benefits });
@@ -79,4 +95,44 @@ export const updateBenefit = async (req: Request, res: Response) => {
 export const deleteBenefit = async (req: Request, res: Response) => {
   await payService.deleteBenefit(req.user.id, orgId(req), benefitId(req));
   sendSuccessResponse(res, "Benefit deleted");
+};
+
+const planInput = (req: Request): commission.CommissionPlanInput => {
+  const { name, tiers } = req.body;
+  return {
+    name,
+    tiers: (tiers as commission.CommissionPlanInput["tiers"]).map(
+      ({ fromPercent, toPercent, ratePercent, boost }) => ({
+        fromPercent,
+        toPercent,
+        ratePercent,
+        boost,
+      })
+    ),
+  };
+};
+
+export const listCommissionPlans = async (req: Request, res: Response) => {
+  const plans = await commission.listPlans(req.user.id, orgId(req));
+  sendSuccessResponse(res, "Commission plans fetched", { plans });
+};
+
+export const createCommissionPlan = async (req: Request, res: Response) => {
+  const plan = await commission.createPlan(req.user.id, orgId(req), planInput(req));
+  sendSuccessResponse(res, "Commission plan added", { plan }, 201);
+};
+
+export const updateCommissionPlan = async (req: Request, res: Response) => {
+  const plan = await commission.updatePlan(
+    req.user.id,
+    orgId(req),
+    req.params["planId"]!,
+    planInput(req)
+  );
+  sendSuccessResponse(res, "Commission plan saved", { plan });
+};
+
+export const deleteCommissionPlan = async (req: Request, res: Response) => {
+  await commission.deletePlan(req.user.id, orgId(req), req.params["planId"]!);
+  sendSuccessResponse(res, "Commission plan deleted");
 };

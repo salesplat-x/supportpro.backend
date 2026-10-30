@@ -1,5 +1,7 @@
 import { body, param, query, type ValidationChain } from "express-validator";
 import { PayPeriod } from "../entities/PayPackage.js";
+import { DocumentTemplate } from "../entities/StaffDocument.js";
+import type { CommissionTier } from "../entities/CommissionPlan.js";
 import { StaffStatus } from "../entities/StaffMember.js";
 import { Currency } from "../types/enums.js";
 
@@ -205,6 +207,10 @@ const payTerms = [
     .isArray({ max: MAX_BENEFITS })
     .withMessage(`Choose at most ${MAX_BENEFITS} benefits`),
   body("benefitIds.*").isUUID().withMessage("Invalid benefit"),
+  body("commissionPlanId")
+    .optional({ values: "null" })
+    .isUUID()
+    .withMessage("Invalid commission plan"),
 ];
 
 export const payPreviewValidator = [orgParam, ...payTerms];
@@ -249,3 +255,80 @@ export const addShareGrantValidator = [
 ];
 
 export const shareGrantIdValidator = [orgParam, staffParam, grantParam];
+
+const MAX_TIERS = 10;
+const MAX_PERCENT = 1000;
+
+const isPercent = (value: unknown, max: number): value is number =>
+  typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= max;
+
+const tiersProblem = (tiers: unknown): string | null => {
+  if (!Array.isArray(tiers) || tiers.length < 1 || tiers.length > MAX_TIERS) {
+    return `Add between 1 and ${MAX_TIERS} tiers`;
+  }
+  for (const [index, tier] of (tiers as CommissionTier[]).entries()) {
+    const isLast = index === tiers.length - 1;
+    const expectedFrom = index === 0 ? 0 : (tiers[index - 1] as CommissionTier).toPercent;
+    if (typeof tier !== "object" || tier === null) return "Each tier needs its values";
+    if (!isPercent(tier.fromPercent, MAX_PERCENT) || tier.fromPercent !== expectedFrom) {
+      return index === 0
+        ? "The first tier must start at 0% of target"
+        : `Tier ${index + 1} must start where tier ${index} ends`;
+    }
+    if (isLast ? tier.toPercent !== null : !isPercent(tier.toPercent, MAX_PERCENT)) {
+      return isLast ? "The last tier has no upper limit" : `Tier ${index + 1} needs an upper limit`;
+    }
+    if (!isLast && (tier.toPercent as number) <= tier.fromPercent) {
+      return `Tier ${index + 1} must end above where it starts`;
+    }
+    if (!isPercent(tier.ratePercent, 100)) {
+      return `Tier ${index + 1} needs a commission rate from 0% to 100%`;
+    }
+    if (tier.boost !== null && !(isPercent(tier.boost, 10) && tier.boost >= 1)) {
+      return `Tier ${index + 1} boost must be from 1x to 10x`;
+    }
+  }
+  return null;
+};
+
+const planBody = [
+  text(body("name"), "Plan name"),
+  body("tiers").custom((tiers: unknown) => {
+    const problem = tiersProblem(tiers);
+    if (problem) throw new Error(problem);
+    return true;
+  }),
+];
+
+const planParam = param("planId").isUUID().withMessage("Invalid commission plan id");
+
+export const createCommissionPlanValidator = [orgParam, ...planBody];
+
+export const updateCommissionPlanValidator = [orgParam, planParam, ...planBody];
+
+export const commissionPlanIdValidator = [orgParam, planParam];
+
+const templateValue = (chain: ValidationChain): ValidationChain =>
+  chain
+    .isIn(Object.values(DocumentTemplate))
+    .withMessage(`Template must be one of: ${Object.values(DocumentTemplate).join(", ")}`);
+
+const documentParam = param("documentId").isUUID().withMessage("Invalid document id");
+
+export const previewDocumentValidator = [orgParam, staffParam, templateValue(query("template"))];
+
+export const sendDocumentValidator = [orgParam, staffParam, templateValue(body("template"))];
+
+export const staffDocumentValidator = [orgParam, staffParam, documentParam];
+
+export const documentTokenValidator = [
+  param("token")
+    .matches(/^[a-f0-9]{64}$/)
+    .withMessage("This link has expired or was already used"),
+];
+
+export const signDocumentValidator = [
+  ...documentTokenValidator,
+  text(body("fullName"), "Full name"),
+  body("agree").equals("true").withMessage("Tick the box to agree to sign electronically"),
+];

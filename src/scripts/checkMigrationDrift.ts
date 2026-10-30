@@ -41,6 +41,8 @@ import { StaffAccessLog } from "../entities/StaffAccessLog.js";
 import { Benefit } from "../entities/Benefit.js";
 import { PayPackage } from "../entities/PayPackage.js";
 import { ShareGrant } from "../entities/ShareGrant.js";
+import { CommissionPlan } from "../entities/CommissionPlan.js";
+import { StaffDocument } from "../entities/StaffDocument.js";
 
 const ALL_ENTITIES = [
   User,
@@ -80,6 +82,8 @@ const ALL_ENTITIES = [
   Benefit,
   PayPackage,
   ShareGrant,
+  CommissionPlan,
+  StaffDocument,
 ];
 
 async function run(): Promise<void> {

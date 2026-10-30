@@ -13,6 +13,8 @@ const ACCESS_LABELS: Record<StaffAccessResource, string> = {
   [StaffAccessResource.StaffRecord]: "Staff record",
   [StaffAccessResource.StaffActivity]: "Activity",
   [StaffAccessResource.Pay]: "Pay",
+  [StaffAccessResource.Contract]: "Contracts",
+  [StaffAccessResource.HeadcountCost]: "Headcount cost",
 };
 
 export interface ActivityEntry {
@@ -95,7 +97,7 @@ export const recordActivities = async (
 export const logStaffAccess = async (input: {
   organizationId: string;
   actor: Actor;
-  staff: Pick<StaffMember, "id" | "fullName">;
+  staff: { id: string | null; fullName: string };
   resource: StaffAccessResource;
   ip: string;
 }): Promise<void> => {

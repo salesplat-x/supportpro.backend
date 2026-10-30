@@ -4,6 +4,8 @@ import env from "../../../config/env.js";
 import ResendProvider from "./providers/resend.provider.js";
 import {
   companyInvitePlainText,
+  documentToSignPlainText,
+  signedDocumentPlainText,
   staffInvitePlainText,
   verificationPlainText,
 } from "./plainText.js";
@@ -179,6 +181,42 @@ class EmailService {
       html,
       text: staffInvitePlainText(details),
       tags: [{ name: "category", value: "staff-invite" }],
+    });
+  }
+
+  async sendDocumentToSign(details: {
+    email: string;
+    firstName: string;
+    companyName: string;
+    companyLogoUrl?: string | null;
+    documentTitle: string;
+    signLink: string;
+  }): Promise<void> {
+    await this.provider.send({
+      to: details.email,
+      subject: `${details.companyName} sent you your ${details.documentTitle.toLowerCase()} to sign`,
+      html: renderTemplate("staff-document-sign", details),
+      text: documentToSignPlainText(details),
+      tags: [{ name: "category", value: "staff-document-sign" }],
+    });
+  }
+
+  async sendSignedDocument(details: {
+    email: string;
+    firstName: string;
+    companyName: string;
+    documentTitle: string;
+    signerName: string;
+    fileName: string;
+    pdf: Buffer;
+  }): Promise<void> {
+    await this.provider.send({
+      to: details.email,
+      subject: `Signed: ${details.documentTitle} for ${details.companyName}`,
+      html: renderTemplate("staff-document-signed", details),
+      text: signedDocumentPlainText(details),
+      tags: [{ name: "category", value: "staff-document-signed" }],
+      attachments: [{ filename: details.fileName, content: details.pdf }],
     });
   }
 

@@ -35,3 +35,6 @@ export { StaffAccessLog } from "./StaffAccessLog.js";
 export { Benefit } from "./Benefit.js";
 export { PayPackage, PayPeriod } from "./PayPackage.js";
 export { ShareGrant } from "./ShareGrant.js";
+export { CommissionPlan } from "./CommissionPlan.js";
+export type { CommissionTier } from "./CommissionPlan.js";
+export { StaffDocument, DocumentStatus, DocumentTemplate } from "./StaffDocument.js";

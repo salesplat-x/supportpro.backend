@@ -1,4 +1,5 @@
 import { Router } from "express";
+import * as contracts from "../controllers/contracts.js";
 import * as pay from "../controllers/pay.js";
 import * as staff from "../controllers/staff.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
@@ -10,6 +11,12 @@ import {
   accessLogValidator,
   addShareGrantValidator,
   benefitIdValidator,
+  commissionPlanIdValidator,
+  createCommissionPlanValidator,
+  previewDocumentValidator,
+  sendDocumentValidator,
+  staffDocumentValidator,
+  updateCommissionPlanValidator,
   createBenefitValidator,
   payPreviewValidator,
   setPayValidator,
@@ -77,6 +84,41 @@ router.delete(
   ...recruiter,
   validate(benefitIdValidator),
   asyncHandler(pay.deleteBenefit, "delete benefit")
+);
+
+router.get(
+  "/commission-plans",
+  ...recruiter,
+  validate(companyParamValidator),
+  asyncHandler(pay.listCommissionPlans, "load commission plans")
+);
+
+router.post(
+  "/commission-plans",
+  ...recruiter,
+  validate(createCommissionPlanValidator),
+  asyncHandler(pay.createCommissionPlan, "add commission plan")
+);
+
+router.put(
+  "/commission-plans/:planId",
+  ...recruiter,
+  validate(updateCommissionPlanValidator),
+  asyncHandler(pay.updateCommissionPlan, "save commission plan")
+);
+
+router.delete(
+  "/commission-plans/:planId",
+  ...recruiter,
+  validate(commissionPlanIdValidator),
+  asyncHandler(pay.deleteCommissionPlan, "delete commission plan")
+);
+
+router.get(
+  "/headcount-cost",
+  ...recruiter,
+  validate(companyParamValidator),
+  asyncHandler(pay.headcountCost, "load headcount cost")
 );
 
 router.post(
@@ -156,6 +198,43 @@ router.delete(
   ...recruiter,
   validate(shareGrantIdValidator),
   asyncHandler(pay.deleteShareGrant, "remove share grant")
+);
+
+router.get(
+  "/:staffId/documents",
+  ...recruiter,
+  validate(staffIdValidator),
+  asyncHandler(contracts.list, "load documents")
+);
+
+router.get(
+  "/:staffId/documents/preview",
+  ...recruiter,
+  validate(previewDocumentValidator),
+  asyncHandler(contracts.preview, "preview document")
+);
+
+router.post(
+  "/:staffId/documents",
+  ...recruiter,
+  staffWriteLimiter,
+  validate(sendDocumentValidator),
+  asyncHandler(contracts.send, "send document")
+);
+
+router.post(
+  "/:staffId/documents/:documentId/resend",
+  ...recruiter,
+  staffWriteLimiter,
+  validate(staffDocumentValidator),
+  asyncHandler(contracts.resend, "send document again")
+);
+
+router.get(
+  "/:staffId/documents/:documentId/pdf",
+  ...recruiter,
+  validate(staffDocumentValidator),
+  asyncHandler(contracts.download, "download document")
 );
 
 export default (app: Router) => app.use("/organizations/:_id/staff", router);

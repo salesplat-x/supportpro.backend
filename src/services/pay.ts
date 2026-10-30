@@ -8,8 +8,9 @@ import { StaffActivityType } from "../entities/StaffActivity.js";
 import { StaffMember, StaffStatus } from "../entities/StaffMember.js";
 import type { User } from "../entities/User.js";
 import { ConflictError, NotFoundError, ValidationError } from "../utils/errors";
+import { findPlan } from "./commission.js";
 import { assertCanManagePeople } from "./peopleAccess.js";
-import { activityEntry, openStaff, recordActivities } from "./staffAudit.js";
+import { activityEntry, logStaffAccess, openStaff, recordActivities } from "./staffAudit.js";
 import { findStaff, isUniqueViolation } from "./staffRecord.js";
 
 export interface PayTerms {
@@ -23,6 +24,7 @@ export interface PayTerms {
 
 export interface PayPackageInput extends PayTerms {
   benefitIds: string[];
+  commissionPlanId: string | null;
 }
 
 export interface BenefitInput {
@@ -41,6 +43,7 @@ export interface ShareGrantInput {
 
 export interface PayPackageView extends PayTerms {
   id: string;
+  commissionPlanId: string | null;
   benefits: { id: string; name: string }[];
   paragraph: string;
   createdAt: Date;
@@ -66,7 +69,7 @@ const fractionalAmount = new Intl.NumberFormat("en-NG", {
 const money = (currency: string, amount: number): string =>
   `${currency} ${(Number.isInteger(amount) ? wholeAmount : fractionalAmount).format(amount)}`;
 
-const longDate = (dateOnly: string): string =>
+export const longDate = (dateOnly: string): string =>
   new Date(`${dateOnly}T00:00:00Z`).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "long",
@@ -107,6 +110,7 @@ const toPackageView = (pkg: PayPackage): PayPackageView => {
     .map(({ id, name }) => ({ id, name }));
   return {
     id: pkg.id,
+    commissionPlanId: pkg.commissionPlanId,
     currency: pkg.currency,
     period: pkg.period,
     baseSalary: pkg.baseSalary,
@@ -141,7 +145,7 @@ export const loadPay = async (staffId: string): Promise<PayView> => {
   };
 };
 
-const assertNotEnded = (staff: StaffMember): void => {
+export const assertNotEnded = (staff: StaffMember): void => {
   if (staff.status === StaffStatus.Ended) {
     throw new ConflictError("This person's employment has ended");
   }
@@ -195,6 +199,14 @@ export const setPayPackage = async (
     const staff = await findStaff(organizationId, staffId, { em, lock: true });
     assertNotEnded(staff);
     const benefits = await loadBenefits(em, organizationId, input.benefitIds);
+    if (input.commissionPlanId) {
+      await findPlan(organizationId, input.commissionPlanId).catch((err: unknown) => {
+        if (err instanceof NotFoundError) {
+          throw new ValidationError("Choose a commission plan from your company's list");
+        }
+        throw err;
+      });
+    }
     const repo = em.getRepository(PayPackage);
     const existing = await repo.findOne({ where: { staffId, startsOn: input.startsOn } });
     const pkg =
@@ -205,6 +217,7 @@ export const setPayPackage = async (
       baseSalary: input.baseSalary,
       bonus: input.bonus,
       commissionTarget: input.commissionTarget,
+      commissionPlanId: input.commissionPlanId,
       benefits,
     });
     await repo.save(pkg);
@@ -342,4 +355,81 @@ export const deleteBenefit = async (
   await assertCanManagePeople(userId, organizationId);
   const benefit = await findBenefit(organizationId, benefitId);
   await AppDataSource.getRepository(Benefit).delete(benefit.id);
+};
+
+export interface HeadcountCostRow {
+  currency: string;
+  department: string | null;
+  staffCount: number;
+  baseSalary: number;
+  bonus: number;
+  commissionTarget: number;
+  total: number;
+}
+
+export interface HeadcountCost {
+  totals: HeadcountCostRow[];
+  departments: HeadcountCostRow[];
+}
+
+const HEADCOUNT_ALL_STAFF = "all staff";
+
+export const getHeadcountCost = async (
+  actor: User,
+  organizationId: string,
+  ip: string
+): Promise<HeadcountCost> => {
+  await assertCanManagePeople(actor.id, organizationId);
+  await logStaffAccess({
+    organizationId,
+    actor,
+    staff: { id: null, fullName: HEADCOUNT_ALL_STAFF },
+    resource: StaffAccessResource.HeadcountCost,
+    ip,
+  });
+
+  const rows: Array<Record<string, string | null> & { is_total: boolean }> =
+    await AppDataSource.query(
+      `WITH current_pay AS (
+         SELECT DISTINCT ON (p.staff_id)
+           p.currency, s.department,
+           p.base_salary * m.factor AS base_salary,
+           p.bonus * m.factor AS bonus,
+           p.commission_target * m.factor AS commission_target
+         FROM pay_packages p
+         JOIN staff_members s ON s.id = p.staff_id
+         CROSS JOIN LATERAL (SELECT CASE p.period WHEN 'monthly' THEN 12 ELSE 1 END AS factor) m
+         WHERE s.organization_id = $1 AND s.status <> 'ended' AND p.starts_on <= $2
+         ORDER BY p.staff_id, p.starts_on DESC
+       )
+       SELECT currency, department, GROUPING(department) = 1 AS is_total,
+         COUNT(*) AS staff_count,
+         SUM(base_salary) AS base_salary,
+         SUM(bonus) AS bonus,
+         SUM(commission_target) AS commission_target
+       FROM current_pay
+       GROUP BY GROUPING SETS ((currency, department), (currency))
+       ORDER BY currency, is_total DESC, department NULLS LAST`,
+      [organizationId, todayUtc()]
+    );
+
+  const toRow = (row: (typeof rows)[number]): HeadcountCostRow => {
+    const baseSalary = Number(row["base_salary"]);
+    const bonus = Number(row["bonus"]);
+    const commissionTarget = Number(row["commission_target"]);
+    return {
+      currency: row["currency"]!,
+      department: row["department"] ?? null,
+      staffCount: Number(row["staff_count"]),
+      baseSalary,
+      bonus,
+      commissionTarget,
+      total: Math.round((baseSalary + bonus + commissionTarget) * 100) / 100,
+    };
+  };
+
+  return {
+    totals: rows.filter((row) => row.is_total).map(toRow),
+    departments: rows.filter((row) => !row.is_total).map(toRow),
+  };
 };

@@ -23,6 +23,10 @@ export enum StaffActivityType {
   PaySet = "pay_set",
   ShareGrantAdded = "share_grant_added",
   ShareGrantRemoved = "share_grant_removed",
+  DocumentSent = "document_sent",
+  DocumentEmailFailed = "document_email_failed",
+  DocumentViewed = "document_viewed",
+  DocumentSigned = "document_signed",
 }
 
 /** Append-only history of what happens to one staff member. Rows are never edited or deleted. */

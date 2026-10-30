@@ -63,3 +63,22 @@ export async function createStaff(
   expect(res.status).toBe(201);
   return apiData<{ staff: StaffViewShape }>(res).staff;
 }
+
+export function setPay(
+  app: App,
+  token: string,
+  orgId: string,
+  staffId: string,
+  overrides: Record<string, unknown> = {}
+) {
+  return request(app)
+    .put(staffPath(orgId, `/${staffId}/pay`))
+    .set(authHeader(token))
+    .send({
+      currency: "NGN",
+      period: "monthly",
+      baseSalary: 400000,
+      startsOn: "2026-01-05",
+      ...overrides,
+    });
+}
