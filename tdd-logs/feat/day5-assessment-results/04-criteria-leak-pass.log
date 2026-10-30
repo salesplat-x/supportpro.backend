@@ -1,9 +1,0 @@
-2026-10-27 18:47:46:4746 [32minfo[39m: [32mDocs available at http://localhost:3003/v1/docs[39m
-2026-10-27 18:47:46:4746 [37mhttp[39m: [37mGET /v1/questions/d9eda357-1ec7-4274-8e07-08c1b3985f80 200 205 - 6.658 ms[39m
-2026-10-27 18:47:46:4746 [37mhttp[39m: [37mGET /v1/questions/d7f1cdc1-3581-49d0-bf9a-e3b1d8a5234a 200 193 - 1.844 ms[39m
-2026-10-27 18:47:46:4746 [37mhttp[39m: [37mGET /v1/questions?jobId=c418cc4c-f289-47b4-8a4a-9ce86bca3294 403 114 - 3.202 ms[39m
-Test Suites: 1 passed, 1 total
-Tests:       3 passed, 3 total
-Snapshots:   0 total
-Time:        4.994 s, estimated 6 s
-Ran all test suites matching tests/assessmentHardening.test.ts with tests matching "scoring criteria".

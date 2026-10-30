@@ -1,8 +1,0 @@
-2026-10-27 18:53:45:5345 [32minfo[39m: [32mDocs available at http://localhost:3003/v1/docs[39m
-2026-10-27 18:53:46:5346 [37mhttp[39m: [37mPOST /v1/questions/problem-solving 200 716 - 168.473 ms[39m
-2026-10-27 18:53:46:5346 [37mhttp[39m: [37mPOST /v1/questions/problem-solving 400 167 - 169.307 ms[39m
-Test Suites: 1 passed, 1 total
-Tests:       16 skipped, 1 passed, 17 total
-Snapshots:   0 total
-Time:        4.351 s, estimated 5 s
-Ran all test suites matching tests/assessmentHardening.test.ts with tests matching "pool cap".

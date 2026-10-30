@@ -1,9 +1,0 @@
-2026-10-27 18:54:35:5435 [32minfo[39m: [32mDocs available at http://localhost:3003/v1/docs[39m
-2026-10-27 18:54:35:5435 [37mhttp[39m: [37mDELETE /v1/questions/f16950d8-ca50-446e-9da9-8a888ee752e3 400 140 - 12.576 ms[39m
-2026-10-27 18:54:35:5435 [37mhttp[39m: [37mDELETE /v1/questions/2c24cbff-9407-43e4-af25-1a41b5953b23 400 140 - 4.447 ms[39m
-2026-10-27 18:54:35:5435 [37mhttp[39m: [37mDELETE /v1/questions/b9d889bd-8778-4e77-90e0-a30288adff8b 200 54 - 7.758 ms[39m
-Test Suites: 1 passed, 1 total
-Tests:       17 skipped, 3 passed, 20 total
-Snapshots:   0 total
-Time:        4.038 s, estimated 5 s
-Ran all test suites matching tests/assessmentHardening.test.ts with tests matching "can't be deleted".
