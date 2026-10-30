@@ -95,6 +95,14 @@ const pagination = [
     .toInt(),
 ];
 
+const staffEmail = (chain: ValidationChain): ValidationChain =>
+  chain
+    .isString()
+    .isLength({ max: MAX_EMAIL })
+    .isEmail()
+    .normalizeEmail()
+    .withMessage("A valid email is required");
+
 export const companyParamValidator = [orgParam];
 
 export const staffOptionsValidator = [
@@ -125,12 +133,7 @@ export const listStaffValidator = [
 export const createStaffValidator = [
   orgParam,
   text(body("fullName"), "Full name"),
-  body("email")
-    .isString()
-    .isLength({ max: MAX_EMAIL })
-    .isEmail()
-    .normalizeEmail()
-    .withMessage("A valid email is required"),
+  staffEmail(body("email")),
   text(body("jobTitle"), "Job title"),
   nullableText(body("department"), "Department"),
   body("managerId").optional({ values: "null" }).isUUID().withMessage("Invalid manager"),
@@ -329,6 +332,111 @@ export const documentTokenValidator = [
 
 export const signDocumentValidator = [
   ...documentTokenValidator,
+  text(body("fullName"), "Full name"),
+  body("agree").equals("true").withMessage("Tick the box to agree to sign electronically"),
+];
+
+export const MAX_IMPORT_ROWS = 200;
+
+export const importRowValidator = [
+  text(body("fullName"), "Full name"),
+  staffEmail(body("email")),
+  text(body("jobTitle"), "Job title"),
+  nullableText(body("department"), "Department"),
+  staffEmail(body("managerEmail").optional({ values: "falsy" })).withMessage(
+    "Manager email is not a valid email"
+  ),
+  dateOnly(body("startDate"), "Start date"),
+];
+
+export const importStaffValidator = [
+  orgParam,
+  body("rows")
+    .isArray({ min: 1, max: MAX_IMPORT_ROWS })
+    .withMessage(`Import between 1 and ${MAX_IMPORT_ROWS} rows at a time`),
+  body("commit")
+    .isBoolean({ strict: true })
+    .withMessage("commit must be true or false")
+    .toBoolean(),
+];
+
+const MAX_CHECKLIST_ITEMS = 30;
+const MAX_DUE_IN_DAYS = 365;
+const MAX_STATEMENT = 2000;
+const MAX_GOALS = 10;
+const MAX_GOAL = 500;
+
+const taskParam = param("taskId").isUUID().withMessage("Invalid task id");
+
+export const checklistDefaultsValidator = [
+  orgParam,
+  body("items")
+    .isArray({ max: MAX_CHECKLIST_ITEMS })
+    .withMessage(`Use at most ${MAX_CHECKLIST_ITEMS} tasks`),
+  text(body("items.*.title"), "Task"),
+  body("items.*.dueInDays")
+    .isInt({ min: 0, max: MAX_DUE_IN_DAYS })
+    .withMessage(`Due days must be a whole number from 0 to ${MAX_DUE_IN_DAYS}`)
+    .toInt(),
+];
+
+export const addTaskValidator = [
+  orgParam,
+  staffParam,
+  text(body("title"), "Task"),
+  dateOnly(body("dueOn").optional({ values: "null" }), "Due date"),
+];
+
+export const taskIdValidator = [orgParam, staffParam, taskParam];
+
+export const notarizationValidator = [
+  ...staffDocumentValidator,
+  body("needsNotarization")
+    .isBoolean({ strict: true })
+    .withMessage("needsNotarization must be true or false")
+    .toBoolean(),
+];
+
+const statement = (field: string, label: string): ValidationChain =>
+  body(field)
+    .optional({ values: "null" })
+    .isString()
+    .withMessage(`${label} must be text`)
+    .bail()
+    .trim()
+    .isLength({ max: MAX_STATEMENT })
+    .withMessage(`${label} must be at most ${MAX_STATEMENT} characters`)
+    .bail()
+    .matches(NO_NUL)
+    .withMessage(`${label} can't contain control characters`);
+
+export const companyProfileValidator = [
+  orgParam,
+  statement("mission", "Mission"),
+  statement("vision", "Vision"),
+  body("yearlyGoals").isArray({ max: MAX_GOALS }).withMessage(`Add at most ${MAX_GOALS} goals`),
+  body("yearlyGoals.*")
+    .isString()
+    .bail()
+    .trim()
+    .isLength({ min: 1, max: MAX_GOAL })
+    .withMessage(`Each goal must be between 1 and ${MAX_GOAL} characters`)
+    .bail()
+    .matches(NO_NUL)
+    .withMessage("Goals can't contain control characters"),
+];
+
+export const myStaffValidator = [staffParam];
+
+export const myTaskValidator = [
+  taskParam,
+  body("done").isBoolean({ strict: true }).withMessage("done must be true or false").toBoolean(),
+];
+
+export const myDocumentValidator = [documentParam];
+
+export const signMyDocumentValidator = [
+  documentParam,
   text(body("fullName"), "Full name"),
   body("agree").equals("true").withMessage("Tick the box to agree to sign electronically"),
 ];

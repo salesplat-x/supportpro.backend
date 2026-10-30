@@ -11,7 +11,12 @@ import { User } from "../entities/User.js";
 import { generateContractPdf } from "../utils/contractPdf.js";
 import { renderContract } from "../utils/contractTemplates.js";
 import EmailService from "../utils/integrations/email/emailService.js";
-import { getFromSpaces } from "../utils/integrations/spaces.js";
+import {
+  deleteSpacesObjectQuietly,
+  getFromSpaces,
+  spacesKeyFor,
+  uploadPrivateToSpaces,
+} from "../utils/integrations/spaces.js";
 import logger from "../utils/logger.js";
 import { AppError, ConflictError, NotFoundError, ValidationError } from "../utils/errors";
 import { INVITE_EXPIRY_DAYS, generateInviteToken } from "./organization.js";
@@ -36,6 +41,8 @@ export interface DocumentView {
   signedAt: Date | null;
   signerName: string | null;
   linkExpiresAt: Date | null;
+  needsNotarization: boolean;
+  notarizedAt: Date | null;
 }
 
 export interface SigningView {
@@ -61,6 +68,8 @@ export const toDocumentView = (doc: StaffDocument): DocumentView => ({
   signedAt: doc.signedAt,
   signerName: doc.signerName,
   linkExpiresAt: doc.tokenExpiresAt,
+  needsNotarization: doc.needsNotarization,
+  notarizedAt: doc.notarizedAt,
 });
 
 const loadOrganization = (organizationId: string): Promise<Organization> =>
@@ -442,4 +451,103 @@ export const signWithToken = async (
     signLockedDocument(em, await findByToken(token, em, true), signerName, ip)
   );
   return finishSigning(doc, staff);
+};
+
+const SCAN_TYPES: Record<string, string> = {
+  "application/pdf": ".pdf",
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+};
+
+const assertSigned = (doc: StaffDocument): void => {
+  if (doc.status !== DocumentStatus.Signed) {
+    throw new ConflictError("Only signed documents can be notarized");
+  }
+};
+
+export const setNeedsNotarization = async (
+  actor: User,
+  organizationId: string,
+  staffId: string,
+  documentId: string,
+  needsNotarization: boolean
+): Promise<DocumentView> => {
+  await assertCanManagePeople(actor.id, organizationId);
+  return AppDataSource.transaction(async (em) => {
+    const staff = await findStaff(organizationId, staffId, { em });
+    const doc = await findStaffDocument(em, staff, documentId, true);
+    assertSigned(doc);
+    if (!needsNotarization && doc.notarizedScanKey) {
+      throw new ConflictError("This document already has a notarized copy");
+    }
+    doc.needsNotarization = needsNotarization;
+    return toDocumentView(await documentsRepo(em).save(doc));
+  });
+};
+
+export const uploadNotarizedScan = async (
+  actor: User,
+  organizationId: string,
+  staffId: string,
+  documentId: string,
+  file: Express.Multer.File | undefined
+): Promise<DocumentView> => {
+  await assertCanManagePeople(actor.id, organizationId);
+  const extension = file ? SCAN_TYPES[file.mimetype] : undefined;
+  if (!file || !extension) {
+    throw new ValidationError("Upload the scan as a PDF, JPG or PNG file");
+  }
+  if (file.size === 0) {
+    throw new ValidationError("File is empty");
+  }
+  const staff = await findStaff(organizationId, staffId);
+  const current = await findStaffDocument(AppDataSource.manager, staff, documentId);
+  assertSigned(current);
+  if (!current.needsNotarization) {
+    throw new ConflictError("Mark the document as needing notarization first");
+  }
+
+  const key = spacesKeyFor("notarized-scans", organizationId, `scan${extension}`);
+  await uploadPrivateToSpaces(file.buffer, key, file.mimetype);
+  let replacedKey: string | null = null;
+  try {
+    const saved = await AppDataSource.transaction(async (em) => {
+      const doc = await findStaffDocument(em, staff, documentId, true);
+      replacedKey = doc.notarizedScanKey;
+      Object.assign(doc, {
+        notarizedScanKey: key,
+        notarizedScanType: file.mimetype,
+        notarizedAt: new Date(),
+      });
+      const result = await documentsRepo(em).save(doc);
+      await recordActivities(em, staff, [
+        activityEntry(StaffActivityType.DocumentNotarized, actor, { title: doc.title }),
+      ]);
+      return result;
+    });
+    await deleteSpacesObjectQuietly(replacedKey, `notarized scan ${documentId}`);
+    return toDocumentView(saved);
+  } catch (err) {
+    await deleteSpacesObjectQuietly(key, `unsaved notarized scan ${documentId}`);
+    throw err;
+  }
+};
+
+export const downloadNotarizedScan = async (
+  actor: User,
+  organizationId: string,
+  staffId: string,
+  documentId: string,
+  ip: string
+): Promise<{ fileName: string; contentType: string; file: Buffer }> => {
+  const staff = await openStaff(actor, organizationId, staffId, StaffAccessResource.Contract, ip);
+  const doc = await findStaffDocument(AppDataSource.manager, staff, documentId);
+  if (!doc.notarizedScanKey || !doc.notarizedScanType) {
+    throw new NotFoundError("This document has no notarized copy");
+  }
+  return {
+    fileName: fileNameFor(doc).replace(/\.pdf$/, `-notarized${SCAN_TYPES[doc.notarizedScanType]}`),
+    contentType: doc.notarizedScanType,
+    file: await getFromSpaces(doc.notarizedScanKey),
+  };
 };

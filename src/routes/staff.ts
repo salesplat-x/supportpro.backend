@@ -4,11 +4,18 @@ import * as pay from "../controllers/pay.js";
 import * as staff from "../controllers/staff.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { validateAccess, requireVerifiedEmail } from "../middleware/auth.js";
+import { companyDocumentUpload, notarizedScanUpload } from "../middleware/multer.js";
 import { staffWriteLimiter } from "../middleware/rateLimiter.js";
 import { validate } from "../middleware/validate.js";
 import { UserRole } from "../types/enums.js";
 import {
   accessLogValidator,
+  addTaskValidator,
+  checklistDefaultsValidator,
+  companyProfileValidator,
+  importStaffValidator,
+  notarizationValidator,
+  taskIdValidator,
   addShareGrantValidator,
   benefitIdValidator,
   commissionPlanIdValidator,
@@ -84,6 +91,58 @@ router.delete(
   ...recruiter,
   validate(benefitIdValidator),
   asyncHandler(pay.deleteBenefit, "delete benefit")
+);
+
+router.get(
+  "/export",
+  ...recruiter,
+  validate(companyParamValidator),
+  asyncHandler(staff.exportStaff, "export staff")
+);
+
+router.post(
+  "/import",
+  ...recruiter,
+  staffWriteLimiter,
+  validate(importStaffValidator),
+  asyncHandler(staff.importStaff, "import staff")
+);
+
+router.get(
+  "/checklist-defaults",
+  ...recruiter,
+  validate(companyParamValidator),
+  asyncHandler(staff.checklistDefaults, "load the default checklist")
+);
+
+router.put(
+  "/checklist-defaults",
+  ...recruiter,
+  validate(checklistDefaultsValidator),
+  asyncHandler(staff.saveChecklistDefaults, "save the default checklist")
+);
+
+router.get(
+  "/company-profile",
+  ...recruiter,
+  validate(companyParamValidator),
+  asyncHandler(staff.getCompanyProfile, "load the company profile")
+);
+
+router.put(
+  "/company-profile",
+  ...recruiter,
+  validate(companyProfileValidator),
+  asyncHandler(staff.saveCompanyProfile, "save the company profile")
+);
+
+router.post(
+  "/company-profile/extract",
+  ...recruiter,
+  staffWriteLimiter,
+  companyDocumentUpload.single("file"),
+  validate(companyParamValidator),
+  asyncHandler(staff.fillCompanyProfile, "read the company document")
 );
 
 router.get(
@@ -235,6 +294,50 @@ router.get(
   ...recruiter,
   validate(staffDocumentValidator),
   asyncHandler(contracts.download, "download document")
+);
+
+router.patch(
+  "/:staffId/documents/:documentId",
+  ...recruiter,
+  validate(notarizationValidator),
+  asyncHandler(contracts.setNotarization, "update document")
+);
+
+router.post(
+  "/:staffId/documents/:documentId/notarized-scan",
+  ...recruiter,
+  staffWriteLimiter,
+  notarizedScanUpload.single("file"),
+  validate(staffDocumentValidator),
+  asyncHandler(contracts.uploadNotarizedScan, "attach notarized copy")
+);
+
+router.get(
+  "/:staffId/documents/:documentId/notarized-scan",
+  ...recruiter,
+  validate(staffDocumentValidator),
+  asyncHandler(contracts.downloadNotarizedScan, "download notarized copy")
+);
+
+router.get(
+  "/:staffId/checklist",
+  ...recruiter,
+  validate(staffIdValidator),
+  asyncHandler(staff.tasks, "load checklist")
+);
+
+router.post(
+  "/:staffId/checklist",
+  ...recruiter,
+  validate(addTaskValidator),
+  asyncHandler(staff.addTask, "add task")
+);
+
+router.delete(
+  "/:staffId/checklist/:taskId",
+  ...recruiter,
+  validate(taskIdValidator),
+  asyncHandler(staff.deleteTask, "remove task")
 );
 
 export default (app: Router) => app.use("/organizations/:_id/staff", router);

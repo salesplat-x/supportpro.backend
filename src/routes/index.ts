@@ -25,6 +25,7 @@ import feedbackRoutes from "./feedback.js";
 import staffRoutes from "./staff.js";
 import staffInviteRoutes from "./staffInvite.js";
 import staffDocumentRoutes from "./staffDocument.js";
+import myWorkRoutes from "./myWork.js";
 
 const v1Router = Router();
 
@@ -43,6 +44,7 @@ organizationRoutes(v1Router);
 staffRoutes(v1Router);
 staffInviteRoutes(v1Router);
 staffDocumentRoutes(v1Router);
+myWorkRoutes(v1Router);
 aiConfigRoutes(v1Router);
 paymentRoutes(v1Router);
 pricingRoutes(v1Router);

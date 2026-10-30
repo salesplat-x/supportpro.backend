@@ -93,6 +93,18 @@ export class StaffDocument {
   @Column({ type: "varchar", length: 64, name: "check_code", nullable: true })
   checkCode!: string | null;
 
+  @Column({ type: "boolean", name: "needs_notarization", default: false })
+  needsNotarization!: boolean;
+
+  @Column({ type: "varchar", length: 300, name: "notarized_scan_key", nullable: true })
+  notarizedScanKey!: string | null;
+
+  @Column({ type: "varchar", length: 64, name: "notarized_scan_type", nullable: true })
+  notarizedScanType!: string | null;
+
+  @Column({ type: "timestamp", name: "notarized_at", nullable: true })
+  notarizedAt!: Date | null;
+
   @CreateDateColumn({ name: "created_at" })
   createdAt!: Date;
 }

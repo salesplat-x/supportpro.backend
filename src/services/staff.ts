@@ -5,6 +5,7 @@ import { StaffActivityType } from "../entities/StaffActivity.js";
 import { StaffMember, StaffStatus } from "../entities/StaffMember.js";
 import type { User } from "../entities/User.js";
 import { ConflictError, ValidationError } from "../utils/errors";
+import { copyDefaultChecklist } from "./checklist.js";
 import { assertCanManagePeople } from "./peopleAccess.js";
 import { activityEntry, openStaff, recordActivities } from "./staffAudit.js";
 import { assertCanInvite, issueInvite, sendInviteEmail } from "./staffInvite.js";
@@ -64,7 +65,7 @@ const tomorrowUtc = (): string => new Date(Date.now() + DAY_MS).toISOString().sl
 const escapeLike = (value: string): string => value.replace(/[\\%_]/g, "\\$&");
 
 /** Serialises manager changes in a company so two edits can't each look fine and together form a loop. */
-const lockHierarchy = (em: EntityManager, organizationId: string) =>
+export const lockHierarchy = (em: EntityManager, organizationId: string) =>
   em.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`staff-hierarchy:${organizationId}`]);
 
 /**
@@ -144,6 +145,7 @@ export const createStaff = async (
         token = issueInvite(record, actor);
       }
       const created = await repo.save(record);
+      await copyDefaultChecklist(em, org, created);
       await recordActivities(em, created, [
         activityEntry(StaffActivityType.Created, actor),
         ...(sendInvite ? [activityEntry(StaffActivityType.Invited, actor)] : []),

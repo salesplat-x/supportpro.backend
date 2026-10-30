@@ -40,6 +40,7 @@ import { PayPackage } from "../../src/entities/PayPackage.js";
 import { ShareGrant } from "../../src/entities/ShareGrant.js";
 import { CommissionPlan } from "../../src/entities/CommissionPlan.js";
 import { StaffDocument } from "../../src/entities/StaffDocument.js";
+import { StaffChecklistTask } from "../../src/entities/StaffChecklistTask.js";
 
 let container: StartedPostgreSqlContainer;
 export let testDataSource: DataSource;
@@ -84,6 +85,7 @@ const ALL_ENTITIES = [
   ShareGrant,
   CommissionPlan,
   StaffDocument,
+  StaffChecklistTask,
 ];
 
 export async function startTestDatabase(): Promise<void> {

@@ -80,3 +80,39 @@ export const signWithLink = async (req: Request, res: Response) => {
   );
   sendSuccessResponse(res, "Document signed", { signed });
 };
+
+export const setNotarization = async (req: Request, res: Response) => {
+  const document = await contracts.setNeedsNotarization(
+    req.user,
+    orgId(req),
+    staffId(req),
+    documentId(req),
+    req.body.needsNotarization as boolean
+  );
+  sendSuccessResponse(res, "Document updated", { document });
+};
+
+export const uploadNotarizedScan = async (req: Request, res: Response) => {
+  const document = await contracts.uploadNotarizedScan(
+    req.user,
+    orgId(req),
+    staffId(req),
+    documentId(req),
+    req.file
+  );
+  sendSuccessResponse(res, "Notarized copy attached", { document });
+};
+
+export const downloadNotarizedScan = async (req: Request, res: Response) => {
+  const { fileName, contentType, file } = await contracts.downloadNotarizedScan(
+    req.user,
+    orgId(req),
+    staffId(req),
+    documentId(req),
+    getClientIp(req)
+  );
+  res.setHeader("Content-Type", contentType);
+  res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+  res.setHeader("Content-Length", String(file.length));
+  res.send(file);
+};

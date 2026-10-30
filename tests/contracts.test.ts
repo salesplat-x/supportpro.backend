@@ -27,6 +27,19 @@ jest.mock("../src/utils/integrations/email/emailService.js", () => {
   };
 });
 
+jest.mock("../src/utils/integrations/spaces.js", () => ({
+  ...jest.requireActual("../src/utils/integrations/spaces.js"),
+  uploadPrivateToSpaces: jest.fn().mockResolvedValue(undefined),
+  getFromSpaces: jest.fn().mockResolvedValue(Buffer.from("%PDF-scan")),
+  deleteSpacesObjectQuietly: jest.fn().mockResolvedValue(undefined),
+}));
+
+const spacesMocks = () =>
+  jest.requireMock("../src/utils/integrations/spaces.js") as {
+    uploadPrivateToSpaces: jest.Mock;
+    deleteSpacesObjectQuietly: jest.Mock;
+  };
+
 const emailMocks = () =>
   jest.requireMock("../src/utils/integrations/email/emailService.js") as {
     sendDocumentToSign: jest.Mock;
@@ -220,5 +233,55 @@ describe("signing", () => {
       .expect(200);
 
     expect((await signLink(token)).status).toBe(410);
+  });
+});
+
+describe("notarization", () => {
+  const scanPath = (orgId: string, staffId: string, docId: string) =>
+    staffPath(orgId, `/${staffId}/documents/${docId}/notarized-scan`);
+
+  it("attaches a notarized scan to a signed document and replaces it cleanly", async () => {
+    const { owner, org, staff } = await companyWithStaff();
+    const other = await setupCompany("Other Ltd");
+    await send(owner.token, org.id, staff.id).expect(201);
+    const token = lastSigningToken();
+    const doc = await testDataSource
+      .getRepository(StaffDocument)
+      .findOneOrFail({ where: { staffId: staff.id } });
+    const flag = (needsNotarization: boolean, orgId = org.id, auth = owner.token) =>
+      request(app)
+        .patch(staffPath(orgId, `/${staff.id}/documents/${doc.id}`))
+        .set(authHeader(auth))
+        .send({ needsNotarization });
+    const attach = (contentType: string) =>
+      request(app)
+        .post(scanPath(org.id, staff.id, doc.id))
+        .set(authHeader(owner.token))
+        .attach("file", Buffer.from("scan"), { filename: "scan.pdf", contentType });
+
+    expect((await flag(true)).status).toBe(409);
+    await signLink(token).expect(200);
+    expect((await flag(true, other.org.id, other.owner.token)).status).toBe(404);
+    expect((await attach("application/pdf")).status).toBe(409);
+    await flag(true).expect(200);
+    expect((await attach("text/plain")).status).toBe(400);
+
+    await attach("application/pdf").expect(200);
+    const firstKey = (
+      spacesMocks().uploadPrivateToSpaces.mock.calls as Array<[Buffer, string]>
+    )[0]![1];
+    await attach("image/png").expect(200);
+    expect(spacesMocks().deleteSpacesObjectQuietly).toHaveBeenCalledWith(
+      firstKey,
+      expect.any(String)
+    );
+    expect((await flag(false)).status).toBe(409);
+    expect(await activityTypes(staff.id)).toContain("document_notarized");
+
+    const scan = await request(app)
+      .get(scanPath(org.id, staff.id, doc.id))
+      .set(authHeader(owner.token));
+    expect(scan.status).toBe(200);
+    expect(scan.headers["content-type"]).toBe("image/png");
   });
 });

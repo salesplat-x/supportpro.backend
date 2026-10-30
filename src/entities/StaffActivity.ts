@@ -27,6 +27,7 @@ export enum StaffActivityType {
   DocumentEmailFailed = "document_email_failed",
   DocumentViewed = "document_viewed",
   DocumentSigned = "document_signed",
+  DocumentNotarized = "document_notarized",
 }
 
 /** Append-only history of what happens to one staff member. Rows are never edited or deleted. */

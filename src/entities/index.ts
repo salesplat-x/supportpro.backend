@@ -38,3 +38,4 @@ export { ShareGrant } from "./ShareGrant.js";
 export { CommissionPlan } from "./CommissionPlan.js";
 export type { CommissionTier } from "./CommissionPlan.js";
 export { StaffDocument, DocumentStatus, DocumentTemplate } from "./StaffDocument.js";
+export { StaffChecklistTask } from "./StaffChecklistTask.js";

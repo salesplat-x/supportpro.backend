@@ -40,6 +40,7 @@ import { PayPackage } from "../entities/PayPackage.js";
 import { ShareGrant } from "../entities/ShareGrant.js";
 import { CommissionPlan } from "../entities/CommissionPlan.js";
 import { StaffDocument } from "../entities/StaffDocument.js";
+import { StaffChecklistTask } from "../entities/StaffChecklistTask.js";
 
 const databaseConfig: DataSourceOptions = {
   type: "postgres",
@@ -88,6 +89,7 @@ const databaseConfig: DataSourceOptions = {
     ShareGrant,
     CommissionPlan,
     StaffDocument,
+    StaffChecklistTask,
   ],
   migrations: [path.join(__dirname, "../migrations/*.{js,ts}")],
   synchronize: false,
