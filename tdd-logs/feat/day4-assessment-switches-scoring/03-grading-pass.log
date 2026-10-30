@@ -1,0 +1,9 @@
+$ timeout -k 10 400 npx jest --config /home/user/tab/work/supportpro/wt/jest.local.config.js tests/gradedAnswers.test.ts tests/assessmentQuestionPrompts.test.ts 
+PASS tests/gradedAnswers.test.ts
+PASS tests/assessmentQuestionPrompts.test.ts
+
+Test Suites: 2 passed, 2 total
+Tests:       25 passed, 25 total
+Snapshots:   0 total
+Time:        4.942 s
+Ran all test suites matching tests/gradedAnswers.test.ts|tests/assessmentQuestionPrompts.test.ts.

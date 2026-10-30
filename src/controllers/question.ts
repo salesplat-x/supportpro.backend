@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import * as questionService from "../services/question.js";
 import * as answerService from "../services/answer.js";
 import { sendSuccessResponse } from "../utils/response.js";
+import { QuestionType } from "../types/enums.js";
 
 export const create = async (req: Request, res: Response) => {
   const result = await questionService.createQuestion(req.body);
@@ -55,6 +56,44 @@ export const generateCultureFitQuestions = async (req: Request, res: Response) =
   const result = await questionService.generateCultureFitQuestions(req.user, req.body);
   sendSuccessResponse(res, "Culture-fit questions generated", result);
 };
+
+const candidateAssessmentHandler =
+  (type: QuestionType.ProblemSolving | QuestionType.CultureFit, message: string) =>
+  async (req: Request, res: Response) => {
+    const result = await questionService.getOrAssignAssessmentQuestionsForApplicant(
+      req.user.id,
+      type,
+      String(req.query.jobId)
+    );
+    sendSuccessResponse(res, message, result);
+  };
+
+export const candidateProblemSolvingQuestions = candidateAssessmentHandler(
+  QuestionType.ProblemSolving,
+  "Problem-solving questions loaded"
+);
+
+export const candidateCultureFitQuestions = candidateAssessmentHandler(
+  QuestionType.CultureFit,
+  "Culture-fit questions loaded"
+);
+
+const companyAssessmentAnswerHandler =
+  (type: QuestionType.ProblemSolving | QuestionType.CultureFit, message: string) =>
+  async (req: Request, res: Response) => {
+    const result = await answerService.submitCompanyAssessmentAnswers(req.user.id, type, req.body);
+    sendSuccessResponse(res, message, result);
+  };
+
+export const answerProblemSolving = companyAssessmentAnswerHandler(
+  QuestionType.ProblemSolving,
+  "Problem-solving answers submitted"
+);
+
+export const answerCultureFit = companyAssessmentAnswerHandler(
+  QuestionType.CultureFit,
+  "Culture-fit answers submitted"
+);
 
 export const evaluatePersonalityType = async (req: Request, res: Response) => {
   const result = await answerService.evaluatePersonalityType(req.user.id, req.body);
