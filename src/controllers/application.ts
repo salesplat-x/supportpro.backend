@@ -32,3 +32,12 @@ export const bulkUpdateStatus = async (req: Request, res: Response) => {
   const result = await applicationService.bulkUpdateStatus(req.user.id, req.body);
   sendSuccessResponse(res, "Application statuses updated", result);
 };
+
+export const retryPersonalityFit = async (req: Request, res: Response) => {
+  const result = await applicationService.retryPersonalityFit(
+    req.user.id,
+    req.user.userRole,
+    req.params["_id"]!
+  );
+  sendSuccessResponse(res, "Personality fit worked out", result);
+};

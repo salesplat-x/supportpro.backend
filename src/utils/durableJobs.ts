@@ -5,6 +5,7 @@ import { getErrorStatus, isRetryableError } from "./retry.js";
 
 export const MAX_DURABLE_ATTEMPTS = 5;
 export const STALE_LOCK_INTERVAL = "5 minutes";
+export const STALE_LOCK_MS = 5 * 60 * 1000;
 export const SWEEP_BATCH_SIZE = 10;
 export const SWEEP_INTERVAL_MS = 30_000;
 

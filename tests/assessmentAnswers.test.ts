@@ -309,6 +309,56 @@ describe.each([QuestionType.ProblemSolving, QuestionType.CultureFit] as const)(
   }
 );
 
+describe.each([QuestionType.ProblemSolving, QuestionType.CultureFit] as const)(
+  "POST /v1/questions/answer/%s — parallel writes",
+  (type) => {
+    const scoreField = SETTINGS[type].score;
+    const allGood = (questions: Question[]) =>
+      gradesReply(questions.map((q) => ({ questionId: q.id, score: 5, feedback: "ok" })));
+
+    it("lets only one of two quick submits through and keeps one set of answers", async () => {
+      const { job, talent, token, application, questions } = await servedApplicant(type);
+      mockGrade.mockImplementation(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return allGood(questions);
+      });
+      const body = { jobId: job.id, answers: answersFor(questions) };
+
+      const statuses = (await Promise.all([submit(token, type, body), submit(token, type, body)]))
+        .map((r) => r.status)
+        .sort();
+
+      expect(statuses).toEqual([200, 409]);
+      expect((await reloadApplication(application.id))[scoreField]).toBe(100);
+      const answers = await testDataSource
+        .getRepository(Answer)
+        .find({ where: { userId: talent.id, jobId: job.id, questionType: type } });
+      expect(answers).toHaveLength(1);
+    });
+
+    it("doesn't wipe the personality result or fit saved while grading ran", async () => {
+      const { job, token, application, questions } = await servedApplicant(type);
+      mockGrade.mockImplementation(async () => {
+        await testDataSource.getRepository(Application).update(application.id, {
+          mbtiType: "INTJ",
+          personalityFitScore: 70,
+          personalityFitReason: "Fits.",
+        });
+        return allGood(questions);
+      });
+
+      const res = await submit(token, type, { jobId: job.id, answers: answersFor(questions) });
+
+      expect(res.status).toBe(200);
+      const saved = await reloadApplication(application.id);
+      expect(saved[scoreField]).toBe(100);
+      expect(saved.mbtiType).toBe("INTJ");
+      expect(saved.personalityFitScore).toBe(70);
+      expect(saved.personalityFitReason).toBe("Fits.");
+    });
+  }
+);
+
 describe("AddAssessmentScoresToApplications migration", () => {
   it("adds the two nullable score columns and removes them on down", async () => {
     const queries: string[] = [];
