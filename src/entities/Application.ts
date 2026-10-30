@@ -72,6 +72,22 @@ export class Application {
   @Column({ type: "simple-array", nullable: true, default: null })
   personalityQuestions!: string[] | null;
 
+  /** Day 4: the problem-solving questions this applicant was given (a random set from the job's pool). */
+  @Column({ type: "simple-array", nullable: true, default: null })
+  problemSolvingQuestions!: string[] | null;
+
+  /** Day 4: the culture-fit questions this applicant was given (a random set from the job's pool). */
+  @Column({ type: "simple-array", nullable: true, default: null })
+  cultureFitQuestions!: string[] | null;
+
+  /** Day 4: problem-solving score, 0-100, from grading each answer 0-5 against its criteria. */
+  @Column({ type: "float", nullable: true, default: null })
+  problemSolvingScore!: number | null;
+
+  /** Day 4: culture-fit score, 0-100, from grading each answer 0-5 against its criteria. */
+  @Column({ type: "float", nullable: true, default: null })
+  cultureFitScore!: number | null;
+
   @Column({ type: "float", nullable: true, default: null })
   personalizedScore!: number | null;
 

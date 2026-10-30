@@ -1,0 +1,74 @@
+$ timeout -k 10 400 npx jest --config /home/user/tab/work/supportpro/wt/jest.local.config.js tests/assessmentSwitches.test.ts 
+FAIL tests/assessmentSwitches.test.ts
+  ● Test suite failed to run
+
+    tests/assessmentSwitches.test.ts:18:63 - error TS2307: Cannot find module '../src/migrations/1789000900000-AddAssessmentSwitchesToAIConfigs.js' or its corresponding type declarations.
+
+    18 import { AddAssessmentSwitchesToAIConfigs1789000900000 } from "../src/migrations/1789000900000-AddAssessmentSwitchesToAIConfigs.js";
+                                                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    tests/assessmentSwitches.test.ts:19:10 - error TS2305: Module '"../src/config/assessmentQuestions.js"' has no exported member 'MAX_ASSESSMENT_QUESTIONS_PER_CANDIDATE'.
+
+    19 import { MAX_ASSESSMENT_QUESTIONS_PER_CANDIDATE } from "../src/config/assessmentQuestions.js";
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    tests/assessmentSwitches.test.ts:84:19 - error TS2339: Property 'problemSolvingAssessment' does not exist on type 'AIConfig'.
+
+    84     expect(config.problemSolvingAssessment).toBe(true);
+                         ~~~~~~~~~~~~~~~~~~~~~~~~
+    tests/assessmentSwitches.test.ts:85:19 - error TS2339: Property 'noOfProblemSolvingQuestions' does not exist on type 'AIConfig'.
+
+    85     expect(config.noOfProblemSolvingQuestions).toBe(4);
+                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    tests/assessmentSwitches.test.ts:86:19 - error TS2339: Property 'cultureFitAssessment' does not exist on type 'AIConfig'.
+
+    86     expect(config.cultureFitAssessment).toBe(true);
+                         ~~~~~~~~~~~~~~~~~~~~
+    tests/assessmentSwitches.test.ts:87:19 - error TS2339: Property 'noOfCultureFitQuestions' does not exist on type 'AIConfig'.
+
+    87     expect(config.noOfCultureFitQuestions).toBe(3);
+                         ~~~~~~~~~~~~~~~~~~~~~~~
+    tests/assessmentSwitches.test.ts:95:19 - error TS2339: Property 'problemSolvingAssessment' does not exist on type 'AIConfig'.
+
+    95     expect(config.problemSolvingAssessment).toBe(false);
+                         ~~~~~~~~~~~~~~~~~~~~~~~~
+    tests/assessmentSwitches.test.ts:96:19 - error TS2339: Property 'noOfProblemSolvingQuestions' does not exist on type 'AIConfig'.
+
+    96     expect(config.noOfProblemSolvingQuestions).toBeNull();
+                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    tests/assessmentSwitches.test.ts:97:19 - error TS2339: Property 'cultureFitAssessment' does not exist on type 'AIConfig'.
+
+    97     expect(config.cultureFitAssessment).toBe(false);
+                         ~~~~~~~~~~~~~~~~~~~~
+    tests/assessmentSwitches.test.ts:98:19 - error TS2339: Property 'noOfCultureFitQuestions' does not exist on type 'AIConfig'.
+
+    98     expect(config.noOfCultureFitQuestions).toBeNull();
+                         ~~~~~~~~~~~~~~~~~~~~~~~
+    tests/assessmentSwitches.test.ts:164:18 - error TS2339: Property 'problemSolvingAssessment' does not exist on type 'AIConfig'.
+
+    164     expect(saved.problemSolvingAssessment).toBe(true);
+                         ~~~~~~~~~~~~~~~~~~~~~~~~
+    tests/assessmentSwitches.test.ts:165:18 - error TS2339: Property 'noOfProblemSolvingQuestions' does not exist on type 'AIConfig'.
+
+    165     expect(saved.noOfProblemSolvingQuestions).toBe(5);
+                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    tests/assessmentSwitches.test.ts:170:18 - error TS2339: Property 'problemSolvingAssessment' does not exist on type 'AIConfig'.
+
+    170     expect(saved.problemSolvingAssessment).toBe(false);
+                         ~~~~~~~~~~~~~~~~~~~~~~~~
+    tests/assessmentSwitches.test.ts:181:43 - error TS2339: Property 'noOfCultureFitQuestions' does not exist on type 'AIConfig'.
+
+    181     expect((await savedConfig(config.id)).noOfCultureFitQuestions).toBe(6);
+                                                  ~~~~~~~~~~~~~~~~~~~~~~~
+    tests/assessmentSwitches.test.ts:189:43 - error TS2339: Property 'cultureFitAssessment' does not exist on type 'AIConfig'.
+
+    189     expect((await savedConfig(config.id)).cultureFitAssessment).toBe(false);
+                                                  ~~~~~~~~~~~~~~~~~~~~
+    tests/assessmentSwitches.test.ts:200:43 - error TS2339: Property 'problemSolvingAssessment' does not exist on type 'AIConfig'.
+
+    200     expect((await savedConfig(config.id)).problemSolvingAssessment).toBe(true);
+                                                  ~~~~~~~~~~~~~~~~~~~~~~~~
+
+Test Suites: 1 failed, 1 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        5.862 s
+Ran all test suites matching tests/assessmentSwitches.test.ts.

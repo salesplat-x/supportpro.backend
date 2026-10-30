@@ -21,6 +21,8 @@ import {
   generatePersonalityQuestionsValidator,
   ensurePersonalityQuestionsValidator,
   generateAssessmentQuestionsValidator,
+  candidateAssessmentQuestionsValidator,
+  companyAssessmentAnswersValidator,
 } from "../validators/question.js";
 
 const router = Router();
@@ -75,6 +77,22 @@ router.post(
   validate(generateAssessmentQuestionsValidator),
   asyncHandler(question.generateCultureFitQuestions, "generate culture-fit questions")
 );
+router.get(
+  "/candidate/problem-solving",
+  validateAccess([UserRole.Talent]),
+  requireVerifiedEmail,
+  validate(candidateAssessmentQuestionsValidator),
+  asyncHandler(question.candidateProblemSolvingQuestions, "load problem-solving questions")
+);
+
+router.get(
+  "/candidate/culture-fit",
+  validateAccess([UserRole.Talent]),
+  requireVerifiedEmail,
+  validate(candidateAssessmentQuestionsValidator),
+  asyncHandler(question.candidateCultureFitQuestions, "load culture-fit questions")
+);
+
 router.post(
   "/answer/prescreening",
   validateAccess([UserRole.Talent]),
@@ -97,6 +115,22 @@ router.post(
   validate(answerPersonalizedValidator),
   asyncHandler(question.answerPersonalizedQuestions, "submit personalized answers")
 );
+router.post(
+  "/answer/problem-solving",
+  validateAccess([UserRole.Talent]),
+  requireVerifiedEmail,
+  validate(companyAssessmentAnswersValidator),
+  asyncHandler(question.answerProblemSolving, "submit problem-solving answers")
+);
+
+router.post(
+  "/answer/culture-fit",
+  validateAccess([UserRole.Talent]),
+  requireVerifiedEmail,
+  validate(companyAssessmentAnswersValidator),
+  asyncHandler(question.answerCultureFit, "submit culture-fit answers")
+);
+
 router.get(
   "/:_id",
   optionalAuth,

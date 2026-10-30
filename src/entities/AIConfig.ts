@@ -71,6 +71,22 @@ export class AIConfig {
   @Column({ type: "int", nullable: true, default: null })
   noOfJPQuestions!: number | null;
 
+  /** Day 4: the recruiter's switch for the problem-solving test on this job. */
+  @Column({ default: false })
+  problemSolvingAssessment!: boolean;
+
+  /** How many problem-solving questions each candidate gets (required while the switch is on). */
+  @Column({ type: "int", nullable: true, default: null })
+  noOfProblemSolvingQuestions!: number | null;
+
+  /** Day 4: the recruiter's switch for the culture-fit test on this job. */
+  @Column({ default: false })
+  cultureFitAssessment!: boolean;
+
+  /** How many culture-fit questions each candidate gets (required while the switch is on). */
+  @Column({ type: "int", nullable: true, default: null })
+  noOfCultureFitQuestions!: number | null;
+
   @Column({ type: "jsonb", nullable: true, default: null })
   stages!: Record<string, string> | null;
 
