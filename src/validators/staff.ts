@@ -1,5 +1,7 @@
 import { body, param, query, type ValidationChain } from "express-validator";
+import { PayPeriod } from "../entities/PayPackage.js";
 import { StaffStatus } from "../entities/StaffMember.js";
+import { Currency } from "../types/enums.js";
 
 const NO_LINE_BREAKS = /^[^\r\n]*$/;
 const NO_NUL = /^[^\0]*$/;
@@ -12,6 +14,12 @@ const MAX_OFFSET = 1_000_000;
 
 const orgParam = param("_id").isUUID().withMessage("Invalid company id");
 const staffParam = param("staffId").isUUID().withMessage("Invalid staff id");
+const benefitParam = param("benefitId").isUUID().withMessage("Invalid benefit id");
+const grantParam = param("grantId").isUUID().withMessage("Invalid share grant id");
+const MONEY = /^\d{1,12}(\.\d{1,2})?$/;
+const MAX_DESCRIPTION = 500;
+const MAX_BENEFITS = 50;
+const MAX_MONTHS = 240;
 
 const text = (chain: ValidationChain, label: string): ValidationChain =>
   chain
@@ -162,3 +170,82 @@ export const staffInviteTokenValidator = [
     .matches(/^[a-f0-9]{64}$/)
     .withMessage("This invite link is not valid"),
 ];
+
+const amount = (field: string, label: string): ValidationChain =>
+  body(field)
+    .custom((value: unknown) => typeof value === "number" && MONEY.test(String(value)))
+    .withMessage(`${label} must be an amount with at most 2 decimals`)
+    .bail()
+    .toFloat();
+
+const optionalAmount = (field: string, label: string): ValidationChain =>
+  amount(field, label).optional({ values: "null" });
+
+const currency = (field: string): ValidationChain =>
+  body(field)
+    .isIn(Object.values(Currency))
+    .withMessage(`Currency must be one of: ${Object.values(Currency).join(", ")}`);
+
+const wholeNumber = (field: string, label: string, min: number, max: number): ValidationChain =>
+  body(field)
+    .isInt({ min, max })
+    .withMessage(`${label} must be a whole number from ${min} to ${max}`)
+    .bail()
+    .toInt();
+
+const payTerms = [
+  currency("currency"),
+  body("period").isIn(Object.values(PayPeriod)).withMessage("Choose monthly or yearly"),
+  amount("baseSalary", "Base salary"),
+  optionalAmount("bonus", "Bonus"),
+  optionalAmount("commissionTarget", "Commission target"),
+  dateOnly(body("startsOn"), "Start date"),
+  body("benefitIds")
+    .optional()
+    .isArray({ max: MAX_BENEFITS })
+    .withMessage(`Choose at most ${MAX_BENEFITS} benefits`),
+  body("benefitIds.*").isUUID().withMessage("Invalid benefit"),
+];
+
+export const payPreviewValidator = [orgParam, ...payTerms];
+
+export const setPayValidator = [orgParam, staffParam, ...payTerms];
+
+const benefitDescription = body("description")
+  .optional({ values: "null" })
+  .isString()
+  .withMessage("Description must be text")
+  .bail()
+  .trim()
+  .isLength({ max: MAX_DESCRIPTION })
+  .withMessage(`Description must be at most ${MAX_DESCRIPTION} characters`)
+  .bail()
+  .matches(NO_NUL)
+  .withMessage("Description can't contain control characters");
+
+export const createBenefitValidator = [orgParam, text(body("name"), "Name"), benefitDescription];
+
+export const updateBenefitValidator = [
+  orgParam,
+  benefitParam,
+  text(body("name").optional(), "Name"),
+  benefitDescription,
+];
+
+export const benefitIdValidator = [orgParam, benefitParam];
+
+export const addShareGrantValidator = [
+  orgParam,
+  staffParam,
+  wholeNumber("shares", "Number of shares", 1, 1_000_000_000),
+  dateOnly(body("grantedOn"), "Grant date"),
+  wholeNumber("vestingMonths", "Vesting period", 1, MAX_MONTHS),
+  wholeNumber("cliffMonths", "Cliff", 0, MAX_MONTHS)
+    .bail()
+    .custom((cliff: number, { req }) => cliff <= Number(req.body.vestingMonths))
+    .withMessage("The cliff can't be longer than the vesting period"),
+  amount("strikePrice", "Strike price"),
+  currency("currency"),
+];
+
+export const shareGrantIdValidator = [orgParam, staffParam, grantParam];

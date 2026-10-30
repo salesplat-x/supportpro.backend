@@ -12,6 +12,7 @@ const MAX_ACTIVITY_ROWS = 200;
 const ACCESS_LABELS: Record<StaffAccessResource, string> = {
   [StaffAccessResource.StaffRecord]: "Staff record",
   [StaffAccessResource.StaffActivity]: "Activity",
+  [StaffAccessResource.Pay]: "Pay",
 };
 
 export interface ActivityEntry {
