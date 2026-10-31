@@ -14,6 +14,9 @@ import type { StaffMember } from "./StaffMember.js";
 export enum StaffAccessResource {
   StaffRecord = "staff_record",
   StaffActivity = "staff_activity",
+  Pay = "pay",
+  Contract = "contract",
+  HeadcountCost = "headcount_cost",
 }
 
 /** One row per time someone opens a staff member's data. Rows are never edited or deleted. */

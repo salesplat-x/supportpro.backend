@@ -35,6 +35,12 @@ import { ApplicationFollowUpEmail } from "../../src/entities/ApplicationFollowUp
 import { StaffMember } from "../../src/entities/StaffMember.js";
 import { StaffActivity } from "../../src/entities/StaffActivity.js";
 import { StaffAccessLog } from "../../src/entities/StaffAccessLog.js";
+import { Benefit } from "../../src/entities/Benefit.js";
+import { PayPackage } from "../../src/entities/PayPackage.js";
+import { ShareGrant } from "../../src/entities/ShareGrant.js";
+import { CommissionPlan } from "../../src/entities/CommissionPlan.js";
+import { StaffDocument } from "../../src/entities/StaffDocument.js";
+import { StaffChecklistTask } from "../../src/entities/StaffChecklistTask.js";
 
 let container: StartedPostgreSqlContainer;
 export let testDataSource: DataSource;
@@ -74,6 +80,12 @@ const ALL_ENTITIES = [
   StaffMember,
   StaffActivity,
   StaffAccessLog,
+  Benefit,
+  PayPackage,
+  ShareGrant,
+  CommissionPlan,
+  StaffDocument,
+  StaffChecklistTask,
 ];
 
 export async function startTestDatabase(): Promise<void> {
