@@ -1257,3 +1257,39 @@ Output JSON only:
   });
   return completion.choices[0];
 };
+
+const COMPANY_PROFILE_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["mission", "vision", "yearlyGoals"],
+  properties: {
+    mission: { type: ["string", "null"] },
+    vision: { type: ["string", "null"] },
+    yearlyGoals: { type: "array", items: { type: "string" } },
+  },
+};
+
+export const extractCompanyProfile = async (
+  documentText: string
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const prompt = `You read a company's own document, such as a company profile, pitch deck or annual report, and pull out three things for its HR team to check.
+
+- mission: what the company does and for whom, in one or two plain sentences.
+- vision: where the company wants to be in the long run, in one or two plain sentences.
+- yearlyGoals: up to 5 concrete goals for this year, each one short sentence.
+
+Use the document's own meaning and wording where you can. Use null, or an empty list, for anything the document does not say. Never invent facts, numbers or names.`;
+
+  const completion = await runCompletion({
+    messages: [
+      { role: "system", content: prompt },
+      { role: "user", content: documentText },
+    ],
+    model: "gpt-4o",
+    response_format: {
+      type: "json_schema",
+      json_schema: { name: "company_profile", strict: true, schema: COMPANY_PROFILE_SCHEMA },
+    },
+  });
+  return completion.choices[0];
+};

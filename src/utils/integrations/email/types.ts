@@ -5,6 +5,7 @@ export interface EmailPayload {
   text?: string;
   replyTo?: string;
   tags?: Array<{ name: string; value: string }>;
+  attachments?: Array<{ filename: string; content: Buffer }>;
 }
 
 export interface EmailProvider {

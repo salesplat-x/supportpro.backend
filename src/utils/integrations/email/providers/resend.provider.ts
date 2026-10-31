@@ -5,7 +5,7 @@ import type { EmailPayload, EmailProvider } from "../types.js";
 const resend = new Resend(env.resend_api_key);
 
 class ResendProvider implements EmailProvider {
-  async send({ to, subject, html, text, replyTo, tags }: EmailPayload): Promise<void> {
+  async send({ to, subject, html, text, replyTo, tags, attachments }: EmailPayload): Promise<void> {
     const { error } = await resend.emails.send({
       from: `${env.resend_sender_name} <${env.resend_sender_email}>`,
       to,
@@ -14,6 +14,7 @@ class ResendProvider implements EmailProvider {
       text,
       replyTo: replyTo ?? "support@auxhr.com",
       tags,
+      attachments,
     });
 
     if (error) {
