@@ -1,0 +1,113 @@
+$ timeout -k 10 400 npx jest --config /home/user/tab/work/supportpro/wt/jest.local.config.js tests/assessmentDay4Docs.test.ts 
+FAIL tests/assessmentDay4Docs.test.ts
+  swagger.yaml — Day 4 switches on the AI setup
+    ✕ documents the switches and counts on /ai-config/ post (5 ms)
+    ✕ documents the switches and counts on /ai-config/{_id} patch (1 ms)
+  swagger.yaml — candidate questions
+    ✕ documents GET /questions/candidate/problem-solving with jobId, auth, errors and no criteria in the reply (1 ms)
+    ✕ documents GET /questions/candidate/culture-fit with jobId, auth, errors and no criteria in the reply (1 ms)
+  swagger.yaml — candidate answers
+    ✕ documents POST /questions/answer/problem-solving with its body, reply and errors (1 ms)
+    ✕ documents POST /questions/answer/culture-fit with its body, reply and errors
+
+  ● swagger.yaml — Day 4 switches on the AI setup › documents the switches and counts on /ai-config/ post
+
+    expect(received).toMatchObject(expected)
+
+    Matcher error: received value must be a non-null object
+
+    Received has value: undefined
+
+      39 |   ])("documents the switches and counts on %s %s", (route, method) => {
+      40 |     const props = bodySchema(operation(route, method)).properties!;
+    > 41 |     expect(props.problemSolvingAssessment).toMatchObject({ type: "boolean" });
+         |                                            ^
+      42 |     expect(props.cultureFitAssessment).toMatchObject({ type: "boolean" });
+      43 |     for (const count of ["noOfProblemSolvingQuestions", "noOfCultureFitQuestions"]) {
+      44 |       expect(props[count]).toMatchObject({ type: "integer", minimum: 1, maximum: 10 });
+
+      at tests/assessmentDay4Docs.test.ts:41:44
+
+  ● swagger.yaml — Day 4 switches on the AI setup › documents the switches and counts on /ai-config/{_id} patch
+
+    expect(received).toMatchObject(expected)
+
+    Matcher error: received value must be a non-null object
+
+    Received has value: undefined
+
+      39 |   ])("documents the switches and counts on %s %s", (route, method) => {
+      40 |     const props = bodySchema(operation(route, method)).properties!;
+    > 41 |     expect(props.problemSolvingAssessment).toMatchObject({ type: "boolean" });
+         |                                            ^
+      42 |     expect(props.cultureFitAssessment).toMatchObject({ type: "boolean" });
+      43 |     for (const count of ["noOfProblemSolvingQuestions", "noOfCultureFitQuestions"]) {
+      44 |       expect(props[count]).toMatchObject({ type: "integer", minimum: 1, maximum: 10 });
+
+      at tests/assessmentDay4Docs.test.ts:41:44
+
+  ● swagger.yaml — candidate questions › documents GET /questions/candidate/problem-solving with jobId, auth, errors and no criteria in the reply
+
+    GET /questions/candidate/problem-solving is not documented
+
+      26 | const operation = (route: string, method: string): Operation => {
+      27 |   const op = spec.paths[route]?.[method];
+    > 28 |   if (!op) throw new Error(`${method.toUpperCase()} ${route} is not documented`);
+         |                  ^
+      29 |   return op;
+      30 | };
+      31 | const bodySchema = (op: Operation) => op.requestBody!.content["application/json"].schema;
+
+      at operation (tests/assessmentDay4Docs.test.ts:28:18)
+      at tests/assessmentDay4Docs.test.ts:53:18
+
+  ● swagger.yaml — candidate questions › documents GET /questions/candidate/culture-fit with jobId, auth, errors and no criteria in the reply
+
+    GET /questions/candidate/culture-fit is not documented
+
+      26 | const operation = (route: string, method: string): Operation => {
+      27 |   const op = spec.paths[route]?.[method];
+    > 28 |   if (!op) throw new Error(`${method.toUpperCase()} ${route} is not documented`);
+         |                  ^
+      29 |   return op;
+      30 | };
+      31 | const bodySchema = (op: Operation) => op.requestBody!.content["application/json"].schema;
+
+      at operation (tests/assessmentDay4Docs.test.ts:28:18)
+      at tests/assessmentDay4Docs.test.ts:53:18
+
+  ● swagger.yaml — candidate answers › documents POST /questions/answer/problem-solving with its body, reply and errors
+
+    POST /questions/answer/problem-solving is not documented
+
+      26 | const operation = (route: string, method: string): Operation => {
+      27 |   const op = spec.paths[route]?.[method];
+    > 28 |   if (!op) throw new Error(`${method.toUpperCase()} ${route} is not documented`);
+         |                  ^
+      29 |   return op;
+      30 | };
+      31 | const bodySchema = (op: Operation) => op.requestBody!.content["application/json"].schema;
+
+      at operation (tests/assessmentDay4Docs.test.ts:28:18)
+      at tests/assessmentDay4Docs.test.ts:70:18
+
+  ● swagger.yaml — candidate answers › documents POST /questions/answer/culture-fit with its body, reply and errors
+
+    POST /questions/answer/culture-fit is not documented
+
+      26 | const operation = (route: string, method: string): Operation => {
+      27 |   const op = spec.paths[route]?.[method];
+    > 28 |   if (!op) throw new Error(`${method.toUpperCase()} ${route} is not documented`);
+         |                  ^
+      29 |   return op;
+      30 | };
+      31 | const bodySchema = (op: Operation) => op.requestBody!.content["application/json"].schema;
+
+      at operation (tests/assessmentDay4Docs.test.ts:28:18)
+      at tests/assessmentDay4Docs.test.ts:70:18
+
+Test Suites: 1 failed, 1 total
+Tests:       6 failed, 6 total
+Snapshots:   0 total
+Time:        3.16 s
+Ran all test suites matching tests/assessmentDay4Docs.test.ts.

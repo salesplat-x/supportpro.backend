@@ -2,7 +2,13 @@ import logger from "../../logger.js";
 import { UserRole } from "../../../types/enums.js";
 import env from "../../../config/env.js";
 import ResendProvider from "./providers/resend.provider.js";
-import { companyInvitePlainText, verificationPlainText } from "./plainText.js";
+import {
+  companyInvitePlainText,
+  documentToSignPlainText,
+  signedDocumentPlainText,
+  staffInvitePlainText,
+  verificationPlainText,
+} from "./plainText.js";
 import { renderTemplate } from "./template.js";
 import type { EmailPayload, EmailProvider } from "./types.js";
 
@@ -155,6 +161,62 @@ class EmailService {
       html,
       text: companyInvitePlainText(details),
       tags: [{ name: "category", value: "company-invite" }],
+    });
+  }
+
+  /** Unlike sendEmail it throws, so the caller can record that the invite did not go out. */
+  async sendStaffInvite(details: {
+    email: string;
+    firstName: string;
+    companyName: string;
+    companyLogoUrl?: string | null;
+    inviterName: string;
+    jobTitle: string;
+    inviteLink: string;
+  }): Promise<void> {
+    const html = renderTemplate("staff-invite", details);
+    await this.provider.send({
+      to: details.email,
+      subject: `${details.companyName} has added you to their team`,
+      html,
+      text: staffInvitePlainText(details),
+      tags: [{ name: "category", value: "staff-invite" }],
+    });
+  }
+
+  async sendDocumentToSign(details: {
+    email: string;
+    firstName: string;
+    companyName: string;
+    companyLogoUrl?: string | null;
+    documentTitle: string;
+    signLink: string;
+  }): Promise<void> {
+    await this.provider.send({
+      to: details.email,
+      subject: `${details.companyName} sent you your ${details.documentTitle.toLowerCase()} to sign`,
+      html: renderTemplate("staff-document-sign", details),
+      text: documentToSignPlainText(details),
+      tags: [{ name: "category", value: "staff-document-sign" }],
+    });
+  }
+
+  async sendSignedDocument(details: {
+    email: string;
+    firstName: string;
+    companyName: string;
+    documentTitle: string;
+    signerName: string;
+    fileName: string;
+    pdf: Buffer;
+  }): Promise<void> {
+    await this.provider.send({
+      to: details.email,
+      subject: `Signed: ${details.documentTitle} for ${details.companyName}`,
+      html: renderTemplate("staff-document-signed", details),
+      text: signedDocumentPlainText(details),
+      tags: [{ name: "category", value: "staff-document-signed" }],
+      attachments: [{ filename: details.fileName, content: details.pdf }],
     });
   }
 

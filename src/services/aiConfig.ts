@@ -28,7 +28,24 @@ export interface AIConfigPayload {
   noOfSNQuestions?: number | null;
   noOfTFQuestions?: number | null;
   noOfJPQuestions?: number | null;
+  problemSolvingAssessment?: boolean;
+  noOfProblemSolvingQuestions?: number | null;
+  cultureFitAssessment?: boolean;
+  noOfCultureFitQuestions?: number | null;
 }
+
+const ASSESSMENT_SWITCHES = [
+  { flag: "problemSolvingAssessment", count: "noOfProblemSolvingQuestions" },
+  { flag: "cultureFitAssessment", count: "noOfCultureFitQuestions" },
+] as const;
+
+export const assertAssessmentCounts = (merged: AIConfigPayload): void => {
+  for (const { flag, count } of ASSESSMENT_SWITCHES) {
+    if (merged[flag] === true && (merged[count] === null || merged[count] === undefined)) {
+      throw new ValidationError(`${count} is required when ${flag} is on`);
+    }
+  }
+};
 
 export interface StagesResult {
   stages: Record<string, string>;
@@ -111,6 +128,7 @@ export const createAIConfig = async (
 
   // Pre-screening is a mandatory stage — never trust a client-supplied value.
   const normalizedPayload: AIConfigPayload = { ...payload, prescreeningAssessment: true };
+  assertAssessmentCounts(normalizedPayload);
   const { stages } = createStages(normalizedPayload);
 
   return AppDataSource.transaction(async (manager) => {
@@ -147,6 +165,7 @@ export const updateAIConfig = async (
 
   // Pre-screening is a mandatory stage — never trust a client-supplied value.
   const normalizedPayload: AIConfigPayload = { ...payload, prescreeningAssessment: true };
+  assertAssessmentCounts({ ...config, ...normalizedPayload });
   const { stages, entryStage } = createStages({ ...config, ...normalizedPayload });
 
   return AppDataSource.transaction(async (manager) => {

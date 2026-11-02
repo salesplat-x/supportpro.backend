@@ -1,6 +1,7 @@
 import { body, query } from "express-validator";
 import { paginationRules, idParam } from "./shared.js";
 import { QuestionType } from "../types/enums.js";
+import { MAX_GENERATED_QUESTIONS_PER_REQUEST } from "../config/assessmentQuestions.js";
 
 const DichotomyPair = ["EI", "SN", "TF", "JP"] as const;
 
@@ -28,13 +29,19 @@ export const evaluatePersonalityValidator = [
   body("answers").isObject().withMessage("answers must be an object"),
 ];
 
+// qs turns `a[]=x` or a repeated key into an array, which validators check element by element.
+const isPlainText = (value: unknown) => typeof value === "string";
+
 export const getQuestionsValidator = [
   query("questionType")
+    .custom(isPlainText)
+    .withMessage("questionType must be a single value")
+    .bail()
     .isIn(Object.values(QuestionType))
     .withMessage(`questionType must be one of: ${Object.values(QuestionType).join(", ")}`),
-  query("jobId").optional().isString(),
-  query("roleId").optional().isString(),
-  query("talentId").optional().isString(),
+  query("jobId").optional().custom(isPlainText),
+  query("roleId").optional().custom(isPlainText),
+  query("talentId").optional().custom(isPlainText),
   ...paginationRules,
 ];
 
@@ -59,4 +66,44 @@ export const generatePersonalityQuestionsValidator = [
 
 export const ensurePersonalityQuestionsValidator = [
   body("jobId").notEmpty().withMessage("jobId is required"),
+];
+
+export const generateAssessmentQuestionsValidator = [
+  body("jobId").custom(isPlainText).bail().isUUID().withMessage("jobId must be a valid job id"),
+  body("count")
+    .optional()
+    .not()
+    .isArray()
+    .bail()
+    .isInt({ min: 1, max: MAX_GENERATED_QUESTIONS_PER_REQUEST })
+    .withMessage(`count must be a whole number from 1 to ${MAX_GENERATED_QUESTIONS_PER_REQUEST}`)
+    .toInt(),
+];
+
+export const candidateAssessmentQuestionsValidator = [
+  query("jobId").custom(isPlainText).bail().isUUID().withMessage("jobId must be a valid job id"),
+];
+
+export const MAX_ASSESSMENT_ANSWER_LENGTH = 5000;
+
+export const companyAssessmentAnswersValidator = [
+  body("jobId").custom(isPlainText).bail().isUUID().withMessage("jobId must be a valid job id"),
+  body("answers")
+    .isObject()
+    .withMessage("answers must be an object")
+    .custom((answers: Record<string, unknown>) => {
+      const entries = Object.entries(answers);
+      if (entries.length === 0) {
+        throw new Error("answers must not be empty");
+      }
+      for (const [, value] of entries) {
+        if (typeof value !== "string" || !value.trim()) {
+          throw new Error("Every answer must be some text");
+        }
+        if (value.length > MAX_ASSESSMENT_ANSWER_LENGTH) {
+          throw new Error(`Each answer can be at most ${MAX_ASSESSMENT_ANSWER_LENGTH} characters`);
+        }
+      }
+      return true;
+    }),
 ];

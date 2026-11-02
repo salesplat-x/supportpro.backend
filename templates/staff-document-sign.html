@@ -1,0 +1,15 @@
+{{#if companyLogoUrl}}
+<p>
+  <img
+    src="{{companyLogoUrl}}"
+    alt="{{companyName}}"
+    height="48"
+    style="height: 48px; max-width: 200px"
+  />
+</p>
+{{/if}}
+<h1>{{companyName}} sent you your {{documentTitle}} to sign</h1>
+<p>Hi {{firstName}},</p>
+<p>Read the document and sign it online. It takes about two minutes.</p>
+<p><a class="button" href="{{signLink}}">Review and sign</a></p>
+<p class="signoff muted">This link works once and expires in 7 days.</p>

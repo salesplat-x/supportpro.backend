@@ -32,6 +32,15 @@ import { FeatureUsageCounter } from "../entities/FeatureUsageCounter.js";
 import { OrganizationPlanHistory } from "../entities/OrganizationPlanHistory.js";
 import { OnboardingEmail } from "../entities/OnboardingEmail.js";
 import { ApplicationFollowUpEmail } from "../entities/ApplicationFollowUpEmail.js";
+import { StaffMember } from "../entities/StaffMember.js";
+import { StaffActivity } from "../entities/StaffActivity.js";
+import { StaffAccessLog } from "../entities/StaffAccessLog.js";
+import { Benefit } from "../entities/Benefit.js";
+import { PayPackage } from "../entities/PayPackage.js";
+import { ShareGrant } from "../entities/ShareGrant.js";
+import { CommissionPlan } from "../entities/CommissionPlan.js";
+import { StaffDocument } from "../entities/StaffDocument.js";
+import { StaffChecklistTask } from "../entities/StaffChecklistTask.js";
 
 const databaseConfig: DataSourceOptions = {
   type: "postgres",
@@ -72,6 +81,15 @@ const databaseConfig: DataSourceOptions = {
     OrganizationPlanHistory,
     OnboardingEmail,
     ApplicationFollowUpEmail,
+    StaffMember,
+    StaffActivity,
+    StaffAccessLog,
+    Benefit,
+    PayPackage,
+    ShareGrant,
+    CommissionPlan,
+    StaffDocument,
+    StaffChecklistTask,
   ],
   migrations: [path.join(__dirname, "../migrations/*.{js,ts}")],
   synchronize: false,

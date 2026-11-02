@@ -153,6 +153,8 @@ export enum QuestionType {
   Prescreening = "prescreening",
   Personality = "personality",
   Personalized = "personalized",
+  ProblemSolving = "problem_solving",
+  CultureFit = "culture_fit",
 }
 
 export enum PreScreeningStatus {

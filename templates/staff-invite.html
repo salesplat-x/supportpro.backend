@@ -1,0 +1,24 @@
+{{#if companyLogoUrl}}
+<p>
+  <img
+    src="{{companyLogoUrl}}"
+    alt="{{companyName}}"
+    height="48"
+    style="height: 48px; max-width: 200px"
+  />
+</p>
+{{/if}}
+<h1>{{companyName}} has added you to their team</h1>
+<p>Hi {{firstName}},</p>
+<p>
+  <strong>{{companyName}}</strong> has added you as <strong>{{jobTitle}}</strong>. Accept to see
+  your contracts, pay and first-week tasks.
+</p>
+<p>
+  {{inviterName}} sent this invite. Use <strong>{{email}}</strong> to create your Auxhr account or
+  sign in, then complete your profile to join.
+</p>
+<p><a class="button" href="{{inviteLink}}">Accept invite</a></p>
+<p class="signoff muted">
+  This link expires in 7 days. If you were not expecting this invitation, you can ignore this email.
+</p>

@@ -72,6 +72,18 @@ export class Application {
   @Column({ type: "simple-array", nullable: true, default: null })
   personalityQuestions!: string[] | null;
 
+  @Column({ type: "simple-array", nullable: true, default: null, update: false })
+  problemSolvingQuestions!: string[] | null;
+
+  @Column({ type: "simple-array", nullable: true, default: null, update: false })
+  cultureFitQuestions!: string[] | null;
+
+  @Column({ type: "float", nullable: true, default: null, update: false })
+  problemSolvingScore!: number | null;
+
+  @Column({ type: "float", nullable: true, default: null, update: false })
+  cultureFitScore!: number | null;
+
   @Column({ type: "float", nullable: true, default: null })
   personalizedScore!: number | null;
 
@@ -92,6 +104,18 @@ export class Application {
 
   @Column({ type: "varchar", nullable: true, default: null })
   mbtiType!: string | null;
+
+  /** Day 6: the AI's 0-100 judgement of how this personality fits the job. */
+  @Column({ type: "float", nullable: true, default: null })
+  personalityFitScore!: number | null;
+
+  /** Day 6: the AI's one-line reason for personalityFitScore. */
+  @Column({ type: "text", nullable: true, default: null })
+  personalityFitReason!: string | null;
+
+  /** Set while an AI call for the personality fit is running, so only one runs at a time. */
+  @Column({ type: "timestamptz", nullable: true, default: null })
+  personalityFitLockedAt!: Date | null;
 
   @Column({ type: "jsonb", nullable: true, default: null })
   stages!: Record<string, string> | null;

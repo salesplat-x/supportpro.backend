@@ -1,0 +1,329 @@
+$ timeout -k 10 400 npx jest --config /home/user/tab/work/supportpro/wt/jest.local.config.js tests/organization.test.ts
+2026-10-26 17:54:05:545 info: Docs available at http://localhost:3003/v1/docs
+2026-10-26 17:54:05:545 http: POST /v1/organizations/ 201 730 - 48.833 ms
+2026-10-26 17:54:06:546 http: POST /v1/organizations/ 201 730 - 23.278 ms
+2026-10-26 17:54:06:546 http: POST /v1/organizations/ 403 114 - 0.639 ms
+2026-10-26 17:54:06:546 http: POST /v1/organizations/ 403 114 - 0.511 ms
+2026-10-26 17:54:06:546 http: POST /v1/organizations/ 401 84 - 0.504 ms
+2026-10-26 17:54:06:546 http: POST /v1/organizations/ 400 277 - 4.518 ms
+2026-10-26 17:54:06:546 http: POST /v1/organizations/ 400 134 - 6.787 ms
+2026-10-26 17:54:07:547 http: POST /v1/organizations/ 201 695 - 13.031 ms
+2026-10-26 17:54:07:547 http: POST /v1/organizations/ 400 209 - 3.625 ms
+2026-10-26 17:54:07:547 http: POST /v1/organizations/ 201 717 - 10.911 ms
+2026-10-26 17:54:07:547 http: POST /v1/organizations/ 201 717 - 24.890 ms
+2026-10-26 17:54:07:547 http: POST /v1/organizations/ 400 225 - 3.862 ms
+2026-10-26 17:54:07:547 http: POST /v1/organizations/ 201 712 - 25.425 ms
+2026-10-26 17:54:08:548 http: POST /v1/organizations/ 400 124 - 5.806 ms
+2026-10-26 17:54:08:548 http: POST /v1/organizations/ 400 124 - 5.305 ms
+2026-10-26 17:54:08:548 http: POST /v1/organizations/ 201 730 - 12.271 ms
+2026-10-26 17:54:08:548 http: POST /v1/organizations/ 409 99 - 3.635 ms
+2026-10-26 17:54:08:548 http: POST /v1/organizations/ 201 730 - 12.346 ms
+2026-10-26 17:54:08:548 http: POST /v1/organizations/ 201 725 - 9.989 ms
+2026-10-26 17:54:08:548 http: POST /v1/organizations/ 201 730 - 11.506 ms
+2026-10-26 17:54:08:548 http: POST /v1/organizations/ 400 141 - 4.052 ms
+2026-10-26 17:54:08:548 http: GET /v1/organizations/me 200 695 - 5.172 ms
+2026-10-26 17:54:09:549 http: PATCH /v1/organizations/6a1268d9-f5b0-4e83-b788-d524c4971549/switch 200 694 - 6.631 ms
+2026-10-26 17:54:09:549 http: GET /v1/user/me 200 1790 - 7.280 ms
+2026-10-26 17:54:09:549 http: PATCH /v1/organizations/88979471-e7e5-4294-9c4c-5634071823ad/switch 403 126 - 4.853 ms
+2026-10-26 17:54:09:549 http: GET /v1/admin/organizations 200 3314 - 6.821 ms
+2026-10-26 17:54:09:549 http: PATCH /v1/admin/organizations/b04b308a-800f-47d1-9ec6-d56df9c3973c/verify 200 749 - 7.678 ms
+2026-10-26 17:54:09:549 http: PATCH /v1/admin/organizations/83185b2b-16b9-444d-b18e-11af2bc6c8e5/reject 200 749 - 5.916 ms
+2026-10-26 17:54:09:549 http: GET /v1/admin/organizations 403 114 - 0.765 ms
+2026-10-26 17:54:09:549 http: PATCH /v1/admin/organizations/65605afb-a1f4-45b5-aac5-27cad58adf17/verify 403 114 - 1.114 ms
+2026-10-26 17:54:09:549 http: PATCH /v1/organizations/32c5999c-6a95-4f0f-80d8-5bf75faf49da 200 687 - 7.644 ms
+2026-10-26 17:54:10:5410 http: PATCH /v1/organizations/5921e1fd-e507-4331-80ac-e18bbc5eaa42 200 699 - 6.877 ms
+2026-10-26 17:54:10:5410 http: PATCH /v1/organizations/47ebb798-1642-419d-b47d-3df85012a572 200 724 - 7.609 ms
+2026-10-26 17:54:10:5410 http: PATCH /v1/organizations/2d63beae-f249-4f2b-aefd-14f36e58a619 200 697 - 5.713 ms
+2026-10-26 17:54:10:5410 http: PATCH /v1/organizations/13517534-74a2-4aa3-b436-4665d46b65e9 200 693 - 3.768 ms
+2026-10-26 17:54:10:5410 http: PATCH /v1/organizations/50994af4-12f7-499a-9ddf-e87320e082c2 200 693 - 6.277 ms
+2026-10-26 17:54:11:5411 http: PATCH /v1/organizations/52918641-4903-4c2e-aa49-9f2fcecdcb68 200 782 - 7.301 ms
+2026-10-26 17:54:11:5411 http: PATCH /v1/organizations/61de6134-10ec-448a-ad3f-fc8ee05efeeb 403 110 - 3.849 ms
+2026-10-26 17:54:11:5411 http: DELETE /v1/organizations/8507cc56-3a7e-44bc-8b20-874a6885c019 200 53 - 17.670 ms
+2026-10-26 17:54:11:5411 http: GET /v1/organizations/me 200 77 - 3.457 ms
+2026-10-26 17:54:12:5412 http: DELETE /v1/organizations/37afc29d-3d74-405a-9264-b845f2e872ac 200 53 - 13.605 ms
+2026-10-26 17:54:12:5412 http: DELETE /v1/organizations/dd27b313-a0f8-4aec-88c8-09d7b8268631 403 110 - 3.780 ms
+2026-10-26 17:54:12:5412 http: DELETE /v1/organizations/522f4661-826c-4092-a53c-aebfc7f93966 200 53 - 11.781 ms
+2026-10-26 17:54:12:5412 http: PATCH /v1/organizations/60e38cc0-0c53-4ace-a0e9-616a82151c0d/logo 200 912 - 10.598 ms
+2026-10-26 17:54:12:5412 http: PATCH /v1/organizations/fb4e33bc-51a7-4265-a88f-0b6cf9419a1a/logo 200 912 - 6.568 ms
+2026-10-26 17:54:12:5412 http: PATCH /v1/organizations/fb4e33bc-51a7-4265-a88f-0b6cf9419a1a/logo 200 912 - 6.694 ms
+2026-10-26 17:54:13:5413 http: PATCH /v1/organizations/d7b26542-afd9-4a4b-ad40-7e29ea8acf4d/logo 403 110 - 4.326 ms
+2026-10-26 17:54:13:5413 http: PATCH /v1/organizations/facab2dc-8d45-4eaf-ab41-b8ecb0c58117/logo 400 93 - 3.283 ms
+2026-10-26 17:54:13:5413 http: PATCH /v1/organizations/c8c73ac5-1d3c-4778-9395-13167cd6e99c/logo 400 79 - 2.979 ms
+2026-10-26 17:54:13:5413 http: PATCH /v1/organizations/66e4ef13-64f6-48e3-9a08-28cac01b28ab/logo 400 82 - 10.809 ms
+2026-10-26 17:54:14:5414 http: PATCH /v1/organizations/48a21996-c1a4-47d1-b66e-bf42072ae17e/logo 200 914 - 6.446 ms
+2026-10-26 17:54:14:5414 http: DELETE /v1/organizations/48a21996-c1a4-47d1-b66e-bf42072ae17e/logo 200 706 - 5.017 ms
+2026-10-26 17:54:14:5414 http: DELETE /v1/organizations/ea9b4e73-c8d5-475f-91eb-02fe2b160999/logo 200 706 - 3.519 ms
+2026-10-26 17:54:14:5414 http: DELETE /v1/organizations/81109852-0e74-4253-97e9-172ffa96afde/logo 403 110 - 4.829 ms
+2026-10-26 17:54:14:5414 http: POST /v1/organizations/ 201 728 - 11.731 ms
+2026-10-26 17:54:14:5414 http: POST /v1/organizations/42f487ea-9db2-47b9-980f-45efabb7cea9/invites 201 290 - 10.122 ms
+2026-10-26 17:54:14:5414 http: GET /v1/organizations/42f487ea-9db2-47b9-980f-45efabb7cea9/invites 200 297 - 3.782 ms
+2026-10-26 17:54:15:5415 http: POST /v1/organizations/ 201 728 - 11.764 ms
+2026-10-26 17:54:15:5415 http: POST /v1/organizations/7e6546c1-d522-497c-9273-581267762d19/invites 400 157 - 3.299 ms
+2026-10-26 17:54:15:5415 http: POST /v1/organizations/ 201 728 - 11.326 ms
+2026-10-26 17:54:15:5415 http: POST /v1/organizations/2b05ae98-0028-4f43-b749-8ef722ed6c77/invites 201 288 - 8.963 ms
+2026-10-26 17:54:15:5415 http: GET /v1/organizations/invites/dbcdf64cb5c7c13ce2921a3285e91b1e55f220a31c1d1ac16e38a463475342e4 200 214 - 2.632 ms
+2026-10-26 17:54:15:5415 http: POST /v1/organizations/invites/dbcdf64cb5c7c13ce2921a3285e91b1e55f220a31c1d1ac16e38a463475342e4/accept 200 731 - 12.326 ms
+2026-10-26 17:54:15:5415 http: POST /v1/organizations/invites/dbcdf64cb5c7c13ce2921a3285e91b1e55f220a31c1d1ac16e38a463475342e4/accept 200 731 - 4.625 ms
+2026-10-26 17:54:15:5415 http: GET /v1/user/me 200 1811 - 4.267 ms
+2026-10-26 17:54:15:5415 http: GET /v1/organizations/2b05ae98-0028-4f43-b749-8ef722ed6c77/members 200 835 - 4.533 ms
+2026-10-26 17:54:15:5415 http: POST /v1/organizations/ 201 728 - 12.547 ms
+2026-10-26 17:54:15:5415 http: GET /v1/organizations/b284371a-aa3c-4229-bd24-1307738c23b1/members 200 448 - 4.980 ms
+2026-10-26 17:54:15:5415 http: POST /v1/organizations/ 201 728 - 12.375 ms
+2026-10-26 17:54:15:5415 http: GET /v1/organizations/7143eea3-aaea-4b61-b96c-f21320a992ed/members 403 110 - 2.799 ms
+2026-10-26 17:54:16:5416 http: POST /v1/organizations/ 201 728 - 11.726 ms
+2026-10-26 17:54:16:5416 http: POST /v1/organizations/a29c466d-246e-489a-aba6-e1a7c6048c0d/invites 403 110 - 2.788 ms
+2026-10-26 17:54:16:5416 http: POST /v1/organizations/ 201 728 - 11.399 ms
+2026-10-26 17:54:16:5416 http: POST /v1/organizations/1723d467-8f15-4410-9491-f1320325664f/invites 201 291 - 8.308 ms
+2026-10-26 17:54:16:5416 http: POST /v1/organizations/invites/f778391eae9b6544a650ccb45e626c3b8b58983e5d9c8d0310635b0da5b685de/accept 200 731 - 10.245 ms
+2026-10-26 17:54:16:5416 http: GET /v1/admin/organizations/1723d467-8f15-4410-9491-f1320325664f 200 2513 - 6.817 ms
+2026-10-26 17:54:16:5416 http: POST /v1/organizations/ 201 728 - 11.499 ms
+2026-10-26 17:54:16:5416 http: POST /v1/organizations/e53e02dd-272e-4a4c-9fa4-cdd2833fa8e8/invites 201 288 - 8.158 ms
+2026-10-26 17:54:16:5416 http: DELETE /v1/organizations/e53e02dd-272e-4a4c-9fa4-cdd2833fa8e8/invites/9e3a6a01-99d1-4515-aa74-f84958340f0b 200 52 - 5.692 ms
+2026-10-26 17:54:16:5416 http: GET /v1/organizations/e53e02dd-272e-4a4c-9fa4-cdd2833fa8e8/invites 200 65 - 3.472 ms
+2026-10-26 17:54:16:5416 http: POST /v1/organizations/ 201 728 - 11.214 ms
+2026-10-26 17:54:17:5417 http: POST /v1/organizations/d1c602d0-3e0c-43de-b0d5-2322518a1b1e/invites 201 291 - 9.039 ms
+2026-10-26 17:54:17:5417 http: POST /v1/organizations/d1c602d0-3e0c-43de-b0d5-2322518a1b1e/invites 201 291 - 9.308 ms
+2026-10-26 17:54:17:5417 http: POST /v1/organizations/d1c602d0-3e0c-43de-b0d5-2322518a1b1e/invites 402 221 - 4.797 ms
+2026-10-26 17:54:17:5417 http: POST /v1/organizations/ 201 728 - 12.272 ms
+2026-10-26 17:54:17:5417 http: POST /v1/organizations/8d71805a-6312-43ad-84fd-91fe2c7b1cce/invites 402 222 - 4.798 ms
+2026-10-26 17:54:17:5417 http: POST /v1/organizations/ 201 728 - 11.825 ms
+2026-10-26 17:54:17:5417 http: POST /v1/organizations/3e15de59-01fb-4d3b-94bd-6c26e5699277/invites 201 292 - 8.279 ms
+2026-10-26 17:54:17:5417 http: POST /v1/organizations/invites/d71bea738121a48b61a72c0eb1dc3187f21561ca50c2ec9d1aceb924eec1321e/accept 402 221 - 6.379 ms
+2026-10-26 17:54:17:5417 http: POST /v1/organizations/ 201 728 - 13.329 ms
+2026-10-26 17:54:17:5417 http: POST /v1/organizations/b38413d5-5c2c-4395-9481-71eb0e503b5e/invites 201 289 - 8.664 ms
+2026-10-26 17:54:17:5417 http: POST /v1/organizations/invites/43622b43546b8ded6f65d526c6557efaa057e4d5926f6409c479c5c66c748352/accept 200 724 - 9.957 ms
+2026-10-26 17:54:18:5418 http: POST /v1/organizations/ 400 141 - 4.557 ms
+2026-10-26 17:54:18:5418 http: POST /v1/organizations/ 400 171 - 2.910 ms
+2026-10-26 17:54:18:5418 http: POST /v1/organizations/ 201 730 - 11.810 ms
+2026-10-26 17:54:19:5419 http: PATCH /v1/organizations/587a88e0-f1af-4f1f-8b53-f685c8edc2ac 200 701 - 4.218 ms
+2026-10-26 17:54:19:5419 http: PATCH /v1/organizations/73b6757f-87b8-4991-a846-c82b2ce42ecb 200 701 - 3.745 ms
+2026-10-26 17:54:19:5419 http: PATCH /v1/organizations/7b249dd5-1cb9-4177-962b-9493480cd132 200 701 - 3.976 ms
+2026-10-26 17:54:19:5419 http: PATCH /v1/organizations/b00804c9-bab2-4767-9af0-3e414c7870c2 200 712 - 3.823 ms
+2026-10-26 17:54:20:5420 http: GET /v1/organizations/me 200 732 - 5.827 ms
+2026-10-26 17:54:20:5420 http: PATCH /v1/organizations/85173ab5-d018-480c-8609-9b80ef76a872 400 194 - 3.357 ms
+2026-10-26 17:54:20:5420 http: PATCH /v1/organizations/d4e4aeae-e043-4387-b2a6-fd57a746cc48 400 194 - 3.227 ms
+2026-10-26 17:54:21:5421 http: PATCH /v1/organizations/a567478c-e34d-4354-86c4-5c1c91c77e99 400 185 - 2.992 ms
+2026-10-26 17:54:21:5421 http: PATCH /v1/organizations/e3640e7b-0211-40b2-a153-b6b69b6a6c8c 400 185 - 2.787 ms
+2026-10-26 17:54:21:5421 http: PATCH /v1/organizations/92e51d10-a41e-4646-92ce-2029ddc36df8 400 161 - 3.004 ms
+2026-10-26 17:54:22:5422 http: PATCH /v1/organizations/9ea33f17-4b87-4824-b56a-ee3e3b1e7334 200 701 - 3.758 ms
+2026-10-26 17:54:22:5422 http: PATCH /v1/organizations/492311cb-587b-4107-8cc4-94579c7c14b5 403 110 - 3.554 ms
+FAIL tests/organization.test.ts (25.453 s)
+  POST /v1/organizations/ — create organization (Recruiter only)
+    ✓ Recruiter creates organization → 201, pending, and becomes their active company (237 ms)
+    ✓ Create ignores plan, billing, verification and ownership fields in the body → defaults (171 ms)
+    ✓ Admin cannot create organization → 403 (135 ms)
+    ✓ Talent cannot create organization → 403 (136 ms)
+    ✓ Unauthenticated → 401 (142 ms)
+    ✓ Missing name → 400 (216 ms)
+    ✓ Invalid email format → 400 (177 ms)
+    ✓ LinkedIn is optional when a domain is provided → 201 (158 ms)
+    ✓ Missing both domain and LinkedIn → 400 (143 ms)
+    ✓ No domain, but a valid LinkedIn URL → 201, and email is not required to be corporate (171 ms)
+    ✓ Empty-string domain (as the form actually sends it) → 201, not a format error (213 ms)
+    ✓ Invalid LinkedIn URL → 400 (168 ms)
+    ✓ LinkedIn provided without a website → 201 (175 ms)
+    ✓ Personal email domain → 400 (145 ms)
+    ✓ Email domain does not match website → 400 (161 ms)
+    ✓ Same name and website as an existing company → 409 (175 ms)
+    ✓ Same name but different website → 201 (name alone may repeat) (184 ms)
+    ✓ Same recruiter cannot create a second company on a different domain (181 ms)
+  GET /v1/organizations/me
+    ✓ lists only companies owned by the requesting recruiter (181 ms)
+  PATCH /v1/organizations/:_id/switch
+    ✓ switches the recruiter's active company (193 ms)
+    ✓ cannot switch to a company owned by another recruiter → 403 (190 ms)
+  Admin organization verification
+    ✓ Admin lists organizations, verifies one, rejects another (223 ms)
+    ✓ Recruiter cannot access admin organization endpoints → 403 (280 ms)
+  PATCH /v1/organizations/:id — update organization
+    ✓ Owner updates editable fields → 200 (200 ms)
+    ✓ Email and website are ignored even when sent → unchanged (192 ms)
+    ✓ logoUrl sent in the body is ignored — only the upload endpoint can set it (203 ms)
+    ✓ Owner cannot self-verify or change the plan: protected fields are ignored → 200, unchanged (199 ms)
+    ✓ Sending only protected fields changes nothing → 200, unchanged (197 ms)
+    ✓ A changed id in the body cannot redirect the update to another company (208 ms)
+    ✓ Every editable field still updates when sent beside protected ones (217 ms)
+    ✓ Service layer ignores protected fields even if a caller skips the HTTP validator (210 ms)
+    ✓ Non-owner recruiter cannot update → 403 (220 ms)
+  DELETE /v1/organizations/:id — delete organization
+    ✓ Owner deletes company → 200, jobs cascade, active company cleared (238 ms)
+    ✓ Owner deletes a company with usage, billing and scout history → 200 (237 ms)
+    ✓ Non-owner recruiter cannot delete → 403 (206 ms)
+    ✓ Deletes the logo from Spaces when the organization is deleted (215 ms)
+  PATCH /v1/organizations/:id/logo
+    ✓ uploads a logo and stores the returned URL (242 ms)
+    ✓ deletes the previous logo object in Spaces when replacing it (230 ms)
+    ✓ rejects a non-owner recruiter with 403 and never calls Spaces (226 ms)
+    ✓ rejects an unsupported mimetype without calling Spaces (215 ms)
+    ✓ rejects an empty image file without calling Spaces (215 ms)
+    ✓ rejects an oversized image with a clean 400, not a 500 (232 ms)
+  DELETE /v1/organizations/:id/logo
+    ✓ removes an existing logo and deletes it from Spaces (232 ms)
+    ✓ is a no-op 200 when there is no logo to remove (254 ms)
+    ✓ rejects a non-owner recruiter with 403 (256 ms)
+  Organization invites
+    ✓ Owner sends invite → 201, lists pending invite (255 ms)
+    ✓ Rejects invite when email domain does not match company → 400 (270 ms)
+    ✓ Recruiter accepts invite and joins company (317 ms)
+    ✓ Owner lists company users including themselves (260 ms)
+    ✓ Non-owner recruiter cannot list company members → 403 (272 ms)
+    ✓ Only the company creator can send an invite → 403 for other recruiters (250 ms)
+    ✓ Admin sees creator and recruiters on a company (279 ms)
+    ✓ Owner revokes pending invite (272 ms)
+    ✓ Rejects the invite that would exceed the plan's team_members limit (279 ms)
+    ✓ Rejects any invite on the default pay_per_use plan — the owner is the only seat (263 ms)
+    ✓ Rejects invite accept when the seats filled up while the invite was pending (278 ms)
+    ✓ Invite/accept does not touch billing — every member shares the org's single plan (324 ms)
+  Organization domain field
+    ✓ Rejects company creation when profile email does not match domain (250 ms)
+    ✓ Rejects invalid domain format (252 ms)
+    ✓ Accepts a domain without a leading @ → 201 (268 ms)
+  Organization companyValues field
+    ✓ defaults to an empty list for a new company (268 ms)
+    ✕ Owner sets company values → 200, trimmed and returned (257 ms)
+    ✕ keeps values that contain commas intact (282 ms)
+    ✕ drops duplicate values (case-insensitive), keeping the first spelling (263 ms)
+    ✕ an empty list clears the values (287 ms)
+    ✓ is listed with the company in GET /organizations/me (436 ms)
+    ✓ rejects not a list → 400 and leaves the values unchanged (287 ms)
+    ✓ rejects more than 10 values → 400 and leaves the values unchanged (298 ms)
+    ✓ rejects an empty value → 400 and leaves the values unchanged (282 ms)
+    ✓ rejects a value over 200 characters → 400 and leaves the values unchanged (277 ms)
+    ✓ rejects a value that is not text → 400 and leaves the values unchanged (299 ms)
+    ✕ accepts exactly 10 values of 200 characters (265 ms)
+    ✓ Non-owner recruiter cannot change company values → 403 (337 ms)
+    ✓ AddOrganizationCompanyValues migration adds a non-null jsonb column defaulting to [] (262 ms)
+
+  ● Organization companyValues field › Owner sets company values → 200, trimmed and returned
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 5
+    + Received  + 1
+
+    - Array [
+    -   "Ownership",
+    -   "Customer obsession",
+    -   "Bias for action",
+    - ]
+    + Array []
+
+      1260 |
+      1261 |     expect(res.status).toBe(200);
+    > 1262 |     expect(orgFrom(res).companyValues).toEqual([
+           |                                        ^
+      1263 |       "Ownership",
+      1264 |       "Customer obsession",
+      1265 |       "Bias for action",
+
+      at tests/organization.test.ts:1262:40
+      at fulfilled (tests/organization.test.ts:41:58)
+
+  ● Organization companyValues field › keeps values that contain commas intact
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 4
+    + Received  + 1
+
+    - Array [
+    -   "Be kind, be direct",
+    -   "Learn fast",
+    - ]
+    + Array []
+
+      1276 |
+      1277 |     expect(res.status).toBe(200);
+    > 1278 |     expect(orgFrom(res).companyValues).toEqual(["Be kind, be direct", "Learn fast"]);
+           |                                        ^
+      1279 |   });
+      1280 |
+      1281 |   it("drops duplicate values (case-insensitive), keeping the first spelling", async () => {
+
+      at tests/organization.test.ts:1278:40
+      at fulfilled (tests/organization.test.ts:41:58)
+
+  ● Organization companyValues field › drops duplicate values (case-insensitive), keeping the first spelling
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 4
+    + Received  + 1
+
+    - Array [
+    -   "Integrity",
+    -   "Teamwork",
+    - ]
+    + Array []
+
+      1286 |
+      1287 |     expect(res.status).toBe(200);
+    > 1288 |     expect(orgFrom(res).companyValues).toEqual(["Integrity", "Teamwork"]);
+           |                                        ^
+      1289 |   });
+      1290 |
+      1291 |   it("an empty list clears the values", async () => {
+
+      at tests/organization.test.ts:1288:40
+      at fulfilled (tests/organization.test.ts:41:58)
+
+  ● Organization companyValues field › an empty list clears the values
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "Integrity",
+    + ]
+
+      1296 |
+      1297 |     expect(res.status).toBe(200);
+    > 1298 |     expect(orgFrom(res).companyValues).toEqual([]);
+           |                                        ^
+      1299 |   });
+      1300 |
+      1301 |   it("is listed with the company in GET /organizations/me", async () => {
+
+      at tests/organization.test.ts:1298:40
+      at fulfilled (tests/organization.test.ts:41:58)
+
+  ● Organization companyValues field › accepts exactly 10 values of 200 characters
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 12
+    + Received  +  1
+
+    - Array [
+    -   "0vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv",
+    -   "1vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv",
+    -   "2vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv",
+    -   "3vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv",
+    -   "4vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv",
+    -   "5vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv",
+    -   "6vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv",
+    -   "7vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv",
+    -   "8vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv",
+    -   "9vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv",
+    - ]
+    + Array []
+
+      1336 |
+      1337 |     expect(res.status).toBe(200);
+    > 1338 |     expect(orgFrom(res).companyValues).toEqual(values);
+           |                                        ^
+      1339 |   });
+      1340 |
+      1341 |   it("Non-owner recruiter cannot change company values → 403", async () => {
+
+      at tests/organization.test.ts:1338:40
+      at fulfilled (tests/organization.test.ts:41:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       5 failed, 69 passed, 74 total
+Snapshots:   0 total
+Time:        25.694 s, estimated 39 s
+Ran all test suites matching tests/organization.test.ts.

@@ -1,5 +1,6 @@
 import { body, param } from "express-validator";
 import { idParam } from "./shared.js";
+import { MAX_ASSESSMENT_QUESTIONS_PER_CANDIDATE } from "../config/assessmentQuestions.js";
 
 const blankToUndefined = (value: unknown) => (value === "" || value === null ? undefined : value);
 
@@ -16,6 +17,31 @@ const dichotomyPairFields = [
 // have a question count set (see atLeastOneDichotomyPairValidator below).
 const personalityCountValidator = (field: string) =>
   body(field).customSanitizer(blankToUndefined).optional().isInt({ min: 1 }).toInt();
+
+const assessmentCountValidator = (field: string) =>
+  body(field)
+    .customSanitizer(blankToUndefined)
+    .optional()
+    .isInt({ min: 1, max: MAX_ASSESSMENT_QUESTIONS_PER_CANDIDATE })
+    .withMessage(
+      `${field} must be a whole number from 1 to ${MAX_ASSESSMENT_QUESTIONS_PER_CANDIDATE}`
+    )
+    .toInt();
+
+const assessmentSwitchValidators = [
+  body("problemSolvingAssessment")
+    .optional()
+    .isBoolean()
+    .withMessage("problemSolvingAssessment must be boolean")
+    .toBoolean(),
+  assessmentCountValidator("noOfProblemSolvingQuestions"),
+  body("cultureFitAssessment")
+    .optional()
+    .isBoolean()
+    .withMessage("cultureFitAssessment must be boolean")
+    .toBoolean(),
+  assessmentCountValidator("noOfCultureFitQuestions"),
+];
 
 const atLeastOneDichotomyPairValidator = body("personalityEvaluation").custom((_value, { req }) => {
   const enabled =
@@ -57,6 +83,7 @@ export const createAIConfigValidator = [
   body("uploadedQuestions").optional().isArray(),
   body("uploadedQuestions.*").optional().isString(),
   body("recruiterGuide").optional().isString(),
+  ...assessmentSwitchValidators,
 ];
 
 export const updateAIConfigValidator = [
@@ -77,6 +104,7 @@ export const updateAIConfigValidator = [
   body("uploadedQuestions").optional().isArray(),
   body("uploadedQuestions.*").optional().isString(),
   body("recruiterGuide").optional().isString(),
+  ...assessmentSwitchValidators,
 ];
 
 export const aiConfigIdParamValidator = [idParam("_id")];

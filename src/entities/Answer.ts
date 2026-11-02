@@ -46,6 +46,7 @@ export class Answer {
     questionId: string;
     answer: string;
     score?: number;
+    feedback?: string;
     dichotomyPreference?: string;
   }>;
 
