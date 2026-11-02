@@ -15,6 +15,8 @@ const TEMPLATE_TITLES: Record<string, string> = {
   "applicant-message": "You have a new message",
   "application-follow-up": "Finish your application",
   "staff-invite": "You've been added to a team",
+  "staff-document-sign": "A document is waiting for your signature",
+  "staff-document-signed": "Your signed document",
 };
 
 const TEMPLATE_PREHEADERS: Record<string, string> = {
@@ -28,6 +30,8 @@ const TEMPLATE_PREHEADERS: Record<string, string> = {
   "applicant-message": "A recruiter sent you a message on Auxhr.",
   "application-follow-up": "A quick next step on your application.",
   "staff-invite": "Accept your invite and join your team on Auxhr.",
+  "staff-document-sign": "Review and sign your document online.",
+  "staff-document-signed": "A copy of the signed document is attached.",
 };
 
 export const renderTemplate = (templateName: string, data: Record<string, unknown>): string => {

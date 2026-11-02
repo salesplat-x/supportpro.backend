@@ -1,7 +1,3 @@
-/**
- * Day 5: recruiters read the problem-solving / culture-fit scores and graded answers; candidates never see them.
- */
-
 import request from "supertest";
 import { In } from "typeorm";
 import { createApp } from "../src/app.js";
@@ -69,10 +65,6 @@ afterEach(async () => {
   jest.clearAllMocks();
 });
 
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
-
 const seedGraded = async (
   talentId: string,
   jobId: string,
@@ -130,9 +122,10 @@ const setupScoredApplication = async () => {
     5,
     "Strong ownership."
   );
-  await testDataSource
-    .getRepository(Application)
-    .update(app_.id, { problemSolvingScore: 80, cultureFitScore: 100 });
+  await testDataSource.query(
+    `UPDATE "applications" SET "problemSolvingScore" = 80, "cultureFitScore" = 100 WHERE id = $1`,
+    [app_.id]
+  );
   return { recruiter, recruiterToken, talent, talentToken, job, app_ };
 };
 

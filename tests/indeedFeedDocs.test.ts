@@ -1,6 +1,3 @@
-/**
- * API docs (swagger.yaml) for Day 8: the Indeed job feed.
- */
 import fs from "fs";
 import path from "path";
 import yaml from "js-yaml";

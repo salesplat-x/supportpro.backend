@@ -1,9 +1,3 @@
-/**
- * Serving problem-solving and culture-fit questions to candidates (plan Day 4).
- * Each applicant gets a random set of the recruiter's chosen size from the
- * job's pool, the same set every time they come back, and never the scoring
- * criteria.
- */
 import request from "supertest";
 import type { QueryRunner } from "typeorm";
 import { createApp } from "../src/app.js";
@@ -23,6 +17,7 @@ import {
   createQuestion,
 } from "./helpers/fixtures.js";
 import { Application } from "../src/entities/Application.js";
+import { Question } from "../src/entities/Question.js";
 import type { AIConfig } from "../src/entities/AIConfig.js";
 import { QuestionType } from "../src/types/enums.js";
 import { apiData } from "./helpers/http.js";
@@ -59,7 +54,6 @@ const PATHS = {
   [QuestionType.CultureFit]: "/v1/questions/candidate/culture-fit",
 } as const;
 
-/** A job with the given switches, a pool of `poolSize` questions per type, and an applicant. */
 async function jobWithApplicant(
   configOverrides: Partial<AIConfig> = {},
   poolSize = 6,
@@ -191,6 +185,30 @@ it("one applicant's set doesn't change another's", async () => {
   expect(again.map((q) => q.id).sort()).toEqual(mine.map((q) => q.id).sort());
 });
 
+it.each([QuestionType.ProblemSolving, QuestionType.CultureFit] as const)(
+  "gives every parallel first load of %s questions the same set",
+  async (type) => {
+    const { job, token, application } = await jobWithApplicant({}, 6);
+
+    const loads = await Promise.all(
+      Array.from({ length: 5 }, () => getServed(token, type, job.id))
+    );
+
+    const sets = loads.map((res) => {
+      expect(res.status).toBe(200);
+      return servedOf(res).map((q) => q.id);
+    });
+    const stored = await testDataSource
+      .getRepository(Application)
+      .findOneByOrFail({ id: application!.id });
+    const column =
+      type === QuestionType.ProblemSolving
+        ? stored.problemSolvingQuestions
+        : stored.cultureFitQuestions;
+    for (const set of sets) expect(set).toEqual(column);
+  }
+);
+
 describe("AddAssessmentQuestionsToApplications migration", () => {
   it("adds the two question-set columns and removes them on down", async () => {
     const queries: string[] = [];
@@ -208,5 +226,64 @@ describe("AddAssessmentQuestionsToApplications migration", () => {
       `ALTER TABLE "applications" DROP COLUMN "cultureFitQuestions"`,
       `ALTER TABLE "applications" DROP COLUMN "problemSolvingQuestions"`,
     ]);
+  });
+});
+
+describe("serving under concurrency and recovery", () => {
+  it("two overlapping first loads give the applicant one set", async () => {
+    const { token, job, application } = await jobWithApplicant();
+
+    const responses = await Promise.all(
+      Array.from({ length: 6 }, () => getServed(token, QuestionType.ProblemSolving, job.id))
+    );
+
+    expect(responses.map((r) => r.status)).toEqual(Array(6).fill(200));
+    const ids = (res: request.Response) => servedOf(res).map((q) => q.id);
+    const [a] = responses as [request.Response];
+    for (const res of responses) expect(ids(res)).toEqual(ids(a));
+    const saved = await testDataSource
+      .getRepository(Application)
+      .findOneByOrFail({ id: application!.id });
+    expect(saved.problemSolvingQuestions).toEqual(ids(a));
+  });
+
+  it("serves a full new set when one of the applicant's questions was deleted", async () => {
+    const { token, job, application } = await jobWithApplicant();
+    const first = servedOf(await getServed(token, QuestionType.ProblemSolving, job.id));
+    await testDataSource.getRepository(Question).delete({ id: first[0]!.id });
+
+    const res = await getServed(token, QuestionType.ProblemSolving, job.id);
+
+    expect(res.status).toBe(200);
+    expect(servedOf(res)).toHaveLength(3);
+    const saved = await testDataSource
+      .getRepository(Application)
+      .findOneByOrFail({ id: application!.id });
+    expect(saved.problemSolvingQuestions).toEqual(servedOf(res).map((q) => q.id));
+    expect(saved.problemSolvingQuestions).not.toContain(first[0]!.id);
+  });
+
+  it("keeps the set once the applicant has been scored, even if a question was deleted", async () => {
+    const { token, job, application } = await jobWithApplicant();
+    const first = servedOf(await getServed(token, QuestionType.ProblemSolving, job.id));
+    await testDataSource.query(
+      `UPDATE "applications" SET "problemSolvingScore" = 60 WHERE id = $1`,
+      [application!.id]
+    );
+    await testDataSource.getRepository(Question).delete({ id: first[0]!.id });
+
+    const res = await getServed(token, QuestionType.ProblemSolving, job.id);
+
+    expect(servedOf(res)).toHaveLength(2);
+  });
+
+  it("a jobId sent as a list → 400", async () => {
+    const { token, job } = await jobWithApplicant();
+
+    const res = await request(app)
+      .get(`${PATHS[QuestionType.ProblemSolving]}?jobId[]=${job.id}&jobId[]=${job.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(400);
   });
 });

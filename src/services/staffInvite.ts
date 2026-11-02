@@ -56,7 +56,7 @@ export interface JoinedStaff {
   joinedAt: Date;
 }
 
-const hashToken = (token: string): string =>
+export const hashToken = (token: string): string =>
   crypto.createHash("sha256").update(token).digest("hex");
 
 export const assertCanInvite = async (
@@ -102,7 +102,7 @@ export const issueInvite = (staff: StaffMember, actor: Actor): string => {
   return token;
 };
 
-const withTimeout = async <T>(work: Promise<T>, ms: number): Promise<T> => {
+export const withTimeout = async <T>(work: Promise<T>, ms: number): Promise<T> => {
   let timer: NodeJS.Timeout | undefined;
   try {
     return await Promise.race([

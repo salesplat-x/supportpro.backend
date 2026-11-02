@@ -1,8 +1,3 @@
-/**
- * Day 8 (plan feature 4): Indeed XML job feed. A company can switch on a public
- * feed of its open jobs at GET /v1/organizations/:id/jobs.xml in Indeed's XML
- * feed format, so Indeed can pick the jobs up. Off by default; no login needed.
- */
 import request from "supertest";
 import type { QueryRunner } from "typeorm";
 import { DOMParser } from "@xmldom/xmldom";
@@ -16,7 +11,7 @@ import {
 import { createRecruiter, createRole, createJob, createOrganization } from "./helpers/fixtures.js";
 import { Organization } from "../src/entities/Organization.js";
 import { JobStatus } from "../src/types/enums.js";
-import { AddIndeedFeedSwitchToOrganizations1789001300000 } from "../src/migrations/1789001300000-AddIndeedFeedSwitchToOrganizations.js";
+import { AddIndeedFeedSwitchToOrganizations1789001600000 } from "../src/migrations/1789001600000-AddIndeedFeedSwitchToOrganizations.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
   __esModule: true,
@@ -173,12 +168,12 @@ describe("AddIndeedFeedSwitchToOrganizations migration", () => {
     const runner = {
       query: (sql: string) => Promise.resolve(void queries.push(sql)),
     } as unknown as QueryRunner;
-    await new AddIndeedFeedSwitchToOrganizations1789001300000().up(runner);
+    await new AddIndeedFeedSwitchToOrganizations1789001600000().up(runner);
     expect(queries).toEqual([
       `ALTER TABLE "organizations" ADD "indeed_feed_enabled" boolean NOT NULL DEFAULT false`,
     ]);
     queries.length = 0;
-    await new AddIndeedFeedSwitchToOrganizations1789001300000().down(runner);
+    await new AddIndeedFeedSwitchToOrganizations1789001600000().down(runner);
     expect(queries).toEqual([`ALTER TABLE "organizations" DROP COLUMN "indeed_feed_enabled"`]);
   });
 });

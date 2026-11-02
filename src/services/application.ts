@@ -3,7 +3,13 @@ import { AppDataSource } from "../database/dataSource.js";
 import { Application } from "../entities/Application.js";
 import { Notification } from "../entities/Notification.js";
 import { Organization } from "../entities/Organization.js";
-import { NotFoundError, PlanLimitError } from "../utils/errors";
+import {
+  AppError,
+  ConflictError,
+  NotFoundError,
+  PlanLimitError,
+  ValidationError,
+} from "../utils/errors";
 import {
   UserRole,
   ApplicationType,
@@ -23,6 +29,8 @@ import {
   triggerMatchVerdict,
 } from "./applicationStage.js";
 import logger from "../utils/logger.js";
+import { STALE_LOCK_MS } from "../utils/durableJobs.js";
+import { savePersonalityFit } from "./answer.js";
 import { assertCompanyResourceAccess, getActiveOrganizationId } from "./organizationScope.js";
 import { ensureOrganizationBillingCurrent, hasFlag } from "./entitlements.js";
 
@@ -32,20 +40,15 @@ const applicationRepo = () => AppDataSource.getRepository(Application);
 
 const organizationRepo = () => AppDataSource.getRepository(Organization);
 
-/**
- * Fields a candidate must never see on their own application: the scores the
- * recruiter uses to compare applicants (plan Day 5 — candidates aren't shown
- * their problem-solving or culture-fit result).
- */
 export const CANDIDATE_HIDDEN_APPLICATION_FIELDS = [
   "problemSolvingScore",
   "cultureFitScore",
   "personalityFitScore",
   "personalityFitReason",
+  "personalityFitLockedAt",
 ] as const;
 
 export const hideAssessmentResultsFromCandidate = (application: Application): Application => {
-  // The candidate may know a test is done (so the page can say so), never how it went.
   Object.assign(application, {
     problemSolvingSubmitted: application.problemSolvingScore != null,
     cultureFitSubmitted: application.cultureFitScore != null,
@@ -54,6 +57,64 @@ export const hideAssessmentResultsFromCandidate = (application: Application): Ap
     delete (application as Partial<Application>)[field];
   }
   return application;
+};
+
+/** True while a personality fit AI call holds a fresh lock on the application. */
+export const isPersonalityFitPending = (application: Application): boolean =>
+  application.personalityFitScore == null &&
+  application.personalityFitLockedAt != null &&
+  Date.now() - new Date(application.personalityFitLockedAt).getTime() < STALE_LOCK_MS;
+
+/**
+ * Lets the job's company ask the AI again for a personality fit that is
+ * missing (the first try failed). One call at a time per application.
+ */
+export const retryPersonalityFit = async (
+  userId: string,
+  userRole: UserRole,
+  applicationId: string
+): Promise<{ personalityFitScore: number; personalityFitReason: string }> => {
+  const application = await applicationRepo().findOne({
+    where: { id: applicationId },
+    relations: { job: { aiConfig: true } },
+  });
+  if (!application) {
+    throw new NotFoundError("Application not found");
+  }
+  await assertCompanyResourceAccess(
+    userId,
+    userRole,
+    application.job.organizationId,
+    application.job.postedById
+  );
+  if (application.personalityFitScore != null) {
+    return {
+      personalityFitScore: application.personalityFitScore,
+      personalityFitReason: application.personalityFitReason ?? "",
+    };
+  }
+  if (!application.mbtiType) {
+    throw new ValidationError("The candidate hasn't finished the personality test yet");
+  }
+  if (!application.job.aiConfig?.personalityEvaluation) {
+    throw new ValidationError("The personality test is switched off for this job");
+  }
+
+  const outcome = await savePersonalityFit(application.id);
+  if (outcome.status === "busy") {
+    throw new ConflictError("The personality fit is already being worked out. Try again shortly.");
+  }
+  if (outcome.status === "failed") {
+    throw new AppError(
+      502,
+      "PERSONALITY_FIT_FAILED",
+      "We couldn't work out the personality fit right now. Please try again in a moment."
+    );
+  }
+  return {
+    personalityFitScore: outcome.personalityFitScore,
+    personalityFitReason: outcome.personalityFitReason,
+  };
 };
 
 const MAX_PAGE_SIZE = 100;
@@ -111,7 +172,11 @@ export const getApplication = async (
       buildGradedAnswerPairs(application.jobId, application.talentId, QuestionType.ProblemSolving),
       buildGradedAnswerPairs(application.jobId, application.talentId, QuestionType.CultureFit),
     ]);
-    Object.assign(application, { problemSolvingAnswers, cultureFitAnswers });
+    Object.assign(application, {
+      problemSolvingAnswers,
+      cultureFitAnswers,
+      personalityFitPending: isPersonalityFitPending(application),
+    });
   }
 
   if (

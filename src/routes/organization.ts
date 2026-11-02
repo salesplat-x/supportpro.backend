@@ -45,7 +45,6 @@ router.get(
   asyncHandler(organization.listVerifiedOrganizations, "load verified companies")
 );
 
-// Day 8: public, no login, so Indeed can read it. Only served when the company switches it on.
 router.get(
   "/:_id/jobs.xml",
   validate(jobFeedValidator),

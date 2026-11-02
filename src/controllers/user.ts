@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import * as onboardingService from "../services/onboarding.js";
 import * as userService from "../services/user.js";
 import { sendSuccessResponse } from "../utils/response.js";
+import { hideAssessmentResultsFromCandidate } from "../services/application.js";
 
 const withoutCvText = <T extends object>(user: T): Omit<T, "cvText"> => {
   const { cvText: _cvText, ...rest } = user as T & { cvText?: unknown };
@@ -76,5 +77,6 @@ export const applications = async (req: Request, res: Response) => {
     req.user.id,
     req.query as Record<string, string>
   );
+  result.forEach(hideAssessmentResultsFromCandidate);
   sendSuccessResponse(res, "Applications fetched", { applications: result });
 };

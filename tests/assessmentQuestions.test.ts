@@ -1,9 +1,3 @@
-/**
- * Problem-solving and culture-fit question generation (plan Day 3).
- * End-of-day proof: "Questions are created for a test job."
- * The AI is mocked; only company members may generate or see these questions.
- */
-
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import {
@@ -14,6 +8,7 @@ import {
 } from "./helpers/db.js";
 import {
   createRecruiter,
+  createAdmin,
   createCompleteTalent,
   createRole,
   createJob,
@@ -73,7 +68,6 @@ afterEach(async () => {
   jest.clearAllMocks();
 });
 
-/** A recruiter, their company, and a test job posted under it. */
 async function companyWithJob(orgOverrides: Partial<Organization> = {}) {
   const { user: recruiter, token } = await createRecruiter();
   const org = await createOrganization(recruiter, { name: "Acme Ltd", ...orgOverrides });
@@ -95,10 +89,6 @@ const postProblemSolving = (token: string, body: Record<string, unknown>) =>
 
 const postCultureFit = (token: string, body: Record<string, unknown>) =>
   request(app).post("/v1/questions/culture-fit").set("Authorization", `Bearer ${token}`).send(body);
-
-// ---------------------------------------------------------------------------
-// POST /v1/questions/problem-solving
-// ---------------------------------------------------------------------------
 
 describe("POST /v1/questions/problem-solving", () => {
   it("Day 3 proof: creates problem-solving questions for a test job → 200", async () => {
@@ -330,10 +320,6 @@ describe("POST /v1/questions/problem-solving", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// POST /v1/questions/culture-fit
-// ---------------------------------------------------------------------------
-
 describe("POST /v1/questions/culture-fit", () => {
   it("Day 3 proof: creates culture-fit questions from the company's values → 200", async () => {
     const { token, job } = await companyWithJob({
@@ -440,10 +426,6 @@ describe("POST /v1/questions/culture-fit", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// GET /v1/questions?questionType=problem_solving|culture_fit&jobId=…
-// ---------------------------------------------------------------------------
-
 describe("GET /v1/questions — problem-solving and culture-fit", () => {
   async function jobWithBothKinds() {
     const setup = await companyWithJob();
@@ -517,5 +499,233 @@ describe("GET /v1/questions — problem-solving and culture-fit", () => {
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(404);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /v1/questions/:_id — problem-solving and culture-fit stay company-only
+// ---------------------------------------------------------------------------
+
+describe("GET /v1/questions/:_id — problem-solving and culture-fit", () => {
+  type SingleData = { question: Question };
+  const singleOf = (res: Parameters<typeof apiData>[0]) => apiData<SingleData>(res);
+
+  async function jobWithAssessmentQuestion(type: QuestionType) {
+    const setup = await companyWithJob();
+    const question = await createQuestion(
+      type,
+      { jobId: setup.job.id },
+      { question: "Hidden question?", criteria: "Secret scoring criteria." }
+    );
+    return { ...setup, question };
+  }
+
+  it.each([QuestionType.ProblemSolving, QuestionType.CultureFit])(
+    "anonymous callers cannot read a %s question → 404",
+    async (type) => {
+      const { question } = await jobWithAssessmentQuestion(type);
+
+      const res = await request(app).get(`/v1/questions/${question.id}`);
+
+      expect(res.status).toBe(404);
+      expect(JSON.stringify(res.body)).not.toContain("Secret scoring criteria.");
+    }
+  );
+
+  it("a talent cannot read one → 404", async () => {
+    const { question } = await jobWithAssessmentQuestion(QuestionType.ProblemSolving);
+    const { token } = await createCompleteTalent(await createRole());
+
+    const res = await request(app)
+      .get(`/v1/questions/${question.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it("a recruiter from another company cannot read one → 404", async () => {
+    const { question } = await jobWithAssessmentQuestion(QuestionType.CultureFit);
+    const { user: outsider, token } = await createRecruiter();
+    await createOrganization(outsider);
+
+    const res = await request(app)
+      .get(`/v1/questions/${question.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it("a member of the job's company reads it with criteria → 200", async () => {
+    const { token, question } = await jobWithAssessmentQuestion(QuestionType.ProblemSolving);
+
+    const res = await request(app)
+      .get(`/v1/questions/${question.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(singleOf(res).question.criteria).toBe("Secret scoring criteria.");
+  });
+
+  it("an admin reads it → 200", async () => {
+    const { question } = await jobWithAssessmentQuestion(QuestionType.CultureFit);
+    const { token } = await createAdmin();
+
+    const res = await request(app)
+      .get(`/v1/questions/${question.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+  });
+
+  it("other question types are still readable without signing in → 200", async () => {
+    const role = await createRole();
+    const question = await createQuestion(QuestionType.Prescreening, { roleId: role.id });
+
+    const res = await request(app).get(`/v1/questions/${question.id}`);
+
+    expect(res.status).toBe(200);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Query strings that arrive as arrays or objects
+// ---------------------------------------------------------------------------
+
+describe("GET /v1/questions — non-text query values", () => {
+  it.each([
+    ["questionType as a list", (jobId: string) => `questionType[]=problem_solving&jobId=${jobId}`],
+    [
+      "questionType repeated",
+      (jobId: string) => `questionType=problem_solving&questionType=culture_fit&jobId=${jobId}`,
+    ],
+    ["jobId as a list", (jobId: string) => `questionType=problem_solving&jobId[]=${jobId}`],
+    ["jobId as an object", (jobId: string) => `questionType=problem_solving&jobId[id]=${jobId}`],
+  ])("rejects %s → 400 without leaking criteria", async (_label, query) => {
+    const { job } = await companyWithJob();
+    await createQuestion(
+      QuestionType.ProblemSolving,
+      { jobId: job.id },
+      { question: "Hidden question?", criteria: "Secret scoring criteria." }
+    );
+    const { token } = await createCompleteTalent(await createRole());
+
+    const res = await request(app)
+      .get(`/v1/questions?${query(job.id)}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(res.body)).not.toContain("Secret scoring criteria.");
+  });
+
+  it("rejects a generate request whose count is a list → 400", async () => {
+    const { token, job } = await companyWithJob();
+
+    const res = await postProblemSolving(token, { jobId: job.id, count: [5, 6] });
+
+    expect(res.status).toBe(400);
+    expect(mockProblemSolving).not.toHaveBeenCalled();
+  });
+
+  it("rejects a generate request whose jobId is a list → 400", async () => {
+    const { token, job } = await companyWithJob();
+
+    const res = await postProblemSolving(token, { jobId: [job.id] });
+
+    expect(res.status).toBe(400);
+    expect(mockProblemSolving).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Concurrency, retries and pool boundaries
+// ---------------------------------------------------------------------------
+
+describe("generation under concurrency and failure", () => {
+  const seedPool = async (jobId: string, n: number) => {
+    const repo = testDataSource.getRepository(Question);
+    await repo.save(
+      Array.from({ length: n }, (_, i) =>
+        repo.create({ type: QuestionType.ProblemSolving, jobId, question: `Existing ${i}` })
+      )
+    );
+  };
+
+  /** Holds every AI reply until `expected` calls are waiting, so requests overlap. */
+  const overlappingReplies = (expected: number, reply: (call: number) => unknown) => {
+    let waiting = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    mockProblemSolving.mockImplementation(async () => {
+      const call = ++waiting;
+      if (waiting === expected) release();
+      await gate;
+      return reply(call);
+    });
+  };
+
+  it("two overlapping requests never push the pool past 30", async () => {
+    const { token, job } = await companyWithJob();
+    await seedPool(job.id, 25);
+    overlappingReplies(2, (call) => aiReply(reasoningQuestions(5, call * 100)));
+
+    const [a, b] = await Promise.all([
+      postProblemSolving(token, { jobId: job.id, count: 5 }),
+      postProblemSolving(token, { jobId: job.id, count: 5 }),
+    ]);
+
+    expect([a.status, b.status].sort()).toEqual([200, 400]);
+    expect(await storedQuestions(job.id, QuestionType.ProblemSolving)).toHaveLength(30);
+  });
+
+  it("two overlapping requests with the same AI reply store each question once", async () => {
+    const { token, job } = await companyWithJob();
+    overlappingReplies(2, () => aiReply(reasoningQuestions(3)));
+
+    const [a, b] = await Promise.all([
+      postProblemSolving(token, { jobId: job.id, count: 3 }),
+      postProblemSolving(token, { jobId: job.id, count: 3 }),
+    ]);
+
+    expect([a.status, b.status].sort()).toEqual([200, 409]);
+
+    const stored = await storedQuestions(job.id, QuestionType.ProblemSolving);
+    expect(stored).toHaveLength(3);
+    expect(new Set(stored.map((q) => q.question)).size).toBe(3);
+  });
+
+  it("does not call the AI a second time after the call itself fails", async () => {
+    const { token, job } = await companyWithJob();
+    mockProblemSolving.mockRejectedValue(Object.assign(new Error("Unauthorized"), { status: 401 }));
+
+    const res = await postProblemSolving(token, { jobId: job.id, count: 2 });
+
+    expect(res.status).toBe(502);
+    expect(mockProblemSolving).toHaveBeenCalledTimes(1);
+    expect(await storedQuestions(job.id, QuestionType.ProblemSolving)).toHaveLength(0);
+  });
+
+  it("keeps a short first reply when the follow-up call fails → 200", async () => {
+    const { token, job } = await companyWithJob();
+    mockProblemSolving
+      .mockResolvedValueOnce(aiReply(reasoningQuestions(3)))
+      .mockRejectedValueOnce(new Error("connect ECONNREFUSED"));
+
+    const res = await postProblemSolving(token, { jobId: job.id, count: 5 });
+
+    expect(res.status).toBe(200);
+    expect(dataOf(res).questions).toHaveLength(3);
+    expect(await storedQuestions(job.id, QuestionType.ProblemSolving)).toHaveLength(3);
+  });
+
+  it("with 29 in the pool asks the AI for 1 and stores 1", async () => {
+    const { token, job } = await companyWithJob();
+    await seedPool(job.id, 29);
+    mockProblemSolving.mockResolvedValueOnce(aiReply(reasoningQuestions(1)));
+
+    const res = await postProblemSolving(token, { jobId: job.id, count: 10 });
+
+    expect(res.status).toBe(200);
+    expect(mockProblemSolving).toHaveBeenCalledWith(expect.objectContaining({ count: 1 }));
+    expect(await storedQuestions(job.id, QuestionType.ProblemSolving)).toHaveLength(30);
   });
 });

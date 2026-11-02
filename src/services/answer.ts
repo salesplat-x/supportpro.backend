@@ -4,8 +4,7 @@ import { Question } from "../entities/Question.js";
 import { Application } from "../entities/Application.js";
 import { User } from "../entities/User.js";
 import { Job } from "../entities/Job.js";
-import { Role } from "../entities/Role.js";
-import { IsNull } from "typeorm";
+import { IsNull, type EntityManager } from "typeorm";
 import {
   NotFoundError,
   ValidationError,
@@ -26,8 +25,8 @@ import {
 } from "../utils/gradedAnswers.js";
 import { MAX_GENERATION_ATTEMPTS } from "../config/assessmentQuestions.js";
 import logger from "../utils/logger.js";
-
-const answerRepo = () => AppDataSource.getRepository(Answer);
+import { claimRowById, STALE_LOCK_INTERVAL } from "../utils/durableJobs.js";
+import { hideAssessmentResultsFromCandidate } from "./application.js";
 
 const questionRepo = () => AppDataSource.getRepository(Question);
 
@@ -51,9 +50,11 @@ const saveOrUpdateAnswer = async (
     jobId?: string | null;
     questionType: QuestionType;
   },
-  responses: IResponse[]
+  responses: IResponse[],
+  manager: EntityManager = AppDataSource.manager
 ): Promise<Answer> => {
-  const answer = await answerRepo().findOne({
+  const repo = manager.getRepository(Answer);
+  const answer = await repo.findOne({
     where: {
       userId: filter.userId,
       roleId: filter.roleId != null ? filter.roleId : IsNull(),
@@ -64,17 +65,17 @@ const saveOrUpdateAnswer = async (
 
   if (answer) {
     answer.responses = responses;
-    return answerRepo().save(answer);
+    return repo.save(answer);
   }
 
-  const newAnswer = answerRepo().create({
+  const newAnswer = repo.create({
     userId: filter.userId,
     roleId: filter.roleId ?? null,
     jobId: filter.jobId ?? null,
     questionType: filter.questionType,
     responses,
   });
-  return answerRepo().save(newAnswer);
+  return repo.save(newAnswer);
 };
 
 export interface AnswerPrescreeningPayload {
@@ -348,7 +349,7 @@ export const evaluatePersonalityType = async (
     throw new ValidationError(`Applications for this job is currently ${job.status}`);
   }
 
-  let application = await applicationRepo().findOne({
+  const application = await applicationRepo().findOne({
     where: { jobId, talentId: userId },
   });
   if (!application) {
@@ -435,23 +436,48 @@ export const evaluatePersonalityType = async (
     throw new ValidationError("OpenAI returned an invalid personality evaluation");
   }
 
-  await saveOrUpdateAnswer(
-    { userId, jobId, questionType: QuestionType.Personality },
-    mergeSubmittedAnswers(answers, responses)
-  );
-
   const user = await userRepo().findOne({ where: { id: userId } });
-  if (user && application.currentStage === ScreeningStage.Personality) {
-    application = await processNextStage(user, application, ScreeningStage.Personality, aiConfig);
-  }
-  application.mbtiType = mbtiType;
-  application = await applicationRepo().save(application);
 
-  // Day 6: right after the MBTI type is saved, the AI judges how it fits the
-  // job. Only reached when the personality check is on (checked above).
-  application = await savePersonalityFit(application, job, mbtiType);
+  // Claim the result first so a parallel submit that lost never moves the stage
+  // or starts the match verdict, then write only the columns this flow changes:
+  // a full save would write back stale scores saved while the AI ran. The row
+  // stays locked until commit, so the match verdict reads the committed result.
+  await AppDataSource.transaction(async (manager) => {
+    const claimed = await manager.update(
+      Application,
+      { id: application.id, mbtiType: IsNull() },
+      { mbtiType }
+    );
+    if (!claimed.affected) {
+      throw new ConflictError("Personality test already completed for this application");
+    }
+    application.mbtiType = mbtiType;
+    if (user && application.currentStage === ScreeningStage.Personality) {
+      const moved = await processNextStage(user, application, ScreeningStage.Personality, aiConfig);
+      await manager.update(Application, moved.id, {
+        currentStage: moved.currentStage,
+        status: moved.status,
+        averageScore: moved.averageScore,
+        rank: moved.rank,
+        matchVerdictStatus: moved.matchVerdictStatus,
+        matchVerdictAttempts: moved.matchVerdictAttempts,
+        matchVerdictNextRetryAt: moved.matchVerdictNextRetryAt,
+        matchVerdictLastError: moved.matchVerdictLastError,
+      });
+    }
+    await saveOrUpdateAnswer(
+      { userId, jobId, questionType: QuestionType.Personality },
+      mergeSubmittedAnswers(answers, responses),
+      manager
+    );
+  });
 
-  return { application, mbtiType, score: mbtiType };
+  // Day 6: the AI judges how the saved type fits the job. The candidate
+  // doesn't wait for it; a failure leaves the fit empty for the recruiter to retry.
+  void savePersonalityFit(application.id);
+
+  const fresh = await applicationRepo().findOneByOrFail({ id: application.id });
+  return { application: hideAssessmentResultsFromCandidate(fresh), mbtiType, score: mbtiType };
 };
 
 /** Reads the AI's fit reply; anything not a 0-100 score with a reason is ignored. */
@@ -479,19 +505,51 @@ export const parsePersonalityFit = (
   return { personalityFitScore, personalityFitReason: personalityFitReason.trim() };
 };
 
-const savePersonalityFit = async (
-  application: Application,
-  job: Job,
-  mbtiType: string
-): Promise<Application> => {
+const CLAIM_PERSONALITY_FIT_SQL = `
+  UPDATE "applications"
+  SET "personalityFitLockedAt" = NOW()
+  WHERE "id" = $1
+    AND "mbtiType" IS NOT NULL
+    AND "personalityFitScore" IS NULL
+    AND ("personalityFitLockedAt" IS NULL OR "personalityFitLockedAt" < NOW() - INTERVAL '${STALE_LOCK_INTERVAL}')
+  RETURNING "id"
+`;
+
+export type PersonalityFitOutcome =
+  | { status: "saved"; personalityFitScore: number; personalityFitReason: string }
+  | { status: "busy" }
+  | { status: "failed" };
+
+/**
+ * Asks the AI how the application's saved MBTI type fits its job and stores the
+ * score and reason. Claims the row first so two callers never both call the AI.
+ * Never throws.
+ */
+export const savePersonalityFit = async (applicationId: string): Promise<PersonalityFitOutcome> => {
   try {
-    const role = job.roleId
-      ? await AppDataSource.getRepository(Role).findOne({ where: { id: job.roleId } })
-      : null;
+    if (!(await claimRowById(CLAIM_PERSONALITY_FIT_SQL, applicationId))) {
+      return { status: "busy" };
+    }
+  } catch (error) {
+    logger.warn(
+      `Personality fit for application ${applicationId}: claim failed: ${errorText(error)}`
+    );
+    return { status: "failed" };
+  }
+
+  try {
+    const application = await applicationRepo().findOne({
+      where: { id: applicationId },
+      relations: { job: { role: true } },
+    });
+    const job = application?.job;
+    if (!application?.mbtiType || !job) return { status: "failed" };
+    const mbtiType = application.mbtiType;
+
     const response = await AI.evaluatePersonalityFit({
       mbtiType,
       job: {
-        title: role?.name ?? null,
+        title: job.role?.name ?? null,
         jobBrief: job.jobBrief,
         requirements: job.requirements ?? null,
         skills: job.skills ?? null,
@@ -502,26 +560,35 @@ const savePersonalityFit = async (
     const fit = parsePersonalityFit(response?.message?.content);
     if (!fit) {
       logger.warn(
-        `Personality fit for application ${application.id}: unusable AI reply, left empty`
+        `Personality fit for application ${applicationId}: unusable AI reply, left empty`
       );
-      return application;
+      return { status: "failed" };
     }
-    Object.assign(application, fit);
-    return await applicationRepo().save(application);
-  } catch (error) {
-    // The MBTI result is already saved; a failed fit call must not undo it.
-    logger.warn(
-      `Personality fit for application ${application.id} failed, left empty: ${
-        error instanceof Error ? error.message : String(error)
-      }`
+    const result = await applicationRepo().update(
+      { id: applicationId, mbtiType },
+      { ...fit, personalityFitLockedAt: null }
     );
-    return application;
+    return result.affected ? { status: "saved", ...fit } : { status: "failed" };
+  } catch (error) {
+    logger.warn(
+      `Personality fit for application ${applicationId} failed, left empty: ${errorText(error)}`
+    );
+    return { status: "failed" };
+  } finally {
+    await applicationRepo()
+      .update(
+        { id: applicationId, personalityFitScore: IsNull() },
+        { personalityFitLockedAt: null }
+      )
+      .catch((error: unknown) =>
+        logger.warn(
+          `Personality fit for application ${applicationId}: unlock failed: ${errorText(error)}`
+        )
+      );
   }
 };
 
-// ---------------------------------------------------------------------------
-// Problem-solving and culture-fit answers and scoring (plan Day 4)
-// ---------------------------------------------------------------------------
+const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 type CompanyAssessmentType = QuestionType.ProblemSolving | QuestionType.CultureFit;
 
@@ -545,11 +612,6 @@ export interface CompanyAssessmentAnswersPayload {
   answers: Record<string, string>;
 }
 
-/**
- * Grades every answer, calling the AI up to MAX_GENERATION_ATTEMPTS times and
- * asking again only for answers still without a usable grade. Returns null if
- * any answer is still ungraded, so nothing partial is ever saved.
- */
 const gradeAllAnswers = async (
   type: CompanyAssessmentType,
   items: AI.CompanyAssessmentAnswerItem[]
@@ -567,24 +629,18 @@ const gradeAllAnswers = async (
       );
       for (const grade of parsed) graded.set(grade.questionId, grade);
     } catch (err) {
-      // A failed call or an unusable reply: log it and try again for what is missing.
-      const what = err instanceof GradedAnswersParseError ? "reply unusable" : "call failed";
+      const unusable = err instanceof GradedAnswersParseError;
       logger.warn(
-        `AI ${label} grading ${what} (attempt ${attempt}/${MAX_GENERATION_ATTEMPTS}): ${
+        `AI ${label} grading ${unusable ? "reply unusable" : "call failed"} (attempt ${attempt}/${MAX_GENERATION_ATTEMPTS}): ${
           err instanceof Error ? err.message : String(err)
         }`
       );
+      if (!unusable) break;
     }
   }
   return graded.size === items.length ? graded : null;
 };
 
-/**
- * A candidate submits answers to the problem-solving or culture-fit questions
- * they were given. Each answer is graded 0-5 against its question's criteria;
- * the score is the total over the most possible, as a percentage, saved on the
- * application. One submission per test; the candidate isn't shown the score.
- */
 export const submitCompanyAssessmentAnswers = async (
   userId: string,
   type: CompanyAssessmentType,
@@ -616,6 +672,18 @@ export const submitCompanyAssessmentAnswers = async (
     throw new ValidationError(`Load your ${settings.label} questions before answering them`);
   }
 
+  const questions = await questionRepo()
+    .createQueryBuilder("q")
+    .whereInIds(assignedIds)
+    .andWhere("q.job_id = :jobId", { jobId })
+    .andWhere("q.type = :type", { type })
+    .getMany();
+  if (questions.length !== assignedIds.length) {
+    throw new ValidationError(
+      `Some of your ${settings.label} questions are no longer available. Please reload them and answer again.`
+    );
+  }
+
   const assigned = new Set(assignedIds);
   const answeredIds = Object.keys(answers);
   if (answeredIds.some((id) => !assigned.has(id))) {
@@ -625,18 +693,6 @@ export const submitCompanyAssessmentAnswers = async (
   if (missing.length > 0) {
     throw new ValidationError(
       `Please answer all ${assignedIds.length} ${settings.label} questions (${missing.length} missing)`
-    );
-  }
-
-  const questions = await questionRepo()
-    .createQueryBuilder("q")
-    .whereInIds(assignedIds)
-    .andWhere("q.job_id = :jobId", { jobId })
-    .andWhere("q.type = :type", { type })
-    .getMany();
-  if (questions.length !== assignedIds.length) {
-    throw new ValidationError(
-      `Some of your ${settings.label} questions are no longer available. Please contact the recruiter.`
     );
   }
 
@@ -658,10 +714,28 @@ export const submitCompanyAssessmentAnswers = async (
   }
 
   const ordered = assignedIds.map((id) => graded.get(id)!);
-  application[settings.score] = scorePercent(ordered.map((g) => g.score));
+  const score = scorePercent(ordered.map((g) => g.score));
 
   await AppDataSource.transaction(async (manager) => {
-    await manager.save(Application, application);
+    const locked = await manager.findOne(Application, {
+      where: { id: application.id },
+      lock: { mode: "pessimistic_write" },
+    });
+    if (!locked) {
+      throw new NotFoundError("Application not found");
+    }
+    if (locked[settings.score] !== null) {
+      throw new ConflictError(`You have already submitted your ${settings.label} answers`);
+    }
+    if ((locked[settings.assigned] ?? []).join(",") !== assignedIds.join(",")) {
+      throw new ValidationError(
+        `Your ${settings.label} questions have changed. Please reload them and answer again.`
+      );
+    }
+    await manager.query(`UPDATE "applications" SET "${settings.score}" = $1 WHERE id = $2`, [
+      score,
+      application.id,
+    ]);
     await manager.save(
       Answer,
       manager.create(Answer, {

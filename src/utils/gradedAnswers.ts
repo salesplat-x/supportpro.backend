@@ -1,10 +1,5 @@
-// Reads the AI's grades for problem-solving and culture-fit answers (plan Day 4).
-// Anything unusable is dropped, never guessed, so the caller can ask again for
-// just the answers that are still missing a grade.
-
 export interface GradedAnswer {
   questionId: string;
-  /** Whole number from 0 (no evidence of the criteria) to MAX_ANSWER_SCORE (fully meets them). */
   score: number;
   feedback: string;
 }
@@ -24,12 +19,6 @@ const stripCodeFence = (text: string): string => {
   return match ? match[1]! : text;
 };
 
-/**
- * Parses `{ "grades": [{ "questionId", "score", "feedback" }] }`. Keeps only
- * grades for `expectedIds`, with a whole-number score from 0 to 5; the first
- * grade wins if a question is graded twice. Throws GradedAnswersParseError
- * when the reply isn't JSON or has no grades list.
- */
 export const parseGradedAnswers = (
   content: string | null | undefined,
   expectedIds: string[]
@@ -75,7 +64,6 @@ export const parseGradedAnswers = (
   return result;
 };
 
-/** The scoring rule: total of the 0-5 grades over the most possible, as a percentage (2 decimals). */
 export const scorePercent = (scores: number[]): number | null => {
   if (scores.length === 0) return null;
   const total = scores.reduce((sum, s) => sum + s, 0);

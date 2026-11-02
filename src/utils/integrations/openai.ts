@@ -1093,12 +1093,9 @@ ${JSON.stringify(context.questions, null, 2)}`;
 
 export interface ProblemSolvingQuestionsContext {
   count: number;
-  /** Questions already in the job's pool, so new ones don't repeat them. */
   avoid?: string[];
 }
 
-// Problem-solving questions test reasoning, whatever the job — so nothing about
-// the job is sent: the same questions are fair for a driver and a data analyst.
 export const generateProblemSolvingQuestions = async (
   context: ProblemSolvingQuestionsContext
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
@@ -1141,7 +1138,6 @@ export interface CultureFitQuestionsContext {
   companyValues: string[];
   companyName?: string | null;
   jobBrief?: string | null;
-  /** Questions already in the job's pool, so new ones don't repeat them. */
   avoid?: string[];
 }
 
@@ -1204,17 +1200,11 @@ Generate ${count} culture-fit question${count > 1 ? "s" : ""}.${avoidText}`;
   return completion.choices[0];
 };
 
-// ---------------------------------------------------------------------------
-// Day 4: grading problem-solving and culture-fit answers
-// ---------------------------------------------------------------------------
-
 export interface CompanyAssessmentAnswerItem {
   questionId: string;
   question: string;
-  /** What a strong answer shows, written when the question was generated. */
   criteria: string;
   answer: string;
-  /** Culture-fit only: the company value the question tests. */
   companyValue?: string | null;
 }
 
@@ -1264,6 +1254,42 @@ Output JSON only:
     model: "gpt-4o",
     temperature: 0,
     response_format: { type: "json_object" },
+  });
+  return completion.choices[0];
+};
+
+const COMPANY_PROFILE_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["mission", "vision", "yearlyGoals"],
+  properties: {
+    mission: { type: ["string", "null"] },
+    vision: { type: ["string", "null"] },
+    yearlyGoals: { type: "array", items: { type: "string" } },
+  },
+};
+
+export const extractCompanyProfile = async (
+  documentText: string
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const prompt = `You read a company's own document, such as a company profile, pitch deck or annual report, and pull out three things for its HR team to check.
+
+- mission: what the company does and for whom, in one or two plain sentences.
+- vision: where the company wants to be in the long run, in one or two plain sentences.
+- yearlyGoals: up to 5 concrete goals for this year, each one short sentence.
+
+Use the document's own meaning and wording where you can. Use null, or an empty list, for anything the document does not say. Never invent facts, numbers or names.`;
+
+  const completion = await runCompletion({
+    messages: [
+      { role: "system", content: prompt },
+      { role: "user", content: documentText },
+    ],
+    model: "gpt-4o",
+    response_format: {
+      type: "json_schema",
+      json_schema: { name: "company_profile", strict: true, schema: COMPANY_PROFILE_SCHEMA },
+    },
   });
   return completion.choices[0];
 };

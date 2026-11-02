@@ -1,3 +1,4 @@
+import { MAX_ANSWER_SCORE } from "../utils/gradedAnswers.js";
 import { Not, IsNull, In, type FindOptionsRelations } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { AIConfig } from "../entities/AIConfig.js";
@@ -108,11 +109,6 @@ type StoredGradedResponse = {
   feedback?: string;
 };
 
-/**
- * The candidate's graded problem-solving or culture-fit answers, in the order
- * they were asked, for the recruiter's view (plan Day 5). Each answer carries
- * the AI's 0-5 grade and its one-line feedback. Never sent to the candidate.
- */
 export const buildGradedAnswerPairs = async (
   jobId: string,
   userId: string,
@@ -130,7 +126,7 @@ export const buildGradedAnswerPairs = async (
     question: (r.questionId && questionsById.get(r.questionId)) || "Unknown question",
     answer: r.answer ?? "",
     score: typeof r.score === "number" ? r.score : null,
-    maxScore: 5,
+    maxScore: MAX_ANSWER_SCORE,
     feedback: r.feedback ?? null,
   }));
 };

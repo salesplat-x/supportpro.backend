@@ -130,7 +130,6 @@ export const acceptOrganizationInvite = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "You have joined the company", { organization: result });
 };
 
-/** Day 8: public Indeed XML feed of the company's open jobs (404 unless switched on). */
 export const getJobFeed = async (req: Request, res: Response) => {
   const xml = await buildIndeedFeed(req.params["_id"]!);
   res.status(200).type("application/xml").send(xml);

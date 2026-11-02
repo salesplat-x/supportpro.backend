@@ -12,6 +12,17 @@ export const avatarUpload = multer({
   limits: { fileSize: 2 * 1024 * 1024 },
 });
 
+export const notarizedScanUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
+
+/** Only the text is read; the document itself is not stored. */
+export const companyDocumentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 },
+});
+
 /** In-memory job description upload — only its text is read, the file is not stored. */
 export const jobDescriptionUpload = multer({
   storage: multer.memoryStorage(),

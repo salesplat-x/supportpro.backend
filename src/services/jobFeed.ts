@@ -5,14 +5,7 @@ import { JobStatus } from "../types/enums.js";
 import { NotFoundError } from "../utils/errors";
 import env from "../config/env.js";
 
-/**
- * Day 8 (plan feature 4): a company's open jobs as an Indeed XML feed
- * (https://docs.indeed.com/indeed-apply/xml-feed). Public, so Indeed can read
- * it. Only served once the company switches indeedFeedEnabled on.
- */
-
 const cdata = (value: string | number | null | undefined): string =>
-  // "]]>" would end the CDATA section early, so split it across two sections.
   `<![CDATA[${String(value ?? "").replace(/]]>/g, "]]]]><![CDATA[>")}]]>`;
 
 const tag = (name: string, value: string | number | null | undefined) =>
@@ -54,7 +47,6 @@ export const buildIndeedFeed = async (organizationId: string): Promise<string> =
     where: { id: organizationId },
   });
   if (!org || !org.indeedFeedEnabled) {
-    // Same answer for "no such company" and "feed off", so the feed reveals nothing.
     throw new NotFoundError("Job feed not found");
   }
 

@@ -1,7 +1,5 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-// Day 4: which problem-solving and culture-fit questions each applicant was
-// given, so they see the same set every time they come back.
 export class AddAssessmentQuestionsToApplications1789001000000 implements MigrationInterface {
   name = "AddAssessmentQuestionsToApplications1789001000000";
 
