@@ -2264,6 +2264,18 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                source:
+                  type: string
+                  maxLength: 50
+                  description: >-
+                    Where the candidate's link came from: the job link's ?source= (or utm_source), e.g. whatsapp, linkedin, x, facebook, indeed. Saved trimmed and lower-cased on the application.
       responses:
         "200":
           description: Successful response
@@ -2283,6 +2295,13 @@ paths:
           required: true
           schema:
             type: string
+        - name: source
+          in: query
+          required: false
+          description: Only applicants whose source matches (case-insensitive), e.g. whatsapp.
+          schema:
+            type: string
+            maxLength: 50
         - name: experience
           in: query
           required: false
@@ -2808,6 +2827,11 @@ paths:
                             nullable: true
                             description: >-
                               Culture-fit result as a percentage (null until taken). Not sent to the candidate.
+                          source:
+                            type: string
+                            nullable: true
+                            description: >-
+                              Where the applicant's link came from (e.g. whatsapp, linkedin, indeed), lower-cased; null when the link carried none.
                           personalityFitScore:
                             type: number
                             nullable: true
