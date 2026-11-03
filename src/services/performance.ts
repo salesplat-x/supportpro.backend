@@ -1,5 +1,6 @@
 import type { StaffMember } from "../entities/StaffMember.js";
 import type { User } from "../entities/User.js";
+import { weekStartOf, workToday } from "../utils/workCalendar.js";
 import { type DevelopmentView, listDevelopment, toDevelopmentView } from "./development.js";
 import {
   type EfficiencyTipView,
@@ -82,8 +83,8 @@ export const getMyPerformance = async (
   actor: User,
   staffId: string,
   ip: string
-): Promise<PerformanceView> => {
+): Promise<PerformanceView & { currentWeek: string }> => {
   const staff = await findOwnStaff(actor.id, staffId);
   await logPerformanceRead(actor, staff, ip);
-  return loadPerformance(staff, true);
+  return { ...(await loadPerformance(staff, true)), currentWeek: weekStartOf(workToday()) };
 };

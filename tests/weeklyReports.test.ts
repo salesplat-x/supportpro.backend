@@ -214,6 +214,7 @@ describe("manager notes", () => {
       .set(authHeader(report.token))
       .expect(200);
     expect(mine.body.data.performance.reports.items[0].managerNote).toBe("Nice work");
+    expect(mine.body.data.performance.currentWeek).toBe(THIS_WEEK);
   });
 
   it("lets HR stand in", async () => {
