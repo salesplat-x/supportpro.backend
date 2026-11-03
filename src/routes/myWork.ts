@@ -38,6 +38,13 @@ router.get(
   asyncHandler(myWork.openDocument, "load document")
 );
 
+router.get(
+  "/documents/:documentId/pdf",
+  ...employee,
+  validate(myDocumentValidator),
+  asyncHandler(myWork.downloadDocument, "download document")
+);
+
 router.post(
   "/documents/:documentId/sign",
   ...employee,
