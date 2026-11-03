@@ -1386,3 +1386,33 @@ export const suggestGoals = async (input: {
   });
   return completion.choices[0];
 };
+
+const WEEKLY_ADVICE_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["tips"],
+  properties: { tips: { type: "array", items: { type: "string" } } },
+};
+
+export const weeklyAdvice = async (input: {
+  thisWeek: { did: string; blocked: string; nextWeek: string };
+  lastWeek: { did: string; blocked: string; nextWeek: string } | null;
+  goals: Array<{ title: string; progress: number; dueOn: string }>;
+}): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const completion = await runPeopleCompletion({
+    messages: [
+      {
+        role: "system",
+        content: `You coach one employee from their weekly report. Give 3 to 5 short, practical tips for next week, based on what they did, what blocked them, their plan, last week's report if there is one, and their goals. You only suggest: never judge the person or mention pay or employment. ${PEOPLE_DATA_RULE}`,
+      },
+      { role: "user", content: JSON.stringify(input) },
+    ],
+    model: "gpt-4o",
+    max_tokens: 800,
+    response_format: {
+      type: "json_schema",
+      json_schema: { name: "weekly_advice", strict: true, schema: WEEKLY_ADVICE_SCHEMA },
+    },
+  });
+  return completion.choices[0];
+};

@@ -45,6 +45,7 @@ import { PeopleAiClaim } from "../../src/entities/PeopleAiClaim.js";
 import { StaffJobDescription } from "../../src/entities/StaffJobDescription.js";
 import { StaffGoal } from "../../src/entities/StaffGoal.js";
 import { StaffGoalProgressEvent } from "../../src/entities/StaffGoalProgressEvent.js";
+import { StaffWeeklyReport } from "../../src/entities/StaffWeeklyReport.js";
 
 let container: StartedPostgreSqlContainer;
 export let testDataSource: DataSource;
@@ -94,6 +95,7 @@ const ALL_ENTITIES = [
   StaffJobDescription,
   StaffGoal,
   StaffGoalProgressEvent,
+  StaffWeeklyReport,
 ];
 
 export async function startTestDatabase(): Promise<void> {

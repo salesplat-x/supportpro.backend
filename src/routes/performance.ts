@@ -9,6 +9,8 @@ import {
   approveGoalValidator,
   editGoalValidator,
   goalIdValidator,
+  reportNoteValidator,
+  reportsPageValidator,
 } from "../validators/performance.js";
 
 /** The routes HR and a manager share. Only the path's prefix and its parameters differ. */
@@ -54,5 +56,17 @@ export const registerSharedPerformanceRoutes = (
     ...guard,
     validate([...params, ...goalIdValidator]),
     asyncHandler(performance.removeGoal, "remove goal")
+  );
+  router.get(
+    `${prefix}/reports`,
+    ...guard,
+    validate([...params, ...reportsPageValidator]),
+    asyncHandler(performance.reports, "load reports")
+  );
+  router.put(
+    `${prefix}/reports/:weeklyReportId/note`,
+    ...guard,
+    validate([...params, ...reportNoteValidator]),
+    asyncHandler(performance.addReportNote, "save note")
   );
 };

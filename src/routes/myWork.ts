@@ -6,7 +6,15 @@ import { requireVerifiedEmail, validateAccess } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { UserRole } from "../types/enums.js";
 import { registerSharedPerformanceRoutes } from "./performance.js";
-import { goalProgressValidator, managerParams, selfParams } from "../validators/performance.js";
+import { peopleAiLimiter } from "../middleware/rateLimiter.js";
+import {
+  adviceValidator,
+  goalProgressValidator,
+  managerParams,
+  myReportsValidator,
+  selfParams,
+  submitReportValidator,
+} from "../validators/performance.js";
 import {
   myDocumentValidator,
   myStaffValidator,
@@ -67,6 +75,35 @@ router.patch(
   ...employee,
   validate(goalProgressValidator),
   asyncHandler(performance.setGoalProgress, "save progress")
+);
+
+router.get(
+  "/:staffId/reports",
+  ...employee,
+  validate(myReportsValidator),
+  asyncHandler(performance.myReports, "load my reports")
+);
+
+router.put(
+  "/:staffId/reports/:weekStart",
+  ...employee,
+  validate(submitReportValidator),
+  asyncHandler(performance.submitReport, "submit report")
+);
+
+router.post(
+  "/:staffId/reports/:weeklyReportId/advice",
+  ...employee,
+  peopleAiLimiter,
+  validate(adviceValidator),
+  asyncHandler(performance.requestAdvice, "get advice")
+);
+
+router.get(
+  "/:staffId/team",
+  ...employee,
+  validate(selfParams),
+  asyncHandler(performance.myTeam, "load my team")
 );
 
 registerSharedPerformanceRoutes(router, "/:staffId/team/:reportId", employee, managerParams);

@@ -30,6 +30,7 @@ export interface MyWorkRecord {
   startDate: string;
   documentsToSign: { id: string; title: string; sentAt: Date }[];
   signedDocuments: { id: string; title: string; signedAt: Date | null }[];
+  hasTeam: boolean;
   tasks: StaffChecklistTask[];
 }
 
@@ -54,7 +55,7 @@ export const getMyWork = async (userId: string): Promise<MyWorkRecord[]> => {
   if (records.length === 0) return [];
   const staffIds = records.map((staff) => staff.id);
 
-  const [orgs, documents, signedDocuments, tasks, managerNames] = await Promise.all([
+  const [orgs, documents, signedDocuments, tasks, managerNames, managers] = await Promise.all([
     AppDataSource.getRepository(Organization).find({
       where: { id: In(records.map((staff) => staff.organizationId)) },
       select: { id: true, name: true, logoUrl: true },
@@ -74,6 +75,10 @@ export const getMyWork = async (userId: string): Promise<MyWorkRecord[]> => {
       order: CHECKLIST_ORDER,
     }),
     loadManagerNames(records),
+    AppDataSource.getRepository(StaffMember).find({
+      where: { managerId: In(staffIds), endDate: IsNull() },
+      select: { id: true, managerId: true },
+    }),
   ]);
 
   return records.map((staff) => {
@@ -92,6 +97,7 @@ export const getMyWork = async (userId: string): Promise<MyWorkRecord[]> => {
         .filter((doc) => doc.staffId === staff.id)
         .map(({ id, title, signedAt }) => ({ id, title, signedAt })),
       tasks: tasks.filter((task) => task.staffId === staff.id),
+      hasTeam: managers.some((report) => report.managerId === staff.id),
     };
   });
 };

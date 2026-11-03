@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import * as goals from "../services/goals.js";
 import { getMyPerformance, getPerformance } from "../services/performance.js";
 import type { PerformanceScope } from "../services/performanceAccess.js";
+import * as weeklyReports from "../services/weeklyReports.js";
 import { getClientIp } from "../utils/clientIp.js";
 import { sendSuccessResponse } from "../utils/response.js";
 
@@ -102,4 +103,76 @@ export const setGoalProgress = async (req: Request, res: Response) => {
     req.body.progress as number
   );
   sendSuccessResponse(res, "Progress saved", { goal });
+};
+
+const page = (req: Request) => ({
+  limit: Number(req.query["limit"] ?? 10),
+  offset: Number(req.query["offset"] ?? 0),
+});
+
+export const reports = async (req: Request, res: Response) => {
+  const { limit, offset } = page(req);
+  sendSuccessResponse(
+    res,
+    "Reports fetched",
+    await weeklyReports.listReports(scopeOf(req), limit, offset, getClientIp(req))
+  );
+};
+
+export const addReportNote = async (req: Request, res: Response) => {
+  const report = await weeklyReports.addReportNote(
+    scopeOf(req),
+    req.params["weeklyReportId"]!,
+    req.body.note as string,
+    req.body.textVersion as number,
+    req.body.noteVersion as number
+  );
+  sendSuccessResponse(res, "Note saved", { report });
+};
+
+export const myReports = async (req: Request, res: Response) => {
+  const { limit, offset } = page(req);
+  sendSuccessResponse(
+    res,
+    "Reports fetched",
+    await weeklyReports.listMyReports(
+      req.user,
+      req.params["staffId"]!,
+      limit,
+      offset,
+      getClientIp(req)
+    )
+  );
+};
+
+export const submitReport = async (req: Request, res: Response) => {
+  const report = await weeklyReports.submitReport(
+    req.user,
+    req.params["staffId"]!,
+    req.params["weekStart"]!,
+    {
+      did: req.body.did as string,
+      blocked: req.body.blocked as string,
+      nextWeek: req.body.nextWeek as string,
+    }
+  );
+  sendSuccessResponse(res, "Report submitted", { report });
+};
+
+export const requestAdvice = async (req: Request, res: Response) => {
+  const report = await weeklyReports.requestAdvice(
+    req.user,
+    req.params["staffId"]!,
+    req.params["weeklyReportId"]!,
+    getClientIp(req)
+  );
+  sendSuccessResponse(res, "Advice ready", { report });
+};
+
+export const myTeam = async (req: Request, res: Response) => {
+  sendSuccessResponse(
+    res,
+    "Team fetched",
+    await weeklyReports.getMyTeam(req.user, req.params["staffId"]!, getClientIp(req))
+  );
 };

@@ -45,6 +45,7 @@ import { PeopleAiClaim } from "../entities/PeopleAiClaim.js";
 import { StaffJobDescription } from "../entities/StaffJobDescription.js";
 import { StaffGoal } from "../entities/StaffGoal.js";
 import { StaffGoalProgressEvent } from "../entities/StaffGoalProgressEvent.js";
+import { StaffWeeklyReport } from "../entities/StaffWeeklyReport.js";
 
 const databaseConfig: DataSourceOptions = {
   type: "postgres",
@@ -98,6 +99,7 @@ const databaseConfig: DataSourceOptions = {
     StaffJobDescription,
     StaffGoal,
     StaffGoalProgressEvent,
+    StaffWeeklyReport,
   ],
   migrations: [path.join(__dirname, "../migrations/*.{js,ts}")],
   synchronize: false,

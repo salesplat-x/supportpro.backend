@@ -1,6 +1,7 @@
 import { body, param, type ValidationChain } from "express-validator";
 import { MAX_JOB_DESCRIPTION } from "../services/goals.js";
-import { NO_NUL, dateOnly, orgParam, staffParam } from "./staff.js";
+import { MAX_NOTE, MAX_REPORT_FIELD } from "../services/weeklyReports.js";
+import { NO_NUL, dateOnly, orgParam, pagination, staffParam } from "./staff.js";
 
 const NO_LINE_BREAKS = /^[^\r\n]*$/;
 const MAX_KEY_RESULTS = 5;
@@ -87,3 +88,26 @@ export const saveJobDescriptionValidator = [
   longText(body("body"), "Job description", MAX_JOB_DESCRIPTION),
   nullableVersion(),
 ];
+
+const reportIdParam = param("weeklyReportId").isUUID().withMessage("Invalid report id");
+
+export const reportsPageValidator = pagination;
+
+export const reportNoteValidator = [
+  reportIdParam,
+  longText(body("note"), "Note", MAX_NOTE),
+  versionField("textVersion"),
+  versionField("noteVersion"),
+];
+
+export const myReportsValidator = [...selfParams, ...pagination];
+
+export const submitReportValidator = [
+  ...selfParams,
+  dateOnly(param("weekStart"), "Week"),
+  longText(body("did"), "What you did", MAX_REPORT_FIELD),
+  longText(body("blocked"), "What blocked you", MAX_REPORT_FIELD, true),
+  longText(body("nextWeek"), "Next week", MAX_REPORT_FIELD, true),
+];
+
+export const adviceValidator = [...selfParams, reportIdParam];

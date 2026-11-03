@@ -372,6 +372,10 @@ export const suggestGoals = async (scope: PerformanceScope, ip: string): Promise
   }
 
   return withAiClaim(`goals:${staff.id}`, async () => {
+    const finished = await aiDrafts(AppDataSource.manager, staff.id);
+    if (finished.length > 0) {
+      return finished.map(toGoalView);
+    }
     const [company, currentGoals] = await Promise.all([
       companyOf(staff),
       goalsRepo().find({ where: { staffId: staff.id, status: Not(GoalStatus.Draft) } }),
