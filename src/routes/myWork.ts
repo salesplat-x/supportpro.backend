@@ -1,9 +1,12 @@
 import { Router } from "express";
 import * as myWork from "../controllers/myWork.js";
+import * as performance from "../controllers/performance.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { requireVerifiedEmail, validateAccess } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { UserRole } from "../types/enums.js";
+import { registerSharedPerformanceRoutes } from "./performance.js";
+import { goalProgressValidator, managerParams, selfParams } from "../validators/performance.js";
 import {
   myDocumentValidator,
   myStaffValidator,
@@ -51,5 +54,21 @@ router.post(
   validate(signMyDocumentValidator),
   asyncHandler(myWork.signDocument, "sign document")
 );
+
+router.get(
+  "/:staffId/performance",
+  ...employee,
+  validate(selfParams),
+  asyncHandler(performance.myPerformance, "load my performance")
+);
+
+router.patch(
+  "/:staffId/goals/:goalId/progress",
+  ...employee,
+  validate(goalProgressValidator),
+  asyncHandler(performance.setGoalProgress, "save progress")
+);
+
+registerSharedPerformanceRoutes(router, "/:staffId/team/:reportId", employee, managerParams);
 
 export default (app: Router) => app.use("/my-work", router);

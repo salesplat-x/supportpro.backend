@@ -1,13 +1,16 @@
 import { Router } from "express";
 import * as contracts from "../controllers/contracts.js";
 import * as pay from "../controllers/pay.js";
+import * as performance from "../controllers/performance.js";
 import * as staff from "../controllers/staff.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { validateAccess, requireVerifiedEmail } from "../middleware/auth.js";
 import { companyDocumentUpload, notarizedScanUpload } from "../middleware/multer.js";
-import { staffWriteLimiter } from "../middleware/rateLimiter.js";
+import { peopleAiLimiter, staffWriteLimiter } from "../middleware/rateLimiter.js";
 import { validate } from "../middleware/validate.js";
 import { UserRole } from "../types/enums.js";
+import { registerSharedPerformanceRoutes } from "./performance.js";
+import { hrParams, saveJobDescriptionValidator } from "../validators/performance.js";
 import {
   accessLogValidator,
   addTaskValidator,
@@ -353,6 +356,23 @@ router.delete(
   ...recruiter,
   validate(taskIdValidator),
   asyncHandler(staff.deleteTask, "remove task")
+);
+
+registerSharedPerformanceRoutes(router, "/:staffId/performance", recruiter, hrParams);
+
+router.post(
+  "/:staffId/job-description/write",
+  ...recruiter,
+  peopleAiLimiter,
+  validate(hrParams),
+  asyncHandler(performance.writeJobDescription, "write the job description")
+);
+
+router.put(
+  "/:staffId/job-description",
+  ...recruiter,
+  validate(saveJobDescriptionValidator),
+  asyncHandler(performance.saveJobDescription, "save the job description")
 );
 
 export default (app: Router) => app.use("/organizations/:_id/staff", router);

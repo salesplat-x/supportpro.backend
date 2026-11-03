@@ -45,6 +45,9 @@ import { CommissionPlan } from "../entities/CommissionPlan.js";
 import { StaffDocument } from "../entities/StaffDocument.js";
 import { StaffChecklistTask } from "../entities/StaffChecklistTask.js";
 import { PeopleAiClaim } from "../entities/PeopleAiClaim.js";
+import { StaffJobDescription } from "../entities/StaffJobDescription.js";
+import { StaffGoal } from "../entities/StaffGoal.js";
+import { StaffGoalProgressEvent } from "../entities/StaffGoalProgressEvent.js";
 
 const ALL_ENTITIES = [
   User,
@@ -88,6 +91,9 @@ const ALL_ENTITIES = [
   StaffDocument,
   StaffChecklistTask,
   PeopleAiClaim,
+  StaffJobDescription,
+  StaffGoal,
+  StaffGoalProgressEvent,
 ];
 
 async function run(): Promise<void> {
