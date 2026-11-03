@@ -102,13 +102,17 @@ export const issueInvite = (staff: StaffMember, actor: Actor): string => {
   return token;
 };
 
-export const withTimeout = async <T>(work: Promise<T>, ms: number): Promise<T> => {
+export const withTimeout = async <T>(
+  work: Promise<T>,
+  ms: number,
+  message = "The email provider did not respond"
+): Promise<T> => {
   let timer: NodeJS.Timeout | undefined;
   try {
     return await Promise.race([
       work,
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error("The email provider did not respond")), ms);
+        timer = setTimeout(() => reject(new Error(message)), ms);
       }),
     ]);
   } finally {

@@ -32,6 +32,12 @@ export enum DocumentStatus {
   where: `"status" = 'sent'`,
 })
 @Index("IDX_staff_documents_staff", ["staffId", "sentAt"])
+@Index("IDX_staff_documents_signed_file_hash", ["signedFileHash"], {
+  where: `"signed_file_hash" IS NOT NULL`,
+})
+@Index("IDX_staff_documents_finalize_due", ["finalizeNextRetryAt"], {
+  where: `"finalized_at" IS NULL AND "finalize_next_retry_at" IS NOT NULL`,
+})
 export class StaffDocument {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
@@ -92,6 +98,39 @@ export class StaffDocument {
 
   @Column({ type: "varchar", length: 64, name: "check_code", nullable: true })
   checkCode!: string | null;
+
+  @Column({ type: "smallint", name: "check_code_version", default: 1 })
+  checkCodeVersion!: number;
+
+  @Column({ type: "varchar", length: 32, name: "check_stamp", nullable: true })
+  checkStamp!: string | null;
+
+  @Column({ type: "varchar", length: 300, name: "signed_file_key", nullable: true })
+  signedFileKey!: string | null;
+
+  @Column({ type: "varchar", length: 64, name: "signed_file_hash", nullable: true })
+  signedFileHash!: string | null;
+
+  @Column({ type: "timestamptz", name: "employee_copy_sent_at", nullable: true })
+  employeeCopySentAt!: Date | null;
+
+  @Column({ type: "timestamptz", name: "company_copy_sent_at", nullable: true })
+  companyCopySentAt!: Date | null;
+
+  @Column({ type: "timestamptz", name: "finalized_at", nullable: true })
+  finalizedAt!: Date | null;
+
+  @Column({ type: "integer", name: "finalize_attempts", default: 0 })
+  finalizeAttempts!: number;
+
+  @Column({ type: "timestamptz", name: "finalize_next_retry_at", nullable: true })
+  finalizeNextRetryAt!: Date | null;
+
+  @Column({ type: "timestamptz", name: "finalize_locked_at", nullable: true })
+  finalizeLockedAt!: Date | null;
+
+  @Column({ type: "text", name: "finalize_error", nullable: true })
+  finalizeError!: string | null;
 
   @Column({ type: "boolean", name: "needs_notarization", default: false })
   needsNotarization!: boolean;

@@ -94,7 +94,7 @@ export const deleteFromSpaces = async (key: string): Promise<void> => {
 };
 
 export const spacesKeyFor = (
-  prefix: "avatars" | "cvs" | "logos" | "scout-cvs" | "notarized-scans",
+  prefix: "avatars" | "cvs" | "logos" | "scout-cvs" | "notarized-scans" | "signed-documents",
   ownerId: string,
   originalname: string
 ): string => {

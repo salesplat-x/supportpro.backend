@@ -289,6 +289,14 @@ router.post(
   asyncHandler(contracts.resend, "send document again")
 );
 
+router.post(
+  "/:staffId/documents/:documentId/finalize",
+  ...recruiter,
+  staffWriteLimiter,
+  validate(staffDocumentValidator),
+  asyncHandler(contracts.retryFinalization, "finish the signed copy")
+);
+
 router.get(
   "/:staffId/documents/:documentId/pdf",
   ...recruiter,

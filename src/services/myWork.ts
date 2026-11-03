@@ -158,9 +158,9 @@ export const signMyDocument = async (
   signerName: string,
   ip: string
 ): Promise<SignedCopy> => {
-  const { doc, staff } = await AppDataSource.transaction(async (em) => {
+  const { doc } = await AppDataSource.transaction(async (em) => {
     const owned = await findOwnDocument(userId, documentId, em, true);
     return signLockedDocument(em, owned.doc, signerName, ip);
   });
-  return finishSigning(doc, staff);
+  return finishSigning(doc);
 };

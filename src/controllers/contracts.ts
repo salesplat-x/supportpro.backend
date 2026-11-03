@@ -81,6 +81,16 @@ export const signWithLink = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Document signed", { signed });
 };
 
+export const retryFinalization = async (req: Request, res: Response) => {
+  const document = await contracts.retryFinalization(
+    req.user,
+    orgId(req),
+    staffId(req),
+    documentId(req)
+  );
+  sendSuccessResponse(res, "Tried finishing the signed copy again", { document });
+};
+
 export const setNotarization = async (req: Request, res: Response) => {
   const document = await contracts.setNeedsNotarization(
     req.user,
