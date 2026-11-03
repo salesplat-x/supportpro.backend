@@ -45,7 +45,7 @@ const EMAIL_TIMEOUT_MS = 10_000;
 const LOGO_TIMEOUT_MS = 5_000;
 const STORAGE_TIMEOUT_MS = 15_000;
 const LINK_GONE = "This link has expired or was already used";
-const CHECK_CODE_VERSION = 2;
+export const CHECK_CODE_VERSION = 2;
 const FIRST_SWEEP_DELAY_MS = 2 * 60 * 1000;
 
 export type DocumentCopyStatus = "none" | "pending" | "failed" | "done";
@@ -429,7 +429,7 @@ export const openSigningLink = async (token: string, ip: string): Promise<Signin
   return signingViewOf(doc, staff);
 };
 
-const checkCodeOf = (doc: StaffDocument): string =>
+export const checkCodeOf = (doc: StaffDocument): string =>
   sha256(
     JSON.stringify([
       doc.id,

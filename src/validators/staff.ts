@@ -330,6 +330,15 @@ export const documentTokenValidator = [
     .withMessage("This link has expired or was already used"),
 ];
 
+export const documentCheckValidator = [
+  body("documentId").isUUID().withMessage("Enter the document ID from the signature page"),
+  body("checkCode")
+    .isString()
+    .trim()
+    .matches(/^[a-fA-F0-9]{64}$/)
+    .withMessage("Enter the 64-character check code from the signature page"),
+];
+
 export const signDocumentValidator = [
   ...documentTokenValidator,
   text(body("fullName"), "Full name"),

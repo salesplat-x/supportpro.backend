@@ -9,7 +9,7 @@ import {
 } from "./helpers/db.js";
 import { StaffAccessLog, StaffActivity, StaffDocument } from "../src/entities";
 import { StaffAccessResource } from "../src/entities/StaffAccessLog.js";
-import { reconcileDueDocumentFinalization } from "../src/services/contracts.js";
+import { checkCodeOf, reconcileDueDocumentFinalization } from "../src/services/contracts.js";
 import { apiData } from "./helpers/http.js";
 import { addMember, authHeader, setupCompany } from "./helpers/company.js";
 import { createStaff, setPay, staffPath, today } from "./helpers/staff.js";
@@ -596,6 +596,116 @@ describe("finishing a signed document", () => {
       .get(staffPath(org.id, `/${staff.id}/documents`))
       .set(authHeader(owner.token));
     expect(list.body.data.documents[0].copyStatus).toBe("done");
+  });
+});
+
+describe("checking a signed document", () => {
+  const signedPdfAndDoc = async () => {
+    const company = await companyWithStaff();
+    await send(company.owner.token, company.org.id, company.staff.id).expect(201);
+    await signLink(lastSigningToken()).expect(200);
+    const doc = await testDataSource
+      .getRepository(StaffDocument)
+      .findOneOrFail({ where: { staffId: company.staff.id } });
+    const [[pdf]] = spacesMocks().uploadPrivateToSpaces.mock.calls as [[Buffer, string]];
+    return { ...company, doc, pdf };
+  };
+
+  const checkCode = (documentId: string, checkCode: string) =>
+    request(app).post("/v1/document-checks").send({ documentId, checkCode });
+
+  const checkFile = (file: Buffer, contentType = "application/pdf") =>
+    request(app)
+      .post("/v1/document-checks/file")
+      .attach("file", file, { filename: "signed.pdf", contentType });
+
+  it("confirms the right code with a limited summary and logs the check", async () => {
+    const { doc, staff } = await signedPdfAndDoc();
+    const res = await checkCode(doc.id, doc.checkCode!.toUpperCase()).set("CF-Connecting-IP", IP);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.check).toMatchObject({
+      result: "verified",
+      companyName: expect.any(String),
+      title: "Confidentiality agreement",
+      signerName: "Ada N. Obi",
+    });
+    expect(JSON.stringify(res.body)).not.toContain(IP);
+    expect(JSON.stringify(res.body)).not.toContain(doc.bodyText.slice(0, 30));
+    const lines = await testDataSource
+      .getRepository(StaffAccessLog)
+      .find({ where: { staffId: staff.id, actorName: "Document check page" } });
+    expect(lines).toHaveLength(1);
+  });
+
+  it("gives the same reply for a wrong code, an unknown id and an unknown file", async () => {
+    const { doc, pdf } = await signedPdfAndDoc();
+    const changedFile = Buffer.concat([pdf, Buffer.from(" ")]);
+
+    const replies = await Promise.all([
+      checkCode(doc.id, "a".repeat(64)),
+      checkCode("7c9e6679-7425-40de-944b-e07fc1f90ae7", doc.checkCode!),
+      checkFile(changedFile),
+    ]);
+    expect(replies.map((res) => res.status)).toEqual([404, 404, 404]);
+    expect(new Set(replies.map((res) => res.body.error.message)).size).toBe(1);
+    expect(
+      await testDataSource
+        .getRepository(StaffAccessLog)
+        .count({ where: { actorName: "Document check page" } })
+    ).toBe(0);
+  });
+
+  it("confirms the exact stored file", async () => {
+    const { pdf } = await signedPdfAndDoc();
+    const res = await checkFile(pdf);
+    expect(res.status).toBe(200);
+    expect(res.body.data.check.result).toBe("verified");
+  });
+
+  it("flags a stored record that no longer matches its code", async () => {
+    const { doc } = await signedPdfAndDoc();
+    await testDataSource.getRepository(StaffDocument).update(doc.id, { bodyText: "Changed terms" });
+    const res = await checkCode(doc.id, doc.checkCode!);
+    expect(res.status).toBe(200);
+    expect(res.body.data.check.result).toBe("changed");
+  });
+
+  it("gives older documents a limited check and never calls them changed", async () => {
+    const { doc } = await signedPdfAndDoc();
+    await testDataSource
+      .getRepository(StaffDocument)
+      .update(doc.id, { checkCodeVersion: 1, checkStamp: null });
+    const res = await checkCode(doc.id, doc.checkCode!);
+    expect(res.status).toBe(200);
+    expect(res.body.data.check.result).toBe("limited");
+  });
+
+  it("never matches a document that is not signed yet", async () => {
+    const company = await companyWithStaff();
+    await send(company.owner.token, company.org.id, company.staff.id).expect(201);
+    const doc = await testDataSource
+      .getRepository(StaffDocument)
+      .findOneOrFail({ where: { staffId: company.staff.id } });
+    expect((await checkCode(doc.id, "a".repeat(64))).status).toBe(404);
+  });
+
+  it("refuses bad input, other file types and files over 5 MB", async () => {
+    expect((await checkCode("not-a-uuid", "a".repeat(64))).status).toBe(400);
+    expect((await checkCode("7c9e6679-7425-40de-944b-e07fc1f90ae7", "short")).status).toBe(400);
+    expect((await checkFile(Buffer.from("x"), "text/plain")).status).toBe(400);
+    expect((await checkFile(Buffer.alloc(5 * 1024 * 1024 + 1))).status).toBe(400);
+    expect((await checkFile(Buffer.alloc(5 * 1024 * 1024))).status).toBe(404);
+  });
+
+  it("cannot be tricked by moving text between fields", async () => {
+    const { doc } = await signedPdfAndDoc();
+    const shifted = {
+      ...doc,
+      title: `${doc.title}\n${doc.bodyText}`,
+      bodyText: "",
+    } as StaffDocument;
+    expect(checkCodeOf(shifted)).not.toBe(doc.checkCode);
   });
 });
 

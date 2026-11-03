@@ -78,3 +78,13 @@ export const documentLinkLimiter = rateLimit({
   message: { status: false, message: "Too many attempts, please try again later." },
   skip: () => env.app_env === "test",
 });
+
+export const documentCheckLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: clientIpKey,
+  message: { status: false, message: "Too many attempts, please try again later." },
+  skip: () => env.app_env === "test",
+});
