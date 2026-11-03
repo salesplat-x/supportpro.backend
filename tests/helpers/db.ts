@@ -48,6 +48,8 @@ import { StaffGoalProgressEvent } from "../../src/entities/StaffGoalProgressEven
 import { StaffWeeklyReport } from "../../src/entities/StaffWeeklyReport.js";
 import { StaffDevelopmentItem } from "../../src/entities/StaffDevelopmentItem.js";
 import { StaffMonthlyFeedback } from "../../src/entities/StaffMonthlyFeedback.js";
+import { StaffEfficiencyTip } from "../../src/entities/StaffEfficiencyTip.js";
+import { CompanyQuarterGoal } from "../../src/entities/CompanyQuarterGoal.js";
 
 let container: StartedPostgreSqlContainer;
 export let testDataSource: DataSource;
@@ -100,6 +102,8 @@ const ALL_ENTITIES = [
   StaffWeeklyReport,
   StaffDevelopmentItem,
   StaffMonthlyFeedback,
+  StaffEfficiencyTip,
+  CompanyQuarterGoal,
 ];
 
 export async function startTestDatabase(): Promise<void> {

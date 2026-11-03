@@ -10,7 +10,12 @@ import { peopleAiLimiter, staffWriteLimiter } from "../middleware/rateLimiter.js
 import { validate } from "../middleware/validate.js";
 import { UserRole } from "../types/enums.js";
 import { registerSharedPerformanceRoutes } from "./performance.js";
-import { hrParams, saveJobDescriptionValidator } from "../validators/performance.js";
+import {
+  hrParams,
+  quarterGoalValidator,
+  quarterlyReviewValidator,
+  saveJobDescriptionValidator,
+} from "../validators/performance.js";
 import {
   accessLogValidator,
   addTaskValidator,
@@ -73,6 +78,20 @@ router.get(
   ...recruiter,
   validate(companyParamValidator),
   asyncHandler(staff.orgChart, "load the org chart")
+);
+
+router.get(
+  "/quarterly-review",
+  ...recruiter,
+  validate(quarterlyReviewValidator),
+  asyncHandler(performance.quarterlyReview, "load the quarterly review")
+);
+
+router.put(
+  "/quarterly-review/goal",
+  ...recruiter,
+  validate(quarterGoalValidator),
+  asyncHandler(performance.quarterGoal, "save the revenue goal")
 );
 
 router.get(

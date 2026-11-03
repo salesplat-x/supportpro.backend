@@ -50,3 +50,5 @@ export {
   DevelopmentSource,
 } from "./StaffDevelopmentItem.js";
 export { StaffMonthlyFeedback } from "./StaffMonthlyFeedback.js";
+export { StaffEfficiencyTip } from "./StaffEfficiencyTip.js";
+export { CompanyQuarterGoal } from "./CompanyQuarterGoal.js";

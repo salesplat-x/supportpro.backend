@@ -1460,3 +1460,33 @@ export const suggestDevelopmentItems = async (input: {
   });
   return completion.choices[0];
 };
+
+const EFFICIENCY_TIP_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["tip"],
+  properties: { tip: { type: "string" } },
+};
+
+export const efficiencyTip = async (input: {
+  jobTitle: string;
+  score: number;
+  parts: Array<{ key: string; value: number | null }>;
+}): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const completion = await runPeopleCompletion({
+    messages: [
+      {
+        role: "system",
+        content: `You read one employee's efficiency score out of 100 and its parts: goal progress, weekly reports submitted and manager rating, each out of 100. A null part has no data yet. Write one short, practical tip for what would help most. You only suggest: never judge the person or mention pay or employment. ${PEOPLE_DATA_RULE}`,
+      },
+      { role: "user", content: JSON.stringify(input) },
+    ],
+    model: "gpt-4o",
+    max_tokens: 300,
+    response_format: {
+      type: "json_schema",
+      json_schema: { name: "efficiency_tip", strict: true, schema: EFFICIENCY_TIP_SCHEMA },
+    },
+  });
+  return completion.choices[0];
+};

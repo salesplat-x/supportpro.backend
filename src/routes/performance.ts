@@ -98,6 +98,13 @@ export const registerSharedPerformanceRoutes = (
     validate([...params, ...developmentIdValidator]),
     asyncHandler(performance.removeDevelopmentItem, "remove plan item")
   );
+  router.post(
+    `${prefix}/efficiency-tip`,
+    ...guard,
+    peopleAiLimiter,
+    validate(params),
+    asyncHandler(performance.efficiencyTip, "get a tip")
+  );
   router.put(
     `${prefix}/feedback/:month`,
     ...guard,

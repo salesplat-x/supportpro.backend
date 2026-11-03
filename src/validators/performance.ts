@@ -1,6 +1,7 @@
-import { body, param, type ValidationChain } from "express-validator";
+import { body, param, query, type ValidationChain } from "express-validator";
 import { MAX_JOB_DESCRIPTION } from "../services/goals.js";
 import { DevelopmentStatus } from "../entities/StaffDevelopmentItem.js";
+import { Currency } from "../types/enums.js";
 import { MAX_FEEDBACK_NOTES } from "../services/monthlyFeedback.js";
 import { MAX_NOTE, MAX_REPORT_FIELD } from "../services/weeklyReports.js";
 import { NO_NUL, dateOnly, orgParam, pagination, staffParam } from "./staff.js";
@@ -147,5 +148,31 @@ export const feedbackValidator = [
     .custom((value: unknown) => Number.isInteger(value) && Number(value) >= 1 && Number(value) <= 5)
     .withMessage("Rating must be a whole number from 1 to 5"),
   longText(body("notes"), "Notes", MAX_FEEDBACK_NOTES, true),
+  nullableVersion(),
+];
+
+const MAX_REVENUE = 99_999_999_999_999;
+const QUARTER = /^(19|20|21)\d{2}-Q[1-4]$/;
+const money = (field: string, label: string, min: number) =>
+  body(field)
+    .custom((value: unknown) => typeof value === "number" && value >= min && value <= MAX_REVENUE)
+    .withMessage(`${label} must be a number from ${min} to ${MAX_REVENUE}`);
+
+export const quarterlyReviewValidator = [
+  orgParam,
+  query("quarter")
+    .optional()
+    .custom((value: unknown) => typeof value === "string" && QUARTER.test(value))
+    .withMessage("Quarter must look like 2026-Q4"),
+];
+
+export const quarterGoalValidator = [
+  orgParam,
+  body("quarter")
+    .custom((value: unknown) => typeof value === "string" && QUARTER.test(value))
+    .withMessage("Quarter must look like 2026-Q4"),
+  body("currency").isIn(Object.values(Currency)).withMessage("Choose a valid currency"),
+  money("revenueGoal", "Revenue goal", 0.01),
+  money("revenueSoFar", "Revenue so far", 0),
   nullableVersion(),
 ];

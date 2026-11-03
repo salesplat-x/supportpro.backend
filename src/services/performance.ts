@@ -1,6 +1,12 @@
 import type { StaffMember } from "../entities/StaffMember.js";
 import type { User } from "../entities/User.js";
 import { type DevelopmentView, listDevelopment, toDevelopmentView } from "./development.js";
+import {
+  type EfficiencyTipView,
+  type EfficiencyView,
+  efficiencyFor,
+  loadEfficiencyTip,
+} from "./efficiency.js";
 import { type FeedbackView, listFeedback } from "./monthlyFeedback.js";
 import {
   type GoalView,
@@ -30,6 +36,11 @@ export interface PerformanceView {
   feedback: FeedbackView[];
 }
 
+export interface ManagedPerformanceView extends PerformanceView {
+  efficiency: EfficiencyView & { quarter: string };
+  efficiencyTip: EfficiencyTipView | null;
+}
+
 const loadPerformance = async (staff: StaffMember, ownView: boolean): Promise<PerformanceView> => {
   const staffId = staff.id;
   const [jobDescription, goals, reports, development, feedback] = await Promise.all([
@@ -54,9 +65,17 @@ const loadPerformance = async (staff: StaffMember, ownView: boolean): Promise<Pe
 export const getPerformance = async (
   scope: PerformanceScope,
   ip: string
-): Promise<PerformanceView> => {
+): Promise<ManagedPerformanceView> => {
   const staff = await openPerformance(scope, ip);
-  return loadPerformance(staff, false);
+  const [performance, efficiency] = await Promise.all([
+    loadPerformance(staff, false),
+    efficiencyFor(staff),
+  ]);
+  return {
+    ...performance,
+    efficiency,
+    efficiencyTip: await loadEfficiencyTip(staff.id, efficiency),
+  };
 };
 
 export const getMyPerformance = async (

@@ -1,10 +1,12 @@
 import { Request, Response } from "express";
 import type { DevelopmentStatus } from "../entities/StaffDevelopmentItem.js";
 import * as development from "../services/development.js";
+import { requestEfficiencyTip } from "../services/efficiency.js";
 import * as goals from "../services/goals.js";
 import { saveFeedback as saveMonthlyFeedback } from "../services/monthlyFeedback.js";
 import { getMyPerformance, getPerformance } from "../services/performance.js";
 import type { PerformanceScope } from "../services/performanceAccess.js";
+import { getQuarterlyReview, saveQuarterGoal } from "../services/quarterlyReview.js";
 import * as weeklyReports from "../services/weeklyReports.js";
 import { getClientIp } from "../utils/clientIp.js";
 import { sendSuccessResponse } from "../utils/response.js";
@@ -229,4 +231,34 @@ export const saveFeedback = async (req: Request, res: Response) => {
     req.body.version as number | null
   );
   sendSuccessResponse(res, "Feedback saved", { feedback });
+};
+
+export const efficiencyTip = async (req: Request, res: Response) => {
+  sendSuccessResponse(res, "Tip ready", {
+    tip: await requestEfficiencyTip(scopeOf(req), getClientIp(req)),
+  });
+};
+
+export const quarterlyReview = async (req: Request, res: Response) => {
+  sendSuccessResponse(
+    res,
+    "Quarterly review fetched",
+    await getQuarterlyReview(
+      req.user,
+      req.params["_id"]!,
+      req.query["quarter"] as string | undefined,
+      getClientIp(req)
+    )
+  );
+};
+
+export const quarterGoal = async (req: Request, res: Response) => {
+  const goal = await saveQuarterGoal(req.user, req.params["_id"]!, {
+    quarter: req.body.quarter as string,
+    currency: req.body.currency as string,
+    revenueGoal: req.body.revenueGoal as number,
+    revenueSoFar: req.body.revenueSoFar as number,
+    version: req.body.version as number | null,
+  });
+  sendSuccessResponse(res, "Revenue goal saved", { goal });
 };
