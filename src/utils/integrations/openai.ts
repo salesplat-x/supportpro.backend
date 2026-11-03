@@ -1416,3 +1416,47 @@ export const weeklyAdvice = async (input: {
   });
   return completion.choices[0];
 };
+
+const DEVELOPMENT_ITEMS_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["items"],
+  properties: {
+    items: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["weakArea", "action", "dueInDays"],
+        properties: {
+          weakArea: { type: "string" },
+          action: { type: "string" },
+          dueInDays: { type: "integer" },
+        },
+      },
+    },
+  },
+};
+
+export const suggestDevelopmentItems = async (input: {
+  jobTitle: string;
+  goals: Array<{ title: string; progress: number; dueOn: string }>;
+  reports: Array<{ did: string; blocked: string }>;
+}): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const completion = await runPeopleCompletion({
+    messages: [
+      {
+        role: "system",
+        content: `You help a manager plan one employee's development. From their goals and recent weekly reports, propose up to 5 items, each naming a weak area, one practical action and the number of days until it is due. The manager decides whether to accept them. Base each on what the data shows and never judge the person. ${PEOPLE_DATA_RULE}`,
+      },
+      { role: "user", content: JSON.stringify(input) },
+    ],
+    model: "gpt-4o",
+    max_tokens: 1000,
+    response_format: {
+      type: "json_schema",
+      json_schema: { name: "development_items", strict: true, schema: DEVELOPMENT_ITEMS_SCHEMA },
+    },
+  });
+  return completion.choices[0];
+};

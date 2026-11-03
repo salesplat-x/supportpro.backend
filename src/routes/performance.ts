@@ -5,9 +5,13 @@ import { asyncHandler } from "../middleware/asyncHandler.js";
 import { peopleAiLimiter } from "../middleware/rateLimiter.js";
 import { validate } from "../middleware/validate.js";
 import {
+  addDevelopmentValidator,
   addGoalValidator,
   approveGoalValidator,
+  developmentIdValidator,
+  editDevelopmentValidator,
   editGoalValidator,
+  feedbackValidator,
   goalIdValidator,
   reportNoteValidator,
   reportsPageValidator,
@@ -68,5 +72,36 @@ export const registerSharedPerformanceRoutes = (
     ...guard,
     validate([...params, ...reportNoteValidator]),
     asyncHandler(performance.addReportNote, "save note")
+  );
+  router.post(
+    `${prefix}/development`,
+    ...guard,
+    validate([...params, ...addDevelopmentValidator]),
+    asyncHandler(performance.addDevelopmentItem, "add plan item")
+  );
+  router.post(
+    `${prefix}/development/suggest`,
+    ...guard,
+    peopleAiLimiter,
+    validate(params),
+    asyncHandler(performance.suggestDevelopmentItems, "suggest plan items")
+  );
+  router.patch(
+    `${prefix}/development/:itemId`,
+    ...guard,
+    validate([...params, ...editDevelopmentValidator]),
+    asyncHandler(performance.editDevelopmentItem, "save plan item")
+  );
+  router.delete(
+    `${prefix}/development/:itemId`,
+    ...guard,
+    validate([...params, ...developmentIdValidator]),
+    asyncHandler(performance.removeDevelopmentItem, "remove plan item")
+  );
+  router.put(
+    `${prefix}/feedback/:month`,
+    ...guard,
+    validate([...params, ...feedbackValidator]),
+    asyncHandler(performance.saveFeedback, "save feedback")
   );
 };

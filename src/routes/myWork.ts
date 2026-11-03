@@ -9,6 +9,7 @@ import { registerSharedPerformanceRoutes } from "./performance.js";
 import { peopleAiLimiter } from "../middleware/rateLimiter.js";
 import {
   adviceValidator,
+  developmentDoneValidator,
   goalProgressValidator,
   managerParams,
   myReportsValidator,
@@ -97,6 +98,13 @@ router.post(
   peopleAiLimiter,
   validate(adviceValidator),
   asyncHandler(performance.requestAdvice, "get advice")
+);
+
+router.patch(
+  "/:staffId/development/:itemId",
+  ...employee,
+  validate(developmentDoneValidator),
+  asyncHandler(performance.setDevelopmentDone, "save plan item")
 );
 
 router.get(

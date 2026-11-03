@@ -1,5 +1,7 @@
 import type { StaffMember } from "../entities/StaffMember.js";
 import type { User } from "../entities/User.js";
+import { type DevelopmentView, listDevelopment, toDevelopmentView } from "./development.js";
+import { type FeedbackView, listFeedback } from "./monthlyFeedback.js";
 import {
   type GoalView,
   type JobDescriptionView,
@@ -24,19 +26,25 @@ export interface PerformanceView {
   jobDescription: JobDescriptionView | null;
   goals: GoalView[];
   reports: { items: ReportView[]; total: number };
+  development: DevelopmentView[];
+  feedback: FeedbackView[];
 }
 
 const loadPerformance = async (staff: StaffMember, ownView: boolean): Promise<PerformanceView> => {
   const staffId = staff.id;
-  const [jobDescription, goals, reports] = await Promise.all([
+  const [jobDescription, goals, reports, development, feedback] = await Promise.all([
     loadJobDescription(staffId),
     listGoals(staffId, ownView),
     listReportsFor(staffId, REPORTS_ON_TAB, 0),
+    listDevelopment(staffId, ownView),
+    listFeedback(staffId),
   ]);
   return {
     staffId,
     isExecutive: staff.isExecutive,
     reports,
+    development: development.map(toDevelopmentView),
+    feedback,
     jobDescription: jobDescription ? toJobDescriptionView(jobDescription) : null,
     goals: goals.map(toGoalView),
   };

@@ -1,5 +1,8 @@
 import { Request, Response } from "express";
+import type { DevelopmentStatus } from "../entities/StaffDevelopmentItem.js";
+import * as development from "../services/development.js";
 import * as goals from "../services/goals.js";
+import { saveFeedback as saveMonthlyFeedback } from "../services/monthlyFeedback.js";
 import { getMyPerformance, getPerformance } from "../services/performance.js";
 import type { PerformanceScope } from "../services/performanceAccess.js";
 import * as weeklyReports from "../services/weeklyReports.js";
@@ -175,4 +178,55 @@ export const myTeam = async (req: Request, res: Response) => {
     "Team fetched",
     await weeklyReports.getMyTeam(req.user, req.params["staffId"]!, getClientIp(req))
   );
+};
+
+const developmentInput = (req: Request): development.DevelopmentInput => ({
+  weakArea: req.body.weakArea as string,
+  action: req.body.action as string,
+  dueOn: (req.body.dueOn as string | null | undefined) ?? null,
+});
+
+export const addDevelopmentItem = async (req: Request, res: Response) => {
+  const item = await development.addDevelopmentItem(scopeOf(req), developmentInput(req));
+  sendSuccessResponse(res, "Plan item added", { item }, 201);
+};
+
+export const editDevelopmentItem = async (req: Request, res: Response) => {
+  const item = await development.editDevelopmentItem(
+    scopeOf(req),
+    req.params["itemId"]!,
+    { ...developmentInput(req), status: req.body.status as DevelopmentStatus },
+    req.body.version as number
+  );
+  sendSuccessResponse(res, "Plan item saved", { item });
+};
+
+export const removeDevelopmentItem = async (req: Request, res: Response) => {
+  await development.removeDevelopmentItem(scopeOf(req), req.params["itemId"]!);
+  sendSuccessResponse(res, "Plan item removed", {});
+};
+
+export const suggestDevelopmentItems = async (req: Request, res: Response) => {
+  const items = await development.suggestDevelopmentItems(scopeOf(req), getClientIp(req));
+  sendSuccessResponse(res, "Plan items suggested", { items });
+};
+
+export const setDevelopmentDone = async (req: Request, res: Response) => {
+  const item = await development.setDevelopmentDone(
+    req.user,
+    req.params["staffId"]!,
+    req.params["itemId"]!,
+    req.body.done as boolean
+  );
+  sendSuccessResponse(res, "Plan item saved", { item });
+};
+
+export const saveFeedback = async (req: Request, res: Response) => {
+  const feedback = await saveMonthlyFeedback(
+    scopeOf(req),
+    req.params["month"]!,
+    { rating: req.body.rating as number, notes: req.body.notes as string },
+    req.body.version as number | null
+  );
+  sendSuccessResponse(res, "Feedback saved", { feedback });
 };

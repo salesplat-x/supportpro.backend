@@ -44,3 +44,9 @@ export { StaffJobDescription } from "./StaffJobDescription.js";
 export { StaffGoal, GoalStatus, GoalSource } from "./StaffGoal.js";
 export { StaffGoalProgressEvent } from "./StaffGoalProgressEvent.js";
 export { StaffWeeklyReport } from "./StaffWeeklyReport.js";
+export {
+  StaffDevelopmentItem,
+  DevelopmentStatus,
+  DevelopmentSource,
+} from "./StaffDevelopmentItem.js";
+export { StaffMonthlyFeedback } from "./StaffMonthlyFeedback.js";

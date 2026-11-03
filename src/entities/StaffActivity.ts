@@ -36,6 +36,9 @@ export enum StaffActivityType {
   GoalApproved = "goal_approved",
   GoalRemoved = "goal_removed",
   ReportNoteAdded = "report_note_added",
+  DevelopmentItemAdded = "development_item_added",
+  DevelopmentItemRemoved = "development_item_removed",
+  FeedbackSaved = "feedback_saved",
 }
 
 /** Append-only history of what happens to one staff member. Rows are never edited or deleted. */

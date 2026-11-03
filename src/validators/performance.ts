@@ -1,5 +1,7 @@
 import { body, param, type ValidationChain } from "express-validator";
 import { MAX_JOB_DESCRIPTION } from "../services/goals.js";
+import { DevelopmentStatus } from "../entities/StaffDevelopmentItem.js";
+import { MAX_FEEDBACK_NOTES } from "../services/monthlyFeedback.js";
 import { MAX_NOTE, MAX_REPORT_FIELD } from "../services/weeklyReports.js";
 import { NO_NUL, dateOnly, orgParam, pagination, staffParam } from "./staff.js";
 
@@ -111,3 +113,39 @@ export const submitReportValidator = [
 ];
 
 export const adviceValidator = [...selfParams, reportIdParam];
+
+const itemParam = param("itemId").isUUID().withMessage("Invalid plan item id");
+
+const developmentFields = [
+  oneLine(body("weakArea"), "Weak area", 200),
+  longText(body("action"), "Action", 1000),
+  dateOnly(body("dueOn").optional({ values: "null" }), "Due date"),
+];
+
+export const addDevelopmentValidator = developmentFields;
+
+export const editDevelopmentValidator = [
+  itemParam,
+  ...developmentFields,
+  body("status").isIn(Object.values(DevelopmentStatus)).withMessage("Choose a valid status"),
+  versionField(),
+];
+
+export const developmentIdValidator = [itemParam];
+
+export const developmentDoneValidator = [
+  ...selfParams,
+  itemParam,
+  body("done").isBoolean({ strict: true }).withMessage("done must be true or false").toBoolean(),
+];
+
+export const feedbackValidator = [
+  param("month")
+    .matches(/^\d{4}-(0[1-9]|1[0-2])$/)
+    .withMessage("Month must look like 2026-11"),
+  body("rating")
+    .custom((value: unknown) => Number.isInteger(value) && Number(value) >= 1 && Number(value) <= 5)
+    .withMessage("Rating must be a whole number from 1 to 5"),
+  longText(body("notes"), "Notes", MAX_FEEDBACK_NOTES, true),
+  nullableVersion(),
+];
