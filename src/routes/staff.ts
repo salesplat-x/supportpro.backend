@@ -66,6 +66,13 @@ router.get(
 );
 
 router.get(
+  "/org-chart",
+  ...recruiter,
+  validate(companyParamValidator),
+  asyncHandler(staff.orgChart, "load the org chart")
+);
+
+router.get(
   "/benefits",
   ...recruiter,
   validate(companyParamValidator),
