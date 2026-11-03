@@ -7,6 +7,7 @@ import {
   testDataSource,
 } from "./helpers/db.js";
 import { StaffAccessLog, StaffMember } from "../src/entities";
+import { StaffAccessResource } from "../src/entities/StaffAccessLog.js";
 import { createTalent } from "./helpers/fixtures.js";
 import { apiData } from "./helpers/http.js";
 import { addMember, authHeader, setupCompany } from "./helpers/company.js";
@@ -186,7 +187,13 @@ describe("My work", () => {
       (await request(app).get(`/v1/my-work/documents/${id}`).set(authHeader(bayo.token))).status
     ).toBe(404);
     await request(app).get(`/v1/my-work/documents/${id}`).set(authHeader(ada.token)).expect(200);
+    await request(app).get(`/v1/my-work/documents/${id}`).set(authHeader(ada.token)).expect(200);
     await request(app).get(`/v1/staff-documents/${emailToken}`).expect(200);
+    const views = await testDataSource
+      .getRepository(StaffAccessLog)
+      .find({ where: { staffId: ada.staff.id, resource: StaffAccessResource.Contract } });
+    expect(views.filter((view) => view.actorId === ada.user.id)).toHaveLength(2);
+    expect(views.filter((view) => view.actorId === null)).toHaveLength(1);
 
     const sign = () =>
       request(app)

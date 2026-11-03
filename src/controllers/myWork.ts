@@ -23,7 +23,11 @@ export const setTaskDone = async (req: Request, res: Response) => {
 };
 
 export const openDocument = async (req: Request, res: Response) => {
-  const document = await myWork.openMyDocument(req.user.id, req.params["documentId"]!);
+  const document = await myWork.openMyDocument(
+    req.user,
+    req.params["documentId"]!,
+    getClientIp(req)
+  );
   sendSuccessResponse(res, "Document fetched", { document });
 };
 

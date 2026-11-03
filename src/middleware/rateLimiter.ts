@@ -68,3 +68,13 @@ export const staffWriteLimiter = rateLimit({
   },
   skip: () => env.app_env === "test",
 });
+
+export const documentLinkLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: clientIpKey,
+  message: { status: false, message: "Too many attempts, please try again later." },
+  skip: () => env.app_env === "test",
+});

@@ -68,7 +68,7 @@ export const download = async (req: Request, res: Response) => {
 };
 
 export const openLink = async (req: Request, res: Response) => {
-  const document = await contracts.openSigningLink(req.params["token"]!);
+  const document = await contracts.openSigningLink(req.params["token"]!, getClientIp(req));
   sendSuccessResponse(res, "Document fetched", { document });
 };
 

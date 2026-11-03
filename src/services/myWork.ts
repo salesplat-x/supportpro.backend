@@ -12,7 +12,7 @@ import {
   SignedCopy,
   SigningView,
   finishSigning,
-  recordFirstView,
+  recordView,
   signLockedDocument,
   signingViewOf,
 } from "./contracts.js";
@@ -142,9 +142,13 @@ const findOwnDocument = async (
   return { doc, staff };
 };
 
-export const openMyDocument = async (userId: string, documentId: string): Promise<SigningView> => {
-  const { doc, staff } = await findOwnDocument(userId, documentId);
-  await recordFirstView(doc, staff);
+export const openMyDocument = async (
+  actor: User,
+  documentId: string,
+  ip: string
+): Promise<SigningView> => {
+  const { doc, staff } = await findOwnDocument(actor.id, documentId);
+  await recordView(doc, staff, actor, ip);
   return signingViewOf(doc, staff);
 };
 

@@ -22,7 +22,13 @@ import { AppError, ConflictError, NotFoundError, ValidationError } from "../util
 import { INVITE_EXPIRY_DAYS, generateInviteToken } from "./organization.js";
 import { assertNotEnded, loadPay, longDate } from "./pay.js";
 import { assertCanManagePeople } from "./peopleAccess.js";
-import { activityEntry, openStaff, recordActivities } from "./staffAudit.js";
+import {
+  type AccessActor,
+  activityEntry,
+  logStaffAccess,
+  openStaff,
+  recordActivities,
+} from "./staffAudit.js";
 import { hashToken, withTimeout } from "./staffInvite.js";
 import { Actor, findStaff, isUniqueViolation } from "./staffRecord.js";
 
@@ -311,8 +317,22 @@ const findByToken = async (
   return doc;
 };
 
-export const recordFirstView = async (doc: StaffDocument, staff: StaffMember): Promise<void> => {
+/** Every view gets an access log line; the activity timeline keeps only the first, so it stays readable. */
+export const recordView = async (
+  doc: StaffDocument,
+  staff: StaffMember,
+  viewer: AccessActor,
+  ip: string
+): Promise<void> => {
   await AppDataSource.transaction(async (em) => {
+    await logStaffAccess({
+      organizationId: doc.organizationId,
+      actor: viewer,
+      staff,
+      resource: StaffAccessResource.Contract,
+      ip,
+      em,
+    });
     const opened = await em
       .createQueryBuilder()
       .update(StaffDocument)
@@ -354,10 +374,10 @@ const staffOf = async (doc: StaffDocument, em: EntityManager = AppDataSource.man
   return staff;
 };
 
-export const openSigningLink = async (token: string): Promise<SigningView> => {
+export const openSigningLink = async (token: string, ip: string): Promise<SigningView> => {
   const doc = await findByToken(token);
   const staff = await staffOf(doc);
-  await recordFirstView(doc, staff);
+  await recordView(doc, staff, { id: null, name: `${staff.fullName} (email link)` }, ip);
   return signingViewOf(doc, staff);
 };
 

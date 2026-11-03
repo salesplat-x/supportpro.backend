@@ -7,6 +7,7 @@ import {
   testDataSource,
 } from "./helpers/db.js";
 import { StaffAccessLog, StaffActivity, StaffDocument } from "../src/entities";
+import { StaffAccessResource } from "../src/entities/StaffAccessLog.js";
 import { apiData } from "./helpers/http.js";
 import { addMember, authHeader, setupCompany } from "./helpers/company.js";
 import { createStaff, setPay, staffPath, today } from "./helpers/staff.js";
@@ -174,6 +175,42 @@ describe("signing", () => {
       .get(staffPath(org.id, `/${staff.id}/documents/${doc.id}/pdf`))
       .set(authHeader(owner.token));
     expect(pdf.headers["content-type"]).toBe("application/pdf");
+  });
+
+  it("writes one access log line for every view of the email link", async () => {
+    const { owner, org, staff } = await companyWithStaff();
+    await send(owner.token, org.id, staff.id).expect(201);
+    const token = lastSigningToken();
+
+    await openLink(token).set("CF-Connecting-IP", IP).expect(200);
+    await openLink(token).set("CF-Connecting-IP", IP).expect(200);
+
+    const lines = await testDataSource
+      .getRepository(StaffAccessLog)
+      .find({ where: { staffId: staff.id, resource: StaffAccessResource.Contract } });
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toMatchObject({ actorId: null, actorName: "Ada Obi (email link)", ip: IP });
+    expect(
+      (await activityTypes(staff.id)).filter((type) => type === "document_viewed")
+    ).toHaveLength(1);
+  });
+
+  it("returns no document when the view cannot be logged", async () => {
+    const { owner, org, staff } = await companyWithStaff();
+    await send(owner.token, org.id, staff.id).expect(201);
+    const token = lastSigningToken();
+    await testDataSource.query(`ALTER TABLE staff_access_logs RENAME TO staff_access_logs_gone`);
+    try {
+      const res = await openLink(token);
+      expect(res.status).toBe(500);
+      expect(JSON.stringify(res.body)).not.toContain("confidentiality");
+    } finally {
+      await testDataSource.query(`ALTER TABLE staff_access_logs_gone RENAME TO staff_access_logs`);
+    }
+    const doc = await testDataSource
+      .getRepository(StaffDocument)
+      .findOneOrFail({ where: { staffId: staff.id } });
+    expect(doc.openedAt).toBeNull();
   });
 
   it("refuses an expired link and kills the old link when sent again", async () => {
