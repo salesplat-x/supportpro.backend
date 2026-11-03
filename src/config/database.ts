@@ -41,6 +41,7 @@ import { ShareGrant } from "../entities/ShareGrant.js";
 import { CommissionPlan } from "../entities/CommissionPlan.js";
 import { StaffDocument } from "../entities/StaffDocument.js";
 import { StaffChecklistTask } from "../entities/StaffChecklistTask.js";
+import { PeopleAiClaim } from "../entities/PeopleAiClaim.js";
 
 const databaseConfig: DataSourceOptions = {
   type: "postgres",
@@ -90,6 +91,7 @@ const databaseConfig: DataSourceOptions = {
     CommissionPlan,
     StaffDocument,
     StaffChecklistTask,
+    PeopleAiClaim,
   ],
   migrations: [path.join(__dirname, "../migrations/*.{js,ts}")],
   synchronize: false,

@@ -44,6 +44,7 @@ import { ShareGrant } from "../entities/ShareGrant.js";
 import { CommissionPlan } from "../entities/CommissionPlan.js";
 import { StaffDocument } from "../entities/StaffDocument.js";
 import { StaffChecklistTask } from "../entities/StaffChecklistTask.js";
+import { PeopleAiClaim } from "../entities/PeopleAiClaim.js";
 
 const ALL_ENTITIES = [
   User,
@@ -86,6 +87,7 @@ const ALL_ENTITIES = [
   CommissionPlan,
   StaffDocument,
   StaffChecklistTask,
+  PeopleAiClaim,
 ];
 
 async function run(): Promise<void> {

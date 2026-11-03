@@ -15,6 +15,7 @@ const ACCESS_LABELS: Record<StaffAccessResource, string> = {
   [StaffAccessResource.Pay]: "Pay",
   [StaffAccessResource.Contract]: "Contracts",
   [StaffAccessResource.HeadcountCost]: "Headcount cost",
+  [StaffAccessResource.Performance]: "Performance",
 };
 
 /** Someone with no account behind the read, such as whoever holds an emailed link. */

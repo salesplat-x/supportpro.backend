@@ -21,10 +21,43 @@ const openai = new OpenAI({ apiKey: env.openai_secret });
 // drop work on a momentary blip.
 const limiter = createLimiter(5);
 
-const runCompletion = (params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming) =>
+const runCompletion = (
+  params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
+  requestOptions?: OpenAI.RequestOptions
+) =>
   limiter.run(() =>
-    withRetry(() => openai.chat.completions.create(params), { label: "OpenAI chat completion" })
+    withRetry(() => openai.chat.completions.create(params, requestOptions), {
+      label: "OpenAI chat completion",
+    })
   );
+
+const PEOPLE_AI_ATTEMPT_MS = 30_000;
+const PEOPLE_AI_TOTAL_MS = 80_000;
+
+/**
+ * For calls someone is waiting on. Timeouts are set and SDK retries are off so `withRetry`
+ * doesn't multiply them. The deadline is checked before each attempt, because the shared
+ * limiter queues without one and a call nobody is waiting for shouldn't spend money.
+ */
+const runPeopleCompletion = (
+  params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
+) => {
+  const deadline = Date.now() + PEOPLE_AI_TOTAL_MS;
+  return limiter.run(() =>
+    withRetry(
+      () => {
+        if (Date.now() > deadline) {
+          throw new Error("The AI request waited too long");
+        }
+        return openai.chat.completions.create(params, {
+          timeout: PEOPLE_AI_ATTEMPT_MS,
+          maxRetries: 0,
+        });
+      },
+      { label: "People AI completion" }
+    )
+  );
+};
 
 const runEmbedding = (params: OpenAI.Embeddings.EmbeddingCreateParams) =>
   limiter.run(() =>

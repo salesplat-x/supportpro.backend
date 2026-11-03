@@ -88,3 +88,16 @@ export const documentCheckLimiter = rateLimit({
   message: { status: false, message: "Too many attempts, please try again later." },
   skip: () => env.app_env === "test",
 });
+
+export const peopleAiLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id ?? "unauthenticated",
+  message: {
+    status: false,
+    message: "You've asked the AI a lot in the last hour. Please try again later.",
+  },
+  skip: () => env.app_env === "test",
+});

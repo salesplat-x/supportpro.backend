@@ -17,6 +17,7 @@ export enum StaffAccessResource {
   Pay = "pay",
   Contract = "contract",
   HeadcountCost = "headcount_cost",
+  Performance = "performance",
 }
 
 /** One row per time someone opens a staff member's data. Rows are never edited or deleted. */

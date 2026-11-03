@@ -19,6 +19,7 @@ describe("people rate limits outside tests", () => {
   it.each([
     ["documentLinkLimiter", 60],
     ["documentCheckLimiter", 10],
+    ["peopleAiLimiter", 30],
   ])("%s allows %i requests and refuses the next", async (name, limit) => {
     const limiters = (await import("../src/middleware/rateLimiter.js")) as unknown as Record<
       string,

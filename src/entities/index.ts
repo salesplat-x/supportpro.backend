@@ -39,3 +39,4 @@ export { CommissionPlan } from "./CommissionPlan.js";
 export type { CommissionTier } from "./CommissionPlan.js";
 export { StaffDocument, DocumentStatus, DocumentTemplate } from "./StaffDocument.js";
 export { StaffChecklistTask } from "./StaffChecklistTask.js";
+export { PeopleAiClaim } from "./PeopleAiClaim.js";

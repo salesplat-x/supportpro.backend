@@ -65,7 +65,7 @@ export const durableFailureUpdate = (
  * a successful claim even when the conditional UPDATE matched nothing, defeating the
  * lock entirely. Normalise before counting.
  */
-const resultRows = (result: unknown): unknown[] => {
+export const resultRows = (result: unknown): unknown[] => {
   if (!Array.isArray(result)) return [];
   const [first] = result;
   return Array.isArray(first) ? first : result;
