@@ -53,6 +53,7 @@ import { CompanyQuarterGoal } from "../entities/CompanyQuarterGoal.js";
 import { AiFeatureSetting } from "../entities/AiFeatureSetting.js";
 import { StaffHrAssignment } from "../entities/StaffHrAssignment.js";
 import { StaffCompletionRequest } from "../entities/StaffCompletionRequest.js";
+import { OrganizationOwnershipTransfer } from "../entities/OrganizationOwnershipTransfer.js";
 
 const databaseConfig: DataSourceOptions = {
   type: "postgres",
@@ -114,6 +115,7 @@ const databaseConfig: DataSourceOptions = {
     AiFeatureSetting,
     StaffHrAssignment,
     StaffCompletionRequest,
+    OrganizationOwnershipTransfer,
   ],
   migrations: [path.join(__dirname, "../migrations/*.{js,ts}")],
   synchronize: false,

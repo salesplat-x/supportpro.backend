@@ -6,6 +6,7 @@ import { validate } from "../middleware/validate.js";
 import { UserRole } from "../types/enums.js";
 import {
   adminAiFeatureKeyValidator,
+  adminChangeOwnerValidator,
   adminAiFeatureModelValidator,
   adminAiFeaturePromptsValidator,
   adminApplicationFollowUpEmailValidator,
@@ -168,6 +169,14 @@ router.post(
   requireVerifiedEmail,
   validate(adminApplicationFollowUpEmailValidator),
   asyncHandler(admin.sendApplicationFollowUpEmail, "send application follow-up email")
+);
+
+router.patch(
+  "/organizations/:_id/owner",
+  validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(adminChangeOwnerValidator),
+  asyncHandler(admin.changeOrganizationOwner, "change company creator")
 );
 
 router.get(

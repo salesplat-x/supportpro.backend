@@ -148,3 +148,15 @@ export const adminAiFeaturePromptsValidator = [
   body("prompts").isObject().withMessage("Send the prompt text to save"),
   body("prompts.*").isString().withMessage("A prompt must be text"),
 ];
+
+export const adminChangeOwnerValidator = [
+  param("_id").isUUID().withMessage("Invalid company"),
+  body("newOwnerUserId").isUUID().withMessage("Choose someone from the team"),
+  body("reason")
+    .isString()
+    .withMessage("Say why the creator is changing")
+    .bail()
+    .trim()
+    .isLength({ min: 3, max: 500 })
+    .withMessage("The reason must be between 3 and 500 characters"),
+];

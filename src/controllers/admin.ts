@@ -1,3 +1,4 @@
+import * as ownershipTransferService from "../services/ownershipTransfer.js";
 import * as aiModelsService from "../services/aiModels.js";
 import { Request, Response } from "express";
 import * as adminService from "../services/admin.js";
@@ -51,6 +52,16 @@ export const listOrganizations = async (req: Request, res: Response) => {
 export const getOrganization = async (req: Request, res: Response) => {
   const result = await adminService.getOrganization(req.params["_id"]!);
   sendSuccessResponse(res, "Organization fetched", { organization: result });
+};
+
+export const changeOrganizationOwner = async (req: Request, res: Response) => {
+  const { newOwnerUserId, reason } = req.body as { newOwnerUserId: string; reason: string };
+  const transfer = await ownershipTransferService.changeOrganizationOwner(
+    req.user.id,
+    req.params["_id"]!,
+    { newOwnerUserId, reason }
+  );
+  sendSuccessResponse(res, "Company creator changed", { transfer });
 };
 
 export const verifyOrganization = async (req: Request, res: Response) => {

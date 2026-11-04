@@ -56,6 +56,7 @@ import { CompanyQuarterGoal } from "../entities/CompanyQuarterGoal.js";
 import { AiFeatureSetting } from "../entities/AiFeatureSetting.js";
 import { StaffHrAssignment } from "../entities/StaffHrAssignment.js";
 import { StaffCompletionRequest } from "../entities/StaffCompletionRequest.js";
+import { OrganizationOwnershipTransfer } from "../entities/OrganizationOwnershipTransfer.js";
 
 const ALL_ENTITIES = [
   User,
@@ -110,6 +111,7 @@ const ALL_ENTITIES = [
   AiFeatureSetting,
   StaffHrAssignment,
   StaffCompletionRequest,
+  OrganizationOwnershipTransfer,
 ];
 
 async function run(): Promise<void> {

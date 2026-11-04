@@ -55,3 +55,4 @@ export { CompanyQuarterGoal } from "./CompanyQuarterGoal.js";
 export { AiFeatureSetting } from "./AiFeatureSetting.js";
 export { StaffHrAssignment } from "./StaffHrAssignment.js";
 export { StaffCompletionRequest } from "./StaffCompletionRequest.js";
+export { OrganizationOwnershipTransfer } from "./OrganizationOwnershipTransfer.js";

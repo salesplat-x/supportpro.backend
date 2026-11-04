@@ -53,6 +53,7 @@ import { CompanyQuarterGoal } from "../../src/entities/CompanyQuarterGoal.js";
 import { AiFeatureSetting } from "../../src/entities/AiFeatureSetting.js";
 import { StaffHrAssignment } from "../../src/entities/StaffHrAssignment.js";
 import { StaffCompletionRequest } from "../../src/entities/StaffCompletionRequest.js";
+import { OrganizationOwnershipTransfer } from "../../src/entities/OrganizationOwnershipTransfer.js";
 
 let container: StartedPostgreSqlContainer;
 export let testDataSource: DataSource;
@@ -110,6 +111,7 @@ const ALL_ENTITIES = [
   AiFeatureSetting,
   StaffHrAssignment,
   StaffCompletionRequest,
+  OrganizationOwnershipTransfer,
 ];
 
 export async function startTestDatabase(): Promise<void> {
