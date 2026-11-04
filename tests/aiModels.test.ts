@@ -30,10 +30,24 @@ import {
 } from "../src/utils/integrations/ai/catalog.js";
 import { buildChatRequest } from "../src/utils/integrations/ai/gateway.js";
 import { clearAiSettingsCache } from "../src/utils/integrations/ai/settings.js";
-import { createEmbedding as embedText, efficiencyTip } from "../src/utils/integrations/openai.js";
+import {
+  createEmbedding as embedText,
+  efficiencyTip,
+  generatePersonalizedQuestions,
+  gradeAssessmentAnswers,
+} from "../src/utils/integrations/openai.js";
+import {
+  fillPlaceholders,
+  getPromptParts,
+  loadAiPrompts,
+} from "../src/utils/integrations/ai/prompts.js";
 import { durableFailureUpdate, MAX_DURABLE_ATTEMPTS } from "../src/utils/durableJobs.js";
 import { AiConfigError } from "../src/utils/errors";
-import type { AiFeatureView, AiModelsOverview } from "../src/services/aiModels.js";
+import type {
+  AiFeatureView,
+  AiModelsOverview,
+  AiPromptPartView,
+} from "../src/services/aiModels.js";
 
 const passingReply = { choices: [{ message: { content: '{"ok":true}' } }] };
 
@@ -350,5 +364,162 @@ describe("background retries", () => {
     const update = durableFailureUpdate(MAX_DURABLE_ATTEMPTS - 1, new Error("Timeout"));
     expect(update.attempts).toBe(MAX_DURABLE_ATTEMPTS);
     expect(update.exhausted).toBe(true);
+  });
+});
+
+describe("prompts", () => {
+  const getPrompts = (token: string, key: string) =>
+    request(app)
+      .get(`/v1/admin/ai-models/features/${key}/prompts`)
+      .set("Authorization", `Bearer ${token}`);
+
+  const savePrompts = (token: string, key: string, prompts: Record<string, string>) =>
+    request(app)
+      .put(`/v1/admin/ai-models/features/${key}/prompts`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ prompts });
+
+  const defaultOf = (key: string, part: string) =>
+    getPromptParts(key).find((item) => item.key === part)!.text;
+
+  const systemSent = () =>
+    (lastRequest()["messages"] as Array<{ role: string; content: string }>)[0]!.content;
+
+  it("has a default prompt for every job that sends one", () => {
+    const { jobs } = loadAiPrompts();
+    for (const feature of loadAiCatalog().features) {
+      expect((jobs[feature.key] ?? []).length > 0).toBe(feature.kind === "chat");
+    }
+  });
+
+  it("shows the admin each part, its default and what must stay in it", async () => {
+    const { token } = await createAdmin();
+
+    const res = await getPrompts(token, "personalized_questions");
+
+    expect(res.status).toBe(200);
+    const { prompts } = apiData<{ prompts: AiPromptPartView[] }>(res);
+    const system = prompts.find((part) => part.key === "system")!;
+    expect(system.edited).toBe(false);
+    expect(system.text).toBe(system.defaultText);
+    expect(system.variables.map((variable) => variable.name)).toEqual(["questionCount"]);
+    expect(system.variables[0]?.description).toBeTruthy();
+  });
+
+  it("uses the edited prompt straight away, with its placeholders filled", async () => {
+    const { token } = await createAdmin();
+    const edited = `Write exactly {{questionCount}} questions. Output JSON only: { "questions": [] }`;
+
+    const res = await savePrompts(token, "personalized_questions", { system: edited });
+    expect(res.status).toBe(200);
+
+    await generatePersonalizedQuestions("JD", ["CV"], "Bio", 3, "Guide");
+    expect(systemSent()).toBe(`Write exactly 3 questions. Output JSON only: { "questions": [] }`);
+  });
+
+  it("goes back to the default when the edit matches it", async () => {
+    const { token } = await createAdmin();
+    const original = defaultOf("efficiency_tip", "system");
+    await savePrompts(token, "efficiency_tip", { system: "Give one short tip." });
+
+    await efficiencyTip(tipInput);
+    expect(systemSent()).toBe("Give one short tip.");
+
+    const res = await savePrompts(token, "efficiency_tip", { system: original });
+    expect(res.status).toBe(200);
+    const { prompts } = apiData<{ prompts: AiPromptPartView[] }>(res);
+    expect(prompts[0]?.edited).toBe(false);
+
+    await efficiencyTip(tipInput);
+    expect(systemSent()).toBe(original);
+  });
+
+  it("keeps the model choice when a prompt is saved, and the prompt when a model is chosen", async () => {
+    const { token } = await createAdmin();
+
+    await choose(token, "efficiency_tip", "gemini", "gemini-3.6-flash");
+    await savePrompts(token, "efficiency_tip", { system: "Give one short tip." });
+    await efficiencyTip(tipInput);
+    expect(lastRequest()["model"]).toBe("gemini-3.6-flash");
+    expect(systemSent()).toBe("Give one short tip.");
+
+    await choose(token, "efficiency_tip", "gemini", "gemini-3.8-flash");
+    await efficiencyTip(tipInput);
+    expect(lastRequest()["model"]).toBe("gemini-3.8-flash");
+    expect(systemSent()).toBe("Give one short tip.");
+  });
+
+  it("refuses text that would break the job", async () => {
+    const { token } = await createAdmin();
+    const original = defaultOf("personalized_questions", "system");
+
+    const lostPlaceholder = await savePrompts(token, "personalized_questions", {
+      system: original.replace("{{questionCount}}", "3"),
+    });
+    const unknownPlaceholder = await savePrompts(token, "personalized_questions", {
+      system: `${original} {{companyName}}`,
+    });
+    const lostJson = await savePrompts(token, "personality_fit", {
+      system: 'Give "personalityFitScore": and "personalityFitReason": as plain words.',
+    });
+    const lostField = await savePrompts(token, "personality_fit", {
+      system: 'Reply with JSON: {"personalityFitScore": 72}',
+    });
+    const empty = await savePrompts(token, "efficiency_tip", { system: "   " });
+    const unknownPart = await savePrompts(token, "efficiency_tip", { made_up: "Text" });
+
+    expect(lostPlaceholder.status).toBe(400);
+    expect(JSON.stringify(lostPlaceholder.body)).toContain("{{questionCount}}");
+    expect(unknownPlaceholder.status).toBe(400);
+    expect(JSON.stringify(unknownPlaceholder.body)).toContain("{{companyName}}");
+    expect(lostJson.status).toBe(400);
+    expect(JSON.stringify(lostJson.body)).toContain("JSON");
+    expect(lostField.status).toBe(400);
+    expect(JSON.stringify(lostField.body)).toContain("personalityFitReason");
+    expect(empty.status).toBe(400);
+    expect(unknownPart.status).toBe(400);
+    expect(await testDataSource.getRepository(AiFeatureSetting).count()).toBe(0);
+  });
+
+  it("ignores a saved edit that no longer passes, and tells the admin why", async () => {
+    const { token } = await createAdmin();
+    await testDataSource.getRepository(AiFeatureSetting).save({
+      featureKey: "role_answer_grading",
+      prompts: { system: "Score these answers." },
+    });
+
+    await gradeAssessmentAnswers("[]");
+    expect(systemSent()).toBe(defaultOf("role_answer_grading", "system"));
+
+    const res = await getPrompts(token, "role_answer_grading");
+    const { prompts } = apiData<{ prompts: AiPromptPartView[] }>(res);
+    expect(prompts[0]?.problem).toContain("must still ask for JSON");
+  });
+
+  it("never expands a placeholder typed into a candidate's text", () => {
+    expect(
+      fillPlaceholders("Bio: {{bio}} Count: {{count}}", { bio: "I wrote {{count}} $& posts", count: 3 })
+    ).toBe("Bio: I wrote {{count}} $& posts Count: 3");
+  });
+
+  it("refuses a job with no prompt, and anyone but the admin", async () => {
+    const admin = await createAdmin();
+    const talent = await createTalent();
+
+    expect((await getPrompts(admin.token, "cv_matching")).status).toBe(400);
+    expect((await getPrompts(talent.token, "efficiency_tip")).status).toBe(403);
+    expect((await savePrompts(talent.token, "efficiency_tip", { system: "Hi" })).status).toBe(403);
+  });
+
+  it("counts edited parts on the overview", async () => {
+    const { token } = await createAdmin();
+    await savePrompts(token, "efficiency_tip", { system: "Give one short tip." });
+
+    const overview = await getOverview(token);
+
+    const feature = featureIn(overview, "efficiency_tip");
+    expect(feature.promptParts).toBe(1);
+    expect(feature.editedPromptParts).toBe(1);
+    expect(featureIn(overview, "cv_matching").promptParts).toBe(0);
   });
 });

@@ -17,13 +17,18 @@ import {
 
 const SETTINGS_CACHE_MS = 30_000;
 
-let cache: { rows: Map<string, AiChoice>; loadedAt: number } | null = null;
+interface SavedFeature {
+  choice: AiChoice | null;
+  prompts: Record<string, string>;
+}
+
+let cache: { rows: Map<string, SavedFeature>; loadedAt: number } | null = null;
 
 export const clearAiSettingsCache = (): void => {
   cache = null;
 };
 
-const loadSettings = async (): Promise<Map<string, AiChoice>> => {
+const loadSettings = async (): Promise<Map<string, SavedFeature>> => {
   if (cache && Date.now() - cache.loadedAt < SETTINGS_CACHE_MS) {
     return cache.rows;
   }
@@ -33,7 +38,13 @@ const loadSettings = async (): Promise<Map<string, AiChoice>> => {
   try {
     const rows = await AppDataSource.getRepository(AiFeatureSetting).find();
     const settings = new Map(
-      rows.map((row) => [row.featureKey, { provider: row.provider, model: row.model }])
+      rows.map((row) => [
+        row.featureKey,
+        {
+          choice: row.provider && row.model ? { provider: row.provider, model: row.model } : null,
+          prompts: row.prompts,
+        },
+      ])
     );
     cache = { rows: settings, loadedAt: Date.now() };
     return settings;
@@ -42,6 +53,9 @@ const loadSettings = async (): Promise<Map<string, AiChoice>> => {
     return cache?.rows ?? new Map();
   }
 };
+
+export const loadSavedPrompts = async (key: AiFeatureKey): Promise<Record<string, string>> =>
+  (await loadSettings()).get(key)?.prompts ?? {};
 
 export const unusableReason = (feature: AiFeature, choice: AiChoice): string | null => {
   const provider = getAiProvider(choice.provider);
@@ -82,7 +96,7 @@ const resolved = (
 
 export const resolveAiModel = async (key: AiFeatureKey): Promise<ResolvedAiModel> => {
   const feature = getAiFeature(key)!;
-  const saved = feature.lockedReason ? undefined : (await loadSettings()).get(key);
+  const saved = feature.lockedReason ? null : ((await loadSettings()).get(key)?.choice ?? null);
   if (!saved) {
     return resolved(feature, feature.default, true, null);
   }

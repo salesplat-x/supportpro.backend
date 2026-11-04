@@ -143,3 +143,18 @@ export const updateAiFeatureModel = async (req: Request, res: Response) => {
   });
   sendSuccessResponse(res, "AI model saved", { feature });
 };
+
+export const getAiFeaturePrompts = async (req: Request, res: Response) => {
+  const prompts = await aiModelsService.getAiFeaturePrompts(req.params["key"]!);
+  sendSuccessResponse(res, "AI prompts fetched", { prompts });
+};
+
+export const updateAiFeaturePrompts = async (req: Request, res: Response) => {
+  const { prompts: edits } = req.body as { prompts: Record<string, string> };
+  const prompts = await aiModelsService.updateAiFeaturePrompts(
+    req.user.id,
+    req.params["key"]!,
+    edits
+  );
+  sendSuccessResponse(res, "AI prompts saved", { prompts });
+};

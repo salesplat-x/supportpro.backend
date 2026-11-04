@@ -15,6 +15,12 @@ import {
   modelFitsFeature,
 } from "../utils/integrations/ai/catalog.js";
 import { completeWith } from "../utils/integrations/ai/gateway.js";
+import {
+  AiPromptPart,
+  getPromptParts,
+  loadAiPrompts,
+  promptProblem,
+} from "../utils/integrations/ai/prompts.js";
 import { clearAiSettingsCache, unusableReason } from "../utils/integrations/ai/settings.js";
 import { getErrorStatus } from "../utils/retry.js";
 import logger from "../utils/logger.js";
@@ -41,6 +47,19 @@ export interface AiFeatureView {
   updatedAt: Date | null;
   updatedByName: string | null;
   options: AiModelOption[];
+  promptParts: number;
+  editedPromptParts: number;
+}
+
+export interface AiPromptPartView {
+  key: string;
+  label: string;
+  text: string;
+  defaultText: string;
+  edited: boolean;
+  /** Why the saved edit is being ignored, for example after the catalogue changed. */
+  problem: string | null;
+  variables: Array<{ name: string; description: string }>;
 }
 
 export interface AiModelsOverview {
@@ -59,8 +78,11 @@ const optionsFor = (feature: AiFeature, current: AiChoice): AiModel[] =>
       (!model.retiresOn || sameChoice(current, model) || sameChoice(feature.default, model))
   );
 
+const savedChoice = (row: AiFeatureSetting | undefined): AiChoice | null =>
+  row?.provider && row.model ? { provider: row.provider, model: row.model } : null;
+
 const toFeatureView = (feature: AiFeature, row: AiFeatureSetting | undefined): AiFeatureView => {
-  const saved = feature.lockedReason || !row ? null : { provider: row.provider, model: row.model };
+  const saved = feature.lockedReason ? null : savedChoice(row);
   const notice = saved ? unusableReason(feature, saved) : null;
   const current = saved && !notice ? saved : feature.default;
   return {
@@ -81,6 +103,8 @@ const toFeatureView = (feature: AiFeature, row: AiFeatureSetting | undefined): A
       retiresOn: model.retiresOn ?? null,
       replacement: model.replacement ?? null,
     })),
+    promptParts: getPromptParts(feature.key).length,
+    editedPromptParts: Object.keys(row?.prompts ?? {}).length,
   };
 };
 
@@ -184,8 +208,7 @@ export const updateAiFeatureModel = async (
   }
 
   const rows = await loadRows();
-  const row = rows.get(feature.key);
-  const current = row ? { provider: row.provider, model: row.model } : feature.default;
+  const current = savedChoice(rows.get(feature.key)) ?? feature.default;
   if (!optionsFor(feature, current).includes(model)) {
     throw new ValidationError(`${model.label} can't be chosen for ${feature.name}`);
   }
@@ -203,4 +226,88 @@ export const updateAiFeatureModel = async (
   clearAiSettingsCache();
 
   return toFeatureView(feature, (await loadRows()).get(feature.key));
+};
+
+const findPromptFeature = (featureKey: string): { feature: AiFeature; parts: AiPromptPart[] } => {
+  const feature = getAiFeature(featureKey);
+  if (!feature) {
+    throw new NotFoundError("AI job not found");
+  }
+  const parts = getPromptParts(feature.key);
+  if (parts.length === 0) {
+    throw new ValidationError(`${feature.name} doesn't use a prompt`);
+  }
+  return { feature, parts };
+};
+
+const toPromptViews = (
+  feature: AiFeature,
+  parts: AiPromptPart[],
+  saved: Record<string, string>
+): AiPromptPartView[] => {
+  const { variables } = loadAiPrompts();
+  return parts.map((part) => {
+    const edit = saved[part.key];
+    return {
+      key: part.key,
+      label: part.label,
+      text: edit ?? part.text,
+      defaultText: part.text,
+      edited: edit !== undefined,
+      problem: edit === undefined ? null : promptProblem(feature, part, edit),
+      variables: (part.variables ?? []).map((name) => ({
+        name,
+        description: variables[name] ?? "",
+      })),
+    };
+  });
+};
+
+export const getAiFeaturePrompts = async (featureKey: string): Promise<AiPromptPartView[]> => {
+  const { feature, parts } = findPromptFeature(featureKey);
+  const row = await settingsRepo().findOne({ where: { featureKey: feature.key } });
+  return toPromptViews(feature, parts, row?.prompts ?? {});
+};
+
+/** Text matching the default clears the edit, so a job on its default follows catalogue updates. */
+export const updateAiFeaturePrompts = async (
+  adminId: string,
+  featureKey: string,
+  edits: Record<string, string>
+): Promise<AiPromptPartView[]> => {
+  const { feature, parts } = findPromptFeature(featureKey);
+
+  for (const [partKey, text] of Object.entries(edits)) {
+    const part = parts.find((item) => item.key === partKey);
+    if (!part) {
+      throw new ValidationError(`${feature.name} has no prompt part called ${partKey}`);
+    }
+    const problem = promptProblem(feature, part, text);
+    if (problem) {
+      throw new ValidationError(problem);
+    }
+  }
+
+  const row = await settingsRepo().findOne({ where: { featureKey: feature.key } });
+  const prompts = { ...(row?.prompts ?? {}) };
+  for (const [partKey, text] of Object.entries(edits)) {
+    if (text === parts.find((part) => part.key === partKey)!.text) {
+      delete prompts[partKey];
+    } else {
+      prompts[partKey] = text;
+    }
+  }
+
+  await settingsRepo().save(
+    settingsRepo().create({
+      featureKey: feature.key,
+      provider: row?.provider ?? null,
+      model: row?.model ?? null,
+      prompts,
+      updatedById: adminId,
+    })
+  );
+  clearAiSettingsCache();
+
+  return toPromptViews(feature, parts, prompts);
 };

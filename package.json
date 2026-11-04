@@ -29,7 +29,7 @@
     "start:build": "npm run build && npm start",
     "dev": "node --watch-path=src ./node_modules/.bin/ts-node --project tsconfig.dev.json ./src/app.ts",
     "dev:full": "docker compose up -d --wait postgres pgbouncer && npm run migration:run && npm run dev",
-    "build": "rimraf ./dist && tsc && mkdir -p dist/config && cp src/config/pricing.yaml src/config/aiCatalog.yaml dist/config/",
+    "build": "rimraf ./dist && tsc && mkdir -p dist/config && cp src/config/pricing.yaml src/config/aiCatalog.yaml src/config/aiPrompts.yaml dist/config/",
     "docker:up": "docker compose up -d",
     "docker:drop": "docker compose down -v --remove-orphans",
     "docs:generate": "npx ts-node generate-swagger.ts",

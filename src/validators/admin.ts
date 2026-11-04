@@ -138,3 +138,13 @@ export const adminAiFeatureModelValidator = [
   body("provider").isString().trim().isLength({ min: 1, max: 32 }).withMessage("Choose a provider"),
   body("model").isString().trim().isLength({ min: 1, max: 128 }).withMessage("Choose a model"),
 ];
+
+export const adminAiFeatureKeyValidator = [
+  param("key").isIn(AI_FEATURE_KEYS).withMessage("Unknown AI job"),
+];
+
+export const adminAiFeaturePromptsValidator = [
+  ...adminAiFeatureKeyValidator,
+  body("prompts").isObject().withMessage("Send the prompt text to save"),
+  body("prompts.*").isString().withMessage("A prompt must be text"),
+];

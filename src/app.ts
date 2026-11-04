@@ -15,6 +15,7 @@ import { reconcileDurableJobs } from "./services/reconciliation.js";
 import { asyncHandler } from "./middleware/asyncHandler.js";
 import { SWEEP_INTERVAL_MS } from "./utils/durableJobs.js";
 import { isProviderConfigured, loadAiCatalog } from "./utils/integrations/ai/catalog.js";
+import { loadAiPrompts } from "./utils/integrations/ai/prompts.js";
 
 export function createApp(): Application {
   const app = express();
@@ -68,6 +69,7 @@ export function createApp(): Application {
 }
 
 const warnAboutMissingAiKeys = (): void => {
+  loadAiPrompts();
   const catalog = loadAiCatalog();
   const defaults = new Set(catalog.features.map((feature) => feature.default.provider));
   for (const provider of catalog.providers.filter((item) => defaults.has(item.key))) {
