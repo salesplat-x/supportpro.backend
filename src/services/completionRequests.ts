@@ -153,7 +153,9 @@ const reviewResult = async (
 const includesBytes = (buffer: Buffer, text: string) => buffer.includes(text, 0, "latin1");
 
 /** Reads the file's real type from its bytes, because the browser's claim can say anything. */
-export const detectEvidenceType = (buffer: Buffer): { mimeType: string; extension: string } | null => {
+export const detectEvidenceType = (
+  buffer: Buffer
+): { mimeType: string; extension: string } | null => {
   if (buffer.subarray(0, 5).toString("latin1") === "%PDF-") {
     return { mimeType: "application/pdf", extension: ".pdf" };
   }
@@ -532,11 +534,7 @@ const openForReview = async (scope: PerformanceScope, em: EntityManager): Promis
   return staff;
 };
 
-const completeGoal = async (
-  em: EntityManager,
-  goal: StaffGoal,
-  actor: User
-): Promise<void> => {
+const completeGoal = async (em: EntityManager, goal: StaffGoal, actor: User): Promise<void> => {
   await em.getRepository(StaffGoalProgressEvent).insert({
     goalId: goal.id,
     fromProgress: goal.progress,
@@ -660,7 +658,9 @@ export const approveCompletionRequest = async (
     if (request.goalId) {
       const goal = await lockGoal(em, staff.id, request.goalId);
       if (input.version !== goal.version) {
-        throw new ConflictError("This goal changed after you opened it. Reload and check it again.");
+        throw new ConflictError(
+          "This goal changed after you opened it. Reload and check it again."
+        );
       }
       await completeGoal(em, goal, scope.actor);
       title = goal.title;

@@ -32,7 +32,9 @@ jest.mock("../src/utils/integrations/spaces.js", () => ({
   uploadToSpaces: jest.fn(),
   deleteFromSpaces: jest.fn(),
   deleteSpacesObjectQuietly: jest.fn().mockResolvedValue(undefined),
-  spacesKeyFor: jest.fn((prefix: string, owner: string, name: string) => `${prefix}/${owner}/${name}`),
+  spacesKeyFor: jest.fn(
+    (prefix: string, owner: string, name: string) => `${prefix}/${owner}/${name}`
+  ),
   assertSpacesConfigured: jest.fn(),
   ALLOWED_IMAGE_TYPES: [],
 }));
@@ -123,7 +125,9 @@ type Setup = Awaited<ReturnType<typeof company>>;
 const submit = (
   setup: Setup,
   fields: Partial<{ itemType: string; itemId: string; summary: string; links: string[] }> = {},
-  files: Array<{ buffer: Buffer; name: string; type?: string }> = [{ buffer: PDF, name: "proof.pdf" }]
+  files: Array<{ buffer: Buffer; name: string; type?: string }> = [
+    { buffer: PDF, name: "proof.pdf" },
+  ]
 ) => {
   const req = request(app)
     .post(`/v1/my-work/${setup.worker.staff.id}/completion-requests`)
@@ -155,7 +159,9 @@ const requestOf = (id: string) =>
 
 const approve = (setup: Setup, requestId: string, token: string, version: number | undefined = 1) =>
   request(app)
-    .post(perfPath(setup.org.id, setup.worker.staff.id, `/completion-requests/${requestId}/approve`))
+    .post(
+      perfPath(setup.org.id, setup.worker.staff.id, `/completion-requests/${requestId}/approve`)
+    )
     .set(authHeader(token))
     .send({ version });
 
@@ -265,7 +271,11 @@ describe("an employee asking for completion", () => {
     const setup = await company();
 
     const res = await submit(setup, {}, [
-      { buffer: Buffer.from("<script>alert(1)</script>"), name: "proof.pdf", type: "application/pdf" },
+      {
+        buffer: Buffer.from("<script>alert(1)</script>"),
+        name: "proof.pdf",
+        type: "application/pdf",
+      },
     ]);
 
     expect(res.status).toBe(400);
@@ -498,11 +508,7 @@ describe("a reviewer", () => {
 
     await request(app)
       .post(
-        perfPath(
-          setup.org.id,
-          setup.worker.staff.id,
-          `/completion-requests/${pending.id}/return`
-        )
+        perfPath(setup.org.id, setup.worker.staff.id, `/completion-requests/${pending.id}/return`)
       )
       .set(authHeader(setup.hr.token))
       .send({ note: "Add the launch numbers." })
@@ -521,11 +527,7 @@ describe("a reviewer", () => {
 
     const res = await request(app)
       .post(
-        perfPath(
-          setup.org.id,
-          setup.worker.staff.id,
-          `/completion-requests/${pending.id}/return`
-        )
+        perfPath(setup.org.id, setup.worker.staff.id, `/completion-requests/${pending.id}/return`)
       )
       .set(authHeader(setup.hr.token))
       .send({ note: "" });
@@ -650,7 +652,9 @@ describe("who can review", () => {
       .expect(200);
     const third = await submitted(setup);
     await request(app)
-      .post(`/v1/my-work/${boss.staff.id}/team/${setup.worker.staff.id}/completion-requests/${third.id}/approve`)
+      .post(
+        `/v1/my-work/${boss.staff.id}/team/${setup.worker.staff.id}/completion-requests/${third.id}/approve`
+      )
       .set(authHeader(boss.token))
       .send({ version: 1 })
       .expect(200);

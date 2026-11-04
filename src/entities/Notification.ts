@@ -46,7 +46,10 @@ export class Notification {
   organizationId!: string | null;
 
   @ManyToOne("Organization", { eager: false, onDelete: "SET NULL", nullable: true })
-  @JoinColumn({ name: "organization_id", foreignKeyConstraintName: "FK_notifications_organization" })
+  @JoinColumn({
+    name: "organization_id",
+    foreignKeyConstraintName: "FK_notifications_organization",
+  })
   organization!: Organization | null;
 
   /** Stops the same event notifying someone twice. */

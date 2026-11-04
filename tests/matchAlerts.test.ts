@@ -17,12 +17,7 @@ import { Notification } from "../src/entities/Notification.js";
 import { User } from "../src/entities/User.js";
 import { triggerMatchVerdict } from "../src/services/applicationStage.js";
 import { assessApplicationMatch } from "../src/utils/integrations/openai.js";
-import {
-  ApplicationStatus,
-  JobStatus,
-  MatchVerdict,
-  ScreeningStage,
-} from "../src/types/enums.js";
+import { ApplicationStatus, JobStatus, MatchVerdict, ScreeningStage } from "../src/types/enums.js";
 import type { Organization } from "../src/entities/Organization.js";
 import type { Job } from "../src/entities/Job.js";
 

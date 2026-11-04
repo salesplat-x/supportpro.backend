@@ -328,9 +328,7 @@ export const generatePersonalizedQuestions = async (
     aiConfig.recruiterGuide ?? ""
   );
   if (!response || !response.message.content) {
-    throw new ValidationError(
-      "Failed to generate personalized questions. Please try again."
-    );
+    throw new ValidationError("Failed to generate personalized questions. Please try again.");
   }
 
   let questions: string[];
@@ -379,9 +377,7 @@ const generateDichotomyQuestions = async (
 ): Promise<Question[]> => {
   const response = await AI.getPersonalityEvaluationQuestion(job.jobBrief, dichotomyPair, count);
   if (!response || !response.message.content) {
-    throw new ValidationError(
-      "Failed to generate personality questions. Please try again."
-    );
+    throw new ValidationError("Failed to generate personality questions. Please try again.");
   }
   let questionTexts: string[];
   try {

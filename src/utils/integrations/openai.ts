@@ -488,7 +488,8 @@ export const generateJobField = async (
     : '{ "text": "<the written text>" }';
 
   const aiJob = context.people ? "employee_job_description" : "job_field_writer";
-  const rich = !!context.richText && (context.field === "jobBrief" || context.field === "requirements");
+  const rich =
+    !!context.richText && (context.field === "jobBrief" || context.field === "requirements");
   const showAction = !!context.action && (rich || !isList);
   const system = await renderPrompt(aiJob, rich ? "system_rich" : "system_plain", {
     task: await renderPrompt(aiJob, `${rich ? "rich_task" : "task"}_${context.field}`),
@@ -776,7 +777,10 @@ export const gradeCompanyAssessmentAnswers = async (
   const { type, items } = context;
   const job = "company_answer_grading";
   const system = await renderPrompt(job, "system", {
-    focus: await renderPrompt(job, type === "culture_fit" ? "focus_culture_fit" : "focus_problem_solving"),
+    focus: await renderPrompt(
+      job,
+      type === "culture_fit" ? "focus_culture_fit" : "focus_problem_solving"
+    ),
   });
   const answers = items.map((item) => ({
     questionId: item.questionId,

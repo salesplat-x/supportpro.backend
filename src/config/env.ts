@@ -24,6 +24,8 @@ const optionalEnvVars = {
   doSpacesBucket: process.env.DO_SPACES_BUCKET,
   doSpacesKey: process.env.DO_SPACES_KEY,
   doSpacesSecret: process.env.DO_SPACES_SECRET,
+  stuckEmailsEnabled: process.env.STUCK_EMAILS_ENABLED === "true",
+  publicApiUrl: process.env.PUBLIC_API_URL?.replace(/\/$/, ""),
 } as const;
 
 const requiredEnvVars = {

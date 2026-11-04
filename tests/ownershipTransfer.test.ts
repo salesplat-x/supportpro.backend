@@ -104,18 +104,13 @@ async function company() {
   return { admin, owner, org, next };
 }
 
-const change = (
-  token: string,
-  orgId: string,
-  body: Record<string, unknown>
-) =>
+const change = (token: string, orgId: string, body: Record<string, unknown>) =>
   request(app).patch(`/v1/admin/organizations/${orgId}/owner`).set(authHeader(token)).send(body);
 
 const orgOf = (id: string) => testDataSource.getRepository(Organization).findOneByOrFail({ id });
 const roleOf = async (userId: string, organizationId: string) =>
-  (
-    await testDataSource.getRepository(OrganizationMember).findOneBy({ userId, organizationId })
-  )?.role;
+  (await testDataSource.getRepository(OrganizationMember).findOneBy({ userId, organizationId }))
+    ?.role;
 
 describe("changing the creator", () => {
   it("swaps the creator and both roles, and keeps the old creator on the team", async () => {
@@ -142,7 +137,9 @@ describe("changing the creator", () => {
       .getRepository(OrganizationMember)
       .delete({ userId: owner.user.id, organizationId: org.id });
 
-    await change(admin.token, org.id, { newOwnerUserId: next.user.id, reason: "Left." }).expect(200);
+    await change(admin.token, org.id, { newOwnerUserId: next.user.id, reason: "Left." }).expect(
+      200
+    );
 
     const row = await testDataSource
       .getRepository(OrganizationMember)
@@ -157,7 +154,9 @@ describe("changing the creator", () => {
     const pay = staffPath(org.id, `/${staff.id}/pay`);
     expect((await request(app).get(pay).set(authHeader(next.token))).status).toBe(403);
 
-    await change(admin.token, org.id, { newOwnerUserId: next.user.id, reason: "Left." }).expect(200);
+    await change(admin.token, org.id, { newOwnerUserId: next.user.id, reason: "Left." }).expect(
+      200
+    );
 
     expect((await request(app).get(pay).set(authHeader(next.token))).status).toBe(200);
     expect((await request(app).get(pay).set(authHeader(owner.token))).status).toBe(403);
@@ -175,7 +174,9 @@ describe("changing the creator", () => {
       .send({ assigneeUserId: owner.user.id, add: [staff.id] })
       .expect(200);
 
-    await change(admin.token, org.id, { newOwnerUserId: next.user.id, reason: "Left." }).expect(200);
+    await change(admin.token, org.id, { newOwnerUserId: next.user.id, reason: "Left." }).expect(
+      200
+    );
 
     expect(await testDataSource.getRepository(StaffHrAssignment).count()).toBe(1);
     const perf = staffPath(org.id, `/${staff.id}/performance`);
@@ -190,7 +191,9 @@ describe("changing the creator", () => {
       status: SubscriptionStatus.Active,
     });
 
-    await change(admin.token, org.id, { newOwnerUserId: next.user.id, reason: "Left." }).expect(200);
+    await change(admin.token, org.id, { newOwnerUserId: next.user.id, reason: "Left." }).expect(
+      200
+    );
 
     const res = await request(app)
       .get(`/v1/admin/organizations/${org.id}`)
@@ -211,7 +214,9 @@ describe("changing the creator", () => {
   it("tells both people, in the app and by email", async () => {
     const { admin, owner, org, next } = await company();
 
-    await change(admin.token, org.id, { newOwnerUserId: next.user.id, reason: "Left." }).expect(200);
+    await change(admin.token, org.id, { newOwnerUserId: next.user.id, reason: "Left." }).expect(
+      200
+    );
 
     for (const user of [owner.user, next.user]) {
       expect(
@@ -219,7 +224,9 @@ describe("changing the creator", () => {
           .getRepository(Notification)
           .count({ where: { userId: user.id, type: "ownership_changed" } })
       ).toBe(1);
-      expect(email.sendPeopleUpdate).toHaveBeenCalledWith(expect.objectContaining({ to: user.email }));
+      expect(email.sendPeopleUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ to: user.email })
+      );
     }
   });
 
@@ -231,7 +238,9 @@ describe("changing the creator", () => {
       status: SubscriptionStatus.Active,
     });
 
-    await change(admin.token, org.id, { newOwnerUserId: next.user.id, reason: "Left." }).expect(200);
+    await change(admin.token, org.id, { newOwnerUserId: next.user.id, reason: "Left." }).expect(
+      200
+    );
 
     const toOld = email.sendPeopleUpdate.mock.calls.find(
       ([details]) => (details as { to: string }).to === owner.user.email
@@ -243,7 +252,10 @@ describe("changing the creator", () => {
     const { admin, org, next } = await company();
     email.sendPeopleUpdate.mockRejectedValue(new Error("Resend is down"));
 
-    const res = await change(admin.token, org.id, { newOwnerUserId: next.user.id, reason: "Left." });
+    const res = await change(admin.token, org.id, {
+      newOwnerUserId: next.user.id,
+      reason: "Left.",
+    });
 
     expect(res.status).toBe(200);
     expect((await orgOf(org.id)).ownerId).toBe(next.user.id);
@@ -269,10 +281,12 @@ describe("what's refused", () => {
     const talent = await createTalent();
 
     expect(
-      (await change(admin.token, org.id, { newOwnerUserId: outsider.user.id, reason: "Left." })).status
+      (await change(admin.token, org.id, { newOwnerUserId: outsider.user.id, reason: "Left." }))
+        .status
     ).toBe(404);
     expect(
-      (await change(admin.token, org.id, { newOwnerUserId: talent.user.id, reason: "Left." })).status
+      (await change(admin.token, org.id, { newOwnerUserId: talent.user.id, reason: "Left." }))
+        .status
     ).toBe(404);
     expect((await orgOf(org.id)).ownerId).toBe(owner.user.id);
   });
@@ -287,7 +301,10 @@ describe("what's refused", () => {
       role: "member",
     });
 
-    const res = await change(admin.token, org.id, { newOwnerUserId: talent.user.id, reason: "Left." });
+    const res = await change(admin.token, org.id, {
+      newOwnerUserId: talent.user.id,
+      reason: "Left.",
+    });
 
     expect(res.status).toBe(400);
   });
@@ -322,9 +339,15 @@ describe("what's refused", () => {
         })
       ).status
     ).toBe(404);
-    expect((await change(admin.token, org.id, { newOwnerUserId: next.user.id, reason: " " })).status).toBe(400);
-    expect((await change(admin.token, org.id, { newOwnerUserId: "nope", reason: "Left." })).status).toBe(400);
-    expect((await change(admin.token, "nope", { newOwnerUserId: next.user.id, reason: "Left." })).status).toBe(400);
+    expect(
+      (await change(admin.token, org.id, { newOwnerUserId: next.user.id, reason: " " })).status
+    ).toBe(400);
+    expect(
+      (await change(admin.token, org.id, { newOwnerUserId: "nope", reason: "Left." })).status
+    ).toBe(400);
+    expect(
+      (await change(admin.token, "nope", { newOwnerUserId: next.user.id, reason: "Left." })).status
+    ).toBe(400);
   });
 });
 
@@ -340,7 +363,9 @@ describe("protecting company records", () => {
     });
     const payment = await createPayment(owner.user, plan, { organizationId: org.id });
 
-    await change(admin.token, org.id, { newOwnerUserId: next.user.id, reason: "Left." }).expect(200);
+    await change(admin.token, org.id, { newOwnerUserId: next.user.id, reason: "Left." }).expect(
+      200
+    );
     await testDataSource.query(`DELETE FROM notifications WHERE user_id = $1`, [owner.user.id]);
 
     await request(app)
@@ -355,9 +380,9 @@ describe("protecting company records", () => {
       .findOneByOrFail({ id: subscription.id });
     expect(savedSubscription.userId).toBe(next.user.id);
     expect(savedSubscription.status).toBe(SubscriptionStatus.Active);
-    expect((await testDataSource.getRepository(Payment).findOneByOrFail({ id: payment.id })).userId).toBe(
-      next.user.id
-    );
+    expect(
+      (await testDataSource.getRepository(Payment).findOneByOrFail({ id: payment.id })).userId
+    ).toBe(next.user.id);
     expect((await orgOf(org.id)).ownerId).toBe(next.user.id);
     const [history] = await testDataSource.getRepository(OrganizationOwnershipTransfer).find();
     expect(history?.fromUserId).toBeNull();
@@ -402,10 +427,7 @@ describe("taking over the plan", () => {
       event: "subscription.disable",
       data: { id: 90, subscription_code: code },
     };
-    return request(app)
-      .post(WEBHOOK_PATH)
-      .set("x-paystack-signature", signBody(body))
-      .send(body);
+    return request(app).post(WEBHOOK_PATH).set("x-paystack-signature", signBody(body)).send(body);
   };
 
   it("still refuses buying the same plan when no creator change happened", async () => {

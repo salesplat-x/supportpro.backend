@@ -53,7 +53,11 @@ afterEach(async () => {
 /** A creator, a switch teammate, an assigned teammate, and two employees. Only `mine` is assigned. */
 async function company() {
   const { owner, org } = await setupCompany();
-  const manager = await addMember(org, { canManagePeople: true, firstName: "Sam", lastName: "Switch" });
+  const manager = await addMember(org, {
+    canManagePeople: true,
+    firstName: "Sam",
+    lastName: "Switch",
+  });
   const hr = await addMember(org, { firstName: "Hana", lastName: "Assigned" });
   const mine = await createStaff(app, owner.token, org.id, { fullName: "Ada Mine" });
   const notMine = await createStaff(app, owner.token, org.id, { fullName: "Bayo Other" });
@@ -66,11 +70,7 @@ const assign = (
   token: string,
   orgId: string,
   body: { assigneeUserId: string; add?: string[]; remove?: string[] }
-) =>
-  request(app)
-    .put(staffPath(orgId, "/hr-assignments"))
-    .set(authHeader(token))
-    .send(body);
+) => request(app).put(staffPath(orgId, "/hr-assignments")).set(authHeader(token)).send(body);
 
 const get = (token: string, path: string) => request(app).get(path).set(authHeader(token));
 
@@ -110,8 +110,32 @@ describe("pay, benefits and contracts are private to the creator", () => {
     const base = staffPath(orgId, `/${staffId}`);
     return [
       ["get", `${base}/pay`],
-      ["put", `${base}/pay`, { currency: "NGN", period: "monthly", baseSalary: 1, bonus: 0, commissionTarget: 0, startsOn: "2026-01-05", benefitIds: [] }],
-      ["post", staffPath(orgId, "/pay/preview"), { currency: "NGN", period: "monthly", baseSalary: 1, bonus: 0, commissionTarget: 0, startsOn: "2026-01-05", benefitIds: [] }],
+      [
+        "put",
+        `${base}/pay`,
+        {
+          currency: "NGN",
+          period: "monthly",
+          baseSalary: 1,
+          bonus: 0,
+          commissionTarget: 0,
+          startsOn: "2026-01-05",
+          benefitIds: [],
+        },
+      ],
+      [
+        "post",
+        staffPath(orgId, "/pay/preview"),
+        {
+          currency: "NGN",
+          period: "monthly",
+          baseSalary: 1,
+          bonus: 0,
+          commissionTarget: 0,
+          startsOn: "2026-01-05",
+          benefitIds: [],
+        },
+      ],
       ["delete", `${base}/share-grants/${SOME_ID}`],
       ["get", staffPath(orgId, "/benefits")],
       ["post", staffPath(orgId, "/benefits"), { name: "Health" }],
@@ -130,24 +154,27 @@ describe("pay, benefits and contracts are private to the creator", () => {
     ] as Array<["get" | "put" | "post" | "delete", string, object?]>;
   };
 
-  it.each(["hr", "manager"] as const)("refuses the %s on every route, and logs nothing", async (who) => {
-    const setup = await company();
-    const { token } = setup[who];
+  it.each(["hr", "manager"] as const)(
+    "refuses the %s on every route, and logs nothing",
+    async (who) => {
+      const setup = await company();
+      const { token } = setup[who];
 
-    for (const [method, path, body] of creatorOnly(setup.org.id, setup.mine.id)) {
-      const res = await request(app)[method](path).set(authHeader(token)).send(body);
-      expect([path, res.status]).toEqual([path, 403]);
+      for (const [method, path, body] of creatorOnly(setup.org.id, setup.mine.id)) {
+        const res = await request(app)[method](path).set(authHeader(token)).send(body);
+        expect([path, res.status]).toEqual([path, 403]);
+      }
+
+      const logs = await testDataSource.getRepository(StaffAccessLog).find({
+        where: [
+          { resource: StaffAccessResource.Pay },
+          { resource: StaffAccessResource.Contract },
+          { resource: StaffAccessResource.HeadcountCost },
+        ],
+      });
+      expect(logs).toHaveLength(0);
     }
-
-    const logs = await testDataSource.getRepository(StaffAccessLog).find({
-      where: [
-        { resource: StaffAccessResource.Pay },
-        { resource: StaffAccessResource.Contract },
-        { resource: StaffAccessResource.HeadcountCost },
-      ],
-    });
-    expect(logs).toHaveLength(0);
-  });
+  );
 
   it("still lets the creator in", async () => {
     const { owner, org, mine } = await company();
@@ -260,7 +287,11 @@ describe("an assigned HR", () => {
       ["delete", `${base}/checklist/${SOME_ID}`],
       ["post", `${base}/job-description/write`],
       ["put", `${base}/job-description`, { body: "Text", version: null }],
-      ["post", staffPath(org.id), { fullName: "New", email: "new@example.com", jobTitle: "X", startDate: "2026-01-05" }],
+      [
+        "post",
+        staffPath(org.id),
+        { fullName: "New", email: "new@example.com", jobTitle: "X", startDate: "2026-01-05" },
+      ],
       ["get", staffPath(org.id, "/export")],
       ["post", staffPath(org.id, "/import"), { rows: [{ fullName: "New" }], commit: false }],
       ["get", staffPath(org.id, "/org-chart")],
@@ -347,7 +378,13 @@ describe("the activity timeline", () => {
     }
 
     expect(await typesSeenBy(owner.token, org.id, mine.id)).toEqual(
-      expect.arrayContaining(["pay_set", "share_grant_added", "document_sent", "invited", "goal_added"])
+      expect.arrayContaining([
+        "pay_set",
+        "share_grant_added",
+        "document_sent",
+        "invited",
+        "goal_added",
+      ])
     );
 
     const forManager = await typesSeenBy(manager.token, org.id, mine.id);
@@ -399,20 +436,27 @@ describe("assigning people", () => {
   it("lets only the creator assign", async () => {
     const { org, manager, hr, notMine } = await company();
 
-    const byManager = await assign(manager.token, org.id, { assigneeUserId: hr.user.id, add: [notMine.id] });
+    const byManager = await assign(manager.token, org.id, {
+      assigneeUserId: hr.user.id,
+      add: [notMine.id],
+    });
     const byHr = await assign(hr.token, org.id, { assigneeUserId: hr.user.id, add: [notMine.id] });
     expect([byManager.status, byHr.status]).toEqual([403, 403]);
 
     expect((await get(manager.token, staffPath(org.id, `/${notMine.id}/hr`))).status).toBe(403);
     expect(
-      (await get(manager.token, staffPath(org.id, `/hr-assignments?assigneeUserId=${hr.user.id}`))).status
+      (await get(manager.token, staffPath(org.id, `/hr-assignments?assigneeUserId=${hr.user.id}`)))
+        .status
     ).toBe(403);
   });
 
   it("removes access straight away, and shows the change on the timeline", async () => {
     const { owner, org, hr, mine } = await company();
 
-    const res = await assign(owner.token, org.id, { assigneeUserId: hr.user.id, remove: [mine.id] });
+    const res = await assign(owner.token, org.id, {
+      assigneeUserId: hr.user.id,
+      remove: [mine.id],
+    });
     expect(res.status).toBe(200);
     expect(apiData<{ assignedStaffIds: string[] }>(res).assignedStaffIds).toEqual([]);
 
@@ -426,7 +470,9 @@ describe("assigning people", () => {
   it("lists who is assigned to an employee, and allows more than one", async () => {
     const { owner, org, hr, manager, mine } = await company();
 
-    await assign(owner.token, org.id, { assigneeUserId: manager.user.id, add: [mine.id] }).expect(200);
+    await assign(owner.token, org.id, { assigneeUserId: manager.user.id, add: [mine.id] }).expect(
+      200
+    );
 
     const { assignees } = apiData<{ assignees: Array<{ userId: string }> }>(
       await get(owner.token, staffPath(org.id, `/${mine.id}/hr`))
@@ -439,7 +485,9 @@ describe("assigning people", () => {
   it("lets the creator assign themselves, and find those people with a filter", async () => {
     const { owner, org, mine, notMine } = await company();
 
-    await assign(owner.token, org.id, { assigneeUserId: owner.user.id, add: [notMine.id] }).expect(200);
+    await assign(owner.token, org.id, { assigneeUserId: owner.user.id, add: [notMine.id] }).expect(
+      200
+    );
 
     const filtered = apiData<{ items: StaffViewShape[]; total: number }>(
       await get(owner.token, staffPath(org.id, "?assignedToMe=true"))
@@ -478,7 +526,11 @@ describe("assigning people", () => {
     });
 
     expect(res.status).toBe(404);
-    expect(await testDataSource.getRepository(StaffHrAssignment).count({ where: { staffId: notMine.id } })).toBe(0);
+    expect(
+      await testDataSource
+        .getRepository(StaffHrAssignment)
+        .count({ where: { staffId: notMine.id } })
+    ).toBe(0);
     expect((await get(owner.token, staffPath(org.id, `/${foreign.id}/hr`))).status).toBe(404);
   });
 
@@ -487,8 +539,13 @@ describe("assigning people", () => {
     const talent = await createTalent();
     const other = await setupCompany("Other Ltd");
 
-    expect((await assign(owner.token, org.id, { assigneeUserId: talent.user.id, add: [mine.id] })).status).toBe(404);
-    expect((await assign(owner.token, org.id, { assigneeUserId: other.owner.user.id, add: [mine.id] })).status).toBe(404);
+    expect(
+      (await assign(owner.token, org.id, { assigneeUserId: talent.user.id, add: [mine.id] })).status
+    ).toBe(404);
+    expect(
+      (await assign(owner.token, org.id, { assigneeUserId: other.owner.user.id, add: [mine.id] }))
+        .status
+    ).toBe(404);
   });
 
   it("refuses to assign someone to their own record, by account or work email", async () => {
@@ -505,8 +562,14 @@ describe("assigning people", () => {
       email: "hana@acme.example.com",
     });
 
-    expect((await assign(owner.token, org.id, { assigneeUserId: hr.user.id, add: [byAccount.id] })).status).toBe(409);
-    expect((await assign(owner.token, org.id, { assigneeUserId: hr.user.id, add: [byWorkEmail.id] })).status).toBe(409);
+    expect(
+      (await assign(owner.token, org.id, { assigneeUserId: hr.user.id, add: [byAccount.id] }))
+        .status
+    ).toBe(409);
+    expect(
+      (await assign(owner.token, org.id, { assigneeUserId: hr.user.id, add: [byWorkEmail.id] }))
+        .status
+    ).toBe(409);
   });
 
   it("refuses an ended employee, but allows removing one", async () => {
@@ -519,8 +582,12 @@ describe("assigning people", () => {
         .expect(200);
     }
 
-    expect((await assign(owner.token, org.id, { assigneeUserId: hr.user.id, add: [notMine.id] })).status).toBe(409);
-    expect((await assign(owner.token, org.id, { assigneeUserId: hr.user.id, remove: [mine.id] })).status).toBe(200);
+    expect(
+      (await assign(owner.token, org.id, { assigneeUserId: hr.user.id, add: [notMine.id] })).status
+    ).toBe(409);
+    expect(
+      (await assign(owner.token, org.id, { assigneeUserId: hr.user.id, remove: [mine.id] })).status
+    ).toBe(200);
   });
 
   it("rejects bad input", async () => {
@@ -531,14 +598,22 @@ describe("assigning people", () => {
       add: [mine.id],
       remove: [mine.id],
     });
-    const notUuid = await assign(owner.token, org.id, { assigneeUserId: hr.user.id, add: ["nope"] });
-    const noAssignee = await assign(owner.token, org.id, { assigneeUserId: "nope", add: [mine.id] });
+    const notUuid = await assign(owner.token, org.id, {
+      assigneeUserId: hr.user.id,
+      add: ["nope"],
+    });
+    const noAssignee = await assign(owner.token, org.id, {
+      assigneeUserId: "nope",
+      add: [mine.id],
+    });
     const tooMany = await assign(owner.token, org.id, {
       assigneeUserId: hr.user.id,
       add: Array.from({ length: 201 }, () => mine.id),
     });
 
-    expect([sameBoth.status, notUuid.status, noAssignee.status, tooMany.status]).toEqual([400, 400, 400, 400]);
+    expect([sameBoth.status, notUuid.status, noAssignee.status, tooMany.status]).toEqual([
+      400, 400, 400, 400,
+    ]);
   });
 
   it("disappears when the teammate's account is deleted", async () => {
@@ -547,7 +622,9 @@ describe("assigning people", () => {
     await testDataSource.query(`UPDATE staff_hr_assignments SET assigned_by_id = NULL`);
     await testDataSource.query(`DELETE FROM notifications WHERE user_id = $1`, [hr.user.id]);
     await testDataSource.query(`DELETE FROM organization_members WHERE user_id = $1`, [hr.user.id]);
-    await testDataSource.query(`UPDATE users SET active_organization_id = NULL WHERE id = $1`, [hr.user.id]);
+    await testDataSource.query(`UPDATE users SET active_organization_id = NULL WHERE id = $1`, [
+      hr.user.id,
+    ]);
     await testDataSource.getRepository(User).delete(hr.user.id);
 
     expect(await testDataSource.getRepository(StaffHrAssignment).count()).toBe(0);

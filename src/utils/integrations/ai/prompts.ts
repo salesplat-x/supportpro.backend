@@ -121,10 +121,7 @@ export const promptProblem = (
 };
 
 /** One pass only, so a placeholder typed into a CV or an answer is never expanded. */
-export const fillPlaceholders = (
-  text: string,
-  values: Record<string, string | number>
-): string =>
+export const fillPlaceholders = (text: string, values: Record<string, string | number>): string =>
   text.replace(PLACEHOLDER, (placeholder, name: string) =>
     name in values ? String(values[name]) : placeholder
   );

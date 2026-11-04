@@ -7,6 +7,7 @@ export interface EmailPayload {
   tags?: Array<{ name: string; value: string }>;
   attachments?: Array<{ filename: string; content: Buffer }>;
   idempotencyKey?: string;
+  headers?: Record<string, string>;
 }
 
 export interface EmailProvider {

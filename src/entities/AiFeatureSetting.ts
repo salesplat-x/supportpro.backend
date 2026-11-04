@@ -23,7 +23,10 @@ export class AiFeatureSetting {
   updatedById!: string | null;
 
   @ManyToOne("User", { eager: false, onDelete: "SET NULL", nullable: true })
-  @JoinColumn({ name: "updated_by_id", foreignKeyConstraintName: "FK_ai_feature_settings_updated_by" })
+  @JoinColumn({
+    name: "updated_by_id",
+    foreignKeyConstraintName: "FK_ai_feature_settings_updated_by",
+  })
   updatedBy!: User | null;
 
   @UpdateDateColumn({ name: "updated_at", type: "timestamptz" })

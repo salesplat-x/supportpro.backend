@@ -64,11 +64,18 @@ export interface AiPromptPartView {
 
 export interface AiModelsOverview {
   verifiedOn: string;
-  providers: Array<{ key: string; name: string; envKey: string; configured: boolean; docsUrl: string }>;
+  providers: Array<{
+    key: string;
+    name: string;
+    envKey: string;
+    configured: boolean;
+    docsUrl: string;
+  }>;
   features: AiFeatureView[];
 }
 
-const sameChoice = (a: AiChoice, model: AiModel) => a.provider === model.provider && a.model === model.id;
+const sameChoice = (a: AiChoice, model: AiModel) =>
+  a.provider === model.provider && a.model === model.id;
 
 /** A retiring model stays available only to a job already on it, so nothing new starts using it. */
 const optionsFor = (feature: AiFeature, current: AiChoice): AiModel[] =>
@@ -171,7 +178,9 @@ const assertModelAnswers = async (
   } catch (err) {
     logger.error(`AI model test failed for ${model.id}: ${(err as Error).message}`);
     const status = getErrorStatus(err);
-    throw failed(status ? `the provider answered with status ${status}` : "the provider didn't answer");
+    throw failed(
+      status ? `the provider answered with status ${status}` : "the provider didn't answer"
+    );
   }
 
   let parsed: { ok?: unknown } | null = null;

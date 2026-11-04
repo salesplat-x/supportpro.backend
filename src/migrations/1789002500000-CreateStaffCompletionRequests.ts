@@ -71,7 +71,9 @@ export class CreateStaffCompletionRequests1789002500000 implements MigrationInte
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`DROP TABLE "staff_completion_requests"`);
     await queryRunner.query(`ALTER TABLE "staff_checklist_tasks" DROP COLUMN "completed_by_name"`);
-    await queryRunner.query(`ALTER TABLE "staff_goals" DROP CONSTRAINT "CHK_staff_goals_completed"`);
+    await queryRunner.query(
+      `ALTER TABLE "staff_goals" DROP CONSTRAINT "CHK_staff_goals_completed"`
+    );
     await queryRunner.query(`
       ALTER TABLE "staff_goals"
         DROP COLUMN "completed_by_name",

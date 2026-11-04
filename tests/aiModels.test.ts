@@ -130,7 +130,9 @@ describe("buildChatRequest", () => {
   const modelOf = (id: string): AiModel => loadAiCatalog().models.find((item) => item.id === id)!;
 
   it("leaves a gpt-4o request exactly as it was", () => {
-    expect(buildChatRequest(modelOf("gpt-4o"), { messages, max_tokens: 300, temperature: 0 })).toEqual({
+    expect(
+      buildChatRequest(modelOf("gpt-4o"), { messages, max_tokens: 300, temperature: 0 })
+    ).toEqual({
       messages,
       model: "gpt-4o",
       max_tokens: 300,
@@ -319,9 +321,12 @@ describe("running a job", () => {
 
   it("falls back to the default when the saved provider's key is removed", async () => {
     const { user, token } = await createAdmin();
-    await testDataSource
-      .getRepository(AiFeatureSetting)
-      .save({ featureKey: "efficiency_tip", provider: "grok", model: "grok-4.7", updatedById: user.id });
+    await testDataSource.getRepository(AiFeatureSetting).save({
+      featureKey: "efficiency_tip",
+      provider: "grok",
+      model: "grok-4.7",
+      updatedById: user.id,
+    });
     delete process.env["GROK_API_KEY"];
 
     await efficiencyTip(tipInput);
@@ -498,7 +503,10 @@ describe("prompts", () => {
 
   it("never expands a placeholder typed into a candidate's text", () => {
     expect(
-      fillPlaceholders("Bio: {{bio}} Count: {{count}}", { bio: "I wrote {{count}} $& posts", count: 3 })
+      fillPlaceholders("Bio: {{bio}} Count: {{count}}", {
+        bio: "I wrote {{count}} $& posts",
+        count: 3,
+      })
     ).toBe("Bio: I wrote {{count}} $& posts Count: 3");
   });
 

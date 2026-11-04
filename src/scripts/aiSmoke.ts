@@ -80,7 +80,9 @@ async function run(): Promise<void> {
         continue;
       }
       for (const format of model.formats ?? []) {
-        const passed = await report(`${model.id} ${format}`, () => checkChat(provider, model, format));
+        const passed = await report(`${model.id} ${format}`, () =>
+          checkChat(provider, model, format)
+        );
         failures += passed ? 0 : 1;
       }
     }

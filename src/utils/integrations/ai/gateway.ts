@@ -79,9 +79,12 @@ export const completeWith = async (
   const client = clientFor(provider);
   try {
     return await limiterFor(provider).run(() =>
-      withRetry(() => client.chat.completions.create(buildChatRequest(model, params), requestOptions), {
-        label: `${provider.name} chat completion`,
-      })
+      withRetry(
+        () => client.chat.completions.create(buildChatRequest(model, params), requestOptions),
+        {
+          label: `${provider.name} chat completion`,
+        }
+      )
     );
   } catch (err) {
     throw asConfigError(err, provider, model);
