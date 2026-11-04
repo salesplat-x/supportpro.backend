@@ -2,9 +2,11 @@ import { AppDataSource } from "../database/dataSource.js";
 import { Role } from "../entities/Role.js";
 import { ScoutCandidate } from "../entities/ScoutCandidate.js";
 import { User } from "../entities/User.js";
-import { NotFoundError, ValidationError } from "../utils/errors";
+import { AppError, NotFoundError, ValidationError } from "../utils/errors";
 import { ExperienceLevel, UserRole, WorkMode } from "../types/enums.js";
+import { generateCvPdf } from "../utils/cvPdf.js";
 import { createEmbedding, assessTalentFit } from "../utils/integrations/openai.js";
+import { getFromSpaces } from "../utils/integrations/spaces.js";
 import { convertSimilarityToPercentage, preprocessText } from "../utils/text.js";
 import logger from "../utils/logger.js";
 
@@ -364,6 +366,61 @@ export const fetchCandidate = async (candidateId: string): Promise<ScoutCandidat
     throw new NotFoundError("Candidate not found");
   }
   return candidate;
+};
+
+const PDF_HEADER_SEARCH_BYTES = 1024;
+
+const isPdfFile = (buffer: Buffer): boolean =>
+  buffer.subarray(0, PDF_HEADER_SEARCH_BYTES).includes("%PDF-");
+
+const candidateCvFileName = (fullName: string | null): string => {
+  const safeName = (fullName ?? "candidate")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return `${safeName || "candidate"}-cv.pdf`;
+};
+
+/**
+ * Scouting also accepts Word files, and browsers can only preview PDFs. So a stored PDF is
+ * returned as it is, and anything else is rebuilt as a PDF from the text taken from the CV.
+ */
+export const getCandidateCvPdf = async (
+  candidateId: string
+): Promise<{ buffer: Buffer; fileName: string }> => {
+  const candidate = await candidateRepo()
+    .createQueryBuilder("candidate")
+    .addSelect("candidate.cvText")
+    .where("candidate.id = :candidateId", { candidateId })
+    .getOne();
+  if (!candidate) {
+    throw new NotFoundError("Candidate not found");
+  }
+  if (!candidate.cvFileKey) {
+    throw new NotFoundError("No CV file is stored for this candidate");
+  }
+
+  const fileName = candidateCvFileName(candidate.fullName);
+  const stored = await getFromSpaces(candidate.cvFileKey);
+  if (isPdfFile(stored)) {
+    return { buffer: stored, fileName };
+  }
+
+  const cvText = candidate.cvText?.trim();
+  if (!cvText) {
+    throw new AppError(422, "CV_UNREADABLE", "This CV file can't be opened. Ask for a new copy.");
+  }
+
+  const location = [candidate.locationCity, candidate.locationState, candidate.locationCountry]
+    .filter(Boolean)
+    .join(", ");
+  const buffer = await generateCvPdf({
+    firstName: candidate.fullName ?? "Candidate",
+    lastName: "",
+    location: location || null,
+    cvText,
+  });
+  return { buffer, fileName };
 };
 
 export { UserRole };
