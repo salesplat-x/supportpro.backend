@@ -682,38 +682,38 @@ describe("suggesting goals", () => {
 });
 
 describe("AI claims", () => {
-  const token1 = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
-  const token2 = "8d9e6679-7425-40de-944b-e07fc1f90ae8";
+  const claimA = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
+  const claimB = "8d9e6679-7425-40de-944b-e07fc1f90ae8";
 
   it("refuses a live claim and retakes one left by a crash", async () => {
-    expect(await claimAiWork("work", token1)).toBe(true);
-    expect(await claimAiWork("work", token2)).toBe(false);
+    expect(await claimAiWork("work", claimA)).toBe(true);
+    expect(await claimAiWork("work", claimB)).toBe(false);
     await testDataSource.query(
       `UPDATE people_ai_claims SET claimed_at = NOW() - INTERVAL '4 minutes' WHERE key = 'work'`
     );
-    expect(await claimAiWork("work", token2)).toBe(true);
+    expect(await claimAiWork("work", claimB)).toBe(true);
   });
 
   it("stops an old holder releasing a newer holder's claim", async () => {
-    await claimAiWork("work", token1);
+    await claimAiWork("work", claimA);
     await testDataSource.query(
       `UPDATE people_ai_claims SET claimed_at = NOW() - INTERVAL '4 minutes' WHERE key = 'work'`
     );
-    await claimAiWork("work", token2);
-    await releaseAiWork("work", token1);
-    expect(await claimAiWork("work", token1)).toBe(false);
-    await releaseAiWork("work", token2);
-    expect(await claimAiWork("work", token1)).toBe(true);
+    await claimAiWork("work", claimB);
+    await releaseAiWork("work", claimA);
+    expect(await claimAiWork("work", claimA)).toBe(false);
+    await releaseAiWork("work", claimB);
+    expect(await claimAiWork("work", claimA)).toBe(true);
   });
 
   it("releases when the work fails, and clears only old leftovers", async () => {
     await expect(withAiClaim("fails", () => Promise.reject(new Error("no")))).rejects.toThrow("no");
-    expect(await claimAiWork("fails", token1)).toBe(true);
+    expect(await claimAiWork("fails", claimA)).toBe(true);
 
     await testDataSource.query(
       `UPDATE people_ai_claims SET claimed_at = NOW() - INTERVAL '2 days' WHERE key = 'fails'`
     );
-    await claimAiWork("fresh", token2);
+    await claimAiWork("fresh", claimB);
     await clearOldAiClaims();
     const rows: Array<{ key: string }> = await testDataSource.query(
       `SELECT key FROM people_ai_claims`
