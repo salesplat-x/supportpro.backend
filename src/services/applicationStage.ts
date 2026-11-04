@@ -40,6 +40,7 @@ import {
 } from "../utils/answerResponses.js";
 import logger from "../utils/logger.js";
 import { convertSimilarityToPercentage } from "../utils/text.js";
+import { notifyTeamOfHighMatch } from "./matchAlerts.js";
 
 const applicationRepo = () => AppDataSource.getRepository(Application);
 
@@ -146,7 +147,8 @@ const persistRecommendation = async (
     weaknesses: string[] | null;
     risks: string[] | null;
     analysis: MatchAnalysis | null;
-  }
+  },
+  options: { notify?: boolean } = {}
 ): Promise<void> => {
   // The AI Match column/ring shows this — fall back to a verdict-derived score
   // (same mapping parseMatchAnalysis uses) so it's never blank when a verdict
@@ -181,6 +183,10 @@ const persistRecommendation = async (
       matchVerdictNextRetryAt: null,
       matchVerdictLastError: null,
     });
+
+    if (options.notify && payload.verdict === MatchVerdict.High) {
+      await notifyTeamOfHighMatch(manager, applicationId);
+    }
   });
 };
 
@@ -284,6 +290,8 @@ export const rankApplication = async (
 export interface TriggerMatchVerdictOptions {
   /** @deprecated Match is generated once. Ignored if a recommendation already exists. */
   force?: boolean;
+  /** Pass false for one-off scripts, so old applications don't alert the hiring team. */
+  notify?: boolean;
 }
 
 const CLAIM_MATCH_VERDICT_SQL = `
@@ -388,7 +396,7 @@ const overlayExistingRecommendation = async (
 const executeTriggerMatchVerdict = async (
   talent: User,
   application: Application,
-  _options: TriggerMatchVerdictOptions = {}
+  options: TriggerMatchVerdictOptions = {}
 ): Promise<void> => {
   try {
     // Yield so the caller can persist stage/status columns before this runs
@@ -511,16 +519,20 @@ const executeTriggerMatchVerdict = async (
 
       const analysis = parseMatchAnalysis(parsed, normalizedVerdict);
 
-      await persistRecommendation(application.id, {
-        verdict: normalizedVerdict as MatchVerdict,
-        reasoning:
-          typeof parsed.reasoning === "string" ? parsed.reasoning : analysis.hiringRationale,
-        recommendation,
-        strengths: Array.isArray(parsed.strengths) ? (parsed.strengths as string[]) : null,
-        weaknesses: Array.isArray(parsed.weaknesses) ? (parsed.weaknesses as string[]) : null,
-        risks: Array.isArray(parsed.risks) ? (parsed.risks as string[]) : null,
-        analysis,
-      });
+      await persistRecommendation(
+        application.id,
+        {
+          verdict: normalizedVerdict as MatchVerdict,
+          reasoning:
+            typeof parsed.reasoning === "string" ? parsed.reasoning : analysis.hiringRationale,
+          recommendation,
+          strengths: Array.isArray(parsed.strengths) ? (parsed.strengths as string[]) : null,
+          weaknesses: Array.isArray(parsed.weaknesses) ? (parsed.weaknesses as string[]) : null,
+          risks: Array.isArray(parsed.risks) ? (parsed.risks as string[]) : null,
+          analysis,
+        },
+        { notify: options.notify !== false }
+      );
     } catch (err) {
       logger.error(
         `Match verdict generation failed for application ${application.id}: ${

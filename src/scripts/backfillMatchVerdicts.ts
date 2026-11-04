@@ -28,7 +28,9 @@ async function run(): Promise<void> {
   );
 
   await Promise.all(
-    applications.map((application) => triggerMatchVerdict(application.talent, application))
+    applications.map((application) =>
+      triggerMatchVerdict(application.talent, application, { notify: false })
+    )
   );
 
   const stillMissing = await applicationRepo.count({
