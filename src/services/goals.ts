@@ -238,6 +238,12 @@ export const setGoalProgress = async (
       toProgress: progress,
     });
     await goalsRepo(em).update(goal.id, { progress });
+    await recordActivities(em, staff, [
+      activityEntry(StaffActivityType.GoalProgressUpdated, actor, {
+        title: goal.title,
+        progress,
+      }),
+    ]);
     return toGoalView(Object.assign(goal, { progress }));
   });
 
@@ -360,6 +366,7 @@ const cleanSuggestions = (reply: Record<string, unknown>): Array<GoalInput> => {
 
 /** Saved as drafts for approval. A double click or retry returns the drafts already there and costs nothing. */
 export const suggestGoals = async (scope: PerformanceScope, ip: string): Promise<GoalView[]> => {
+  await assertScope(scope);
   const staff = await openPerformance(scope, ip);
   assertWritable(staff);
   const jobDescription = await loadJobDescription(staff.id);

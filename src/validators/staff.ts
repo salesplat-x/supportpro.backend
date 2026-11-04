@@ -117,6 +117,7 @@ export const staffOptionsValidator = [
 export const listStaffValidator = [
   orgParam,
   ...pagination,
+  query("assignedToMe").optional().isBoolean().withMessage("assignedToMe must be true or false"),
   once(query("status"), "status")
     .isIn(Object.values(StaffStatus))
     .withMessage(`status must be one of: ${Object.values(StaffStatus).join(", ")}`),
@@ -143,6 +144,28 @@ export const createStaffValidator = [
 ];
 
 export const staffIdValidator = [orgParam, staffParam];
+
+const MAX_ASSIGNMENT_BATCH = 200;
+
+const uuidList = (field: "add" | "remove") => [
+  body(field)
+    .optional()
+    .isArray({ max: MAX_ASSIGNMENT_BATCH })
+    .withMessage(`You can change up to ${MAX_ASSIGNMENT_BATCH} people at a time`),
+  body(`${field}.*`).isUUID().withMessage("Choose people from your list"),
+];
+
+export const assignedStaffValidator = [
+  orgParam,
+  query("assigneeUserId").isUUID().withMessage("Choose a teammate"),
+];
+
+export const setHrAssignmentsValidator = [
+  orgParam,
+  body("assigneeUserId").isUUID().withMessage("Choose a teammate"),
+  ...uuidList("add"),
+  ...uuidList("remove"),
+];
 
 export const updateStaffValidator = [
   orgParam,

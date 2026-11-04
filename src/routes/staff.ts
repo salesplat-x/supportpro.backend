@@ -19,6 +19,8 @@ import {
 import {
   accessLogValidator,
   addTaskValidator,
+  assignedStaffValidator,
+  setHrAssignmentsValidator,
   checklistDefaultsValidator,
   companyProfileValidator,
   importStaffValidator,
@@ -64,6 +66,21 @@ router.get(
   ...recruiter,
   validate(staffOptionsValidator),
   asyncHandler(staff.options, "load staff list")
+);
+
+router.get(
+  "/hr-assignments",
+  ...recruiter,
+  validate(assignedStaffValidator),
+  asyncHandler(staff.assignedStaff, "load assigned people")
+);
+
+router.put(
+  "/hr-assignments",
+  ...recruiter,
+  staffWriteLimiter,
+  validate(setHrAssignmentsValidator),
+  asyncHandler(staff.setHrAssignments, "save assigned people")
 );
 
 router.get(
@@ -375,6 +392,13 @@ router.delete(
   ...recruiter,
   validate(taskIdValidator),
   asyncHandler(staff.deleteTask, "remove task")
+);
+
+router.get(
+  "/:staffId/hr",
+  ...recruiter,
+  validate(staffIdValidator),
+  asyncHandler(staff.hrAssignees, "load assigned HR")
 );
 
 registerSharedPerformanceRoutes(router, "/:staffId/performance", recruiter, hrParams);

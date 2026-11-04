@@ -51,6 +51,7 @@ import { StaffMonthlyFeedback } from "../entities/StaffMonthlyFeedback.js";
 import { StaffEfficiencyTip } from "../entities/StaffEfficiencyTip.js";
 import { CompanyQuarterGoal } from "../entities/CompanyQuarterGoal.js";
 import { AiFeatureSetting } from "../entities/AiFeatureSetting.js";
+import { StaffHrAssignment } from "../entities/StaffHrAssignment.js";
 
 const databaseConfig: DataSourceOptions = {
   type: "postgres",
@@ -110,6 +111,7 @@ const databaseConfig: DataSourceOptions = {
     StaffEfficiencyTip,
     CompanyQuarterGoal,
     AiFeatureSetting,
+    StaffHrAssignment,
   ],
   migrations: [path.join(__dirname, "../migrations/*.{js,ts}")],
   synchronize: false,

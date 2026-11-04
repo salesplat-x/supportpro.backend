@@ -550,16 +550,16 @@ describe("finishing a signed document", () => {
     expect((await signedDoc(company.staff.id)).finalizedAt).not.toBeNull();
   });
 
-  it("sends the company copy to the owner when the sender has lost access", async () => {
+  it("sends the company copy to the creator, even if a teammate sent the contract", async () => {
     const { owner, org } = await setupCompany();
     const hr = await addMember(org, { canManagePeople: true });
-    const staff = await createStaff(app, hr.token, org.id, { fullName: "Ada Obi" });
-    await send(hr.token, org.id, staff.id).expect(201);
+    const staff = await createStaff(app, owner.token, org.id, { fullName: "Ada Obi" });
+    await send(owner.token, org.id, staff.id).expect(201);
     const token = lastSigningToken();
-    await testDataSource.query(
-      `UPDATE organization_members SET can_manage_people = false WHERE user_id = $1`,
-      [hr.user.id]
-    );
+    await testDataSource.query(`UPDATE staff_documents SET sent_by_id = $1 WHERE staff_id = $2`, [
+      hr.user.id,
+      staff.id,
+    ]);
 
     await signLink(token).expect(200);
 
@@ -568,6 +568,18 @@ describe("finishing a signed document", () => {
     );
     expect(emails).toContain(owner.user.email);
     expect(emails).not.toContain(hr.user.email);
+  });
+
+  it("keeps contracts from a member with Can manage people", async () => {
+    const { owner, org } = await setupCompany();
+    const hr = await addMember(org, { canManagePeople: true });
+    const staff = await createStaff(app, owner.token, org.id, { fullName: "Ada Obi" });
+
+    expect((await send(hr.token, org.id, staff.id)).status).toBe(403);
+    const list = await request(app)
+      .get(staffPath(org.id, `/${staff.id}/documents`))
+      .set(authHeader(hr.token));
+    expect(list.status).toBe(403);
   });
 
   it("leaves documents signed before this change alone", async () => {

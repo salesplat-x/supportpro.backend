@@ -5,7 +5,7 @@ import { StaffChecklistTask } from "../entities/StaffChecklistTask.js";
 import type { StaffMember } from "../entities/StaffMember.js";
 import type { User } from "../entities/User.js";
 import { NotFoundError } from "../utils/errors";
-import { assertCanManagePeople } from "./peopleAccess.js";
+import { assertCanManagePeople, assertCanViewStaff } from "./peopleAccess.js";
 import { findStaff } from "./staffRecord.js";
 
 export interface ChecklistItem {
@@ -75,7 +75,7 @@ export const listTasks = async (
   organizationId: string,
   staffId: string
 ): Promise<StaffChecklistTask[]> => {
-  await assertCanManagePeople(actor.id, organizationId);
+  await assertCanViewStaff(actor.id, organizationId, staffId);
   await findStaff(organizationId, staffId);
   return listTasksFor(staffId);
 };

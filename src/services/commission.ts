@@ -1,7 +1,7 @@
 import { AppDataSource } from "../database/dataSource.js";
 import { CommissionPlan, type CommissionTier } from "../entities/CommissionPlan.js";
 import { ConflictError, NotFoundError } from "../utils/errors";
-import { assertCanManagePeople } from "./peopleAccess.js";
+import { assertOwner } from "./peopleAccess.js";
 import { isUniqueViolation } from "./staffRecord.js";
 
 export interface CommissionPlanInput {
@@ -44,7 +44,7 @@ export const listPlans = async (
   userId: string,
   organizationId: string
 ): Promise<CommissionPlan[]> => {
-  await assertCanManagePeople(userId, organizationId);
+  await assertOwner(userId, organizationId);
   return repo().find({ where: { organizationId }, order: { name: "ASC" } });
 };
 
@@ -53,7 +53,7 @@ export const createPlan = async (
   organizationId: string,
   input: CommissionPlanInput
 ): Promise<CommissionPlan> => {
-  await assertCanManagePeople(userId, organizationId);
+  await assertOwner(userId, organizationId);
   return savePlan(repo().create({ organizationId, ...input }));
 };
 
@@ -63,7 +63,7 @@ export const updatePlan = async (
   planId: string,
   input: CommissionPlanInput
 ): Promise<CommissionPlan> => {
-  await assertCanManagePeople(userId, organizationId);
+  await assertOwner(userId, organizationId);
   const plan = await findPlan(organizationId, planId);
   return savePlan(Object.assign(plan, input));
 };
@@ -73,7 +73,7 @@ export const deletePlan = async (
   organizationId: string,
   planId: string
 ): Promise<void> => {
-  await assertCanManagePeople(userId, organizationId);
+  await assertOwner(userId, organizationId);
   const plan = await findPlan(organizationId, planId);
   try {
     await repo().delete(plan.id);

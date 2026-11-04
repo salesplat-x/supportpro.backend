@@ -9,7 +9,7 @@ import { StaffMember, StaffStatus } from "../entities/StaffMember.js";
 import type { User } from "../entities/User.js";
 import { ConflictError, NotFoundError, ValidationError } from "../utils/errors";
 import { findPlan } from "./commission.js";
-import { assertCanManagePeople } from "./peopleAccess.js";
+import { assertOwner } from "./peopleAccess.js";
 import { activityEntry, logStaffAccess, openStaff, recordActivities } from "./staffAudit.js";
 import { findStaff, isUniqueViolation } from "./staffRecord.js";
 
@@ -180,7 +180,7 @@ export const previewPayParagraph = async (
   organizationId: string,
   input: PayPackageInput
 ): Promise<string> => {
-  await assertCanManagePeople(actor.id, organizationId);
+  await assertOwner(actor.id, organizationId);
   const benefits = await loadBenefits(AppDataSource.manager, organizationId, input.benefitIds);
   return payParagraph(
     input,
@@ -194,7 +194,7 @@ export const setPayPackage = async (
   staffId: string,
   input: PayPackageInput
 ): Promise<PayView> => {
-  await assertCanManagePeople(actor.id, organizationId);
+  await assertOwner(actor.id, organizationId);
   await AppDataSource.transaction(async (em) => {
     const staff = await findStaff(organizationId, staffId, { em, lock: true });
     assertNotEnded(staff);
@@ -234,7 +234,7 @@ export const addShareGrant = async (
   staffId: string,
   input: ShareGrantInput
 ): Promise<ShareGrant> => {
-  await assertCanManagePeople(actor.id, organizationId);
+  await assertOwner(actor.id, organizationId);
   return AppDataSource.transaction(async (em) => {
     const staff = await findStaff(organizationId, staffId, { em, lock: true });
     assertNotEnded(staff);
@@ -254,7 +254,7 @@ export const deleteShareGrant = async (
   staffId: string,
   grantId: string
 ): Promise<void> => {
-  await assertCanManagePeople(actor.id, organizationId);
+  await assertOwner(actor.id, organizationId);
   await AppDataSource.transaction(async (em) => {
     const staff = await findStaff(organizationId, staffId, { em, lock: true });
     const grant = await em.getRepository(ShareGrant).findOne({ where: { id: grantId, staffId } });
@@ -269,7 +269,7 @@ export const deleteShareGrant = async (
 };
 
 export const listBenefits = async (userId: string, organizationId: string): Promise<Benefit[]> => {
-  await assertCanManagePeople(userId, organizationId);
+  await assertOwner(userId, organizationId);
   return AppDataSource.getRepository(Benefit).find({
     where: { organizationId },
     order: { name: "ASC" },
@@ -308,7 +308,7 @@ export const createBenefit = async (
   organizationId: string,
   input: Required<BenefitInput>
 ): Promise<Benefit> => {
-  await assertCanManagePeople(userId, organizationId);
+  await assertOwner(userId, organizationId);
   await assertBenefitNameFree(organizationId, input.name);
   return saveBenefit(
     AppDataSource.getRepository(Benefit).create({
@@ -335,7 +335,7 @@ export const updateBenefit = async (
   benefitId: string,
   input: BenefitInput
 ): Promise<Benefit> => {
-  await assertCanManagePeople(userId, organizationId);
+  await assertOwner(userId, organizationId);
   const benefit = await findBenefit(organizationId, benefitId);
   if (input.name !== undefined) {
     await assertBenefitNameFree(organizationId, input.name, benefitId);
@@ -352,7 +352,7 @@ export const deleteBenefit = async (
   organizationId: string,
   benefitId: string
 ): Promise<void> => {
-  await assertCanManagePeople(userId, organizationId);
+  await assertOwner(userId, organizationId);
   const benefit = await findBenefit(organizationId, benefitId);
   await AppDataSource.getRepository(Benefit).delete(benefit.id);
 };
@@ -379,7 +379,7 @@ export const getHeadcountCost = async (
   organizationId: string,
   ip: string
 ): Promise<HeadcountCost> => {
-  await assertCanManagePeople(actor.id, organizationId);
+  await assertOwner(actor.id, organizationId);
   await logStaffAccess({
     organizationId,
     actor,

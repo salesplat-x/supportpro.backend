@@ -12,7 +12,12 @@ import {
   workToday,
 } from "../utils/workCalendar.js";
 import { aiFailure, askAi, cleanAiText, withAiClaim } from "./peopleAi.js";
-import { type PerformanceScope, assertWritable, openPerformance } from "./performanceAccess.js";
+import {
+  type PerformanceScope,
+  assertScope,
+  assertWritable,
+  openPerformance,
+} from "./performanceAccess.js";
 
 /** The formula the owner confirmed. */
 export const EFFICIENCY_WEIGHTS = { goals: 0.5, reports: 0.25, rating: 0.25 } as const;
@@ -205,6 +210,7 @@ export const requestEfficiencyTip = async (
   scope: PerformanceScope,
   ip: string
 ): Promise<EfficiencyTipView> => {
+  await assertScope(scope);
   const staff = await openPerformance(scope, ip);
   assertWritable(staff);
   if (staff.isExecutive) {

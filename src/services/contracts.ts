@@ -29,7 +29,7 @@ import logger from "../utils/logger.js";
 import { AppError, ConflictError, NotFoundError, ValidationError } from "../utils/errors";
 import { INVITE_EXPIRY_DAYS, generateInviteToken } from "./organization.js";
 import { assertNotEnded, loadPay, longDate } from "./pay.js";
-import { assertCanManagePeople, getPeopleAccess } from "./peopleAccess.js";
+import { assertOwner } from "./peopleAccess.js";
 import {
   type AccessActor,
   activityEntry,
@@ -248,7 +248,7 @@ export const sendDocument = async (
   staffId: string,
   template: DocumentTemplate
 ): Promise<{ document: DocumentView; emailSent: boolean }> => {
-  const org = await assertCanManagePeople(actor.id, organizationId);
+  const org = await assertOwner(actor.id, organizationId);
   let token = "";
   let sent: { doc: StaffDocument; staff: StaffMember };
   try {
@@ -294,7 +294,7 @@ export const resendDocument = async (
   staffId: string,
   documentId: string
 ): Promise<{ document: DocumentView; emailSent: boolean }> => {
-  const org = await assertCanManagePeople(actor.id, organizationId);
+  const org = await assertOwner(actor.id, organizationId);
   let token = "";
   const sent = await AppDataSource.transaction(async (em) => {
     const staff = await findStaff(organizationId, staffId, { em, lock: true });
@@ -474,20 +474,14 @@ export const signLockedDocument = async (
   return { doc: signed, staff };
 };
 
-/** Whoever sent it, unless they have since lost access to People: then the company owner. */
-const companyCopyRecipient = async (org: Organization, doc: StaffDocument) => {
-  const users = AppDataSource.getRepository(User);
-  const select = { id: true, email: true, firstName: true };
-  const sender = doc.sentById ? await users.findOne({ where: { id: doc.sentById }, select }) : null;
-  const stillHasAccess = sender
-    ? await getPeopleAccess(sender.id, org.id).then(
-        (access) => access.canManagePeople,
-        () => false
-      )
-    : false;
-  if (sender && stillHasAccess) return sender;
-  return org.ownerId ? users.findOne({ where: { id: org.ownerId }, select }) : null;
-};
+/** Contracts stay between the company's creator and the employee, whoever sent this one. */
+const companyCopyRecipient = (org: Organization) =>
+  org.ownerId
+    ? AppDataSource.getRepository(User).findOne({
+        where: { id: org.ownerId },
+        select: { id: true, email: true, firstName: true },
+      })
+    : null;
 
 const COPY_SENT_COLUMNS = {
   employee: "employeeCopySentAt",
@@ -501,7 +495,7 @@ const emailMissingCopies = async (
   staff: StaffMember,
   copy: { fileName: string; pdf: Buffer }
 ): Promise<void> => {
-  const company = doc.companyCopySentAt ? null : await companyCopyRecipient(org, doc);
+  const company = doc.companyCopySentAt ? null : await companyCopyRecipient(org);
   const owed = [
     {
       side: "employee" as const,
@@ -692,7 +686,7 @@ export const retryFinalization = async (
   staffId: string,
   documentId: string
 ): Promise<DocumentView> => {
-  await assertCanManagePeople(actor.id, organizationId);
+  await assertOwner(actor.id, organizationId);
   const staff = await findStaff(organizationId, staffId);
   const current = await findStaffDocument(AppDataSource.manager, staff, documentId);
   if (copyStatusOf(current) !== "failed") {
@@ -737,7 +731,7 @@ export const setNeedsNotarization = async (
   documentId: string,
   needsNotarization: boolean
 ): Promise<DocumentView> => {
-  await assertCanManagePeople(actor.id, organizationId);
+  await assertOwner(actor.id, organizationId);
   return AppDataSource.transaction(async (em) => {
     const staff = await findStaff(organizationId, staffId, { em });
     const doc = await findStaffDocument(em, staff, documentId, true);
@@ -757,7 +751,7 @@ export const uploadNotarizedScan = async (
   documentId: string,
   file: Express.Multer.File | undefined
 ): Promise<DocumentView> => {
-  await assertCanManagePeople(actor.id, organizationId);
+  await assertOwner(actor.id, organizationId);
   const extension = file ? SCAN_TYPES[file.mimetype] : undefined;
   if (!file || !extension) {
     throw new ValidationError("Upload the scan as a PDF, JPG or PNG file");

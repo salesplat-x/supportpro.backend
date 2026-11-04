@@ -1,13 +1,49 @@
-import { EntityManager } from "typeorm";
+import { EntityManager, FindOptionsWhere, In } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { StaffAccessLog, StaffAccessResource } from "../entities/StaffAccessLog.js";
 import { StaffActivity, StaffActivityType } from "../entities/StaffActivity.js";
 import type { StaffMember } from "../entities/StaffMember.js";
 import type { User } from "../entities/User.js";
-import { assertCanManagePeople, assertOwner } from "./peopleAccess.js";
+import { assertCanViewStaff, assertOwner, getPeopleAccess } from "./peopleAccess.js";
 import { Actor, findStaff, fullNameOf } from "./staffRecord.js";
 
 const MAX_ACTIVITY_ROWS = 200;
+
+/** Anything not listed here is creator-only, so a new resource starts out private. */
+const VIEWABLE_WITHOUT_BEING_CREATOR = new Set<StaffAccessResource>([
+  StaffAccessResource.StaffRecord,
+  StaffAccessResource.StaffActivity,
+  StaffAccessResource.Performance,
+]);
+
+/** Pay, share and contract events are left out, so a new event type starts out creator-only. */
+const PERFORMANCE_ACTIVITY = [
+  StaffActivityType.Created,
+  StaffActivityType.Joined,
+  StaffActivityType.Updated,
+  StaffActivityType.Ended,
+  StaffActivityType.JobDescriptionSaved,
+  StaffActivityType.GoalAdded,
+  StaffActivityType.GoalsSuggested,
+  StaffActivityType.GoalChanged,
+  StaffActivityType.GoalApproved,
+  StaffActivityType.GoalRemoved,
+  StaffActivityType.GoalProgressUpdated,
+  StaffActivityType.WeeklyReportSubmitted,
+  StaffActivityType.ReportNoteAdded,
+  StaffActivityType.DevelopmentItemAdded,
+  StaffActivityType.DevelopmentItemRemoved,
+  StaffActivityType.FeedbackSaved,
+  StaffActivityType.HrAssigned,
+  StaffActivityType.HrRemoved,
+];
+
+const INVITE_ACTIVITY = [
+  StaffActivityType.Invited,
+  StaffActivityType.InviteResent,
+  StaffActivityType.InviteFailed,
+  StaffActivityType.InviteOpened,
+];
 
 const ACCESS_LABELS: Record<StaffAccessResource, string> = {
   [StaffAccessResource.StaffRecord]: "Staff record",
@@ -119,7 +155,7 @@ export const logStaffAccess = async (input: {
   });
 };
 
-/** HR-only read of one person's data: checks access, finds the record, logs the view. */
+/** A read of one person's data: checks access for that resource, finds the record, logs the view. */
 export const openStaff = async (
   actor: User,
   organizationId: string,
@@ -127,7 +163,11 @@ export const openStaff = async (
   resource: StaffAccessResource,
   ip: string
 ): Promise<StaffMember> => {
-  await assertCanManagePeople(actor.id, organizationId);
+  if (VIEWABLE_WITHOUT_BEING_CREATOR.has(resource)) {
+    await assertCanViewStaff(actor.id, organizationId, staffId);
+  } else {
+    await assertOwner(actor.id, organizationId);
+  }
   const staff = await findStaff(organizationId, staffId);
   await logStaffAccess({ organizationId, actor, staff, resource, ip });
   return staff;
@@ -141,8 +181,16 @@ export const listActivity = async (
 ): Promise<StaffActivityView[]> => {
   await openStaff(actor, organizationId, staffId, StaffAccessResource.StaffActivity, ip);
 
+  const { isOwner, canManagePeople } = await getPeopleAccess(actor.id, organizationId);
+  const where: FindOptionsWhere<StaffActivity> = { staffId, organizationId };
+  if (!isOwner) {
+    where.type = In(
+      canManagePeople ? [...PERFORMANCE_ACTIVITY, ...INVITE_ACTIVITY] : PERFORMANCE_ACTIVITY
+    );
+  }
+
   const rows = await AppDataSource.getRepository(StaffActivity).find({
-    where: { staffId, organizationId },
+    where,
     order: { createdAt: "DESC" },
     take: MAX_ACTIVITY_ROWS,
   });

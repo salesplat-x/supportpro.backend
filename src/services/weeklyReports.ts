@@ -137,6 +137,9 @@ export const submitReport = async (
           submittedAt: new Date(),
         })
       );
+      await recordActivities(em, staff, [
+        activityEntry(StaffActivityType.WeeklyReportSubmitted, actor, { weekStart }),
+      ]);
       return toReportView(created);
     }
     const unchanged =
@@ -157,6 +160,9 @@ export const submitReport = async (
       adviceAt: null,
     };
     await repo.update(existing.id, changes);
+    await recordActivities(em, staff, [
+      activityEntry(StaffActivityType.WeeklyReportSubmitted, actor, { weekStart }),
+    ]);
     return toReportView(Object.assign(existing, changes));
   });
 
