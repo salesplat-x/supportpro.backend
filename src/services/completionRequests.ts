@@ -37,6 +37,7 @@ import {
   logPerformanceRead,
   openPerformance,
 } from "./performanceAccess.js";
+import { type GoalView, toGoalView } from "./goals.js";
 import { activityEntry, recordActivities } from "./staffAudit.js";
 import { fullNameOf, isUniqueViolation } from "./staffRecord.js";
 
@@ -119,6 +120,34 @@ export const loadLatestRequests = async (staffIds: string[]): Promise<Completion
       return true;
     })
     .map((row) => toRequestView(row, titles));
+};
+
+export interface ReviewResult {
+  goal: GoalView | null;
+  task: StaffChecklistTask | null;
+  request: CompletionRequestView | null;
+}
+
+/** Sent back after each decision, so the page can update without a read that writes a log line. */
+const reviewResult = async (
+  staffId: string,
+  item: { goalId: string } | { taskId: string }
+): Promise<ReviewResult> => {
+  const itemId = "goalId" in item ? item.goalId : item.taskId;
+  const [goal, task, requests] = await Promise.all([
+    "goalId" in item
+      ? AppDataSource.getRepository(StaffGoal).findOne({ where: { id: item.goalId } })
+      : null,
+    "taskId" in item
+      ? AppDataSource.getRepository(StaffChecklistTask).findOne({ where: { id: item.taskId } })
+      : null,
+    loadLatestRequests([staffId]),
+  ]);
+  return {
+    goal: goal ? toGoalView(goal) : null,
+    task,
+    request: requests.find((request) => request.itemId === itemId) ?? null,
+  };
 };
 
 const includesBytes = (buffer: Buffer, text: string) => buffer.includes(text, 0, "latin1");
@@ -611,9 +640,9 @@ export const approveCompletionRequest = async (
   scope: PerformanceScope,
   requestId: string,
   input: { version?: number; note: string | null }
-): Promise<void> => {
+): Promise<ReviewResult> => {
   const emails: PendingEmail[] = [];
-  await AppDataSource.transaction(async (em) => {
+  const { staffId, item } = await AppDataSource.transaction(async (em) => {
     const staff = await openForReview(scope, em);
     assertWritable(staff);
     const request = await requestsRepo(em).findOne({
@@ -654,17 +683,22 @@ export const approveCompletionRequest = async (
       activityEntry(StaffActivityType.CompletionApproved, scope.actor, { title }),
     ]);
     await tellEmployee(em, staff, title, { approved: true, note: input.note }, emails);
+    return {
+      staffId: staff.id,
+      item: request.goalId ? { goalId: request.goalId } : { taskId: request.taskId! },
+    };
   });
   await sendEmails(emails);
+  return reviewResult(staffId, item);
 };
 
 export const returnCompletionRequest = async (
   scope: PerformanceScope,
   requestId: string,
   note: string
-): Promise<void> => {
+): Promise<ReviewResult> => {
   const emails: PendingEmail[] = [];
-  await AppDataSource.transaction(async (em) => {
+  const { staffId, itemRef } = await AppDataSource.transaction(async (em) => {
     const staff = await openForReview(scope, em);
     assertWritable(staff);
     const request = await requestsRepo(em).findOne({
@@ -690,17 +724,22 @@ export const returnCompletionRequest = async (
       activityEntry(StaffActivityType.CompletionReturned, scope.actor, { title: item.title }),
     ]);
     await tellEmployee(em, staff, item.title, { approved: false, note }, emails);
+    return {
+      staffId: staff.id,
+      itemRef: request.goalId ? { goalId: request.goalId } : { taskId: request.taskId! },
+    };
   });
   await sendEmails(emails);
+  return reviewResult(staffId, itemRef);
 };
 
 export const completeGoalDirectly = async (
   scope: PerformanceScope,
   goalId: string,
   version: number
-): Promise<void> => {
+): Promise<ReviewResult> => {
   const emails: PendingEmail[] = [];
-  await AppDataSource.transaction(async (em) => {
+  const staffId = await AppDataSource.transaction(async (em) => {
     const staff = await openForReview(scope, em);
     assertWritable(staff);
     const goal = await lockGoal(em, staff.id, goalId);
@@ -719,16 +758,18 @@ export const completeGoalDirectly = async (
       activityEntry(StaffActivityType.CompletionApproved, scope.actor, { title: goal.title }),
     ]);
     await tellEmployee(em, staff, goal.title, { approved: true, note: null }, emails);
+    return staff.id;
   });
   await sendEmails(emails);
+  return reviewResult(staffId, { goalId });
 };
 
 export const completeTaskDirectly = async (
   scope: PerformanceScope,
   taskId: string
-): Promise<void> => {
+): Promise<ReviewResult> => {
   const emails: PendingEmail[] = [];
-  await AppDataSource.transaction(async (em) => {
+  const staffId = await AppDataSource.transaction(async (em) => {
     const staff = await openForReview(scope, em);
     assertWritable(staff);
     const task = await lockTask(em, staff.id, taskId);
@@ -744,12 +785,17 @@ export const completeTaskDirectly = async (
       activityEntry(StaffActivityType.CompletionApproved, scope.actor, { title: task.title }),
     ]);
     await tellEmployee(em, staff, task.title, { approved: true, note: null }, emails);
+    return staff.id;
   });
   await sendEmails(emails);
+  return reviewResult(staffId, { taskId });
 };
 
-export const reopenGoal = async (scope: PerformanceScope, goalId: string): Promise<void> => {
-  await AppDataSource.transaction(async (em) => {
+export const reopenGoal = async (
+  scope: PerformanceScope,
+  goalId: string
+): Promise<ReviewResult> => {
+  const staffId = await AppDataSource.transaction(async (em) => {
     const staff = await openForReview(scope, em);
     assertWritable(staff);
     const goal = await lockGoal(em, staff.id, goalId);
@@ -774,11 +820,16 @@ export const reopenGoal = async (scope: PerformanceScope, goalId: string): Promi
     await recordActivities(em, staff, [
       activityEntry(StaffActivityType.CompletionReopened, scope.actor, { title: goal.title }),
     ]);
+    return staff.id;
   });
+  return reviewResult(staffId, { goalId });
 };
 
-export const reopenTask = async (scope: PerformanceScope, taskId: string): Promise<void> => {
-  await AppDataSource.transaction(async (em) => {
+export const reopenTask = async (
+  scope: PerformanceScope,
+  taskId: string
+): Promise<ReviewResult> => {
+  const staffId = await AppDataSource.transaction(async (em) => {
     const staff = await openForReview(scope, em);
     assertWritable(staff);
     const task = await lockTask(em, staff.id, taskId);
@@ -792,7 +843,9 @@ export const reopenTask = async (scope: PerformanceScope, taskId: string): Promi
     await recordActivities(em, staff, [
       activityEntry(StaffActivityType.CompletionReopened, scope.actor, { title: task.title }),
     ]);
+    return staff.id;
   });
+  return reviewResult(staffId, { taskId });
 };
 
 export const listScopedTasks = async (

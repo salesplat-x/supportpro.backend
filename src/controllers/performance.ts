@@ -58,44 +58,62 @@ export const tasks = async (req: Request, res: Response) => {
 };
 
 export const completeTask = async (req: Request, res: Response) => {
-  await completion.completeTaskDirectly(scopeOf(req), req.params["taskId"]!);
-  sendSuccessResponse(res, "Task marked complete");
+  sendSuccessResponse(
+    res,
+    "Task marked complete",
+    await completion.completeTaskDirectly(scopeOf(req), req.params["taskId"]!)
+  );
 };
 
 export const reopenTask = async (req: Request, res: Response) => {
-  await completion.reopenTask(scopeOf(req), req.params["taskId"]!);
-  sendSuccessResponse(res, "Task reopened");
+  sendSuccessResponse(
+    res,
+    "Task reopened",
+    await completion.reopenTask(scopeOf(req), req.params["taskId"]!)
+  );
 };
 
 export const completeGoal = async (req: Request, res: Response) => {
-  await completion.completeGoalDirectly(
-    scopeOf(req),
-    req.params["goalId"]!,
-    req.body.version as number
+  sendSuccessResponse(
+    res,
+    "Goal marked complete",
+    await completion.completeGoalDirectly(
+      scopeOf(req),
+      req.params["goalId"]!,
+      req.body.version as number
+    )
   );
-  sendSuccessResponse(res, "Goal marked complete");
 };
 
 export const reopenGoal = async (req: Request, res: Response) => {
-  await completion.reopenGoal(scopeOf(req), req.params["goalId"]!);
-  sendSuccessResponse(res, "Goal reopened");
+  sendSuccessResponse(
+    res,
+    "Goal reopened",
+    await completion.reopenGoal(scopeOf(req), req.params["goalId"]!)
+  );
 };
 
 export const approveCompletion = async (req: Request, res: Response) => {
-  await completion.approveCompletionRequest(scopeOf(req), req.params["requestId"]!, {
-    version: req.body.version as number | undefined,
-    note: (req.body.note as string | null | undefined) || null,
-  });
-  sendSuccessResponse(res, "Marked complete");
+  sendSuccessResponse(
+    res,
+    "Marked complete",
+    await completion.approveCompletionRequest(scopeOf(req), req.params["requestId"]!, {
+      version: req.body.version as number | undefined,
+      note: (req.body.note as string | null | undefined) || null,
+    })
+  );
 };
 
 export const returnCompletion = async (req: Request, res: Response) => {
-  await completion.returnCompletionRequest(
-    scopeOf(req),
-    req.params["requestId"]!,
-    req.body.note as string
+  sendSuccessResponse(
+    res,
+    "Sent back",
+    await completion.returnCompletionRequest(
+      scopeOf(req),
+      req.params["requestId"]!,
+      req.body.note as string
+    )
   );
-  sendSuccessResponse(res, "Sent back");
 };
 
 export const evidenceFile = async (req: Request, res: Response) => {

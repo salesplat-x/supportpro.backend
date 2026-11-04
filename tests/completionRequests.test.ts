@@ -428,7 +428,10 @@ describe("a reviewer", () => {
     const pending = await submitted(setup);
     await testDataSource.getRepository(StaffGoal).update(setup.goalId, { progress: 60 });
 
-    await approve(setup, pending.id, setup.hr.token).expect(200);
+    const res = await approve(setup, pending.id, setup.hr.token).expect(200);
+    const result = apiData<{ goal: { progress: number }; request: { status: string } }>(res);
+    expect(result.goal.progress).toBe(100);
+    expect(result.request.status).toBe("approved");
 
     const goal = await goalOf(setup.goalId);
     expect(goal.progress).toBe(100);
