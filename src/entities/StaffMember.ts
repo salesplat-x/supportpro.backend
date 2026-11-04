@@ -37,6 +37,7 @@ export enum StaffStatus {
 })
 @Index("UQ_staff_members_invite_token_hash", ["inviteTokenHash"], { unique: true })
 @Index("IDX_staff_members_org_status", ["organizationId", "status"])
+@Index("IDX_staff_members_manager", ["managerId"])
 export class StaffMember {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

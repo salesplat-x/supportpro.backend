@@ -44,6 +44,15 @@ import { ShareGrant } from "../entities/ShareGrant.js";
 import { CommissionPlan } from "../entities/CommissionPlan.js";
 import { StaffDocument } from "../entities/StaffDocument.js";
 import { StaffChecklistTask } from "../entities/StaffChecklistTask.js";
+import { PeopleAiClaim } from "../entities/PeopleAiClaim.js";
+import { StaffJobDescription } from "../entities/StaffJobDescription.js";
+import { StaffGoal } from "../entities/StaffGoal.js";
+import { StaffGoalProgressEvent } from "../entities/StaffGoalProgressEvent.js";
+import { StaffWeeklyReport } from "../entities/StaffWeeklyReport.js";
+import { StaffDevelopmentItem } from "../entities/StaffDevelopmentItem.js";
+import { StaffMonthlyFeedback } from "../entities/StaffMonthlyFeedback.js";
+import { StaffEfficiencyTip } from "../entities/StaffEfficiencyTip.js";
+import { CompanyQuarterGoal } from "../entities/CompanyQuarterGoal.js";
 
 const ALL_ENTITIES = [
   User,
@@ -86,6 +95,15 @@ const ALL_ENTITIES = [
   CommissionPlan,
   StaffDocument,
   StaffChecklistTask,
+  PeopleAiClaim,
+  StaffJobDescription,
+  StaffGoal,
+  StaffGoalProgressEvent,
+  StaffWeeklyReport,
+  StaffDevelopmentItem,
+  StaffMonthlyFeedback,
+  StaffEfficiencyTip,
+  CompanyQuarterGoal,
 ];
 
 async function run(): Promise<void> {

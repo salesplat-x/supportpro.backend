@@ -15,7 +15,11 @@ const ACCESS_LABELS: Record<StaffAccessResource, string> = {
   [StaffAccessResource.Pay]: "Pay",
   [StaffAccessResource.Contract]: "Contracts",
   [StaffAccessResource.HeadcountCost]: "Headcount cost",
+  [StaffAccessResource.Performance]: "Performance",
 };
+
+/** Someone with no account behind the read, such as whoever holds an emailed link. */
+export type AccessActor = Actor | { id: null; name: string };
 
 export interface ActivityEntry {
   type: StaffActivityType;
@@ -96,15 +100,17 @@ export const recordActivities = async (
  */
 export const logStaffAccess = async (input: {
   organizationId: string;
-  actor: Actor;
+  actor: AccessActor;
   staff: { id: string | null; fullName: string };
   resource: StaffAccessResource;
   ip: string;
+  em?: EntityManager;
 }): Promise<void> => {
-  await AppDataSource.getRepository(StaffAccessLog).insert({
+  const manager = input.em ?? AppDataSource.manager;
+  await manager.getRepository(StaffAccessLog).insert({
     organizationId: input.organizationId,
     actorId: input.actor.id,
-    actorName: fullNameOf(input.actor),
+    actorName: "name" in input.actor ? input.actor.name : fullNameOf(input.actor),
     staffId: input.staff.id,
     staffName: input.staff.fullName,
     resource: input.resource,

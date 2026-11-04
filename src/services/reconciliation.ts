@@ -4,6 +4,8 @@ import { reconcileDueMatchVerdicts } from "./applicationStage.js";
 import { reconcileDuePreScreeningGenerations } from "./prescreening.js";
 import { reconcileDueScoutCvs } from "./scoutRun.js";
 import { reconcileDueCandidateEmbeddings } from "./scoutCandidate.js";
+import { reconcileDueDocumentFinalization } from "./contracts.js";
+import { clearOldAiClaims } from "./peopleAi.js";
 
 /**
  * CV embedding generation runs fire-and-forget after a profile update responds
@@ -56,5 +58,19 @@ export const reconcileDurableJobs = async (): Promise<void> => {
     logger.error(
       `Scout candidate embedding sweep failed: ${err instanceof Error ? err.message : String(err)}`
     );
+  }
+
+  try {
+    await reconcileDueDocumentFinalization();
+  } catch (err) {
+    logger.error(
+      `Signed document sweep failed: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+
+  try {
+    await clearOldAiClaims();
+  } catch (err) {
+    logger.error(`AI claim cleanup failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 };

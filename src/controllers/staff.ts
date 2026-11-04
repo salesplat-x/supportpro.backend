@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import * as checklist from "../services/checklist.js";
+import { getOrgChart } from "../services/orgChart.js";
 import * as companyProfile from "../services/companyProfile.js";
 import { getPeopleAccess } from "../services/peopleAccess.js";
 import * as staffService from "../services/staff.js";
@@ -187,4 +188,8 @@ export const fillCompanyProfile = async (req: Request, res: Response) => {
     req.file
   );
   sendSuccessResponse(res, "Company profile filled in", { profile });
+};
+
+export const orgChart = async (req: Request, res: Response) => {
+  sendSuccessResponse(res, "Org chart fetched", await getOrgChart(req.user.id, orgId(req)));
 };

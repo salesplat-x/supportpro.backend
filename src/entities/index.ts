@@ -39,3 +39,16 @@ export { CommissionPlan } from "./CommissionPlan.js";
 export type { CommissionTier } from "./CommissionPlan.js";
 export { StaffDocument, DocumentStatus, DocumentTemplate } from "./StaffDocument.js";
 export { StaffChecklistTask } from "./StaffChecklistTask.js";
+export { PeopleAiClaim } from "./PeopleAiClaim.js";
+export { StaffJobDescription } from "./StaffJobDescription.js";
+export { StaffGoal, GoalStatus, GoalSource } from "./StaffGoal.js";
+export { StaffGoalProgressEvent } from "./StaffGoalProgressEvent.js";
+export { StaffWeeklyReport } from "./StaffWeeklyReport.js";
+export {
+  StaffDevelopmentItem,
+  DevelopmentStatus,
+  DevelopmentSource,
+} from "./StaffDevelopmentItem.js";
+export { StaffMonthlyFeedback } from "./StaffMonthlyFeedback.js";
+export { StaffEfficiencyTip } from "./StaffEfficiencyTip.js";
+export { CompanyQuarterGoal } from "./CompanyQuarterGoal.js";

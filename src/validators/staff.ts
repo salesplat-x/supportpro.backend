@@ -6,7 +6,7 @@ import { StaffStatus } from "../entities/StaffMember.js";
 import { Currency } from "../types/enums.js";
 
 const NO_LINE_BREAKS = /^[^\r\n]*$/;
-const NO_NUL = /^[^\0]*$/;
+export const NO_NUL = /^[^\0]*$/;
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const MIN_YEAR = 1900;
 const MAX_YEAR = 2100;
@@ -14,8 +14,8 @@ const MAX_TEXT = 120;
 const MAX_EMAIL = 254;
 const MAX_OFFSET = 1_000_000;
 
-const orgParam = param("_id").isUUID().withMessage("Invalid company id");
-const staffParam = param("staffId").isUUID().withMessage("Invalid staff id");
+export const orgParam = param("_id").isUUID().withMessage("Invalid company id");
+export const staffParam = param("staffId").isUUID().withMessage("Invalid staff id");
 const benefitParam = param("benefitId").isUUID().withMessage("Invalid benefit id");
 const grantParam = param("grantId").isUUID().withMessage("Invalid share grant id");
 const MONEY = /^\d{1,12}(\.\d{1,2})?$/;
@@ -54,7 +54,7 @@ const nullableText = (chain: ValidationChain, label: string): ValidationChain =>
     .matches(NO_NUL)
     .withMessage(`${label} can't contain control characters`);
 
-const dateOnly = (chain: ValidationChain, label: string): ValidationChain =>
+export const dateOnly = (chain: ValidationChain, label: string): ValidationChain =>
   chain
     .isString()
     .matches(DATE_ONLY)
@@ -84,7 +84,7 @@ const once = (chain: ValidationChain, label: string): ValidationChain =>
     .withMessage(`${label} can only be given once`)
     .bail();
 
-const pagination = [
+export const pagination = [
   once(query("limit"), "limit")
     .isInt({ min: 1, max: 100 })
     .withMessage("limit must be 1-100")
@@ -328,6 +328,15 @@ export const documentTokenValidator = [
   param("token")
     .matches(/^[a-f0-9]{64}$/)
     .withMessage("This link has expired or was already used"),
+];
+
+export const documentCheckValidator = [
+  body("documentId").isUUID().withMessage("Enter the document ID from the signature page"),
+  body("checkCode")
+    .isString()
+    .trim()
+    .matches(/^[a-fA-F0-9]{64}$/)
+    .withMessage("Enter the 64-character check code from the signature page"),
 ];
 
 export const signDocumentValidator = [

@@ -1,13 +1,21 @@
 import { Router } from "express";
 import * as contracts from "../controllers/contracts.js";
 import * as pay from "../controllers/pay.js";
+import * as performance from "../controllers/performance.js";
 import * as staff from "../controllers/staff.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { validateAccess, requireVerifiedEmail } from "../middleware/auth.js";
 import { companyDocumentUpload, notarizedScanUpload } from "../middleware/multer.js";
-import { staffWriteLimiter } from "../middleware/rateLimiter.js";
+import { peopleAiLimiter, staffWriteLimiter } from "../middleware/rateLimiter.js";
 import { validate } from "../middleware/validate.js";
 import { UserRole } from "../types/enums.js";
+import { registerSharedPerformanceRoutes } from "./performance.js";
+import {
+  hrParams,
+  quarterGoalValidator,
+  quarterlyReviewValidator,
+  saveJobDescriptionValidator,
+} from "../validators/performance.js";
 import {
   accessLogValidator,
   addTaskValidator,
@@ -63,6 +71,27 @@ router.get(
   ...recruiter,
   validate(accessLogValidator),
   asyncHandler(staff.accessLog, "load the access log")
+);
+
+router.get(
+  "/org-chart",
+  ...recruiter,
+  validate(companyParamValidator),
+  asyncHandler(staff.orgChart, "load the org chart")
+);
+
+router.get(
+  "/quarterly-review",
+  ...recruiter,
+  validate(quarterlyReviewValidator),
+  asyncHandler(performance.quarterlyReview, "load the quarterly review")
+);
+
+router.put(
+  "/quarterly-review/goal",
+  ...recruiter,
+  validate(quarterGoalValidator),
+  asyncHandler(performance.quarterGoal, "save the revenue goal")
 );
 
 router.get(
@@ -289,6 +318,14 @@ router.post(
   asyncHandler(contracts.resend, "send document again")
 );
 
+router.post(
+  "/:staffId/documents/:documentId/finalize",
+  ...recruiter,
+  staffWriteLimiter,
+  validate(staffDocumentValidator),
+  asyncHandler(contracts.retryFinalization, "finish the signed copy")
+);
+
 router.get(
   "/:staffId/documents/:documentId/pdf",
   ...recruiter,
@@ -338,6 +375,23 @@ router.delete(
   ...recruiter,
   validate(taskIdValidator),
   asyncHandler(staff.deleteTask, "remove task")
+);
+
+registerSharedPerformanceRoutes(router, "/:staffId/performance", recruiter, hrParams);
+
+router.post(
+  "/:staffId/job-description/write",
+  ...recruiter,
+  peopleAiLimiter,
+  validate(hrParams),
+  asyncHandler(performance.writeJobDescription, "write the job description")
+);
+
+router.put(
+  "/:staffId/job-description",
+  ...recruiter,
+  validate(saveJobDescriptionValidator),
+  asyncHandler(performance.saveJobDescription, "save the job description")
 );
 
 export default (app: Router) => app.use("/organizations/:_id/staff", router);

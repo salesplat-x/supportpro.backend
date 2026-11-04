@@ -7,6 +7,7 @@ import {
   testDataSource,
 } from "./helpers/db.js";
 import { StaffAccessLog, StaffMember } from "../src/entities";
+import { StaffAccessResource } from "../src/entities/StaffAccessLog.js";
 import { createTalent } from "./helpers/fixtures.js";
 import { apiData } from "./helpers/http.js";
 import { addMember, authHeader, setupCompany } from "./helpers/company.js";
@@ -25,6 +26,13 @@ jest.mock("../src/utils/integrations/email/emailService.js", () => {
     sendDocumentToSign,
   };
 });
+
+jest.mock("../src/utils/integrations/spaces.js", () => ({
+  ...jest.requireActual("../src/utils/integrations/spaces.js"),
+  uploadPrivateToSpaces: jest.fn().mockResolvedValue(undefined),
+  getFromSpaces: jest.fn().mockResolvedValue(Buffer.from("%PDF-stored")),
+  deleteSpacesObjectQuietly: jest.fn().mockResolvedValue(undefined),
+}));
 
 let app: ReturnType<typeof createApp>;
 
@@ -46,6 +54,7 @@ interface MyWorkRecord {
   staffId: string;
   companyName: string;
   documentsToSign: { id: string; title: string }[];
+  signedDocuments: { id: string; title: string; signedAt: string }[];
   tasks: { id: string; title: string; dueOn: string; doneAt: string | null }[];
 }
 
@@ -186,7 +195,13 @@ describe("My work", () => {
       (await request(app).get(`/v1/my-work/documents/${id}`).set(authHeader(bayo.token))).status
     ).toBe(404);
     await request(app).get(`/v1/my-work/documents/${id}`).set(authHeader(ada.token)).expect(200);
+    await request(app).get(`/v1/my-work/documents/${id}`).set(authHeader(ada.token)).expect(200);
     await request(app).get(`/v1/staff-documents/${emailToken}`).expect(200);
+    const views = await testDataSource
+      .getRepository(StaffAccessLog)
+      .find({ where: { staffId: ada.staff.id, resource: StaffAccessResource.Contract } });
+    expect(views.filter((view) => view.actorId === ada.user.id)).toHaveLength(2);
+    expect(views.filter((view) => view.actorId === null)).toHaveLength(1);
 
     const sign = () =>
       request(app)
@@ -197,6 +212,54 @@ describe("My work", () => {
     expect((await sign()).status).toBe(404);
     expect((await request(app).get(`/v1/staff-documents/${emailToken}`)).status).toBe(404);
     expect((await myWork(ada.token))[0]!.documentsToSign).toEqual([]);
+  });
+
+  it("lists signed contracts and lets only their owner download them, logging each", async () => {
+    const { owner, org, ada, bayo } = await companyWithEmployees();
+    await request(app)
+      .post(staffPath(org.id, `/${ada.staff.id}/documents`))
+      .set(authHeader(owner.token))
+      .send({ template: "nda" })
+      .expect(201);
+    const { id } = (await myWork(ada.token))[0]!.documentsToSign[0]!;
+    const pdfPath = `/v1/my-work/documents/${id}/pdf`;
+    expect((await request(app).get(pdfPath).set(authHeader(ada.token))).status).toBe(404);
+
+    await request(app)
+      .post(`/v1/my-work/documents/${id}/sign`)
+      .set(authHeader(ada.token))
+      .send({ fullName: "Ada Obi", agree: true })
+      .expect(200);
+
+    const [record] = await myWork(ada.token);
+    expect(record!.signedDocuments).toEqual([
+      { id, title: "Confidentiality agreement", signedAt: expect.any(String) },
+    ]);
+    expect(JSON.stringify(record)).not.toContain("confidential information");
+    expect((await myWork(bayo.token))[0]!.signedDocuments).toEqual([]);
+
+    expect((await request(app).get(pdfPath).set(authHeader(bayo.token))).status).toBe(404);
+    expect((await request(app).get(pdfPath).set(authHeader(owner.token))).status).toBe(403);
+    expect((await request(app).get(pdfPath)).status).toBe(401);
+
+    const before = await testDataSource
+      .getRepository(StaffAccessLog)
+      .count({ where: { staffId: ada.staff.id, actorId: ada.user.id } });
+    const download = await request(app).get(pdfPath).set(authHeader(ada.token));
+    expect(download.status).toBe(200);
+    expect(download.headers["content-type"]).toBe("application/pdf");
+    expect(
+      await testDataSource
+        .getRepository(StaffAccessLog)
+        .count({ where: { staffId: ada.staff.id, actorId: ada.user.id } })
+    ).toBe(before + 1);
+
+    await request(app)
+      .post(staffPath(org.id, `/${ada.staff.id}/end`))
+      .set(authHeader(owner.token))
+      .send({ endDate: today() })
+      .expect(200);
+    expect((await request(app).get(pdfPath).set(authHeader(ada.token))).status).toBe(404);
   });
 
   it("hides ended records and refuses recruiter accounts", async () => {

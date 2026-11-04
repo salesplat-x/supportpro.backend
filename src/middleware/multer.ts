@@ -28,3 +28,9 @@ export const jobDescriptionUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
 });
+
+/** Public route: only hashed, never stored. A signed contract is far smaller than this. */
+export const signedDocumentCheckUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+});

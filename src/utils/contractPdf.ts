@@ -5,6 +5,7 @@ export interface ContractSignature {
   signedAt: Date;
   ip: string;
   checkCode: string;
+  check: { documentId: string; verifyUrl: string } | null;
 }
 
 export interface ContractPdfInput {
@@ -32,7 +33,11 @@ export async function generateContractPdf(input: ContractPdfInput): Promise<Buff
     const doc = new PDFDocument({
       size: "A4",
       margin: PAGE_MARGIN,
-      info: { Title: input.title, Author: input.companyName },
+      info: {
+        Title: input.title,
+        Author: input.companyName,
+        ...(input.signature ? { CreationDate: input.signature.signedAt } : {}),
+      },
     });
     const chunks: Buffer[] = [];
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -77,6 +82,9 @@ export async function generateContractPdf(input: ContractPdfInput): Promise<Buff
         ["Signed by", input.signature.name],
         ["Signed at", utcStamp(input.signature.signedAt)],
         ["IP address", input.signature.ip || "Unknown"],
+        ...(input.signature.check
+          ? ([["Document ID", input.signature.check.documentId]] as Array<[string, string]>)
+          : []),
         ["Check code", input.signature.checkCode],
       ];
       for (const [label, value] of rows) {
@@ -89,7 +97,9 @@ export async function generateContractPdf(input: ContractPdfInput): Promise<Buff
         .fillColor(MUTED)
         .fontSize(9)
         .text(
-          "The check code is a SHA-256 fingerprint of the document text, the signer's name and the signing time. Any change to them gives a different code.",
+          input.signature.check
+            ? `The check code is a SHA-256 fingerprint of the document, the signer, the signing time and the IP address. To check this document, go to ${input.signature.check.verifyUrl} and enter the document ID and check code, or upload this file.`
+            : "The check code is a SHA-256 fingerprint of the document text, the signer's name and the signing time. Any change to them gives a different code.",
           { width }
         );
     }

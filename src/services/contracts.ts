@@ -9,6 +9,14 @@ import { DocumentStatus, DocumentTemplate, StaffDocument } from "../entities/Sta
 import { StaffMember, StaffStatus } from "../entities/StaffMember.js";
 import { User } from "../entities/User.js";
 import { generateContractPdf } from "../utils/contractPdf.js";
+import {
+  MAX_DURABLE_ATTEMPTS,
+  STALE_LOCK_INTERVAL,
+  SWEEP_BATCH_SIZE,
+  claimRowById,
+  durableFailureUpdate,
+  selectDueIds,
+} from "../utils/durableJobs.js";
 import { renderContract } from "../utils/contractTemplates.js";
 import EmailService from "../utils/integrations/email/emailService.js";
 import {
@@ -21,15 +29,26 @@ import logger from "../utils/logger.js";
 import { AppError, ConflictError, NotFoundError, ValidationError } from "../utils/errors";
 import { INVITE_EXPIRY_DAYS, generateInviteToken } from "./organization.js";
 import { assertNotEnded, loadPay, longDate } from "./pay.js";
-import { assertCanManagePeople } from "./peopleAccess.js";
-import { activityEntry, openStaff, recordActivities } from "./staffAudit.js";
+import { assertCanManagePeople, getPeopleAccess } from "./peopleAccess.js";
+import {
+  type AccessActor,
+  activityEntry,
+  logStaffAccess,
+  openStaff,
+  recordActivities,
+} from "./staffAudit.js";
 import { hashToken, withTimeout } from "./staffInvite.js";
 import { Actor, findStaff, isUniqueViolation } from "./staffRecord.js";
 
 const DAY_MS = 86_400_000;
 const EMAIL_TIMEOUT_MS = 10_000;
 const LOGO_TIMEOUT_MS = 5_000;
+const STORAGE_TIMEOUT_MS = 15_000;
 const LINK_GONE = "This link has expired or was already used";
+export const CHECK_CODE_VERSION = 2;
+const FIRST_SWEEP_DELAY_MS = 2 * 60 * 1000;
+
+export type DocumentCopyStatus = "none" | "pending" | "failed" | "done";
 
 export interface DocumentView {
   id: string;
@@ -43,6 +62,8 @@ export interface DocumentView {
   linkExpiresAt: Date | null;
   needsNotarization: boolean;
   notarizedAt: Date | null;
+  checkCode: string | null;
+  copyStatus: DocumentCopyStatus;
 }
 
 export interface SigningView {
@@ -55,8 +76,15 @@ export interface SigningView {
 
 export interface SignedCopy {
   fileName: string;
-  pdfBase64: string;
+  pdfBase64: string | null;
+  copyPending: boolean;
 }
+
+const copyStatusOf = (doc: StaffDocument): DocumentCopyStatus => {
+  if (doc.status !== DocumentStatus.Signed) return "none";
+  if (doc.checkCodeVersion < CHECK_CODE_VERSION || doc.finalizedAt) return "done";
+  return doc.finalizeNextRetryAt ? "pending" : "failed";
+};
 
 export const toDocumentView = (doc: StaffDocument): DocumentView => ({
   id: doc.id,
@@ -70,6 +98,8 @@ export const toDocumentView = (doc: StaffDocument): DocumentView => ({
   linkExpiresAt: doc.tokenExpiresAt,
   needsNotarization: doc.needsNotarization,
   notarizedAt: doc.notarizedAt,
+  checkCode: doc.checkCode,
+  copyStatus: copyStatusOf(doc),
 });
 
 const loadOrganization = (organizationId: string): Promise<Organization> =>
@@ -142,6 +172,10 @@ export const buildDocumentPdf = async (
             signedAt: doc.signedAt,
             ip: doc.signerIp ?? "",
             checkCode: doc.checkCode ?? "",
+            check:
+              doc.checkCodeVersion >= CHECK_CODE_VERSION
+                ? { documentId: doc.id, verifyUrl: `${env.website}/verify-document` }
+                : null,
           }
         : null,
   });
@@ -281,6 +315,26 @@ export const resendDocument = async (
   return { document: toDocumentView(sent.doc), emailSent };
 };
 
+const sha256 = (content: string | Buffer): string =>
+  crypto.createHash("sha256").update(content).digest("hex");
+
+const readStoredFile = (key: string): Promise<Buffer> =>
+  withTimeout(getFromSpaces(key), STORAGE_TIMEOUT_MS, "File storage did not respond");
+
+/** A signed document has one file: the copy made when it was signed, byte for byte. */
+export const signedDocumentFile = async (
+  org: Organization,
+  doc: StaffDocument
+): Promise<{ fileName: string; pdf: Buffer }> => {
+  if (doc.status !== DocumentStatus.Signed || doc.checkCodeVersion < CHECK_CODE_VERSION) {
+    return buildDocumentPdf(org, doc);
+  }
+  if (!doc.signedFileKey) {
+    throw new ConflictError("The signed copy is still being prepared. Try again in a minute.");
+  }
+  return { fileName: fileNameFor(doc), pdf: await readStoredFile(doc.signedFileKey) };
+};
+
 export const downloadDocument = async (
   actor: User,
   organizationId: string,
@@ -290,7 +344,7 @@ export const downloadDocument = async (
 ): Promise<{ fileName: string; pdf: Buffer }> => {
   const staff = await openStaff(actor, organizationId, staffId, StaffAccessResource.Contract, ip);
   const doc = await findStaffDocument(AppDataSource.manager, staff, documentId);
-  return buildDocumentPdf(await loadOrganization(organizationId), doc);
+  return signedDocumentFile(await loadOrganization(organizationId), doc);
 };
 
 const findByToken = async (
@@ -311,8 +365,22 @@ const findByToken = async (
   return doc;
 };
 
-export const recordFirstView = async (doc: StaffDocument, staff: StaffMember): Promise<void> => {
+/** Every view gets an access log line; the activity timeline keeps only the first, so it stays readable. */
+export const recordView = async (
+  doc: StaffDocument,
+  staff: StaffMember,
+  viewer: AccessActor,
+  ip: string
+): Promise<void> => {
   await AppDataSource.transaction(async (em) => {
+    await logStaffAccess({
+      organizationId: doc.organizationId,
+      actor: viewer,
+      staff,
+      resource: StaffAccessResource.Contract,
+      ip,
+      em,
+    });
     const opened = await em
       .createQueryBuilder()
       .update(StaffDocument)
@@ -354,18 +422,24 @@ const staffOf = async (doc: StaffDocument, em: EntityManager = AppDataSource.man
   return staff;
 };
 
-export const openSigningLink = async (token: string): Promise<SigningView> => {
+export const openSigningLink = async (token: string, ip: string): Promise<SigningView> => {
   const doc = await findByToken(token);
   const staff = await staffOf(doc);
-  await recordFirstView(doc, staff);
+  await recordView(doc, staff, { id: null, name: `${staff.fullName} (email link)` }, ip);
   return signingViewOf(doc, staff);
 };
 
-const checkCodeOf = (doc: StaffDocument, signerName: string, signedAt: Date): string =>
-  crypto
-    .createHash("sha256")
-    .update([doc.id, doc.bodyText, signerName, signedAt.toISOString()].join("\n"))
-    .digest("hex");
+export const checkCodeOf = (doc: StaffDocument): string =>
+  sha256(
+    JSON.stringify([
+      doc.id,
+      doc.title,
+      doc.bodyText,
+      doc.signerName,
+      doc.checkStamp,
+      doc.signerIp ?? "",
+    ])
+  );
 
 /** Shared by the email link and My work. The caller has locked `doc` in `em`. */
 export const signLockedDocument = async (
@@ -381,10 +455,13 @@ export const signLockedDocument = async (
     signedAt,
     signerName,
     signerIp: ip || null,
-    checkCode: checkCodeOf(doc, signerName, signedAt),
+    checkCodeVersion: CHECK_CODE_VERSION,
+    checkStamp: signedAt.toISOString(),
+    finalizeNextRetryAt: new Date(signedAt.getTime() + FIRST_SWEEP_DELAY_MS),
     tokenHash: null,
     tokenExpiresAt: null,
   });
+  doc.checkCode = checkCodeOf(doc);
   const signed = await documentsRepo(em).save(doc);
   await recordActivities(em, staff, [
     {
@@ -397,49 +474,237 @@ export const signLockedDocument = async (
   return { doc: signed, staff };
 };
 
-const emailSignedCopies = async (
+/** Whoever sent it, unless they have since lost access to People: then the company owner. */
+const companyCopyRecipient = async (org: Organization, doc: StaffDocument) => {
+  const users = AppDataSource.getRepository(User);
+  const select = { id: true, email: true, firstName: true };
+  const sender = doc.sentById ? await users.findOne({ where: { id: doc.sentById }, select }) : null;
+  const stillHasAccess = sender
+    ? await getPeopleAccess(sender.id, org.id).then(
+        (access) => access.canManagePeople,
+        () => false
+      )
+    : false;
+  if (sender && stillHasAccess) return sender;
+  return org.ownerId ? users.findOne({ where: { id: org.ownerId }, select }) : null;
+};
+
+const COPY_SENT_COLUMNS = {
+  employee: "employeeCopySentAt",
+  company: "companyCopySentAt",
+} as const;
+
+/** Only sends the copies still owed, so a retry never repeats one that already went out. */
+const emailMissingCopies = async (
   org: Organization,
   doc: StaffDocument,
   staff: StaffMember,
   copy: { fileName: string; pdf: Buffer }
 ): Promise<void> => {
-  const sender = doc.sentById
-    ? await AppDataSource.getRepository(User).findOne({
-        where: { id: doc.sentById },
-        select: { id: true, email: true, firstName: true },
-      })
-    : null;
-  const recipients = [
-    { email: staff.email, firstName: staff.fullName.split(" ")[0] ?? staff.fullName },
-    ...(sender ? [{ email: sender.email, firstName: sender.firstName }] : []),
-  ];
-  await Promise.all(
-    recipients.map((recipient) =>
-      withTimeout(
+  const company = doc.companyCopySentAt ? null : await companyCopyRecipient(org, doc);
+  const owed = [
+    {
+      side: "employee" as const,
+      sent: doc.employeeCopySentAt,
+      email: staff.email,
+      firstName: staff.fullName.split(" ")[0] ?? staff.fullName,
+    },
+    {
+      side: "company" as const,
+      sent: doc.companyCopySentAt,
+      email: company?.email,
+      firstName: company?.firstName,
+    },
+  ].filter((copyTo) => !copyTo.sent && copyTo.email);
+
+  const results = await Promise.allSettled(
+    owed.map(async ({ side, email, firstName }) => {
+      await withTimeout(
         new EmailService().sendSignedDocument({
-          ...recipient,
+          email: email!,
+          firstName: firstName!,
           companyName: org.name,
           documentTitle: doc.title,
           signerName: doc.signerName ?? staff.fullName,
+          idempotencyKey: `signed-copy/${doc.id}/${email!}`,
           ...copy,
         }),
         EMAIL_TIMEOUT_MS
-      ).catch((err: Error) =>
-        logger.error(`Signed copy email failed for document ${doc.id}: ${err.message}`)
-      )
-    )
+      );
+      const column = COPY_SENT_COLUMNS[side];
+      doc[column] = new Date();
+      await documentsRepo().update(doc.id, { [column]: doc[column] });
+    })
   );
+  const failed = results.find((result) => result.status === "rejected");
+  if (failed) {
+    throw (failed as PromiseRejectedResult).reason;
+  }
 };
 
-/** Runs after the signature is committed, so a failed email never undoes it. */
-export const finishSigning = async (
-  doc: StaffDocument,
-  staff: StaffMember
-): Promise<SignedCopy> => {
-  const org = await loadOrganization(doc.organizationId);
-  const copy = await buildDocumentPdf(org, doc);
-  await emailSignedCopies(org, doc, staff, copy);
-  return { fileName: copy.fileName, pdfBase64: copy.pdf.toString("base64") };
+const storeSignedFile = async (org: Organization, doc: StaffDocument): Promise<Buffer> => {
+  if (doc.signedFileKey) {
+    return readStoredFile(doc.signedFileKey);
+  }
+  const { pdf } = await buildDocumentPdf(org, doc);
+  const key = spacesKeyFor("signed-documents", org.id, "signed.pdf");
+  try {
+    await withTimeout(
+      uploadPrivateToSpaces(pdf, key, "application/pdf"),
+      STORAGE_TIMEOUT_MS,
+      "File storage did not respond"
+    );
+    const saved = await documentsRepo()
+      .createQueryBuilder()
+      .update(StaffDocument)
+      .set({ signedFileKey: key, signedFileHash: sha256(pdf) })
+      .where(`"id" = :id AND "signed_file_key" IS NULL`, { id: doc.id })
+      .execute();
+    if (saved.affected) {
+      doc.signedFileKey = key;
+      doc.signedFileHash = sha256(pdf);
+      return pdf;
+    }
+  } catch (err) {
+    await deleteSpacesObjectQuietly(key, `unsaved signed document ${doc.id}`);
+    throw err;
+  }
+  await deleteSpacesObjectQuietly(key, `duplicate signed document ${doc.id}`);
+  const current = await documentsRepo().findOneOrFail({ where: { id: doc.id } });
+  doc.signedFileKey = current.signedFileKey;
+  doc.signedFileHash = current.signedFileHash;
+  return readStoredFile(current.signedFileKey!);
+};
+
+const CLAIM_FINALIZE_SQL = `
+  UPDATE staff_documents SET finalize_locked_at = NOW()
+  WHERE id = $1
+    AND status = 'signed'
+    AND check_code_version >= ${CHECK_CODE_VERSION}
+    AND finalized_at IS NULL
+    AND (finalize_locked_at IS NULL OR finalize_locked_at < NOW() - INTERVAL '${STALE_LOCK_INTERVAL}')
+  RETURNING id`;
+
+const DUE_FINALIZE_SQL = `
+  SELECT id FROM staff_documents
+  WHERE status = 'signed'
+    AND check_code_version >= ${CHECK_CODE_VERSION}
+    AND finalized_at IS NULL
+    AND finalize_next_retry_at <= NOW()
+    AND finalize_attempts < $1
+    AND (finalize_locked_at IS NULL OR finalize_locked_at < NOW() - INTERVAL '${STALE_LOCK_INTERVAL}')
+  ORDER BY finalize_next_retry_at
+  LIMIT $2`;
+
+/**
+ * Runs after the signature is committed, so nothing here can undo it. Whoever holds the
+ * claim stores the file once and sends the copies still owed; a failure is retried by
+ * the sweep. Never throws. Returns the file when it has been stored.
+ */
+const finalizeDocument = async (
+  documentId: string
+): Promise<{ doc: StaffDocument; pdf: Buffer | null; finalized: boolean }> => {
+  const claimed = await claimRowById(CLAIM_FINALIZE_SQL, documentId);
+  const doc = await documentsRepo().findOneOrFail({ where: { id: documentId } });
+  if (!claimed) {
+    return { doc, pdf: null, finalized: !!doc.finalizedAt };
+  }
+
+  let pdf: Buffer | null = null;
+  try {
+    const org = await loadOrganization(doc.organizationId);
+    const staff = await AppDataSource.getRepository(StaffMember).findOneOrFail({
+      where: { id: doc.staffId },
+    });
+    pdf = await storeSignedFile(org, doc);
+    await emailMissingCopies(org, doc, staff, { fileName: fileNameFor(doc), pdf });
+    Object.assign(doc, {
+      finalizedAt: new Date(),
+      finalizeLockedAt: null,
+      finalizeNextRetryAt: null,
+      finalizeError: null,
+    });
+    await documentsRepo().update(doc.id, {
+      finalizedAt: doc.finalizedAt,
+      finalizeLockedAt: null,
+      finalizeNextRetryAt: null,
+      finalizeError: null,
+    });
+    return { doc, pdf, finalized: true };
+  } catch (err) {
+    logger.error(`Finishing signed document ${doc.id} failed: ${(err as Error).message}`);
+    const failure = durableFailureUpdate(doc.finalizeAttempts, err);
+    Object.assign(doc, {
+      finalizeAttempts: failure.attempts,
+      finalizeNextRetryAt: failure.nextRetryAt,
+      finalizeLockedAt: null,
+      finalizeError: failure.lastError,
+    });
+    await documentsRepo()
+      .update(doc.id, {
+        finalizeAttempts: failure.attempts,
+        finalizeNextRetryAt: failure.nextRetryAt,
+        finalizeLockedAt: null,
+        finalizeError: failure.lastError,
+      })
+      .then(async () => {
+        if (!failure.exhausted) return;
+        await recordActivities(
+          AppDataSource.manager,
+          { id: doc.staffId, organizationId: doc.organizationId },
+          [
+            {
+              type: StaffActivityType.DocumentCopyFailed,
+              actorId: null,
+              actorName: "AuxHR",
+              meta: { title: doc.title },
+            },
+          ]
+        );
+      })
+      .catch((recordErr: Error) =>
+        logger.error(`Could not record the failure for ${doc.id}: ${recordErr.message}`)
+      );
+    return { doc, pdf, finalized: false };
+  }
+};
+
+export const finishSigning = async (doc: StaffDocument): Promise<SignedCopy> => {
+  const { pdf, finalized } = await finalizeDocument(doc.id);
+  return {
+    fileName: fileNameFor(doc),
+    pdfBase64: pdf ? pdf.toString("base64") : null,
+    copyPending: !finalized,
+  };
+};
+
+export const reconcileDueDocumentFinalization = async (): Promise<{ attempted: number }> => {
+  const ids = await selectDueIds(DUE_FINALIZE_SQL, [MAX_DURABLE_ATTEMPTS, SWEEP_BATCH_SIZE]);
+  for (const id of ids) {
+    await finalizeDocument(id);
+  }
+  return { attempted: ids.length };
+};
+
+export const retryFinalization = async (
+  actor: User,
+  organizationId: string,
+  staffId: string,
+  documentId: string
+): Promise<DocumentView> => {
+  await assertCanManagePeople(actor.id, organizationId);
+  const staff = await findStaff(organizationId, staffId);
+  const current = await findStaffDocument(AppDataSource.manager, staff, documentId);
+  if (copyStatusOf(current) !== "failed") {
+    return toDocumentView(current);
+  }
+  await documentsRepo().update(current.id, {
+    finalizeAttempts: 0,
+    finalizeNextRetryAt: new Date(Date.now() + FIRST_SWEEP_DELAY_MS),
+    finalizeError: null,
+  });
+  const { doc } = await finalizeDocument(current.id);
+  return toDocumentView(doc);
 };
 
 export const signWithToken = async (
@@ -447,10 +712,10 @@ export const signWithToken = async (
   signerName: string,
   ip: string
 ): Promise<SignedCopy> => {
-  const { doc, staff } = await AppDataSource.transaction(async (em) =>
+  const { doc } = await AppDataSource.transaction(async (em) =>
     signLockedDocument(em, await findByToken(token, em, true), signerName, ip)
   );
-  return finishSigning(doc, staff);
+  return finishSigning(doc);
 };
 
 const SCAN_TYPES: Record<string, string> = {

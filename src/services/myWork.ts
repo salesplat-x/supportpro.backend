@@ -12,7 +12,8 @@ import {
   SignedCopy,
   SigningView,
   finishSigning,
-  recordFirstView,
+  recordView,
+  signedDocumentFile,
   signLockedDocument,
   signingViewOf,
 } from "./contracts.js";
@@ -28,6 +29,8 @@ export interface MyWorkRecord {
   managerName: string | null;
   startDate: string;
   documentsToSign: { id: string; title: string; sentAt: Date }[];
+  signedDocuments: { id: string; title: string; signedAt: Date | null }[];
+  hasTeam: boolean;
   tasks: StaffChecklistTask[];
 }
 
@@ -52,7 +55,7 @@ export const getMyWork = async (userId: string): Promise<MyWorkRecord[]> => {
   if (records.length === 0) return [];
   const staffIds = records.map((staff) => staff.id);
 
-  const [orgs, documents, tasks, managerNames] = await Promise.all([
+  const [orgs, documents, signedDocuments, tasks, managerNames, managers] = await Promise.all([
     AppDataSource.getRepository(Organization).find({
       where: { id: In(records.map((staff) => staff.organizationId)) },
       select: { id: true, name: true, logoUrl: true },
@@ -62,11 +65,20 @@ export const getMyWork = async (userId: string): Promise<MyWorkRecord[]> => {
       select: { id: true, staffId: true, title: true, sentAt: true },
       order: { sentAt: "DESC" },
     }),
+    AppDataSource.getRepository(StaffDocument).find({
+      where: { staffId: In(staffIds), status: DocumentStatus.Signed },
+      select: { id: true, staffId: true, title: true, signedAt: true },
+      order: { signedAt: "DESC" },
+    }),
     AppDataSource.getRepository(StaffChecklistTask).find({
       where: { staffId: In(staffIds) },
       order: CHECKLIST_ORDER,
     }),
     loadManagerNames(records),
+    AppDataSource.getRepository(StaffMember).find({
+      where: { managerId: In(staffIds), endDate: IsNull() },
+      select: { id: true, managerId: true },
+    }),
   ]);
 
   return records.map((staff) => {
@@ -81,7 +93,11 @@ export const getMyWork = async (userId: string): Promise<MyWorkRecord[]> => {
       documentsToSign: documents
         .filter((doc) => doc.staffId === staff.id)
         .map(({ id, title, sentAt }) => ({ id, title, sentAt })),
+      signedDocuments: signedDocuments
+        .filter((doc) => doc.staffId === staff.id)
+        .map(({ id, title, signedAt }) => ({ id, title, signedAt })),
       tasks: tasks.filter((task) => task.staffId === staff.id),
+      hasTeam: managers.some((report) => report.managerId === staff.id),
     };
   });
 };
@@ -142,10 +158,43 @@ const findOwnDocument = async (
   return { doc, staff };
 };
 
-export const openMyDocument = async (userId: string, documentId: string): Promise<SigningView> => {
-  const { doc, staff } = await findOwnDocument(userId, documentId);
-  await recordFirstView(doc, staff);
+export const openMyDocument = async (
+  actor: User,
+  documentId: string,
+  ip: string
+): Promise<SigningView> => {
+  const { doc, staff } = await findOwnDocument(actor.id, documentId);
+  await recordView(doc, staff, actor, ip);
   return signingViewOf(doc, staff);
+};
+
+export const downloadMySignedDocument = async (
+  actor: User,
+  documentId: string,
+  ip: string
+): Promise<{ fileName: string; pdf: Buffer }> => {
+  const doc = await AppDataSource.getRepository(StaffDocument).findOne({
+    where: { id: documentId, status: DocumentStatus.Signed },
+  });
+  const staff = doc
+    ? await AppDataSource.getRepository(StaffMember).findOne({
+        where: { id: doc.staffId, userId: actor.id, endDate: IsNull() },
+      })
+    : null;
+  if (!doc || !staff) {
+    throw new NotFoundError("Document not found");
+  }
+  await logStaffAccess({
+    organizationId: staff.organizationId,
+    actor,
+    staff,
+    resource: StaffAccessResource.Contract,
+    ip,
+  });
+  const org = await AppDataSource.getRepository(Organization).findOneOrFail({
+    where: { id: staff.organizationId },
+  });
+  return signedDocumentFile(org, doc);
 };
 
 export const signMyDocument = async (
@@ -154,9 +203,9 @@ export const signMyDocument = async (
   signerName: string,
   ip: string
 ): Promise<SignedCopy> => {
-  const { doc, staff } = await AppDataSource.transaction(async (em) => {
+  const { doc } = await AppDataSource.transaction(async (em) => {
     const owned = await findOwnDocument(userId, documentId, em, true);
     return signLockedDocument(em, owned.doc, signerName, ip);
   });
-  return finishSigning(doc, staff);
+  return finishSigning(doc);
 };

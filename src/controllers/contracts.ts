@@ -68,7 +68,7 @@ export const download = async (req: Request, res: Response) => {
 };
 
 export const openLink = async (req: Request, res: Response) => {
-  const document = await contracts.openSigningLink(req.params["token"]!);
+  const document = await contracts.openSigningLink(req.params["token"]!, getClientIp(req));
   sendSuccessResponse(res, "Document fetched", { document });
 };
 
@@ -79,6 +79,16 @@ export const signWithLink = async (req: Request, res: Response) => {
     getClientIp(req)
   );
   sendSuccessResponse(res, "Document signed", { signed });
+};
+
+export const retryFinalization = async (req: Request, res: Response) => {
+  const document = await contracts.retryFinalization(
+    req.user,
+    orgId(req),
+    staffId(req),
+    documentId(req)
+  );
+  sendSuccessResponse(res, "Tried finishing the signed copy again", { document });
 };
 
 export const setNotarization = async (req: Request, res: Response) => {

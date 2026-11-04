@@ -209,6 +209,7 @@ class EmailService {
     signerName: string;
     fileName: string;
     pdf: Buffer;
+    idempotencyKey: string;
   }): Promise<void> {
     await this.provider.send({
       to: details.email,
@@ -217,6 +218,7 @@ class EmailService {
       text: signedDocumentPlainText(details),
       tags: [{ name: "category", value: "staff-document-signed" }],
       attachments: [{ filename: details.fileName, content: details.pdf }],
+      idempotencyKey: details.idempotencyKey,
     });
   }
 

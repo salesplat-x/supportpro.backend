@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import * as myWork from "../services/myWork.js";
 import { getClientIp } from "../utils/clientIp.js";
 import { sendSuccessResponse } from "../utils/response.js";
+import { sendPdf } from "./contracts.js";
 
 export const overview = async (req: Request, res: Response) => {
   const records = await myWork.getMyWork(req.user.id);
@@ -23,8 +24,21 @@ export const setTaskDone = async (req: Request, res: Response) => {
 };
 
 export const openDocument = async (req: Request, res: Response) => {
-  const document = await myWork.openMyDocument(req.user.id, req.params["documentId"]!);
+  const document = await myWork.openMyDocument(
+    req.user,
+    req.params["documentId"]!,
+    getClientIp(req)
+  );
   sendSuccessResponse(res, "Document fetched", { document });
+};
+
+export const downloadDocument = async (req: Request, res: Response) => {
+  const { fileName, pdf } = await myWork.downloadMySignedDocument(
+    req.user,
+    req.params["documentId"]!,
+    getClientIp(req)
+  );
+  sendPdf(res, fileName, pdf);
 };
 
 export const signDocument = async (req: Request, res: Response) => {
