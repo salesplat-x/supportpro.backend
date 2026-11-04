@@ -36,6 +36,28 @@ class EmailService {
     }
   }
 
+  /** Sends a notice about someone's work at their company. It throws, so the caller decides what a failure means. */
+  async sendPeopleUpdate(details: {
+    to: string;
+    subject: string;
+    paragraphs: string[];
+    ctaLabel: string;
+    ctaUrl: string;
+  }): Promise<void> {
+    const html = renderTemplate("people-update", {
+      paragraphs: details.paragraphs,
+      ctaLabel: details.ctaLabel,
+      ctaUrl: details.ctaUrl,
+    });
+    await this.provider.send({
+      to: details.to,
+      subject: details.subject,
+      html,
+      text: [...details.paragraphs, `${details.ctaLabel}: ${details.ctaUrl}`].join("\n\n"),
+      tags: [{ name: "category", value: "people-update" }],
+    });
+  }
+
   /** Sends an admin's onboarding follow-up. Unlike sendEmail it throws, so failures can be recorded. */
   async sendOnboardingFollowUp(details: {
     to: string;

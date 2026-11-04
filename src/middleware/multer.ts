@@ -17,6 +17,11 @@ export const notarizedScanUpload = multer({
   limits: { fileSize: 10 * 1024 * 1024 },
 });
 
+export const completionEvidenceUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
+
 /** Only the text is read; the document itself is not stored. */
 export const companyDocumentUpload = multer({
   storage: multer.memoryStorage(),

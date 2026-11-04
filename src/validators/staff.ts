@@ -460,11 +460,6 @@ export const companyProfileValidator = [
 
 export const myStaffValidator = [staffParam];
 
-export const myTaskValidator = [
-  taskParam,
-  body("done").isBoolean({ strict: true }).withMessage("done must be true or false").toBoolean(),
-];
-
 export const myDocumentValidator = [documentParam];
 
 export const signMyDocumentValidator = [

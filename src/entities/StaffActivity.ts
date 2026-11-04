@@ -41,6 +41,10 @@ export enum StaffActivityType {
   DevelopmentItemAdded = "development_item_added",
   DevelopmentItemRemoved = "development_item_removed",
   FeedbackSaved = "feedback_saved",
+  CompletionRequested = "completion_requested",
+  CompletionApproved = "completion_approved",
+  CompletionReturned = "completion_returned",
+  CompletionReopened = "completion_reopened",
   HrAssigned = "hr_assigned",
   HrRemoved = "hr_removed",
 }

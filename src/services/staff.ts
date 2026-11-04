@@ -7,6 +7,7 @@ import { StaffMember, StaffStatus } from "../entities/StaffMember.js";
 import type { User } from "../entities/User.js";
 import { ConflictError, ValidationError } from "../utils/errors";
 import { copyDefaultChecklist } from "./checklist.js";
+import { withdrawPendingForStaff } from "./completionRequests.js";
 import { assertCanManagePeople, seesOnlyAssignedStaff } from "./peopleAccess.js";
 import { activityEntry, openStaff, recordActivities } from "./staffAudit.js";
 import { assertCanInvite, issueInvite, sendInviteEmail } from "./staffInvite.js";
@@ -342,6 +343,7 @@ export const endStaff = async (
 
     current.status = StaffStatus.Ended;
     current.endDate = effective;
+    await withdrawPendingForStaff(em, current.id);
     current.inviteTokenHash = null;
     current.inviteExpiresAt = null;
     const saved = await em.getRepository(StaffMember).save(current);

@@ -13,6 +13,7 @@ import { applyOnboardingFilters, OnboardingSummary, onboardingSummaries } from "
 import { loadOrganizationMembers, OrganizationMemberView } from "./organization.js";
 import { disablePaystackSubscriptions } from "./payment.js";
 import { deleteSpacesObjectQuietly } from "../utils/integrations/spaces.js";
+import { deleteEvidenceQuietly, evidenceKeysFor } from "./completionRequests.js";
 
 const userRepo = () => AppDataSource.getRepository(User);
 const jobRepo = () => AppDataSource.getRepository(Job);
@@ -228,11 +229,13 @@ export const deleteOrganizationAsAdmin = async (organizationId: string): Promise
     throw new NotFoundError("Company not found");
   }
 
+  const evidence = await evidenceKeysFor({ organizationId });
   const chargeableSubscriptions = await AppDataSource.transaction((manager) =>
     purgeOrganizationCascade(manager, organizationId)
   );
   await disablePaystackSubscriptions(chargeableSubscriptions);
   await deleteSpacesObjectQuietly(org.logoKey, organizationId);
+  await deleteEvidenceQuietly(evidence);
 };
 
 export const updateOrganizationStatus = async (

@@ -2,6 +2,7 @@ import { body, param, query, type ValidationChain } from "express-validator";
 import { MAX_JOB_DESCRIPTION } from "../services/goals.js";
 import { DevelopmentStatus } from "../entities/StaffDevelopmentItem.js";
 import { Currency } from "../types/enums.js";
+import { MAX_COMPLETION_SUMMARY, MAX_REVIEW_NOTE } from "../services/completionRequests.js";
 import { MAX_FEEDBACK_NOTES } from "../services/monthlyFeedback.js";
 import { MAX_NOTE, MAX_REPORT_FIELD } from "../services/weeklyReports.js";
 import { NO_NUL, dateOnly, orgParam, pagination, staffParam } from "./staff.js";
@@ -81,9 +82,9 @@ export const goalProgressValidator = [
   goalParam,
   body("progress")
     .custom(
-      (value: unknown) => Number.isInteger(value) && Number(value) >= 0 && Number(value) <= 100
+      (value: unknown) => Number.isInteger(value) && Number(value) >= 0 && Number(value) <= 99
     )
-    .withMessage("Progress must be a whole number from 0 to 100"),
+    .withMessage("Progress must be a whole number from 0 to 99. Ask for completion when it's done"),
 ];
 
 export const saveJobDescriptionValidator = [
@@ -176,3 +177,31 @@ export const quarterGoalValidator = [
   money("revenueSoFar", "Revenue so far", 0),
   nullableVersion(),
 ];
+
+const requestParam = param("requestId").isUUID().withMessage("Invalid request id");
+const fileParam = param("fileId").isUUID().withMessage("Invalid file id");
+const taskParam = param("taskId").isUUID().withMessage("Invalid task id");
+
+export const submitCompletionValidator = [
+  ...selfParams,
+  body("itemType").isIn(["goal", "task"]).withMessage("Choose a goal or a task"),
+  body("itemId").isUUID().withMessage("Choose a goal or a task"),
+  longText(body("summary"), "Summary", MAX_COMPLETION_SUMMARY),
+];
+
+export const myCompletionRequestValidator = [...selfParams, requestParam];
+export const myEvidenceValidator = [...selfParams, requestParam, fileParam];
+
+export const evidenceValidator = [requestParam, fileParam];
+export const approveCompletionValidator = [
+  requestParam,
+  body("version").optional().isInt({ min: 0 }).withMessage("Reload and try again").toInt(),
+  longText(body("note").optional({ values: "null" }), "Note", MAX_REVIEW_NOTE, true),
+];
+export const returnCompletionValidator = [
+  requestParam,
+  longText(body("note"), "Note", MAX_REVIEW_NOTE),
+];
+export const completeGoalValidator = [goalParam, versionField()];
+export const reopenGoalValidator = [goalParam];
+export const taskActionValidator = [taskParam];

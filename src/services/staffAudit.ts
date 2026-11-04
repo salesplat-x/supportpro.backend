@@ -34,6 +34,10 @@ const PERFORMANCE_ACTIVITY = [
   StaffActivityType.DevelopmentItemAdded,
   StaffActivityType.DevelopmentItemRemoved,
   StaffActivityType.FeedbackSaved,
+  StaffActivityType.CompletionRequested,
+  StaffActivityType.CompletionApproved,
+  StaffActivityType.CompletionReturned,
+  StaffActivityType.CompletionReopened,
   StaffActivityType.HrAssigned,
   StaffActivityType.HrRemoved,
 ];

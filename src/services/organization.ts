@@ -34,6 +34,7 @@ import { purgeOrganizationCascade } from "./cascadeDelete.js";
 import { disablePaystackSubscriptions } from "./payment.js";
 import logger from "../utils/logger.js";
 import { normalizeCompanyValues } from "../config/assessmentQuestions.js";
+import { deleteEvidenceQuietly, evidenceKeysFor } from "./completionRequests.js";
 
 const orgRepo = () => AppDataSource.getRepository(Organization);
 const userRepo = () => AppDataSource.getRepository(User);
@@ -649,6 +650,7 @@ export const deleteOrganization = async (
 ): Promise<void> => {
   const org = await assertOwnership(ownerId, organizationId);
 
+  const evidence = await evidenceKeysFor({ organizationId });
   const chargeableSubscriptions = await AppDataSource.transaction((manager) =>
     purgeOrganizationCascade(manager, organizationId)
   );
@@ -658,6 +660,7 @@ export const deleteOrganization = async (
   // still-referenced logo deleted from Spaces or a live plan cancelled.
   await disablePaystackSubscriptions(chargeableSubscriptions);
   await deleteSpacesObjectQuietly(org.logoKey, organizationId);
+  await deleteEvidenceQuietly(evidence);
 };
 
 export const updateLogo = async (

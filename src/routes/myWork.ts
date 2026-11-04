@@ -6,11 +6,16 @@ import { requireVerifiedEmail, validateAccess } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { UserRole } from "../types/enums.js";
 import { registerSharedPerformanceRoutes } from "./performance.js";
-import { peopleAiLimiter } from "../middleware/rateLimiter.js";
+import { completionEvidenceUpload } from "../middleware/multer.js";
+import { peopleAiLimiter, staffWriteLimiter } from "../middleware/rateLimiter.js";
+import { MAX_EVIDENCE_FILES } from "../services/completionRequests.js";
 import {
   adviceValidator,
   developmentDoneValidator,
   goalProgressValidator,
+  myCompletionRequestValidator,
+  myEvidenceValidator,
+  submitCompletionValidator,
   managerParams,
   myReportsValidator,
   selfParams,
@@ -19,7 +24,6 @@ import {
 import {
   myDocumentValidator,
   myStaffValidator,
-  myTaskValidator,
   signMyDocumentValidator,
 } from "../validators/staff.js";
 
@@ -36,11 +40,27 @@ router.get(
   asyncHandler(myWork.pay, "load my pay")
 );
 
-router.patch(
-  "/tasks/:taskId",
+router.post(
+  "/:staffId/completion-requests",
   ...employee,
-  validate(myTaskValidator),
-  asyncHandler(myWork.setTaskDone, "update task")
+  staffWriteLimiter,
+  completionEvidenceUpload.array("files", MAX_EVIDENCE_FILES),
+  validate(submitCompletionValidator),
+  asyncHandler(myWork.submitCompletion, "send for review")
+);
+
+router.delete(
+  "/:staffId/completion-requests/:requestId",
+  ...employee,
+  validate(myCompletionRequestValidator),
+  asyncHandler(myWork.withdrawCompletion, "withdraw request")
+);
+
+router.get(
+  "/:staffId/completion-requests/:requestId/files/:fileId",
+  ...employee,
+  validate(myEvidenceValidator),
+  asyncHandler(myWork.evidenceFile, "download evidence")
 );
 
 router.get(

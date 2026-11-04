@@ -24,6 +24,7 @@ import {
   openPerformance,
 } from "./performanceAccess.js";
 import { type ReportView, listReportsFor } from "./weeklyReports.js";
+import { type CompletionRequestView, loadLatestRequests } from "./completionRequests.js";
 
 const REPORTS_ON_TAB = 10;
 
@@ -38,6 +39,7 @@ export interface PerformanceView {
 }
 
 export interface ManagedPerformanceView extends PerformanceView {
+  completionRequests: CompletionRequestView[];
   efficiency: EfficiencyView & { quarter: string };
   efficiencyTip: EfficiencyTipView | null;
 }
@@ -68,12 +70,14 @@ export const getPerformance = async (
   ip: string
 ): Promise<ManagedPerformanceView> => {
   const staff = await openPerformance(scope, ip);
-  const [performance, efficiency] = await Promise.all([
+  const [performance, efficiency, completionRequests] = await Promise.all([
     loadPerformance(staff, false),
     efficiencyFor(staff),
+    loadLatestRequests([staff.id]),
   ]);
   return {
     ...performance,
+    completionRequests,
     efficiency,
     efficiencyTip: await loadEfficiencyTip(staff.id, efficiency),
   };
@@ -83,8 +87,14 @@ export const getMyPerformance = async (
   actor: User,
   staffId: string,
   ip: string
-): Promise<PerformanceView & { currentWeek: string }> => {
+): Promise<
+  PerformanceView & { currentWeek: string; completionRequests: CompletionRequestView[] }
+> => {
   const staff = await findOwnStaff(actor.id, staffId);
   await logPerformanceRead(actor, staff, ip);
-  return { ...(await loadPerformance(staff, true)), currentWeek: weekStartOf(workToday()) };
+  return {
+    ...(await loadPerformance(staff, true)),
+    completionRequests: await loadLatestRequests([staff.id]),
+    currentWeek: weekStartOf(workToday()),
+  };
 };

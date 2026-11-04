@@ -47,6 +47,7 @@ export const capacityLabel = (input: {
 };
 
 interface CapacityGoalRow {
+  awaiting_review: boolean;
   staff_id: string;
   progress: number;
   start_progress: number;
@@ -65,7 +66,11 @@ const loadCapacityGoals = (organizationId: string, ids: string[]): Promise<Capac
           WHERE e.goal_id = g.id AND e.created_at >= NOW() - make_interval(days => $3)
           ORDER BY e.created_at ASC LIMIT 1),
          g.progress
-       ) AS start_progress
+       ) AS start_progress,
+       EXISTS (
+         SELECT 1 FROM staff_completion_requests r
+         WHERE r.goal_id = g.id AND r.status = 'pending'
+       ) AS awaiting_review
      FROM staff_goals g
      WHERE g.organization_id = $1 AND g.staff_id = ANY($2::uuid[]) AND g.status = 'approved'
        AND (g.progress < 100 OR EXISTS (
@@ -76,7 +81,7 @@ const loadCapacityGoals = (organizationId: string, ids: string[]): Promise<Capac
   );
 
 const capacityOf = (goals: CapacityGoalRow[], daysEmployed: number): Capacity => {
-  const open = goals.filter((goal) => goal.progress < 100);
+  const open = goals.filter((goal) => goal.progress < 100 && !goal.awaiting_review);
   const newSince = Date.now() - NEW_GOAL_DAYS * DAY_MS;
   const gains = goals.map((goal) => Math.max(0, goal.progress - goal.start_progress));
   return capacityLabel({

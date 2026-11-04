@@ -161,19 +161,6 @@ describe("My work", () => {
     ]);
   });
 
-  it("lets an employee tick off their own task", async () => {
-    const { ada } = await companyWithEmployees();
-    const task = (await myWork(ada.token))[0]!.tasks[0]!;
-    const tick = (done: boolean) =>
-      request(app).patch(`/v1/my-work/tasks/${task.id}`).set(authHeader(ada.token)).send({ done });
-
-    await tick(true).expect(200);
-    await tick(true).expect(200);
-    expect((await myWork(ada.token))[0]!.tasks[0]!.doneAt).not.toBeNull();
-    await tick(false).expect(200);
-    expect((await myWork(ada.token))[0]!.tasks[0]!.doneAt).toBeNull();
-  });
-
   it("signs a waiting document from My work without breaking the email link first", async () => {
     const { owner, org, ada, bayo } = await companyWithEmployees();
     await request(app)

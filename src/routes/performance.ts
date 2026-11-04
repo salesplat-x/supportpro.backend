@@ -7,7 +7,13 @@ import { validate } from "../middleware/validate.js";
 import {
   addDevelopmentValidator,
   addGoalValidator,
+  approveCompletionValidator,
   approveGoalValidator,
+  completeGoalValidator,
+  evidenceValidator,
+  reopenGoalValidator,
+  returnCompletionValidator,
+  taskActionValidator,
   developmentIdValidator,
   editDevelopmentValidator,
   editGoalValidator,
@@ -29,6 +35,54 @@ export const registerSharedPerformanceRoutes = (
     ...guard,
     validate(params),
     asyncHandler(performance.performance, "load performance")
+  );
+  router.get(
+    `${prefix}/tasks`,
+    ...guard,
+    validate(params),
+    asyncHandler(performance.tasks, "load tasks")
+  );
+  router.post(
+    `${prefix}/tasks/:taskId/complete`,
+    ...guard,
+    validate([...params, ...taskActionValidator]),
+    asyncHandler(performance.completeTask, "mark task complete")
+  );
+  router.post(
+    `${prefix}/tasks/:taskId/reopen`,
+    ...guard,
+    validate([...params, ...taskActionValidator]),
+    asyncHandler(performance.reopenTask, "reopen task")
+  );
+  router.post(
+    `${prefix}/goals/:goalId/complete`,
+    ...guard,
+    validate([...params, ...completeGoalValidator]),
+    asyncHandler(performance.completeGoal, "mark goal complete")
+  );
+  router.post(
+    `${prefix}/goals/:goalId/reopen`,
+    ...guard,
+    validate([...params, ...reopenGoalValidator]),
+    asyncHandler(performance.reopenGoal, "reopen goal")
+  );
+  router.post(
+    `${prefix}/completion-requests/:requestId/approve`,
+    ...guard,
+    validate([...params, ...approveCompletionValidator]),
+    asyncHandler(performance.approveCompletion, "approve completion")
+  );
+  router.post(
+    `${prefix}/completion-requests/:requestId/return`,
+    ...guard,
+    validate([...params, ...returnCompletionValidator]),
+    asyncHandler(performance.returnCompletion, "send back for more work")
+  );
+  router.get(
+    `${prefix}/completion-requests/:requestId/files/:fileId`,
+    ...guard,
+    validate([...params, ...evidenceValidator]),
+    asyncHandler(performance.evidenceFile, "download evidence")
   );
   router.post(
     `${prefix}/goals`,

@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import type { DevelopmentStatus } from "../entities/StaffDevelopmentItem.js";
+import * as completion from "../services/completionRequests.js";
 import * as development from "../services/development.js";
 import { requestEfficiencyTip } from "../services/efficiency.js";
 import * as goals from "../services/goals.js";
@@ -33,6 +34,81 @@ const goalInput = (req: Request): goals.GoalInput => ({
   target: (req.body.target as string | null | undefined) || null,
   dueOn: req.body.dueOn as string,
 });
+
+/** Always a download with a fixed type, so an evidence file can never run as a page on our site. */
+export const sendEvidence = (
+  res: Response,
+  evidence: { fileName: string; contentType: string; file: Buffer }
+): void => {
+  const asciiName = evidence.fileName.replace(/[^\x20-\x7e]/g, "_").replace(/"/g, "");
+  res.setHeader("Content-Type", evidence.contentType);
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(evidence.fileName)}`
+  );
+  res.setHeader("Content-Length", evidence.file.length);
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.end(evidence.file);
+};
+
+export const tasks = async (req: Request, res: Response) => {
+  sendSuccessResponse(res, "Tasks fetched", {
+    tasks: await completion.listScopedTasks(scopeOf(req), getClientIp(req)),
+  });
+};
+
+export const completeTask = async (req: Request, res: Response) => {
+  await completion.completeTaskDirectly(scopeOf(req), req.params["taskId"]!);
+  sendSuccessResponse(res, "Task marked complete");
+};
+
+export const reopenTask = async (req: Request, res: Response) => {
+  await completion.reopenTask(scopeOf(req), req.params["taskId"]!);
+  sendSuccessResponse(res, "Task reopened");
+};
+
+export const completeGoal = async (req: Request, res: Response) => {
+  await completion.completeGoalDirectly(
+    scopeOf(req),
+    req.params["goalId"]!,
+    req.body.version as number
+  );
+  sendSuccessResponse(res, "Goal marked complete");
+};
+
+export const reopenGoal = async (req: Request, res: Response) => {
+  await completion.reopenGoal(scopeOf(req), req.params["goalId"]!);
+  sendSuccessResponse(res, "Goal reopened");
+};
+
+export const approveCompletion = async (req: Request, res: Response) => {
+  await completion.approveCompletionRequest(scopeOf(req), req.params["requestId"]!, {
+    version: req.body.version as number | undefined,
+    note: (req.body.note as string | null | undefined) || null,
+  });
+  sendSuccessResponse(res, "Marked complete");
+};
+
+export const returnCompletion = async (req: Request, res: Response) => {
+  await completion.returnCompletionRequest(
+    scopeOf(req),
+    req.params["requestId"]!,
+    req.body.note as string
+  );
+  sendSuccessResponse(res, "Sent back");
+};
+
+export const evidenceFile = async (req: Request, res: Response) => {
+  sendEvidence(
+    res,
+    await completion.downloadEvidence(
+      scopeOf(req),
+      req.params["requestId"]!,
+      req.params["fileId"]!,
+      getClientIp(req)
+    )
+  );
+};
 
 export const performance = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Performance fetched", {

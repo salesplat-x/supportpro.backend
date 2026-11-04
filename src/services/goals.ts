@@ -23,6 +23,7 @@ import {
   lockScopedStaff,
   openPerformance,
 } from "./performanceAccess.js";
+import { deleteEvidenceQuietly, evidenceKeysFor } from "./completionRequests.js";
 import { activityEntry, recordActivities } from "./staffAudit.js";
 import { findStaff, fullNameOf } from "./staffRecord.js";
 
@@ -50,6 +51,8 @@ export interface GoalView extends GoalInput {
   version: number;
   approvedByName: string | null;
   approvedAt: Date | null;
+  completedAt: Date | null;
+  completedByName: string | null;
 }
 
 export interface JobDescriptionView {
@@ -76,6 +79,8 @@ export const toGoalView = (goal: StaffGoal): GoalView => ({
   version: goal.version,
   approvedByName: goal.approvedByName,
   approvedAt: goal.approvedAt,
+  completedAt: goal.completedAt,
+  completedByName: goal.completedByName,
 });
 
 export const listGoals = (staffId: string, onlyApproved = false): Promise<StaffGoal[]> =>
@@ -99,6 +104,12 @@ const openGoalCount = (em: EntityManager, staffId: string): Promise<number> =>
     .createQueryBuilder("goal")
     .where("goal.staffId = :staffId", { staffId })
     .andWhere("(goal.status = :draft OR goal.progress < 100)", { draft: GoalStatus.Draft })
+    .andWhere(
+      `NOT EXISTS (
+        SELECT 1 FROM staff_completion_requests request
+        WHERE request.goal_id = goal.id AND request.status = 'pending'
+      )`
+    )
     .getCount();
 
 const assertRoomForGoals = async (
@@ -206,17 +217,23 @@ export const approveGoal = async (
 
 export const removeGoal = async (scope: PerformanceScope, goalId: string): Promise<void> => {
   await assertScope(scope);
-  await AppDataSource.transaction(async (em) => {
+  const evidence = await AppDataSource.transaction(async (em) => {
     const staff = await lockScopedStaff(scope, em);
     const goal = await findLockedGoal(em, staff.id, goalId);
+    const keys = await evidenceKeysFor({ goalId: goal.id }, em);
     await goalsRepo(em).delete(goal.id);
     await recordActivities(em, staff, [
       activityEntry(StaffActivityType.GoalRemoved, scope.actor, { title: goal.title }),
     ]);
+    return keys;
   });
+  await deleteEvidenceQuietly(evidence);
 };
 
-/** Only the employee moves progress, and only on approved goals. It leaves `version` alone. */
+/**
+ * Only the employee moves progress, and only on approved goals and up to 99. A goal reaches 100
+ * when a reviewer marks it complete, and then it's locked. It leaves `version` alone.
+ */
 export const setGoalProgress = async (
   actor: User,
   staffId: string,
@@ -228,6 +245,9 @@ export const setGoalProgress = async (
     const goal = await findLockedGoal(em, staff.id, goalId);
     if (goal.status !== GoalStatus.Approved) {
       throw new NotFoundError("Goal not found");
+    }
+    if (goal.completedAt) {
+      throw new ConflictError("This goal is complete, so its progress can't change");
     }
     if (goal.progress === progress) {
       return toGoalView(goal);

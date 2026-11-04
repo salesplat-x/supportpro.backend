@@ -1,3 +1,4 @@
+import { EntityManager } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { Organization } from "../entities/Organization.js";
 import { OrganizationMember } from "../entities/OrganizationMember.js";
@@ -12,29 +13,36 @@ export interface PeopleAccess {
   assignedCount: number;
 }
 
-const orgRepo = () => AppDataSource.getRepository(Organization);
-const memberRepo = () => AppDataSource.getRepository(OrganizationMember);
-
 const loadAccess = async (
   userId: string,
-  organizationId: string
+  organizationId: string,
+  em: EntityManager = AppDataSource.manager
 ): Promise<{ isOwner: boolean; canManagePeople: boolean; organization: Organization }> => {
-  const organization = await orgRepo().findOne({ where: { id: organizationId } });
+  const organization = await em.getRepository(Organization).findOne({
+    where: { id: organizationId },
+  });
   if (!organization) {
     throw new NotFoundError("Company not found");
   }
   if (organization.ownerId === userId) {
     return { organization, isOwner: true, canManagePeople: true };
   }
-  const member = await memberRepo().findOne({ where: { userId, organizationId } });
+  const member = await em
+    .getRepository(OrganizationMember)
+    .findOne({ where: { userId, organizationId } });
   if (!member) {
     throw new AuthorizationError("You are not a member of this company");
   }
   return { organization, isOwner: false, canManagePeople: member.canManagePeople };
 };
 
-const assignmentsOf = (userId: string, organizationId: string) =>
-  AppDataSource.getRepository(StaffHrAssignment)
+const assignmentsOf = (
+  userId: string,
+  organizationId: string,
+  em: EntityManager = AppDataSource.manager
+) =>
+  em
+    .getRepository(StaffHrAssignment)
     .createQueryBuilder("assignment")
     .innerJoin(StaffMember, "staff", "staff.id = assignment.staffId")
     .where("assignment.assigneeUserId = :userId", { userId })
@@ -71,12 +79,13 @@ export const assertCanManagePeople = async (
 export const assertCanViewStaff = async (
   userId: string,
   organizationId: string,
-  staffId: string
+  staffId: string,
+  em: EntityManager = AppDataSource.manager
 ): Promise<void> => {
-  const access = await loadAccess(userId, organizationId);
+  const access = await loadAccess(userId, organizationId, em);
   if (access.canManagePeople) return;
 
-  const assignments = assignmentsOf(userId, organizationId);
+  const assignments = assignmentsOf(userId, organizationId, em);
   if (await assignments.clone().andWhere("staff.id = :staffId", { staffId }).getExists()) return;
   if (await assignments.getExists()) {
     throw new NotFoundError("Staff member not found");

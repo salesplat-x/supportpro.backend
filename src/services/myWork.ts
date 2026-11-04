@@ -20,6 +20,7 @@ import {
 import { PayView, loadPay } from "./pay.js";
 import { logStaffAccess } from "./staffAudit.js";
 import { loadManagerNames } from "./staffRecord.js";
+import { type CompletionRequestView, loadLatestRequests } from "./completionRequests.js";
 
 export interface MyWorkRecord {
   staffId: string;
@@ -32,6 +33,7 @@ export interface MyWorkRecord {
   signedDocuments: { id: string; title: string; signedAt: Date | null }[];
   hasTeam: boolean;
   tasks: StaffChecklistTask[];
+  completionRequests: CompletionRequestView[];
 }
 
 const ownOpenRecords = (userId: string) =>
@@ -55,7 +57,7 @@ export const getMyWork = async (userId: string): Promise<MyWorkRecord[]> => {
   if (records.length === 0) return [];
   const staffIds = records.map((staff) => staff.id);
 
-  const [orgs, documents, signedDocuments, tasks, managerNames, managers] = await Promise.all([
+  const [orgs, documents, signedDocuments, tasks, managerNames, managers, requests] = await Promise.all([
     AppDataSource.getRepository(Organization).find({
       where: { id: In(records.map((staff) => staff.organizationId)) },
       select: { id: true, name: true, logoUrl: true },
@@ -79,6 +81,7 @@ export const getMyWork = async (userId: string): Promise<MyWorkRecord[]> => {
       where: { managerId: In(staffIds), endDate: IsNull() },
       select: { id: true, managerId: true },
     }),
+    loadLatestRequests(staffIds),
   ]);
 
   return records.map((staff) => {
@@ -97,6 +100,10 @@ export const getMyWork = async (userId: string): Promise<MyWorkRecord[]> => {
         .filter((doc) => doc.staffId === staff.id)
         .map(({ id, title, signedAt }) => ({ id, title, signedAt })),
       tasks: tasks.filter((task) => task.staffId === staff.id),
+      completionRequests: requests.filter(
+        (request) =>
+          request.itemType === "task" && tasks.some((task) => task.id === request.itemId && task.staffId === staff.id)
+      ),
       hasTeam: managers.some((report) => report.managerId === staff.id),
     };
   });
@@ -112,29 +119,6 @@ export const getMyPay = async (actor: User, staffId: string, ip: string): Promis
     ip,
   });
   return loadPay(staff.id);
-};
-
-export const setMyTaskDone = async (
-  userId: string,
-  taskId: string,
-  done: boolean
-): Promise<StaffChecklistTask> => {
-  const task = await AppDataSource.getRepository(StaffChecklistTask)
-    .createQueryBuilder("task")
-    .innerJoin(StaffMember, "staff", "staff.id = task.staff_id")
-    .where("task.id = :taskId", { taskId })
-    .andWhere("staff.user_id = :userId AND staff.end_date IS NULL", { userId })
-    .getOne();
-  if (!task) {
-    throw new NotFoundError("Task not found");
-  }
-  if (done !== !!task.doneAt) {
-    task.doneAt = done ? new Date() : null;
-    await AppDataSource.getRepository(StaffChecklistTask).update(task.id, {
-      doneAt: task.doneAt,
-    });
-  }
-  return task;
 };
 
 const findOwnDocument = async (
