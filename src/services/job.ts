@@ -47,7 +47,6 @@ import {
   getAssessmentRetryDate,
   processNextStage,
   rescoreCvSimilarity,
-  runCvSimilarityGate,
   loadRecommendationsByApplicationIds,
   overlayVerdictFromRecommendation,
   triggerMatchVerdict,
@@ -1014,57 +1013,6 @@ export const enrichTalentsWithFitEvidence = async (
       }
     })
   );
-};
-
-export const gradeCv = async (
-  userId: string,
-  jobId: string
-): Promise<{ cvSimilarityScore: number; application: Application }> => {
-  const job = await jobRepo().findOne({
-    where: { id: jobId },
-    relations: { aiConfig: true },
-  });
-  if (!job) {
-    throw new NotFoundError("Job does not exist");
-  }
-
-  if (job.status === JobStatus.Closed) {
-    throw new ValidationError(`Applications for this job is currently ${job.status}`);
-  }
-
-  let application = await applicationRepo().findOne({
-    where: { jobId, talentId: userId },
-  });
-  if (!application) {
-    throw new ValidationError("You have to apply for this job before proceeding");
-  }
-
-  if (application.currentStage !== ScreeningStage.CvSimilarity) {
-    throw new ValidationError("This stage is not currently active for this application");
-  }
-
-  const aiConfig = job.aiConfig;
-  if (!aiConfig) {
-    throw new NotFoundError("AI configuration for job not found");
-  }
-
-  if (!aiConfig.cvSimilarity) {
-    throw new ValidationError("This feature was not configured for this job");
-  }
-
-  const cvSimilarityScore = await computeCvSimilarityScore(jobId, userId);
-  if (cvSimilarityScore === null) {
-    throw new ValidationError("Your CV is still being processed. Please try again shortly");
-  }
-
-  const user = await userRepo().findOne({ where: { id: userId } });
-  if (!user) {
-    throw new NotFoundError("Authenticated user no longer exists");
-  }
-  application = await runCvSimilarityGate(user, application, aiConfig, cvSimilarityScore);
-
-  application = await applicationRepo().save(application);
-  return { cvSimilarityScore, application };
 };
 
 export interface JobApplicationsParams {

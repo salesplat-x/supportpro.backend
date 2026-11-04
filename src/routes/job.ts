@@ -87,12 +87,6 @@ router.get(
   asyncHandler(job.topTalents, "load top talents")
 );
 router.patch(
-  "/cv-similarity/:jobId",
-  validateAccess([UserRole.Talent]),
-  requireVerifiedEmail,
-  asyncHandler(job.gradeCv, "score CV")
-);
-router.patch(
   "/prescreening-check/:jobId",
   validateAccess([UserRole.Talent]),
   requireVerifiedEmail,

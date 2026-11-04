@@ -80,12 +80,6 @@ export const topTalents = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Top talents fetched", result);
 };
 
-export const gradeCv = async (req: Request, res: Response) => {
-  const result = await jobService.gradeCv(req.user.id, req.params["jobId"]!);
-  hideAssessmentResultsFromCandidate(result.application);
-  sendSuccessResponse(res, "CV graded", result);
-};
-
 export const applications = async (req: Request, res: Response) => {
   const result = await jobService.jobApplications(req.user.id, req.user.userRole, {
     jobId: req.params["jobId"]!,
