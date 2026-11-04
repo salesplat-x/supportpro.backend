@@ -53,6 +53,7 @@ import { StaffDevelopmentItem } from "../entities/StaffDevelopmentItem.js";
 import { StaffMonthlyFeedback } from "../entities/StaffMonthlyFeedback.js";
 import { StaffEfficiencyTip } from "../entities/StaffEfficiencyTip.js";
 import { CompanyQuarterGoal } from "../entities/CompanyQuarterGoal.js";
+import { AiFeatureSetting } from "../entities/AiFeatureSetting.js";
 
 const ALL_ENTITIES = [
   User,
@@ -104,6 +105,7 @@ const ALL_ENTITIES = [
   StaffMonthlyFeedback,
   StaffEfficiencyTip,
   CompanyQuarterGoal,
+  AiFeatureSetting,
 ];
 
 async function run(): Promise<void> {

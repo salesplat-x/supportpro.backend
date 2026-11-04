@@ -433,7 +433,7 @@ export const evaluatePersonalityType = async (
 
   const { mbtiType, responses } = JSON.parse(response.message.content);
   if (!mbtiType || typeof mbtiType !== "string") {
-    throw new ValidationError("OpenAI returned an invalid personality evaluation");
+    throw new ValidationError("The AI returned an invalid personality evaluation");
   }
 
   const user = await userRepo().findOne({ where: { id: userId } });

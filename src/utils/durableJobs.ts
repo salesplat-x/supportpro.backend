@@ -1,4 +1,5 @@
 import { AppDataSource } from "../database/dataSource.js";
+import { AiConfigError } from "./errors/AiConfigError.js";
 import { AppError } from "./errors/AppError.js";
 import { ValidationError } from "./errors/ValidationError.js";
 import { getErrorStatus, isRetryableError } from "./retry.js";
@@ -20,6 +21,7 @@ export const backoffMs = (attempt: number): number => {
  * LLM JSON/schema `ValidationError`s are retried; 401/403/404 AppErrors are not.
  */
 export const isDurableRetryable = (err: unknown): boolean => {
+  if (err instanceof AiConfigError) return true;
   if (err instanceof ValidationError) return true;
   if (err instanceof AppError) return false;
   if (isRetryableError(err)) return true;
@@ -46,12 +48,16 @@ export const durableFailureUpdate = (
   err: unknown,
   maxAttempts = MAX_DURABLE_ATTEMPTS
 ): DurableFailureUpdate => {
-  const attempts = currentAttempts + 1;
+  // A wrong AI setup isn't this row's fault, so it waits for the fix without using up an attempt.
+  const setupProblem = err instanceof AiConfigError;
+  const attempts = setupProblem ? currentAttempts : currentAttempts + 1;
   const retryable = isDurableRetryable(err);
   const exhausted = !retryable || attempts >= maxAttempts;
   return {
     attempts,
-    nextRetryAt: exhausted ? null : new Date(Date.now() + backoffMs(attempts)),
+    nextRetryAt: exhausted
+      ? null
+      : new Date(Date.now() + backoffMs(setupProblem ? maxAttempts : attempts)),
     lockedAt: null,
     lastError: errorMessage(err),
     exhausted,

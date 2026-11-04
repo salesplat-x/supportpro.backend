@@ -1,68 +1,14 @@
 import OpenAI from "openai";
-import env from "../../config/env.js";
-import { withRetry } from "../retry.js";
-import { createLimiter } from "../concurrencyLimiter.js";
+import { complete, completeWhileWaiting, embed } from "./ai/gateway.js";
 import {
   CULTURE_FIT_GENERAL_CATEGORIES,
   MAX_CULTURE_FIT_JOB_BRIEF_CHARS,
   PROBLEM_SOLVING_CATEGORIES,
 } from "../../config/assessmentQuestions.js";
 
-// API key is loaded from process.env.OPENAI_API_KEY via config/env.ts
-// (`env.openai_secret`). dotenv loads `.env` in app.ts (`import "dotenv/config"`).
-// Personality / personalized questions are persisted in the `questions` table
-// after a successful generation — reopening AI Config fetches those rows and
-// does not call OpenAI again.
-const openai = new OpenAI({ apiKey: env.openai_secret });
-
-// Single choke point for all OpenAI calls: caps concurrency so bursts (batch CV
-// scoring, many CV uploads) don't blow through OpenAI's rate limit, and retries
-// transient failures (429/5xx/timeouts) so fire-and-forget callers don't silently
-// drop work on a momentary blip.
-const limiter = createLimiter(5);
-
-const runCompletion = (
-  params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
-  requestOptions?: OpenAI.RequestOptions
-) =>
-  limiter.run(() =>
-    withRetry(() => openai.chat.completions.create(params, requestOptions), {
-      label: "OpenAI chat completion",
-    })
-  );
-
-const PEOPLE_AI_ATTEMPT_MS = 30_000;
-const PEOPLE_AI_TOTAL_MS = 80_000;
-
-/**
- * For calls someone is waiting on. Timeouts are set and SDK retries are off so `withRetry`
- * doesn't multiply them. The deadline is checked before each attempt, because the shared
- * limiter queues without one and a call nobody is waiting for shouldn't spend money.
- */
-const runPeopleCompletion = (
-  params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
-) => {
-  const deadline = Date.now() + PEOPLE_AI_TOTAL_MS;
-  return limiter.run(() =>
-    withRetry(
-      () => {
-        if (Date.now() > deadline) {
-          throw new Error("The AI request waited too long");
-        }
-        return openai.chat.completions.create(params, {
-          timeout: PEOPLE_AI_ATTEMPT_MS,
-          maxRetries: 0,
-        });
-      },
-      { label: "People AI completion" }
-    )
-  );
-};
-
-const runEmbedding = (params: OpenAI.Embeddings.EmbeddingCreateParams) =>
-  limiter.run(() =>
-    withRetry(() => openai.embeddings.create(params), { label: "OpenAI embedding" })
-  );
+// Every call names its AI job. The gateway looks up which provider and model the admin chose for it.
+// Personality / personalized questions are persisted in the `questions` table after a
+// successful generation, so reopening AI Config fetches those rows and doesn't call the AI again.
 
 export const gradeAssessmentAnswers = async (
   questionsJSON: string
@@ -101,20 +47,18 @@ export const gradeAssessmentAnswers = async (
     ]
   }', the length of the array of Response objects must match the length of the array of the Assessment object`;
 
-  const completion = await runCompletion({
+  const completion = await complete("role_answer_grading", {
     messages: [
       { role: "system", content: prompt },
       { role: "user", content: questionsJSON },
     ],
-    model: "gpt-4o",
     response_format: { type: "json_object" },
   });
   return completion.choices[0];
 };
 
 export const createEmbedding = async (text: string | string[]) => {
-  const embedding = await runEmbedding({
-    model: "text-embedding-3-small",
+  const embedding = await embed("cv_matching", {
     input: text,
     encoding_format: "float",
     dimensions: 512,
@@ -157,12 +101,11 @@ Recruiter guide:
 ${recruiterGuide || "Not provided"}
 
 Generate ${questionNo} personalized interview question(s).`;
-  const completion = await runCompletion({
+  const completion = await complete("personalized_questions", {
     messages: [
       { role: "system", content: system },
       { role: "user", content: prompt },
     ],
-    model: "gpt-4o",
     response_format: { type: "json_object" },
   });
   return completion.choices[0];
@@ -207,12 +150,11 @@ export const gradePersonalizedAnswers = async (
     ]
   }', the length of the array of Response objects must match the length of the array of the Assessment object`;
 
-  const completion = await runCompletion({
+  const completion = await complete("personalized_answer_grading", {
     messages: [
       { role: "system", content: prompt },
       { role: "user", content: questionsJSON },
     ],
-    model: "gpt-4o",
     response_format: { type: "json_object" },
   });
   return completion.choices[0];
@@ -254,12 +196,11 @@ ${jobDescription}
 
 Dichotomy pair: ${dichotomyPair} (${pair[0]} vs ${pair[1]})
 Generate ${count} workplace question${count > 1 ? "s" : ""} that distinguish ${pair[0]} from ${pair[1]}.`;
-  const completion = await runCompletion({
+  const completion = await complete("personality_questions", {
     messages: [
       { role: "system", content: system },
       { role: "user", content: prompt },
     ],
-    model: "gpt-4o",
     response_format: { type: "json_object" },
   });
   return completion.choices[0];
@@ -294,12 +235,11 @@ export const evaluatePersonalityType = async (
   "mbtiType": "ESTJ"
 }
 '`;
-  const completion = await runCompletion({
+  const completion = await complete("personality_type", {
     messages: [
       { role: "system", content: prompt },
       { role: "user", content: questionsJSON },
     ],
-    model: "gpt-4o",
     response_format: { type: "json_object" },
   });
   return completion.choices[0];
@@ -336,12 +276,11 @@ Rules:
 
 Reply with JSON only, for example:
 {"personalityFitScore": 72, "personalityFitReason": "Enjoys structured planning, which suits the role's reporting duties; may find constant cold outreach draining."}`;
-  const completion = await runCompletion({
+  const completion = await complete("personality_fit", {
     messages: [
       { role: "system", content: system },
       { role: "user", content: JSON.stringify(context) },
     ],
-    model: "gpt-4o",
     response_format: { type: "json_object" },
   });
   return completion.choices[0];
@@ -460,12 +399,11 @@ background, so:
 Extract the candidate's details from the CV. Use null for anything not present — never
 guess, never invent an email or phone number. Scores are numbers between 0 and 100.`;
 
-  const completion = await runCompletion({
+  const completion = await complete("scout_cv_scoring", {
     messages: [
       { role: "system", content: prompt },
       { role: "user", content: JSON.stringify(context) },
     ],
-    model: "gpt-4o",
     response_format: {
       type: "json_schema",
       json_schema: {
@@ -500,12 +438,11 @@ restating each candidate one by one.
 
 Return JSON: { "summary": "<your paragraph>" }`;
 
-  const completion = await runCompletion({
+  const completion = await complete("scout_shortlist_summary", {
     messages: [
       { role: "system", content: prompt },
       { role: "user", content: JSON.stringify(context) },
     ],
-    model: "gpt-4o-mini",
     response_format: { type: "json_object" },
   });
   return completion.choices[0];
@@ -534,12 +471,11 @@ export const assessTalentFit = async (
     "weaknesses": ["<specific gap or concern relative to the job description, citing evidence>", "..."]
   }`;
 
-  const completion = await runCompletion({
+  const completion = await complete("talent_fit_evidence", {
     messages: [
       { role: "system", content: system },
       { role: "user", content: JSON.stringify(context) },
     ],
-    model: "gpt-4o-mini",
     response_format: { type: "json_object" },
   });
   return completion.choices[0];
@@ -631,12 +567,11 @@ Output JSON:
 
 overallFitScore must be an integer 0–100. Provide at least one strength when any positive evidence exists. Provide at least one weakness or risk unless the match is outstanding on all available evidence.`;
 
-  const completion = await runCompletion({
+  const completion = await complete("applicant_verdict", {
     messages: [
       { role: "system", content: system },
       { role: "user", content: JSON.stringify(context) },
     ],
-    model: "gpt-4o",
     response_format: { type: "json_object" },
   });
   return completion.choices[0];
@@ -717,12 +652,11 @@ Location: ${context.location ? `${context.location.city ?? ""} ${context.locatio
 CV Content:
 ${context.cvContent}`;
 
-  const completion = await runCompletion({
+  const completion = await complete("prescreening_questions", {
     messages: [
       { role: "system", content: system },
       { role: "user", content: userPrompt },
     ],
-    model: "gpt-4o",
     response_format: { type: "json_object" },
   });
   return completion.choices[0];
@@ -815,12 +749,11 @@ export const generateJobContent = async (
     context.sourceText ? `Existing job description:\n${context.sourceText}` : null,
   ].filter(Boolean);
 
-  const completion = await runCompletion({
+  const completion = await complete("job_post_writer", {
     messages: [
       { role: "system", content: system },
       { role: "user", content: lines.join("\n\n") },
     ],
-    model: "gpt-4o",
     response_format: { type: "json_object" },
   });
   return completion.choices[0];
@@ -931,10 +864,11 @@ ${outputFormat}`;
       { role: "system" as const, content: system },
       { role: "user" as const, content: userPrompt },
     ],
-    model: "gpt-4o",
     response_format: { type: "json_object" as const },
   };
-  const completion = await (context.people ? runPeopleCompletion(params) : runCompletion(params));
+  const completion = await (context.people
+    ? completeWhileWaiting("employee_job_description", params)
+    : complete("job_field_writer", params));
   return completion.choices[0];
 };
 
@@ -978,12 +912,11 @@ Output a JSON object in this exact format:
     previousEmails: context.previousEmails,
   });
 
-  const completion = await runCompletion({
+  const completion = await complete("onboarding_email", {
     messages: [
       { role: "system", content: system },
       { role: "user", content: user },
     ],
-    model: "gpt-4o",
     response_format: { type: "json_object" },
   });
   return completion.choices[0];
@@ -1038,12 +971,11 @@ Output a JSON object in this exact format:
     },
   });
 
-  const completion = await runCompletion({
+  const completion = await complete("applicant_message", {
     messages: [
       { role: "system", content: system },
       { role: "user", content: user },
     ],
-    model: "gpt-4o",
     response_format: { type: "json_object" },
   });
   return completion.choices[0];
@@ -1093,12 +1025,11 @@ Output a JSON object in this exact format:
     previousSteps: context.previousSteps,
   });
 
-  const completion = await runCompletion({
+  const completion = await complete("application_follow_up_email", {
     messages: [
       { role: "system", content: system },
       { role: "user", content: user },
     ],
-    model: "gpt-4o",
     response_format: { type: "json_object" },
   });
   return completion.choices[0];
@@ -1124,12 +1055,11 @@ CV Content: ${context.profileContext.cvContent}
 Assessment Questions and Answers:
 ${JSON.stringify(context.questions, null, 2)}`;
 
-  const completion = await runCompletion({
+  const completion = await complete("prescreening_scoring", {
     messages: [
       { role: "system", content: system },
       { role: "user", content: userPrompt },
     ],
-    model: "gpt-4o-mini",
     response_format: { type: "json_object" },
   });
   return completion.choices[0];
@@ -1166,12 +1096,11 @@ Output JSON only:
     ? `\n\nDo not repeat or paraphrase these existing questions:\n${avoid.map((q) => `- ${q}`).join("\n")}`
     : "";
   const prompt = `Generate ${count} problem-solving question${count > 1 ? "s" : ""}.${avoidText}`;
-  const completion = await runCompletion({
+  const completion = await complete("problem_solving_questions", {
     messages: [
       { role: "system", content: system },
       { role: "user", content: prompt },
     ],
-    model: "gpt-4o",
     response_format: { type: "json_object" },
   });
   return completion.choices[0];
@@ -1233,12 +1162,11 @@ ${brief}
 
 Generate ${count} culture-fit question${count > 1 ? "s" : ""}.${avoidText}`;
 
-  const completion = await runCompletion({
+  const completion = await complete("culture_fit_questions", {
     messages: [
       { role: "system", content: system },
       { role: "user", content: prompt },
     ],
-    model: "gpt-4o",
     response_format: { type: "json_object" },
   });
   return completion.choices[0];
@@ -1290,12 +1218,11 @@ Output JSON only:
     answer: item.answer,
   }));
   const prompt = `Score these ${items.length} answer${items.length > 1 ? "s" : ""}:\n${JSON.stringify(answers, null, 2)}`;
-  const completion = await runCompletion({
+  const completion = await complete("company_answer_grading", {
     messages: [
       { role: "system", content: system },
       { role: "user", content: prompt },
     ],
-    model: "gpt-4o",
     temperature: 0,
     response_format: { type: "json_object" },
   });
@@ -1324,12 +1251,11 @@ export const extractCompanyProfile = async (
 
 Use the document's own meaning and wording where you can. Use null, or an empty list, for anything the document does not say. Never invent facts, numbers or names.`;
 
-  const completion = await runCompletion({
+  const completion = await complete("company_profile_reader", {
     messages: [
       { role: "system", content: prompt },
       { role: "user", content: documentText },
     ],
-    model: "gpt-4o",
     response_format: {
       type: "json_schema",
       json_schema: { name: "company_profile", strict: true, schema: COMPANY_PROFILE_SCHEMA },
@@ -1369,7 +1295,7 @@ export const suggestGoals = async (input: {
   companyGoals: string[];
   existingGoals: string[];
 }): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
-  const completion = await runPeopleCompletion({
+  const completion = await completeWhileWaiting("goal_suggestions", {
     messages: [
       {
         role: "system",
@@ -1377,7 +1303,6 @@ export const suggestGoals = async (input: {
       },
       { role: "user", content: JSON.stringify(input) },
     ],
-    model: "gpt-4o",
     max_tokens: 1500,
     response_format: {
       type: "json_schema",
@@ -1399,7 +1324,7 @@ export const weeklyAdvice = async (input: {
   lastWeek: { did: string; blocked: string; nextWeek: string } | null;
   goals: Array<{ title: string; progress: number; dueOn: string }>;
 }): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
-  const completion = await runPeopleCompletion({
+  const completion = await completeWhileWaiting("weekly_coaching", {
     messages: [
       {
         role: "system",
@@ -1407,7 +1332,6 @@ export const weeklyAdvice = async (input: {
       },
       { role: "user", content: JSON.stringify(input) },
     ],
-    model: "gpt-4o",
     max_tokens: 800,
     response_format: {
       type: "json_schema",
@@ -1443,7 +1367,7 @@ export const suggestDevelopmentItems = async (input: {
   goals: Array<{ title: string; progress: number; dueOn: string }>;
   reports: Array<{ did: string; blocked: string }>;
 }): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
-  const completion = await runPeopleCompletion({
+  const completion = await completeWhileWaiting("development_plan", {
     messages: [
       {
         role: "system",
@@ -1451,7 +1375,6 @@ export const suggestDevelopmentItems = async (input: {
       },
       { role: "user", content: JSON.stringify(input) },
     ],
-    model: "gpt-4o",
     max_tokens: 1000,
     response_format: {
       type: "json_schema",
@@ -1473,7 +1396,7 @@ export const efficiencyTip = async (input: {
   score: number;
   parts: Array<{ key: string; value: number | null }>;
 }): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
-  const completion = await runPeopleCompletion({
+  const completion = await completeWhileWaiting("efficiency_tip", {
     messages: [
       {
         role: "system",
@@ -1481,7 +1404,6 @@ export const efficiencyTip = async (input: {
       },
       { role: "user", content: JSON.stringify(input) },
     ],
-    model: "gpt-4o",
     max_tokens: 300,
     response_format: {
       type: "json_schema",

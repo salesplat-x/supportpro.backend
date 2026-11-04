@@ -5,6 +5,7 @@ import { validateAccess, requireVerifiedEmail } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { UserRole } from "../types/enums.js";
 import {
+  adminAiFeatureModelValidator,
   adminApplicationFollowUpEmailValidator,
   adminOverviewQueryValidator,
   adminApplicationIdParamValidator,
@@ -165,6 +166,20 @@ router.post(
   requireVerifiedEmail,
   validate(adminApplicationFollowUpEmailValidator),
   asyncHandler(admin.sendApplicationFollowUpEmail, "send application follow-up email")
+);
+
+router.get(
+  "/ai-models",
+  validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
+  asyncHandler(admin.getAiModels, "load AI models")
+);
+router.patch(
+  "/ai-models/features/:key",
+  validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(adminAiFeatureModelValidator),
+  asyncHandler(admin.updateAiFeatureModel, "update AI model")
 );
 
 export default (app: Router) => app.use("/admin", router);

@@ -1,3 +1,4 @@
+import * as aiModelsService from "../services/aiModels.js";
 import { Request, Response } from "express";
 import * as adminService from "../services/admin.js";
 import { DEFAULT_OVERVIEW_DAYS, getAdminOverview } from "../services/adminOverview.js";
@@ -127,4 +128,18 @@ export const sendApplicationFollowUpEmail = async (req: Request, res: Response) 
     }
   );
   sendSuccessResponse(res, "Email sent", { email: result }, 201);
+};
+
+export const getAiModels = async (_req: Request, res: Response) => {
+  const result = await aiModelsService.getAiModelsOverview();
+  sendSuccessResponse(res, "AI models fetched", result);
+};
+
+export const updateAiFeatureModel = async (req: Request, res: Response) => {
+  const { provider, model } = req.body as { provider: string; model: string };
+  const feature = await aiModelsService.updateAiFeatureModel(req.user.id, req.params["key"]!, {
+    provider,
+    model,
+  });
+  sendSuccessResponse(res, "AI model saved", { feature });
 };

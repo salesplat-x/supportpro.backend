@@ -50,6 +50,7 @@ import { StaffDevelopmentItem } from "../../src/entities/StaffDevelopmentItem.js
 import { StaffMonthlyFeedback } from "../../src/entities/StaffMonthlyFeedback.js";
 import { StaffEfficiencyTip } from "../../src/entities/StaffEfficiencyTip.js";
 import { CompanyQuarterGoal } from "../../src/entities/CompanyQuarterGoal.js";
+import { AiFeatureSetting } from "../../src/entities/AiFeatureSetting.js";
 
 let container: StartedPostgreSqlContainer;
 export let testDataSource: DataSource;
@@ -104,6 +105,7 @@ const ALL_ENTITIES = [
   StaffMonthlyFeedback,
   StaffEfficiencyTip,
   CompanyQuarterGoal,
+  AiFeatureSetting,
 ];
 
 export async function startTestDatabase(): Promise<void> {

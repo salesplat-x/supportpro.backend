@@ -52,3 +52,4 @@ export {
 export { StaffMonthlyFeedback } from "./StaffMonthlyFeedback.js";
 export { StaffEfficiencyTip } from "./StaffEfficiencyTip.js";
 export { CompanyQuarterGoal } from "./CompanyQuarterGoal.js";
+export { AiFeatureSetting } from "./AiFeatureSetting.js";
