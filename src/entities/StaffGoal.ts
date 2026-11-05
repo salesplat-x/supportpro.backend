@@ -24,6 +24,10 @@ export enum GoalSource {
 @Entity("staff_goals")
 @Check("CHK_staff_goals_progress", `"progress" BETWEEN 0 AND 100`)
 @Check("CHK_staff_goals_approved", `("status" = 'approved') = ("approved_at" IS NOT NULL)`)
+@Check(
+  "CHK_staff_goals_completed",
+  `("progress" = 100) = ("completed_at" IS NOT NULL) AND ("completed_at" IS NULL OR "status" = 'approved')`
+)
 @Index("IDX_staff_goals_staff", ["staffId", "status"])
 @Index("IDX_staff_goals_org", ["organizationId", "status"])
 export class StaffGoal {
@@ -74,6 +78,13 @@ export class StaffGoal {
 
   @Column({ type: "timestamptz", name: "approved_at", nullable: true })
   approvedAt!: Date | null;
+
+  /** Set only by a reviewer. Reaching 100 and being complete are the same thing. */
+  @Column({ type: "timestamptz", name: "completed_at", nullable: true })
+  completedAt!: Date | null;
+
+  @Column({ type: "varchar", length: 241, name: "completed_by_name", nullable: true })
+  completedByName!: string | null;
 
   @CreateDateColumn({ type: "timestamptz", name: "created_at" })
   createdAt!: Date;

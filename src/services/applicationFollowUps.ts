@@ -20,6 +20,7 @@ import {
   STAGE_LABEL,
 } from "./applicationFollowUpRules.js";
 import { RESEND_WINDOW_MS } from "./followUpShared.js";
+import { isUniqueViolation } from "./staffRecord.js";
 
 const applicationRepo = () => AppDataSource.getRepository(Application);
 const emailRepo = () => AppDataSource.getRepository(ApplicationFollowUpEmail);
@@ -316,6 +317,9 @@ export const sendApplicationFollowUpEmail = async (
 
   const application = await loadFollowUpApplication(applicationId);
   assertStuck(application);
+  if (application.talent.followUpEmailsOptedOutAt) {
+    throw new ConflictError("This person unsubscribed from follow-up emails");
+  }
 
   const lastSent = await emailRepo().findOne({
     where: { applicationId, status: "sent" },
@@ -332,24 +336,30 @@ export const sendApplicationFollowUpEmail = async (
   }
 
   const next = nextStepFor(application.currentStage);
-  const record = await AppDataSource.transaction(async (manager) => {
-    const existingCount = await manager.count(ApplicationFollowUpEmail, {
-      where: { applicationId },
+  const saveRecord = () =>
+    AppDataSource.transaction(async (manager) => {
+      const existingCount = await manager.count(ApplicationFollowUpEmail, {
+        where: { applicationId },
+      });
+      return manager.save(
+        ApplicationFollowUpEmail,
+        manager.create(ApplicationFollowUpEmail, {
+          applicationId,
+          sentById: adminId,
+          step: existingCount + 1,
+          stage: application.currentStage,
+          applicationUpdatedAtSnapshot: application.updatedAt,
+          subject,
+          body,
+          status: "sent",
+          error: null,
+        })
+      );
     });
-    return manager.save(
-      ApplicationFollowUpEmail,
-      manager.create(ApplicationFollowUpEmail, {
-        applicationId,
-        sentById: adminId,
-        step: existingCount + 1,
-        stage: application.currentStage,
-        applicationUpdatedAtSnapshot: application.updatedAt,
-        subject,
-        body,
-        status: "sent",
-        error: null,
-      })
-    );
+  // An automatic email can take the same step number at the same moment. One retry settles it.
+  const record = await saveRecord().catch((err: unknown) => {
+    if (isUniqueViolation(err)) return saveRecord();
+    throw err;
   });
 
   try {

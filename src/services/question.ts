@@ -328,19 +328,17 @@ export const generatePersonalizedQuestions = async (
     aiConfig.recruiterGuide ?? ""
   );
   if (!response || !response.message.content) {
-    throw new ValidationError(
-      "Failed to generate personalized questions from OpenAI. Check OPENAI_API_KEY and try again."
-    );
+    throw new ValidationError("Failed to generate personalized questions. Please try again.");
   }
 
   let questions: string[];
   try {
     questions = JSON.parse(response.message.content).questions;
   } catch {
-    throw new ValidationError("OpenAI returned an invalid personalized question response");
+    throw new ValidationError("The AI returned an invalid personalized question response");
   }
   if (!Array.isArray(questions) || questions.length === 0) {
-    throw new ValidationError("OpenAI returned no personalized questions");
+    throw new ValidationError("The AI returned no personalized questions");
   }
 
   const questionEntities = questions.map((q) =>
@@ -379,18 +377,16 @@ const generateDichotomyQuestions = async (
 ): Promise<Question[]> => {
   const response = await AI.getPersonalityEvaluationQuestion(job.jobBrief, dichotomyPair, count);
   if (!response || !response.message.content) {
-    throw new ValidationError(
-      "Failed to generate personality questions from OpenAI. Check OPENAI_API_KEY and try again."
-    );
+    throw new ValidationError("Failed to generate personality questions. Please try again.");
   }
   let questionTexts: string[];
   try {
     questionTexts = JSON.parse(response.message.content).questions;
   } catch {
-    throw new ValidationError("OpenAI returned an invalid personality question response");
+    throw new ValidationError("The AI returned an invalid personality question response");
   }
   if (!Array.isArray(questionTexts) || questionTexts.length === 0) {
-    throw new ValidationError("OpenAI returned no personality questions");
+    throw new ValidationError("The AI returned no personality questions");
   }
 
   const questionEntities = questionTexts.map((text) =>

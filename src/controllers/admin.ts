@@ -1,3 +1,5 @@
+import * as ownershipTransferService from "../services/ownershipTransfer.js";
+import * as aiModelsService from "../services/aiModels.js";
 import { Request, Response } from "express";
 import * as adminService from "../services/admin.js";
 import { DEFAULT_OVERVIEW_DAYS, getAdminOverview } from "../services/adminOverview.js";
@@ -50,6 +52,16 @@ export const listOrganizations = async (req: Request, res: Response) => {
 export const getOrganization = async (req: Request, res: Response) => {
   const result = await adminService.getOrganization(req.params["_id"]!);
   sendSuccessResponse(res, "Organization fetched", { organization: result });
+};
+
+export const changeOrganizationOwner = async (req: Request, res: Response) => {
+  const { newOwnerUserId, reason } = req.body as { newOwnerUserId: string; reason: string };
+  const transfer = await ownershipTransferService.changeOrganizationOwner(
+    req.user.id,
+    req.params["_id"]!,
+    { newOwnerUserId, reason }
+  );
+  sendSuccessResponse(res, "Company creator changed", { transfer });
 };
 
 export const verifyOrganization = async (req: Request, res: Response) => {
@@ -127,4 +139,33 @@ export const sendApplicationFollowUpEmail = async (req: Request, res: Response) 
     }
   );
   sendSuccessResponse(res, "Email sent", { email: result }, 201);
+};
+
+export const getAiModels = async (_req: Request, res: Response) => {
+  const result = await aiModelsService.getAiModelsOverview();
+  sendSuccessResponse(res, "AI models fetched", result);
+};
+
+export const updateAiFeatureModel = async (req: Request, res: Response) => {
+  const { provider, model } = req.body as { provider: string; model: string };
+  const feature = await aiModelsService.updateAiFeatureModel(req.user.id, req.params["key"]!, {
+    provider,
+    model,
+  });
+  sendSuccessResponse(res, "AI model saved", { feature });
+};
+
+export const getAiFeaturePrompts = async (req: Request, res: Response) => {
+  const prompts = await aiModelsService.getAiFeaturePrompts(req.params["key"]!);
+  sendSuccessResponse(res, "AI prompts fetched", { prompts });
+};
+
+export const updateAiFeaturePrompts = async (req: Request, res: Response) => {
+  const { prompts: edits } = req.body as { prompts: Record<string, string> };
+  const prompts = await aiModelsService.updateAiFeaturePrompts(
+    req.user.id,
+    req.params["key"]!,
+    edits
+  );
+  sendSuccessResponse(res, "AI prompts saved", { prompts });
 };

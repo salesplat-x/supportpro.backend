@@ -71,6 +71,10 @@ export class User {
   @Column({ type: "boolean", default: true })
   active!: boolean;
 
+  /** Stops automatic reminder emails, and an admin's follow-ups too. */
+  @Column({ type: "timestamptz", name: "follow_up_emails_opted_out_at", nullable: true })
+  followUpEmailsOptedOutAt!: Date | null;
+
   @Column({ type: "varchar", nullable: true, default: null, select: false })
   recoveryCode!: string | null;
 

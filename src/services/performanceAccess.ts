@@ -87,7 +87,11 @@ export const openPerformance = async (
   return report;
 };
 
-/** Call before opening the transaction: HR rights are read on their own connection. */
+/**
+ * Gate for every performance write. An assigned HR can read through `openPerformance` but
+ * can't write, so this needs the switch. Call it before opening the transaction: HR rights
+ * are read on their own connection.
+ */
 export const assertScope = async (scope: PerformanceScope): Promise<void> => {
   if (scope.kind === "hr") {
     await assertCanManagePeople(scope.actor.id, scope.organizationId);

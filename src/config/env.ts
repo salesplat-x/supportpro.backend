@@ -24,12 +24,11 @@ const optionalEnvVars = {
   doSpacesBucket: process.env.DO_SPACES_BUCKET,
   doSpacesKey: process.env.DO_SPACES_KEY,
   doSpacesSecret: process.env.DO_SPACES_SECRET,
+  stuckEmailsEnabled: process.env.STUCK_EMAILS_ENABLED === "true",
+  publicApiUrl: process.env.PUBLIC_API_URL?.replace(/\/$/, ""),
 } as const;
 
 const requiredEnvVars = {
-  // Used by utils/integrations/openai.ts for all LLM calls (personality /
-  // personalized question generation, grading, AI Match, etc.).
-  openai_secret: process.env.OPENAI_API_KEY,
   pg_host: process.env.PG_HOST,
   pg_port: process.env.PG_PORT,
   pg_db: process.env.PG_DB,

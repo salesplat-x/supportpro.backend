@@ -215,6 +215,7 @@ export const suggestDevelopmentItems = async (
   scope: PerformanceScope,
   ip: string
 ): Promise<DevelopmentView[]> => {
+  await assertScope(scope);
   const staff = await openPerformance(scope, ip);
   assertWritable(staff);
   const existing = await proposals(AppDataSource.manager, staff.id);

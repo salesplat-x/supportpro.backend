@@ -1,4 +1,5 @@
-import { In, QueryFailedError } from "typeorm";
+import { EntityManager, In, MoreThan, QueryFailedError } from "typeorm";
+import { OrganizationOwnershipTransfer } from "../entities/OrganizationOwnershipTransfer.js";
 import { AppDataSource } from "../database/dataSource.js";
 import { Payment } from "../entities/Payment.js";
 import { PaymentWebhookEvent } from "../entities/PaymentWebhookEvent.js";
@@ -43,6 +44,23 @@ import { countActiveJobs, ensureOrganizationBillingCurrent, isAtLimit } from "./
 import logger from "../utils/logger.js";
 import { generateReference } from "../utils/crypto.js";
 import EmailService from "../utils/integrations/email/emailService.js";
+
+const REPLACED_AFTER_CREATOR_CHANGE = "Replaced after the company's creator changed";
+
+/**
+ * A plan bought before the creator changed stays on the previous creator's card. Paystack can't
+ * move a card, so the new creator takes it over by buying the same plan.
+ */
+const wasBoughtBeforeCreatorChange = (
+  subscription: Subscription,
+  em: EntityManager = AppDataSource.manager
+): Promise<boolean> =>
+  em.getRepository(OrganizationOwnershipTransfer).exists({
+    where: {
+      organizationId: subscription.organizationId,
+      createdAt: MoreThan(subscription.startDate ?? subscription.createdAt),
+    },
+  });
 
 const paymentRepo = () => AppDataSource.getRepository(Payment);
 const userRepo = () => AppDataSource.getRepository(User);
@@ -206,12 +224,13 @@ const fulfillPayment = async (payment: Payment, authorizationCode?: string): Pro
             },
           });
           for (const sub of otherSubs) {
-            if (sub.planId === plan.id) continue;
+            const samePlan = sub.planId === plan.id;
+            if (samePlan && !(await wasBoughtBeforeCreatorChange(sub, manager))) continue;
             sub.status = SubscriptionStatus.Cancelled;
             sub.history = [
               ...(sub.history ?? []),
               {
-                description: "Replaced by plan upgrade",
+                description: samePlan ? REPLACED_AFTER_CREATOR_CHANGE : "Replaced by plan upgrade",
                 author: locked.userId,
                 date: new Date(),
               },
@@ -560,9 +579,13 @@ export const paystackWebhook = async (payload: {
         });
         // Revert immediately, but only while this sub still matches the org's plan — an
         // upgrade that disabled the old sub after writing the new plan must survive. The
-        // check and the write are one statement, so the race cannot be lost.
+        // check and the write are one statement, so the race cannot be lost. A new creator
+        // taking over the same plan matches too, so that replacement is checked separately.
         const disabledPlanKey = subscription.plan?.planKey;
-        if (disabledPlanKey) {
+        const takenOver = subscription.history?.some(
+          (entry) => entry.description === REPLACED_AFTER_CREATOR_CHANGE
+        );
+        if (disabledPlanKey && !takenOver) {
           await revertToPayPerUseIfStillOnPlan(subscription.organizationId, disabledPlanKey);
         }
       }
@@ -691,7 +714,11 @@ export const initiateTransaction = async (
   const existingSubscription = await subscriptionRepo().findOne({
     where: { organizationId: organization.id, status: SubscriptionStatus.Active },
   });
-  if (existingSubscription && existingSubscription.planId === planRow.id) {
+  if (
+    existingSubscription &&
+    existingSubscription.planId === planRow.id &&
+    !(await wasBoughtBeforeCreatorChange(existingSubscription))
+  ) {
     throw new ConflictError("Your company is already on this plan");
   }
 

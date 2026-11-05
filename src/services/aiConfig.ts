@@ -90,8 +90,7 @@ export const resyncUntouchedApplications = async (
 
   const applications = await manager.find(Application, { where: { jobId: In(jobIds) } });
   const candidates = applications.filter(
-    (app) =>
-      app.personalizedScore === null && app.cvSimilarityScore === null && app.mbtiType === null
+    (app) => app.personalizedScore === null && !app.cvSimilarityAttempts && app.mbtiType === null
   );
   if (candidates.length === 0) return;
 

@@ -31,6 +31,9 @@ export class StaffChecklistTask {
   @Column({ type: "timestamp", name: "done_at", nullable: true })
   doneAt!: Date | null;
 
+  @Column({ type: "varchar", length: 241, name: "completed_by_name", nullable: true })
+  completedByName!: string | null;
+
   @CreateDateColumn({ name: "created_at" })
   createdAt!: Date;
 }

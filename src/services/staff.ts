@@ -2,11 +2,13 @@ import { EntityManager, Not } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { StaffAccessResource } from "../entities/StaffAccessLog.js";
 import { StaffActivityType } from "../entities/StaffActivity.js";
+import { StaffHrAssignment } from "../entities/StaffHrAssignment.js";
 import { StaffMember, StaffStatus } from "../entities/StaffMember.js";
 import type { User } from "../entities/User.js";
 import { ConflictError, ValidationError } from "../utils/errors";
 import { copyDefaultChecklist } from "./checklist.js";
-import { assertCanManagePeople } from "./peopleAccess.js";
+import { withdrawPendingForStaff } from "./completionRequests.js";
+import { assertCanManagePeople, seesOnlyAssignedStaff } from "./peopleAccess.js";
 import { activityEntry, openStaff, recordActivities } from "./staffAudit.js";
 import { assertCanInvite, issueInvite, sendInviteEmail } from "./staffInvite.js";
 import {
@@ -45,6 +47,7 @@ export interface UpdateStaffInput {
 export interface ListStaffQuery {
   search?: string;
   status?: StaffStatus;
+  assignedToMe?: boolean;
   limit: number;
   offset: number;
 }
@@ -168,12 +171,25 @@ export const listStaff = async (
   organizationId: string,
   query: ListStaffQuery
 ): Promise<{ items: StaffView[]; total: number; counts: Record<StaffStatus, number> }> => {
-  await assertCanManagePeople(userId, organizationId);
+  const assignedOnly = await seesOnlyAssignedStaff(userId, organizationId);
   const repo = AppDataSource.getRepository(StaffMember);
 
-  const qb = repo
-    .createQueryBuilder("staff")
-    .where("staff.organizationId = :organizationId", { organizationId });
+  const scoped = () => {
+    const scope = repo
+      .createQueryBuilder("staff")
+      .where("staff.organizationId = :organizationId", { organizationId });
+    if (assignedOnly || query.assignedToMe) {
+      scope.innerJoin(
+        StaffHrAssignment,
+        "assignment",
+        "assignment.staffId = staff.id AND assignment.assigneeUserId = :userId",
+        { userId }
+      );
+    }
+    return assignedOnly ? scope.andWhere("staff.endDate IS NULL") : scope;
+  };
+
+  const qb = scoped();
   if (query.status) {
     qb.andWhere("staff.status = :status", { status: query.status });
   }
@@ -193,11 +209,9 @@ export const listStaff = async (
     .skip(query.offset)
     .getManyAndCount();
 
-  const grouped = await repo
-    .createQueryBuilder("staff")
+  const grouped = await scoped()
     .select("staff.status", "status")
     .addSelect("COUNT(*)", "count")
-    .where("staff.organizationId = :organizationId", { organizationId })
     .groupBy("staff.status")
     .getRawMany<{ status: StaffStatus; count: string }>();
   const counts: Record<StaffStatus, number> = {
@@ -219,13 +233,23 @@ export const listOptions = async (
   organizationId: string,
   includeEnded: boolean
 ): Promise<StaffOption[]> => {
-  await assertCanManagePeople(userId, organizationId);
-  return AppDataSource.getRepository(StaffMember).find({
-    where: includeEnded ? { organizationId } : { organizationId, status: Not(StaffStatus.Ended) },
-    select: { id: true, fullName: true, jobTitle: true, status: true },
-    order: { fullName: "ASC" },
-    take: MAX_OPTIONS,
-  });
+  const assignedOnly = await seesOnlyAssignedStaff(userId, organizationId);
+  const repo = AppDataSource.getRepository(StaffMember);
+  const qb = repo
+    .createQueryBuilder("staff")
+    .select(["staff.id", "staff.fullName", "staff.jobTitle", "staff.status"])
+    .where("staff.organizationId = :organizationId", { organizationId });
+  if (assignedOnly) {
+    qb.innerJoin(
+      StaffHrAssignment,
+      "assignment",
+      "assignment.staffId = staff.id AND assignment.assigneeUserId = :userId",
+      { userId }
+    ).andWhere("staff.endDate IS NULL");
+  } else if (!includeEnded) {
+    qb.andWhere("staff.status <> :ended", { ended: StaffStatus.Ended });
+  }
+  return qb.orderBy("staff.fullName", "ASC").take(MAX_OPTIONS).getMany();
 };
 
 export const getStaff = async (
@@ -319,6 +343,7 @@ export const endStaff = async (
 
     current.status = StaffStatus.Ended;
     current.endDate = effective;
+    await withdrawPendingForStaff(em, current.id);
     current.inviteTokenHash = null;
     current.inviteExpiresAt = null;
     const saved = await em.getRepository(StaffMember).save(current);

@@ -21,6 +21,29 @@ interface UserLike {
   userRole: UserRole;
 }
 
+/** What an email nobody reviewed has to carry: a way out, and protection against a double send. */
+export interface AutomaticEmail {
+  idempotencyKey: string;
+  unsubscribeUrl: string;
+  oneClickUrl?: string;
+}
+
+const unsubscribeText = (automatic?: AutomaticEmail): string[] =>
+  automatic ? [`Stop these reminders: ${automatic.unsubscribeUrl}`] : [];
+
+const automaticFields = (automatic?: AutomaticEmail) =>
+  automatic
+    ? {
+        idempotencyKey: automatic.idempotencyKey,
+        headers: {
+          "List-Unsubscribe": `<${automatic.oneClickUrl ?? automatic.unsubscribeUrl}>`,
+          ...(automatic.oneClickUrl
+            ? { "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" }
+            : {}),
+        },
+      }
+    : {};
+
 class EmailService {
   private provider: EmailProvider;
 
@@ -36,15 +59,15 @@ class EmailService {
     }
   }
 
-  /** Sends an admin's onboarding follow-up. Unlike sendEmail it throws, so failures can be recorded. */
-  async sendOnboardingFollowUp(details: {
+  /** Sends a notice about someone's work at their company. It throws, so the caller decides what a failure means. */
+  async sendPeopleUpdate(details: {
     to: string;
     subject: string;
     paragraphs: string[];
     ctaLabel: string;
     ctaUrl: string;
   }): Promise<void> {
-    const html = renderTemplate("onboarding-follow-up", {
+    const html = renderTemplate("people-update", {
       paragraphs: details.paragraphs,
       ctaLabel: details.ctaLabel,
       ctaUrl: details.ctaUrl,
@@ -54,11 +77,40 @@ class EmailService {
       subject: details.subject,
       html,
       text: [...details.paragraphs, `${details.ctaLabel}: ${details.ctaUrl}`].join("\n\n"),
-      tags: [{ name: "category", value: "onboarding-follow-up" }],
+      tags: [{ name: "category", value: "people-update" }],
     });
   }
 
-  /** Sends an admin's follow-up about a talent's stuck job application. Unlike sendEmail it throws, so failures can be recorded. */
+  /** Sends an onboarding follow-up. Unlike sendEmail it throws, so failures can be recorded. */
+  async sendOnboardingFollowUp(details: {
+    to: string;
+    subject: string;
+    paragraphs: string[];
+    ctaLabel: string;
+    ctaUrl: string;
+    automatic?: AutomaticEmail;
+  }): Promise<void> {
+    const html = renderTemplate("onboarding-follow-up", {
+      paragraphs: details.paragraphs,
+      ctaLabel: details.ctaLabel,
+      ctaUrl: details.ctaUrl,
+      unsubscribeUrl: details.automatic?.unsubscribeUrl,
+    });
+    await this.provider.send({
+      to: details.to,
+      subject: details.subject,
+      html,
+      text: [
+        ...details.paragraphs,
+        `${details.ctaLabel}: ${details.ctaUrl}`,
+        ...unsubscribeText(details.automatic),
+      ].join("\n\n"),
+      tags: [{ name: "category", value: "onboarding-follow-up" }],
+      ...automaticFields(details.automatic),
+    });
+  }
+
+  /** Sends a follow-up about a talent's stuck job application. Unlike sendEmail it throws, so failures can be recorded. */
   async sendApplicationFollowUp(details: {
     to: string;
     subject: string;
@@ -67,6 +119,7 @@ class EmailService {
     paragraphs: string[];
     ctaLabel: string;
     ctaUrl: string;
+    automatic?: AutomaticEmail;
   }): Promise<void> {
     const html = renderTemplate("application-follow-up", {
       jobTitle: details.jobTitle,
@@ -74,13 +127,19 @@ class EmailService {
       paragraphs: details.paragraphs,
       ctaLabel: details.ctaLabel,
       ctaUrl: details.ctaUrl,
+      unsubscribeUrl: details.automatic?.unsubscribeUrl,
     });
     await this.provider.send({
       to: details.to,
       subject: details.subject,
       html,
-      text: [...details.paragraphs, `${details.ctaLabel}: ${details.ctaUrl}`].join("\n\n"),
+      text: [
+        ...details.paragraphs,
+        `${details.ctaLabel}: ${details.ctaUrl}`,
+        ...unsubscribeText(details.automatic),
+      ].join("\n\n"),
       tags: [{ name: "category", value: "application-follow-up" }],
+      ...automaticFields(details.automatic),
     });
   }
 

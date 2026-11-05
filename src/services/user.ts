@@ -458,6 +458,18 @@ export const generateCvEmbeddingForUser = async (userId: string): Promise<void> 
     await recordCvEmbeddingFailure(userId, err);
     throw err;
   }
+
+  // The dynamic import avoids a circular dependency (applicationStage.ts reaches
+  // user.ts through prescreening.ts).
+  try {
+    const { rescoreCvSimilarityForTalent } = await import("./applicationStage.js");
+    await rescoreCvSimilarityForTalent(userId);
+  } catch (err) {
+    logger.error("CV similarity rescore failed after CV embedding", {
+      userId,
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
 };
 
 export const reconcileDueCvEmbeddings = async (): Promise<{
@@ -525,7 +537,11 @@ export const reprocessCv = async (recruiterId: string, talentId: string): Promis
   if (!owns) {
     throw new AuthorizationError("You are not authorized to perform this action");
   }
+  await regenerateCvEmbedding(talentId);
+};
 
+/** Clears any exhausted retry state and re-embeds the talent's stored CV text now. */
+export const regenerateCvEmbedding = async (talentId: string): Promise<void> => {
   const user = await userRepo()
     .createQueryBuilder("user")
     .addSelect("user.cvText")

@@ -212,6 +212,11 @@ export const singleFitReportValidator = [
   param("applicationId").isUUID().withMessage("Invalid applicationId"),
 ];
 
+export const retryCvScoreValidator = [
+  param("jobId").notEmpty().withMessage("Job ID is required"),
+  param("applicationId").isUUID().withMessage("Invalid applicationId"),
+];
+
 export const bulkFitReportValidator = [
   param("jobId").notEmpty().withMessage("Job ID is required"),
   body("applicationIds").isArray({ min: 1 }).withMessage("Select at least one candidate"),

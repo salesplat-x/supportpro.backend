@@ -282,7 +282,7 @@ describe("goals", () => {
     expect(edited.body.data.goal.progress).toBe(40);
   });
 
-  it("moves progress within 0 to 100 and records each real change once", async () => {
+  it("moves progress within 0 to 99 and records each real change once", async () => {
     const { owner, report, hrBase, addAsHr } = await team();
     const goal = await addAsHr();
     const set = (progress: unknown, token = report.token) =>
@@ -298,12 +298,12 @@ describe("goals", () => {
       .send({ version: 1 })
       .expect(200);
 
-    for (const bad of [-1, 101, 50.5, "50", null]) {
+    for (const bad of [-1, 100, 101, 50.5, "50", null]) {
       expect((await set(bad)).status).toBe(400);
     }
     expect((await set(0)).status).toBe(200);
-    expect((await set(100)).status).toBe(200);
-    expect((await set(100)).status).toBe(200);
+    expect((await set(99)).status).toBe(200);
+    expect((await set(99)).status).toBe(200);
     expect((await set(40)).status).toBe(200);
     const events = await testDataSource
       .getRepository(StaffGoalProgressEvent)

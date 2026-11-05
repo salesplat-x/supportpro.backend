@@ -196,6 +196,7 @@ async function team() {
         progress,
         status: "approved" as never,
         approvedAt: new Date(Date.now() - 60 * 86_400_000),
+        completedAt: progress === 100 ? new Date() : null,
       })
     );
   };

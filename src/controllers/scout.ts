@@ -12,7 +12,6 @@ import { User } from "../entities/User.js";
 import { assertMonthlyHeadroom, recordUsage, assertWithinLimit } from "../services/entitlements.js";
 import { requireActiveOrganizationId } from "../services/organizationScope.js";
 import { NotFoundError, ValidationError } from "../utils/errors";
-import { getFromSpaces } from "../utils/integrations/spaces.js";
 
 const isAdmin = (req: Request) => req.user.userRole === UserRole.Admin;
 
@@ -129,19 +128,12 @@ export const searchTalents = async (req: Request, res: Response) => {
  * guesses the link.
  */
 export const downloadCandidateCv = async (req: Request, res: Response) => {
-  const candidate = await talentSearchService.fetchCandidate(req.params["candidateId"]!);
-  if (!candidate.cvFileKey) {
-    throw new NotFoundError("No CV file is stored for this candidate");
-  }
-
-  const buffer = await getFromSpaces(candidate.cvFileKey);
-  const safeName = (candidate.fullName ?? "candidate")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
+  const { buffer, fileName } = await talentSearchService.getCandidateCvPdf(
+    req.params["candidateId"]!
+  );
 
   res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `inline; filename="${safeName || "candidate"}-cv.pdf"`);
+  res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
   res.setHeader("Content-Length", buffer.length);
   res.end(buffer);
 };

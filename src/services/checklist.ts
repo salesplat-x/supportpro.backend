@@ -5,7 +5,8 @@ import { StaffChecklistTask } from "../entities/StaffChecklistTask.js";
 import type { StaffMember } from "../entities/StaffMember.js";
 import type { User } from "../entities/User.js";
 import { NotFoundError } from "../utils/errors";
-import { assertCanManagePeople } from "./peopleAccess.js";
+import { deleteEvidenceQuietly, evidenceKeysFor } from "./completionRequests.js";
+import { assertCanManagePeople, assertCanViewStaff } from "./peopleAccess.js";
 import { findStaff } from "./staffRecord.js";
 
 export interface ChecklistItem {
@@ -75,7 +76,7 @@ export const listTasks = async (
   organizationId: string,
   staffId: string
 ): Promise<StaffChecklistTask[]> => {
-  await assertCanManagePeople(actor.id, organizationId);
+  await assertCanViewStaff(actor.id, organizationId, staffId);
   await findStaff(organizationId, staffId);
   return listTasksFor(staffId);
 };
@@ -98,9 +99,14 @@ export const deleteTask = async (
   taskId: string
 ): Promise<void> => {
   await assertCanManagePeople(actor.id, organizationId);
-  await findStaff(organizationId, staffId);
-  const result = await tasksRepo().delete({ id: taskId, staffId });
-  if (!result.affected) {
-    throw new NotFoundError("Task not found");
-  }
+  const evidence = await AppDataSource.transaction(async (em) => {
+    await findStaff(organizationId, staffId, { em, lock: true });
+    const keys = await evidenceKeysFor({ taskId }, em);
+    const result = await em.getRepository(StaffChecklistTask).delete({ id: taskId, staffId });
+    if (!result.affected) {
+      throw new NotFoundError("Task not found");
+    }
+    return keys;
+  });
+  await deleteEvidenceQuietly(evidence);
 };

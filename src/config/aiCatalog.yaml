@@ -1,0 +1,416 @@
+# Update this file from each provider's official models page, then run `npm run ai:smoke`.
+verifiedOn: "2026-11-04"
+
+providers:
+  - key: openai
+    name: OpenAI
+    envKey: OPENAI_API_KEY
+    baseUrl: https://api.openai.com/v1
+    docsUrl: https://developers.openai.com/api/docs/models
+    attemptTimeoutMs: 30000
+  - key: gemini
+    name: Google Gemini
+    envKey: GEMINI_API_KEY
+    baseUrl: https://generativelanguage.googleapis.com/v1beta/openai/
+    docsUrl: https://aistudio.google.com/docs/models
+    attemptTimeoutMs: 30000
+  - key: grok
+    name: xAI Grok
+    envKey: GROK_API_KEY
+    baseUrl: https://api.x.ai/v1
+    docsUrl: https://docs.x.ai/docs/models
+    attemptTimeoutMs: 30000
+  - key: groq
+    name: Groq
+    envKey: GROQ_API_KEY
+    baseUrl: https://api.groq.com/openai/v1
+    docsUrl: https://console.groq.com/docs/models
+    attemptTimeoutMs: 30000
+  - key: deepseek
+    name: DeepSeek
+    envKey: DEEPSEEK_API_KEY
+    baseUrl: https://api.deepseek.com
+    docsUrl: https://api-docs.deepseek.com/quick_start/pricing
+    attemptTimeoutMs: 30000
+
+# tokenParam: the request field that caps output on this model.
+# supportsTemperature: false means the temperature field is dropped from the request.
+# reasoningEffort: sent as reasoning_effort. Absent means the field is left out.
+# minOutputTokens: reasoning uses up the output cap, so short caps are raised to this floor.
+# retiresOn: the model stays selectable only for features already using it.
+models:
+  - id: gpt-6-astra
+    provider: openai
+    label: GPT-6 Astra
+    kind: chat
+    formats: [json_object, json_schema]
+    tokenParam: max_completion_tokens
+    supportsTemperature: false
+    reasoningEffort: low
+    minOutputTokens: 4000
+  - id: gpt-6.1-sol
+    provider: openai
+    label: GPT-6.1 Sol
+    kind: chat
+    formats: [json_object, json_schema]
+    tokenParam: max_completion_tokens
+    supportsTemperature: false
+    reasoningEffort: low
+    minOutputTokens: 4000
+  - id: gpt-6.1-terra
+    provider: openai
+    label: GPT-6.1 Terra
+    kind: chat
+    formats: [json_object, json_schema]
+    tokenParam: max_completion_tokens
+    supportsTemperature: true
+    reasoningEffort: none
+  - id: gpt-6-luna
+    provider: openai
+    label: GPT-6 Luna
+    kind: chat
+    formats: [json_object, json_schema]
+    tokenParam: max_completion_tokens
+    supportsTemperature: true
+    reasoningEffort: none
+  - id: gpt-4o
+    provider: openai
+    label: GPT-4o
+    kind: chat
+    formats: [json_object, json_schema]
+    tokenParam: max_tokens
+    supportsTemperature: true
+    retiresOn: "2027-01-14"
+    replacement: gpt-6-luna
+  - id: gpt-4o-mini
+    provider: openai
+    label: GPT-4o mini
+    kind: chat
+    formats: [json_object, json_schema]
+    tokenParam: max_tokens
+    supportsTemperature: true
+    retiresOn: "2027-01-14"
+    replacement: gpt-6-luna
+  - id: text-embedding-3-small
+    provider: openai
+    label: Text Embedding 3 Small
+    kind: embedding
+  - id: text-embedding-3-large
+    provider: openai
+    label: Text Embedding 3 Large
+    kind: embedding
+
+  - id: gemini-3.8-flash
+    provider: gemini
+    label: Gemini 3.8 Flash
+    kind: chat
+    formats: [json_object, json_schema]
+    tokenParam: max_tokens
+    supportsTemperature: true
+    reasoningEffort: low
+    minOutputTokens: 4000
+  - id: gemini-3.6-flash
+    provider: gemini
+    label: Gemini 3.6 Flash
+    kind: chat
+    formats: [json_object, json_schema]
+    tokenParam: max_tokens
+    supportsTemperature: true
+    reasoningEffort: low
+    minOutputTokens: 4000
+  - id: gemini-3.5-flash-lite
+    provider: gemini
+    label: Gemini 3.5 Flash-Lite
+    kind: chat
+    formats: [json_object, json_schema]
+    tokenParam: max_tokens
+    supportsTemperature: true
+    reasoningEffort: low
+    minOutputTokens: 4000
+  - id: gemini-embedding-2
+    provider: gemini
+    label: Gemini Embedding 2
+    kind: embedding
+  - id: gemini-embedding-001
+    provider: gemini
+    label: Gemini Embedding 001
+    kind: embedding
+
+  - id: grok-4.7
+    provider: grok
+    label: Grok 4.7
+    kind: chat
+    formats: [json_object, json_schema]
+    tokenParam: max_tokens
+    supportsTemperature: true
+    minOutputTokens: 4000
+  - id: grok-4.6
+    provider: grok
+    label: Grok 4.6
+    kind: chat
+    formats: [json_object, json_schema]
+    tokenParam: max_tokens
+    supportsTemperature: true
+    minOutputTokens: 4000
+  - id: grok-4.5
+    provider: grok
+    label: Grok 4.5
+    kind: chat
+    formats: [json_object, json_schema]
+    tokenParam: max_tokens
+    supportsTemperature: true
+    minOutputTokens: 4000
+  - id: grok-4.3
+    provider: grok
+    label: Grok 4.3
+    kind: chat
+    formats: [json_object, json_schema]
+    tokenParam: max_tokens
+    supportsTemperature: true
+    minOutputTokens: 4000
+  - id: grok-4.20-0309-reasoning
+    provider: grok
+    label: Grok 4.20 Reasoning
+    kind: chat
+    formats: [json_object, json_schema]
+    tokenParam: max_tokens
+    supportsTemperature: true
+    minOutputTokens: 4000
+  - id: grok-4.20-0309-non-reasoning
+    provider: grok
+    label: Grok 4.20
+    kind: chat
+    formats: [json_object, json_schema]
+    tokenParam: max_tokens
+    supportsTemperature: true
+
+  - id: openai/gpt-oss-120b
+    provider: groq
+    label: GPT-OSS 120B
+    kind: chat
+    formats: [json_object, json_schema]
+    tokenParam: max_completion_tokens
+    supportsTemperature: true
+    reasoningEffort: low
+    minOutputTokens: 4000
+  - id: openai/gpt-oss-20b
+    provider: groq
+    label: GPT-OSS 20B
+    kind: chat
+    formats: [json_object, json_schema]
+    tokenParam: max_completion_tokens
+    supportsTemperature: true
+    reasoningEffort: low
+    minOutputTokens: 4000
+
+  - id: deepseek-flash
+    provider: deepseek
+    label: DeepSeek Flash
+    kind: chat
+    formats: [json_object]
+    tokenParam: max_tokens
+    supportsTemperature: true
+    minOutputTokens: 4000
+  - id: deepseek-v4-pro
+    provider: deepseek
+    label: DeepSeek V4 Pro
+    kind: chat
+    formats: [json_object]
+    tokenParam: max_tokens
+    supportsTemperature: true
+    minOutputTokens: 4000
+
+features:
+  - key: cv_matching
+    name: CV matching AI
+    description: Turns CVs, job briefs, sourced candidates and recruiter search text into vectors that rank who fits a job.
+    group: Matching
+    kind: embedding
+    default: { provider: openai, model: text-embedding-3-small }
+    lockedReason: Vectors from different models can't be compared. Changing this model means rebuilding every stored vector and recalibrating recruiters' minimum CV scores, so it can't be changed here.
+  - key: applicant_verdict
+    name: Applicant verdict AI
+    description: Gives a finished applicant a High, Medium or Low verdict, a fit score and a screening report.
+    group: Matching
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-4o }
+  - key: talent_fit_evidence
+    name: Talent fit evidence AI
+    description: Lists strengths and gaps for top talents and talent search results.
+    group: Matching
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-4o-mini }
+  - key: scout_cv_scoring
+    name: Scout CV scoring AI
+    description: Scores an uploaded CV against a scouting campaign and extracts the person's details.
+    group: Matching
+    kind: chat
+    format: json_schema
+    default: { provider: openai, model: gpt-4o }
+  - key: scout_shortlist_summary
+    name: Scout shortlist summary AI
+    description: Writes the paragraph summarising a scouting shortlist.
+    group: Matching
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-4o-mini }
+
+  - key: personalized_questions
+    name: Personalized question AI
+    description: Writes screening questions from the job, the CV and the recruiter's guide.
+    group: Assessments
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-4o }
+  - key: personality_questions
+    name: Personality question AI
+    description: Writes the personality assessment questions.
+    group: Assessments
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-4o }
+  - key: problem_solving_questions
+    name: Problem-solving question AI
+    description: Writes the problem-solving question pool for a company.
+    group: Assessments
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-4o }
+  - key: culture_fit_questions
+    name: Culture-fit question AI
+    description: Writes the culture-fit question pool from the company's values.
+    group: Assessments
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-4o }
+  - key: prescreening_questions
+    name: Pre-screening question AI
+    description: Writes multiple-choice pre-screening questions from a talent's CV.
+    group: Assessments
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-4o }
+  - key: prescreening_scoring
+    name: Pre-screening scoring AI
+    description: Scores a talent's pre-screening test from 0 to 100.
+    group: Assessments
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-4o-mini }
+  - key: role_answer_grading
+    name: Role answer grading AI
+    description: Grades answers to role questions from 1 to 5.
+    group: Assessments
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-4o }
+  - key: personalized_answer_grading
+    name: Personalized answer grading AI
+    description: Grades answers to personalized questions.
+    group: Assessments
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-4o }
+  - key: company_answer_grading
+    name: Company answer grading AI
+    description: Grades problem-solving and culture-fit answers from 0 to 5.
+    group: Assessments
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-4o }
+  - key: personality_type
+    name: Personality type AI
+    description: Works out a talent's personality type from their answers.
+    group: Assessments
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-4o }
+  - key: personality_fit
+    name: Personality fit AI
+    description: Scores how well a personality type fits the job, from 0 to 100.
+    group: Assessments
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-4o }
+
+  - key: job_post_writer
+    name: Job post writer AI
+    description: Writes a full job post for a recruiter.
+    group: Job posts
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-4o }
+  - key: job_field_writer
+    name: Job field writer AI
+    description: Writes or rewrites one field of a job post.
+    group: Job posts
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-4o }
+
+  - key: employee_job_description
+    name: Employee job description AI
+    description: Writes an employee's job description.
+    group: People
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-4o }
+  - key: company_profile_reader
+    name: Company profile reader AI
+    description: Pulls the mission, vision and goals out of a company document.
+    group: People
+    kind: chat
+    format: json_schema
+    default: { provider: openai, model: gpt-4o }
+  - key: goal_suggestions
+    name: Goal suggestion AI
+    description: Suggests goals for an employee.
+    group: People
+    kind: chat
+    format: json_schema
+    default: { provider: openai, model: gpt-4o }
+  - key: development_plan
+    name: Development plan AI
+    description: Proposes development plan items for an employee.
+    group: People
+    kind: chat
+    format: json_schema
+    default: { provider: openai, model: gpt-4o }
+  - key: weekly_coaching
+    name: Weekly coaching AI
+    description: Gives an employee coaching tips on their weekly report.
+    group: People
+    kind: chat
+    format: json_schema
+    default: { provider: openai, model: gpt-4o }
+  - key: efficiency_tip
+    name: Efficiency tip AI
+    description: Gives a tip on how to improve an employee's efficiency score.
+    group: People
+    kind: chat
+    format: json_schema
+    default: { provider: openai, model: gpt-4o }
+
+  - key: applicant_message
+    name: Applicant message AI
+    description: Drafts recruiters' messages to shortlisted candidates.
+    group: Messages
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-4o }
+  - key: onboarding_email
+    name: Onboarding email AI
+    description: Drafts an admin's email to a user stuck in onboarding.
+    group: Messages
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-4o }
+  - key: application_follow_up_email
+    name: Application follow-up email AI
+    description: Drafts an admin's email to a talent stuck in a job application.
+    group: Messages
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-4o }

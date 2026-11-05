@@ -2228,26 +2228,6 @@ paths:
                 type: object
       security:
         - bearerAuth: []
-  /jobs/cv-similarity/{jobId}:
-    patch:
-      summary: Talent
-      tags:
-        - jobs
-      parameters:
-        - name: jobId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: object
-      security:
-        - bearerAuth: []
   /jobs/match/{_id}:
     get:
       summary: Recruiter, Admin

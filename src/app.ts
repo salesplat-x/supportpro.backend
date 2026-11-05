@@ -14,6 +14,8 @@ import swaggerDocs from "./swagger.js";
 import { reconcileDurableJobs } from "./services/reconciliation.js";
 import { asyncHandler } from "./middleware/asyncHandler.js";
 import { SWEEP_INTERVAL_MS } from "./utils/durableJobs.js";
+import { isProviderConfigured, loadAiCatalog } from "./utils/integrations/ai/catalog.js";
+import { loadAiPrompts } from "./utils/integrations/ai/prompts.js";
 
 export function createApp(): Application {
   const app = express();
@@ -66,7 +68,19 @@ export function createApp(): Application {
   return app;
 }
 
+const warnAboutMissingAiKeys = (): void => {
+  loadAiPrompts();
+  const catalog = loadAiCatalog();
+  const defaults = new Set(catalog.features.map((feature) => feature.default.provider));
+  for (const provider of catalog.providers.filter((item) => defaults.has(item.key))) {
+    if (!isProviderConfigured(provider)) {
+      logger.warn(`${provider.envKey} isn't set, so AI jobs using ${provider.name} will fail`);
+    }
+  }
+};
+
 async function startApplication(): Promise<void> {
+  warnAboutMissingAiKeys();
   await initializeDatabase();
   logger.info("Database connected successfully");
 

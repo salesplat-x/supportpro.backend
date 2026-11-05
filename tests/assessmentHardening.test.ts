@@ -160,19 +160,6 @@ describe("scores never reach candidates through other endpoints", () => {
     expectNoScores(res);
   });
 
-  it("PATCH /jobs/cv-similarity/:jobId", async () => {
-    const { job, config, talent, token } = await jobWithPool();
-    const application = await createApplication(talent, job, {
-      currentStage: ScreeningStage.CvSimilarity,
-      stages: config.stages,
-    });
-    await setScores(application.id);
-    const res = await request(app)
-      .patch(`/v1/jobs/cv-similarity/${job.id}`)
-      .set("Authorization", `Bearer ${token}`);
-    expectNoScores(res);
-  });
-
   it("GET /user/applications", async () => {
     const { job, talent, token } = await jobWithPool();
     const application = await createApplication(talent, job);

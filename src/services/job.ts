@@ -43,14 +43,17 @@ import {
 import { workModeNeedsLocation } from "../utils/workMode.js";
 import { createStages } from "./aiConfig.js";
 import {
+  computeCvSimilarityScore,
   getAssessmentRetryDate,
   processNextStage,
+  rescoreCvSimilarity,
   loadRecommendationsByApplicationIds,
   overlayVerdictFromRecommendation,
   triggerMatchVerdict,
   resetMatchVerdictRetry,
 } from "./applicationStage.js";
 import { isPrescreeningScoreValid } from "./prescreening.js";
+import { regenerateCvEmbedding } from "./user.js";
 
 const jobRepo = () => AppDataSource.getRepository(Job);
 
@@ -912,7 +915,7 @@ export const topTalents = async (
   let newApplicants = 0;
 
   for (const r of res) {
-    const cvSimilarityScore = convertSimilarityToPercentage(r.similarity);
+    const cvSimilarityScore = convertSimilarityToPercentage(Math.min(Math.max(r.similarity, 0), 1));
     const existing = existingAppMap.get(r.user_id);
 
     if (existing) {
@@ -1012,85 +1015,6 @@ export const enrichTalentsWithFitEvidence = async (
   );
 };
 
-export const gradeCv = async (
-  userId: string,
-  jobId: string
-): Promise<{ cvSimilarityScore: number; application: Application }> => {
-  const job = await jobRepo().findOne({
-    where: { id: jobId },
-    relations: { aiConfig: true },
-  });
-  if (!job) {
-    throw new NotFoundError("Job does not exist");
-  }
-
-  if (job.status === JobStatus.Closed) {
-    throw new ValidationError(`Applications for this job is currently ${job.status}`);
-  }
-
-  let application = await applicationRepo().findOne({
-    where: { jobId, talentId: userId },
-  });
-  if (!application) {
-    throw new ValidationError("You have to apply for this job before proceeding");
-  }
-
-  if (application.currentStage !== ScreeningStage.CvSimilarity) {
-    throw new ValidationError("This stage is not currently active for this application");
-  }
-
-  const aiConfig = job.aiConfig;
-  if (!aiConfig) {
-    throw new NotFoundError("AI configuration for job not found");
-  }
-
-  if (!aiConfig.cvSimilarity) {
-    throw new ValidationError("This feature was not configured for this job");
-  }
-
-  // Get CV similarity score
-  const rows: Array<{ similarity_score: number }> = await AppDataSource.query(
-    `
-    WITH jd_cte AS (
-      SELECT job_embedding::vector FROM jobs WHERE id = $1
-    ),
-    talent_cte AS (
-      SELECT cv_embedding::vector FROM talent_embeddings WHERE user_id = $2 LIMIT 1
-    )
-    SELECT ABS((SELECT job_embedding::vector FROM jd_cte) <=> (SELECT cv_embedding::vector FROM talent_cte)) AS similarity_score
-    `,
-    [jobId, userId]
-  );
-  const rawScore = rows[0]?.similarity_score ?? 0;
-  const cvSimilarityScore = convertSimilarityToPercentage(rawScore);
-
-  application.cvSimilarityScore = cvSimilarityScore;
-  application.cvSimilarityAttempts = (application.cvSimilarityAttempts ?? 0) + 1;
-
-  const minScore = aiConfig.minCvSimilarityScore ?? 0;
-  const MAX_ATTEMPTS = 2; // 1 initial + 1 retry
-  const passed = cvSimilarityScore >= minScore;
-  const attemptsExhausted = application.cvSimilarityAttempts >= MAX_ATTEMPTS;
-
-  if (passed || attemptsExhausted) {
-    const user = await userRepo().findOne({ where: { id: userId } });
-    if (user) {
-      application = await processNextStage(
-        user,
-        application,
-        ScreeningStage.CvSimilarity,
-        aiConfig
-      );
-    }
-  } else {
-    application.currentStage = ScreeningStage.CvSimilarity;
-    application.status = ApplicationStatus.RetakeAssessment;
-  }
-
-  application = await applicationRepo().save(application);
-  return { cvSimilarityScore, application };
-};
-
 export interface JobApplicationsParams {
   jobId: string;
   applicationType?: ApplicationType;
@@ -1109,7 +1033,11 @@ export interface JobApplicationsParams {
 
 export interface JobApplicationsResult {
   applications: Application[];
-  aiConfig: { minCvSimilarityScore: number | null; minPrescreeningScore: number | null } | null;
+  aiConfig: {
+    cvSimilarity: boolean;
+    minCvSimilarityScore: number | null;
+    minPrescreeningScore: number | null;
+  } | null;
 }
 
 export const jobApplications = async (
@@ -1215,11 +1143,58 @@ export const jobApplications = async (
     ),
     aiConfig: job.aiConfig
       ? {
+          cvSimilarity: job.aiConfig.cvSimilarity,
           minCvSimilarityScore: job.aiConfig.minCvSimilarityScore,
           minPrescreeningScore: job.aiConfig.minPrescreeningScore,
         }
       : null,
   };
+};
+
+// Recruiter-triggered retry for an application with no CV match score. When the
+// talent's CV embedding is missing or failed it's regenerated first.
+export const retryCvSimilarityScore = async (
+  userId: string,
+  jobId: string,
+  applicationId: string
+): Promise<Application> => {
+  const job = await jobRepo().findOne({ where: { id: jobId }, relations: { aiConfig: true } });
+  if (!job) {
+    throw new NotFoundError("Job not found");
+  }
+  await assertRecruiterJobAccess(userId, UserRole.Recruiter, job);
+
+  if (!job.aiConfig?.cvSimilarity) {
+    throw new ValidationError("CV matching is not configured for this job");
+  }
+
+  const application = await applicationRepo().findOne({
+    where: { id: applicationId, jobId },
+    relations: { talent: true },
+  });
+  if (!application) {
+    throw new NotFoundError("Application not found");
+  }
+
+  const scored = await rescoreCvSimilarity(application.talent, application, job.aiConfig);
+  if (scored) return scored;
+
+  try {
+    await regenerateCvEmbedding(application.talentId);
+  } catch (err) {
+    logger.error(
+      `CV re-embed failed during score retry for application ${applicationId}: ${
+        (err as Error).message
+      }`
+    );
+    throw new ValidationError("This talent's CV could not be processed. Please try again later");
+  }
+
+  const reloaded = await applicationRepo().findOne({ where: { id: applicationId } });
+  if (reloaded?.cvSimilarityScore === null || reloaded?.cvSimilarityScore === undefined) {
+    throw new ValidationError("The CV match score could not be calculated. Please try again later");
+  }
+  return reloaded;
 };
 
 export interface RetryVerdictsResult {
@@ -1329,6 +1304,9 @@ export const apply = async (user: User, payload: ApplyPayload): Promise<Applicat
     recruiterId: job.postedById,
     currentStage: entryStage as Application["currentStage"],
     status: ApplicationStatus.Pending,
+    cvSimilarityScore: aiConfig.cvSimilarity
+      ? await computeCvSimilarityScore(jobId, user.id)
+      : null,
   });
 
   const saved = await applicationRepo().save(application);

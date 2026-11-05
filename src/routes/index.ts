@@ -27,6 +27,7 @@ import staffInviteRoutes from "./staffInvite.js";
 import staffDocumentRoutes from "./staffDocument.js";
 import documentCheckRoutes from "./documentCheck.js";
 import myWorkRoutes from "./myWork.js";
+import emailPreferencesRoutes from "./emailPreferences.js";
 
 const v1Router = Router();
 
@@ -58,5 +59,6 @@ errorLogRoutes(v1Router);
 prescreeningRoutes(v1Router);
 adminRoutes(v1Router);
 feedbackRoutes(v1Router);
+emailPreferencesRoutes(v1Router);
 
 export default v1Router;

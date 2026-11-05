@@ -14,6 +14,7 @@ class ResendProvider implements EmailProvider {
     tags,
     attachments,
     idempotencyKey,
+    headers,
   }: EmailPayload): Promise<void> {
     const { error } = await resend.emails.send(
       {
@@ -25,6 +26,7 @@ class ResendProvider implements EmailProvider {
         replyTo: replyTo ?? "support@auxhr.com",
         tags,
         attachments,
+        headers,
       },
       idempotencyKey ? { idempotencyKey } : undefined
     );

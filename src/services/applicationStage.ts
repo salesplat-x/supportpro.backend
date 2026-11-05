@@ -39,6 +39,8 @@ import {
   type StoredResponse,
 } from "../utils/answerResponses.js";
 import logger from "../utils/logger.js";
+import { convertSimilarityToPercentage } from "../utils/text.js";
+import { notifyTeamOfHighMatch } from "./matchAlerts.js";
 
 const applicationRepo = () => AppDataSource.getRepository(Application);
 
@@ -51,6 +53,10 @@ const answerRepo = () => AppDataSource.getRepository(Answer);
 const questionRepo = () => AppDataSource.getRepository(Question);
 
 const talentEmbeddingRepo = () => AppDataSource.getRepository(TalentEmbedding);
+
+const userRepo = () => AppDataSource.getRepository(User);
+
+const CV_SIMILARITY_MAX_ATTEMPTS = 2;
 
 export type QuestionAnswerPair = {
   question: string;
@@ -141,7 +147,8 @@ const persistRecommendation = async (
     weaknesses: string[] | null;
     risks: string[] | null;
     analysis: MatchAnalysis | null;
-  }
+  },
+  options: { notify?: boolean } = {}
 ): Promise<void> => {
   // The AI Match column/ring shows this — fall back to a verdict-derived score
   // (same mapping parseMatchAnalysis uses) so it's never blank when a verdict
@@ -176,6 +183,10 @@ const persistRecommendation = async (
       matchVerdictNextRetryAt: null,
       matchVerdictLastError: null,
     });
+
+    if (options.notify && payload.verdict === MatchVerdict.High) {
+      await notifyTeamOfHighMatch(manager, applicationId);
+    }
   });
 };
 
@@ -279,6 +290,8 @@ export const rankApplication = async (
 export interface TriggerMatchVerdictOptions {
   /** @deprecated Match is generated once. Ignored if a recommendation already exists. */
   force?: boolean;
+  /** Pass false for one-off scripts, so old applications don't alert the hiring team. */
+  notify?: boolean;
 }
 
 const CLAIM_MATCH_VERDICT_SQL = `
@@ -383,7 +396,7 @@ const overlayExistingRecommendation = async (
 const executeTriggerMatchVerdict = async (
   talent: User,
   application: Application,
-  _options: TriggerMatchVerdictOptions = {}
+  options: TriggerMatchVerdictOptions = {}
 ): Promise<void> => {
   try {
     // Yield so the caller can persist stage/status columns before this runs
@@ -506,16 +519,20 @@ const executeTriggerMatchVerdict = async (
 
       const analysis = parseMatchAnalysis(parsed, normalizedVerdict);
 
-      await persistRecommendation(application.id, {
-        verdict: normalizedVerdict as MatchVerdict,
-        reasoning:
-          typeof parsed.reasoning === "string" ? parsed.reasoning : analysis.hiringRationale,
-        recommendation,
-        strengths: Array.isArray(parsed.strengths) ? (parsed.strengths as string[]) : null,
-        weaknesses: Array.isArray(parsed.weaknesses) ? (parsed.weaknesses as string[]) : null,
-        risks: Array.isArray(parsed.risks) ? (parsed.risks as string[]) : null,
-        analysis,
-      });
+      await persistRecommendation(
+        application.id,
+        {
+          verdict: normalizedVerdict as MatchVerdict,
+          reasoning:
+            typeof parsed.reasoning === "string" ? parsed.reasoning : analysis.hiringRationale,
+          recommendation,
+          strengths: Array.isArray(parsed.strengths) ? (parsed.strengths as string[]) : null,
+          weaknesses: Array.isArray(parsed.weaknesses) ? (parsed.weaknesses as string[]) : null,
+          risks: Array.isArray(parsed.risks) ? (parsed.risks as string[]) : null,
+          analysis,
+        },
+        { notify: options.notify !== false }
+      );
     } catch (err) {
       logger.error(
         `Match verdict generation failed for application ${application.id}: ${
@@ -605,7 +622,95 @@ export const processNextStage = async (
     application.status = ApplicationStatus.Pending;
   }
 
+  if (nextStage === ScreeningStage.CvSimilarity && aiConfig) {
+    const score = await computeCvSimilarityScore(application.jobId, talent.id);
+    if (score !== null) {
+      return runCvSimilarityGate(talent, application, aiConfig, score);
+    }
+  }
+
   return application;
+};
+
+// Scores the talent's best-matching CV chunk against the job. Null means one of
+// the embeddings doesn't exist yet — never a score of zero distance.
+export const computeCvSimilarityScore = async (
+  jobId: string,
+  talentId: string
+): Promise<number | null> => {
+  const rows: Array<{ distance: number | null }> = await AppDataSource.query(
+    `
+    SELECT MIN(te.cv_embedding::vector <=> j.job_embedding::vector) AS distance
+    FROM talent_embeddings te
+    JOIN jobs j ON j.id = $1
+    WHERE te.user_id = $2
+      AND te.cv_embedding IS NOT NULL
+      AND j.job_embedding IS NOT NULL
+    `,
+    [jobId, talentId]
+  );
+  const distance = rows[0]?.distance;
+  if (distance === null || distance === undefined) return null;
+  return convertSimilarityToPercentage(Math.min(Math.max(Number(distance), 0), 1));
+};
+
+export const runCvSimilarityGate = async (
+  talent: User,
+  application: Application,
+  aiConfig: AIConfig,
+  score: number
+): Promise<Application> => {
+  application.cvSimilarityScore = score;
+  application.cvSimilarityAttempts = (application.cvSimilarityAttempts ?? 0) + 1;
+
+  const passed = score >= (aiConfig.minCvSimilarityScore ?? 0);
+  if (passed || application.cvSimilarityAttempts >= CV_SIMILARITY_MAX_ATTEMPTS) {
+    return processNextStage(talent, application, ScreeningStage.CvSimilarity, aiConfig);
+  }
+
+  application.status = ApplicationStatus.RetakeAssessment;
+  return application;
+};
+
+// Runs once a talent's CV embedding is (re)generated: refreshes the match score
+// on every open application, and puts any application waiting at the CV stage
+// through the gate — this is also the retry path after a CV re-upload.
+export const rescoreCvSimilarityForTalent = async (talentId: string): Promise<void> => {
+  const talent = await userRepo().findOne({ where: { id: talentId } });
+  if (!talent) return;
+
+  const applications = await applicationRepo().find({
+    where: { talentId, currentStage: Not(ScreeningStage.Completed) },
+    relations: { job: { aiConfig: true } },
+  });
+
+  for (const application of applications) {
+    const aiConfig = application.job?.aiConfig;
+    if (!aiConfig?.cvSimilarity) continue;
+    await rescoreCvSimilarity(talent, application, aiConfig);
+  }
+};
+
+// Saves a fresh score on one application, gating it when it's waiting at the
+// CV stage. Returns null (nothing saved) while an embedding is missing.
+export const rescoreCvSimilarity = async (
+  talent: User,
+  application: Application,
+  aiConfig: AIConfig
+): Promise<Application | null> => {
+  const score = await computeCvSimilarityScore(application.jobId, talent.id);
+  if (score === null) return null;
+
+  const awaitingGate =
+    application.currentStage === ScreeningStage.CvSimilarity &&
+    (application.status === ApplicationStatus.Pending ||
+      application.status === ApplicationStatus.RetakeAssessment);
+
+  if (awaitingGate) {
+    return applicationRepo().save(await runCvSimilarityGate(talent, application, aiConfig, score));
+  }
+  application.cvSimilarityScore = score;
+  return applicationRepo().save(application);
 };
 
 // Advances every one of the talent's applications currently parked at the (global,

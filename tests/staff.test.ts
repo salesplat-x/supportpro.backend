@@ -76,6 +76,7 @@ describe("people access", () => {
     expect(apiData<{ access: unknown }>(res).access).toEqual({
       isOwner: true,
       canManagePeople: true,
+      assignedCount: 0,
     });
   });
 
@@ -87,6 +88,7 @@ describe("people access", () => {
     expect(apiData<{ access: unknown }>(access).access).toEqual({
       isOwner: false,
       canManagePeople: true,
+      assignedCount: 0,
     });
     const list = await request(app).get(staffPath(org.id)).set(authHeader(hr.token));
     expect(list.status).toBe(200);
@@ -102,6 +104,7 @@ describe("people access", () => {
     expect(apiData<{ access: unknown }>(access).access).toEqual({
       isOwner: false,
       canManagePeople: false,
+      assignedCount: 0,
     });
 
     const responses = await Promise.all([

@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import * as hrAssignmentsService from "../services/hrAssignments.js";
 import * as checklist from "../services/checklist.js";
 import { getOrgChart } from "../services/orgChart.js";
 import * as companyProfile from "../services/companyProfile.js";
@@ -31,6 +32,7 @@ export const list = async (req: Request, res: Response) => {
   const result = await staffService.listStaff(req.user.id, orgId(req), {
     search: queryText(req, "search"),
     status: queryText(req, "status") as StaffStatus | undefined,
+    assignedToMe: req.query["assignedToMe"] === "true",
     ...paging(req),
   });
   sendSuccessResponse(res, "Staff fetched", result);
@@ -192,4 +194,36 @@ export const fillCompanyProfile = async (req: Request, res: Response) => {
 
 export const orgChart = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Org chart fetched", await getOrgChart(req.user.id, orgId(req)));
+};
+
+export const hrAssignees = async (req: Request, res: Response) => {
+  const assignees = await hrAssignmentsService.listHrAssignees(
+    req.user,
+    orgId(req),
+    req.params["staffId"]!
+  );
+  sendSuccessResponse(res, "Assigned HR fetched", { assignees });
+};
+
+export const assignedStaff = async (req: Request, res: Response) => {
+  const assignedStaffIds = await hrAssignmentsService.listAssignedStaffIds(
+    req.user,
+    orgId(req),
+    queryText(req, "assigneeUserId")!
+  );
+  sendSuccessResponse(res, "Assigned people fetched", { assignedStaffIds });
+};
+
+export const setHrAssignments = async (req: Request, res: Response) => {
+  const { assigneeUserId, add, remove } = req.body as {
+    assigneeUserId: string;
+    add?: string[];
+    remove?: string[];
+  };
+  const result = await hrAssignmentsService.setHrAssignments(req.user, orgId(req), {
+    assigneeUserId,
+    add: add ?? [],
+    remove: remove ?? [],
+  });
+  sendSuccessResponse(res, "Assigned people saved", result);
 };

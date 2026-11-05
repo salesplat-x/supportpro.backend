@@ -50,6 +50,11 @@ import { StaffDevelopmentItem } from "../entities/StaffDevelopmentItem.js";
 import { StaffMonthlyFeedback } from "../entities/StaffMonthlyFeedback.js";
 import { StaffEfficiencyTip } from "../entities/StaffEfficiencyTip.js";
 import { CompanyQuarterGoal } from "../entities/CompanyQuarterGoal.js";
+import { AiFeatureSetting } from "../entities/AiFeatureSetting.js";
+import { StaffHrAssignment } from "../entities/StaffHrAssignment.js";
+import { StaffCompletionRequest } from "../entities/StaffCompletionRequest.js";
+import { OrganizationOwnershipTransfer } from "../entities/OrganizationOwnershipTransfer.js";
+import { StuckEmailTimer } from "../entities/StuckEmailTimer.js";
 
 const databaseConfig: DataSourceOptions = {
   type: "postgres",
@@ -108,6 +113,11 @@ const databaseConfig: DataSourceOptions = {
     StaffMonthlyFeedback,
     StaffEfficiencyTip,
     CompanyQuarterGoal,
+    AiFeatureSetting,
+    StaffHrAssignment,
+    StaffCompletionRequest,
+    OrganizationOwnershipTransfer,
+    StuckEmailTimer,
   ],
   migrations: [path.join(__dirname, "../migrations/*.{js,ts}")],
   synchronize: false,
