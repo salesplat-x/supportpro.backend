@@ -74,6 +74,13 @@ router.put(
   asyncHandler(feedback.saveDraft, "save the draft")
 );
 router.post(
+  "/:id/ai-draft",
+  adminAccess,
+  requireVerifiedEmail,
+  validate(feedbackIdParamValidator),
+  asyncHandler(feedback.draftWithAi, "write a draft with AI")
+);
+router.post(
   "/:id/reply",
   adminAccess,
   requireVerifiedEmail,

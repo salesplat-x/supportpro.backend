@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import * as feedbackService from "../services/feedback.js";
+import { draftSupportReplyNow } from "../services/supportAi.js";
 import { buildSupportContext } from "../services/supportContext.js";
 import { sendSuccessResponse } from "../utils/response.js";
 
@@ -66,4 +67,10 @@ export const reply = async (req: Request, res: Response) => {
 export const retryReplyEmail = async (req: Request, res: Response) => {
   const request = await feedbackService.retrySupportReplyEmail(req.params["id"]!);
   sendSuccessResponse(res, "Email retried", { request });
+};
+
+export const draftWithAi = async (req: Request, res: Response) => {
+  await draftSupportReplyNow(req.params["id"]!);
+  const request = await feedbackService.loadSupportRequest(req.params["id"]!);
+  sendSuccessResponse(res, "Draft written", { request });
 };

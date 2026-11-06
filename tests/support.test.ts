@@ -22,6 +22,12 @@ import { apiData } from "./helpers/http.js";
 
 const mockSendSupportReply = jest.fn();
 
+jest.mock("../src/utils/integrations/openai.js", () => ({
+  composeSupportReply: jest.fn().mockResolvedValue({
+    message: { content: JSON.stringify({ complexity: "simple", reply: "Hi", note: "" }) },
+  }),
+}));
+
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
   __esModule: true,
   default: jest.fn().mockImplementation(() => ({
@@ -54,6 +60,18 @@ afterEach(async () => {
 
 const feedbackRepo = () => testDataSource.getRepository(Feedback);
 
+/** Submits start an AI draft in the background, so wait for it before the tables are cleared. */
+const waitForDrafts = async () => {
+  for (let i = 0; i < 100; i++) {
+    const [counted] = (await testDataSource.query(
+      `SELECT COUNT(*)::int AS count FROM "feedback" WHERE "ai_draft_status" = 'pending'`
+    )) as Array<{ count: number }>;
+    if (counted!.count === 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error("AI drafts never settled");
+};
+
 const insertRequest = async (userId: string, overrides: Partial<Feedback> = {}) =>
   feedbackRepo().save(feedbackRepo().create({ userId, message: "I need help", ...overrides }));
 
@@ -83,6 +101,8 @@ const inbox = async (token: string, query = "") => {
 };
 
 describe("POST /v1/feedback", () => {
+  afterEach(waitForDrafts);
+
   it("saves a talent's request as unread", async () => {
     const { user, token } = await createTalent();
     const res = await request(app)

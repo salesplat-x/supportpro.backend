@@ -1,14 +1,15 @@
 import type { EntityManager } from "typeorm";
 import env from "../config/env.js";
 import { AppDataSource } from "../database/dataSource.js";
-import { Feedback, FeedbackTopic, ReplyEmailStatus } from "../entities/Feedback.js";
+import { AiDraftStatus, Feedback, FeedbackTopic, ReplyEmailStatus } from "../entities/Feedback.js";
 import { Notification } from "../entities/Notification.js";
 import { User } from "../entities/User.js";
 import { UserRole } from "../types/enums.js";
-import { resultRows } from "../utils/durableJobs.js";
+import { resultRows, STALE_LOCK_INTERVAL } from "../utils/durableJobs.js";
 import { ConflictError, NotFoundError } from "../utils/errors";
 import EmailService from "../utils/integrations/email/emailService.js";
 import logger from "../utils/logger.js";
+import { triggerSupportDraft } from "./supportAi.js";
 import { SupportStatus, supportStatusRankSql, supportStatusSql } from "./supportStatus.js";
 
 export const NOTIFICATION_TYPE_SUPPORT_REPLY = "support_reply";
@@ -88,14 +89,18 @@ export const submitFeedback = async (
     )
   ) as Array<{ id: string }>;
 
-  const where = inserted[0]
-    ? { id: inserted[0].id }
-    : { userId, clientRequestId: clientRequestId! };
+  const createdId = inserted[0]?.id;
+  const where = createdId ? { id: createdId } : { userId, clientRequestId: clientRequestId! };
   const row = await feedbackRepo().findOne({ where, select: MY_COLUMNS });
   if (!row) {
     throw new NotFoundError("Your message couldn't be found. Please send it again.");
   }
-  return { request: toMyRequest(row), created: !!inserted[0] };
+  if (createdId) {
+    void triggerSupportDraft(createdId).catch((err: Error) =>
+      logger.error(`Could not start the support draft for ${createdId}: ${err.message}`)
+    );
+  }
+  return { request: toMyRequest(row), created: !!createdId };
 };
 
 export const listMySupport = async (userId: string): Promise<MySupportRequest[]> => {
@@ -127,6 +132,7 @@ export interface SupportInboxRow {
   status: SupportStatus;
   isRead: boolean;
   hasDraft: boolean;
+  aiDraftStatus: AiDraftStatus | null;
   replyEmailStatus: ReplyEmailStatus | null;
   createdAt: Date;
   repliedAt: Date | null;
@@ -207,6 +213,7 @@ export const listSupportInbox = async (
     `SELECT f."id", f."topic", f."subject", LEFT(f."message", ${PREVIEW_LENGTH}) AS "preview",
        ${supportStatusSql("f")} AS "status", f."isRead",
        (f."draft_reply" IS NOT NULL) AS "hasDraft",
+       f."ai_draft_status" AS "aiDraftStatus",
        f."reply_email_status" AS "replyEmailStatus",
        f."createdAt", f."replied_at" AS "repliedAt",
        ${USER_SUMMARY_SQL}
@@ -237,6 +244,13 @@ export interface SupportRequestView {
   replyEmailError: string | null;
   draftReply: string | null;
   draftUpdatedAt: Date | null;
+  aiDraft: string | null;
+  aiNote: string | null;
+  aiDraftStatus: AiDraftStatus | null;
+  aiDraftAttempts: number;
+  aiDraftLastError: string | null;
+  /** True while a background draft holds a fresh lock, so "Draft with AI" should wait. */
+  aiDraftBusy: boolean;
 }
 
 const REQUEST_SQL = (alias: string) => `
@@ -245,11 +259,16 @@ const REQUEST_SQL = (alias: string) => `
   ${alias}."createdAt", ${alias}."reply", ${alias}."replied_at" AS "repliedAt",
   ${alias}."reply_email_status" AS "replyEmailStatus",
   ${alias}."reply_email_error" AS "replyEmailError",
-  ${alias}."draft_reply" AS "draftReply", ${alias}."draft_updated_at" AS "draftUpdatedAt"`;
+  ${alias}."draft_reply" AS "draftReply", ${alias}."draft_updated_at" AS "draftUpdatedAt",
+  ${alias}."ai_draft" AS "aiDraft", ${alias}."ai_note" AS "aiNote",
+  ${alias}."ai_draft_status" AS "aiDraftStatus", ${alias}."ai_draft_attempts" AS "aiDraftAttempts",
+  ${alias}."ai_draft_last_error" AS "aiDraftLastError",
+  (${alias}."ai_draft_status" = 'pending' AND ${alias}."ai_draft_locked_at" IS NOT NULL
+    AND ${alias}."ai_draft_locked_at" > NOW() - INTERVAL '${STALE_LOCK_INTERVAL}') AS "aiDraftBusy"`;
 
 export type SupportRequestWithUser = SupportRequestView & { user: SupportUserSummary };
 
-const loadRequest = async (id: string): Promise<SupportRequestWithUser> => {
+export const loadSupportRequest = async (id: string): Promise<SupportRequestWithUser> => {
   const [row] = (await AppDataSource.query(
     `SELECT ${REQUEST_SQL("f")}, ${USER_SUMMARY_SQL}
      FROM "feedback" f JOIN "users" u ON u."id" = f."user_id"
@@ -264,7 +283,7 @@ const loadRequest = async (id: string): Promise<SupportRequestWithUser> => {
 
 /** One request with the user's whole conversation. It changes nothing, so polling it is safe. */
 export const getSupportRequest = async (id: string) => {
-  const request = await loadRequest(id);
+  const request = await loadSupportRequest(id);
   const history = (await AppDataSource.query(
     `SELECT ${REQUEST_SQL("f")} FROM "feedback" f
      WHERE f."user_id" = $1
@@ -307,7 +326,7 @@ export const markSupportRead = async (id: string) => {
   if (!rows.length) {
     throw new NotFoundError("Support request not found");
   }
-  return loadRequest(id);
+  return loadSupportRequest(id);
 };
 
 export const markSupportUnread = async (id: string) => {
@@ -320,7 +339,7 @@ export const markSupportUnread = async (id: string) => {
     await assertRequestExists(id);
     throw new ConflictError("This request has a reply, so it can't be marked unread");
   }
-  return loadRequest(id);
+  return loadSupportRequest(id);
 };
 
 export const saveSupportDraft = async (id: string, draft: string) => {
@@ -409,7 +428,9 @@ export const replyToSupportRequest = async (adminId: string, id: string, reply: 
       `UPDATE "feedback"
        SET "reply" = $2, "replied_at" = NOW(), "replied_by_id" = $3, "isRead" = true,
            "reply_email_status" = 'pending', "reply_email_error" = NULL,
-           "draft_reply" = NULL, "draft_updated_at" = NULL, "updated_at" = NOW()
+           "draft_reply" = NULL, "draft_updated_at" = NULL, "updated_at" = NOW(),
+           "ai_draft_status" = CASE WHEN "ai_draft_status" = 'pending' THEN NULL
+             ELSE "ai_draft_status" END
        WHERE "id" = $1 AND "replied_at" IS NULL
        RETURNING "user_id" AS "userId", "message"`,
       [id, text, adminId],
@@ -437,7 +458,7 @@ export const replyToSupportRequest = async (adminId: string, id: string, reply: 
   });
 
   await emailReply(id, user, text, message);
-  return loadRequest(id);
+  return loadSupportRequest(id);
 };
 
 /** Sends the reply email again after it failed, or after a crash left it pending. */
@@ -457,5 +478,5 @@ export const retrySupportReplyEmail = async (id: string) => {
   }
   const user = await loadRecipient(AppDataSource.manager, row.userId);
   await emailReply(id, user, row.reply, row.message);
-  return loadRequest(id);
+  return loadSupportRequest(id);
 };

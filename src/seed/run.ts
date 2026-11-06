@@ -1044,6 +1044,14 @@ export async function runSeed(ds: DataSource, options: SeedCliOptions): Promise<
         repliedAt: replied ? hoursAgo(1) : null,
         repliedById: replied ? (admin?.id ?? null) : null,
         replyEmailStatus: replied ? "sent" : null,
+        aiDraftStatus: i === 1 ? "drafted" : i === 2 ? "complex" : null,
+        aiDraft: i === 1 ? "Hi there, here is a seeded AI draft to review." : null,
+        aiNote:
+          i === 1
+            ? "Seeded note: the profile is missing a CV."
+            : i === 2
+              ? "Seeded note: this asks for a refund, so it needs you."
+              : null,
       })
     );
   }

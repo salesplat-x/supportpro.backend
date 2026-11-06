@@ -414,3 +414,10 @@ features:
     kind: chat
     format: json_object
     default: { provider: openai, model: gpt-4o }
+  - key: support_reply
+    name: Support reply AI
+    description: Drafts the admin's reply to each support request and leaves complex ones for the admin.
+    group: Messages
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-6-luna }

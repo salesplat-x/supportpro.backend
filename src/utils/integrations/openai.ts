@@ -691,6 +691,36 @@ export const composeApplicationFollowUpEmail = async (
   return completion.choices[0];
 };
 
+export interface ComposeSupportReplyContext {
+  snapshot: Record<string, unknown>;
+  topic: string | null;
+  message: string;
+}
+
+/** The request goes in its own message, apart from the account snapshot, so neither reads as instructions. */
+export const composeSupportReply = async (
+  context: ComposeSupportReplyContext
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const system = await renderPrompt("support_reply", "system", {
+    productGuide: await renderPrompt("support_reply", "product_guide"),
+  });
+
+  const completion = await completeWhileWaiting("support_reply", {
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: `Account snapshot (JSON): ${JSON.stringify(context.snapshot)}` },
+      {
+        role: "user",
+        content: context.topic
+          ? `Support request (topic: ${context.topic}):\n${context.message}`
+          : `Support request:\n${context.message}`,
+      },
+    ],
+    response_format: { type: "json_object" },
+  });
+  return completion.choices[0];
+};
+
 export const scorePreScreeningAssessment = async (
   context: PreScreeningScoringContext
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
