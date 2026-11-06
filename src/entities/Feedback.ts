@@ -5,13 +5,51 @@ import {
   ManyToOne,
   JoinColumn,
   CreateDateColumn,
+  UpdateDateColumn,
   Index,
+  Check,
 } from "typeorm";
 import type { User } from "./User.js";
+
+export const FEEDBACK_TOPICS = [
+  "account",
+  "billing",
+  "jobs",
+  "applications",
+  "bug",
+  "idea",
+  "other",
+] as const;
+export type FeedbackTopic = (typeof FEEDBACK_TOPICS)[number];
+
+export const FEEDBACK_TEXT_MAX_LENGTH = 5000;
+
+export const REPLY_EMAIL_STATUSES = ["pending", "sent", "failed"] as const;
+export type ReplyEmailStatus = (typeof REPLY_EMAIL_STATUSES)[number];
+
+export const AI_DRAFT_STATUSES = ["pending", "drafted", "complex", "failed"] as const;
+export type AiDraftStatus = (typeof AI_DRAFT_STATUSES)[number];
 
 @Entity("feedback")
 @Index("IDX_feedback_user_id_createdAt", ["userId", "createdAt"])
 @Index("IDX_feedback_isRead", ["isRead"])
+@Index("IDX_feedback_replied_at_createdAt", ["repliedAt", "createdAt"])
+@Index("UQ_feedback_user_client_request", ["userId", "clientRequestId"], {
+  unique: true,
+  where: '"client_request_id" IS NOT NULL',
+})
+@Check(
+  "CHK_feedback_topic",
+  `"topic" IN ('account', 'billing', 'jobs', 'applications', 'bug', 'idea', 'other')`
+)
+@Check("CHK_feedback_reply_email_status", `"reply_email_status" IN ('pending', 'sent', 'failed')`)
+@Check(
+  "CHK_feedback_ai_draft_status",
+  `"ai_draft_status" IN ('pending', 'drafted', 'complex', 'failed')`
+)
+@Index("IDX_feedback_ai_draft_pending", ["aiDraftStatus"], {
+  where: `"ai_draft_status" = 'pending'`,
+})
 export class Feedback {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
@@ -29,9 +67,75 @@ export class Feedback {
   @Column({ type: "text" })
   message!: string;
 
+  @Column({ type: "varchar", length: 32, nullable: true })
+  topic!: FeedbackTopic | null;
+
+  /** Set by the sender's browser so a retried submit returns the first request instead of a copy. */
+  @Column({ type: "uuid", name: "client_request_id", nullable: true })
+  clientRequestId!: string | null;
+
   @Column({ default: false })
   isRead!: boolean;
 
+  @Column({ type: "text", nullable: true })
+  reply!: string | null;
+
+  @Column({ type: "timestamptz", name: "replied_at", nullable: true })
+  repliedAt!: Date | null;
+
+  @Column({ type: "uuid", name: "replied_by_id", nullable: true })
+  repliedById!: string | null;
+
+  @ManyToOne("User", { eager: false, onDelete: "SET NULL", nullable: true })
+  @JoinColumn({ name: "replied_by_id", foreignKeyConstraintName: "FK_feedback_replied_by" })
+  repliedBy!: User | null;
+
+  @Column({ type: "varchar", length: 16, name: "reply_email_status", nullable: true })
+  replyEmailStatus!: ReplyEmailStatus | null;
+
+  @Column({ type: "text", name: "reply_email_error", nullable: true })
+  replyEmailError!: string | null;
+
+  /** The admin's unsent reply. Only the admin writes it. */
+  @Column({ type: "text", name: "draft_reply", nullable: true })
+  draftReply!: string | null;
+
+  @Column({ type: "timestamptz", name: "draft_updated_at", nullable: true })
+  draftUpdatedAt!: Date | null;
+
+  /** The support AI's suggested reply. Kept apart from draftReply so it never overwrites the admin. */
+  @Column({ type: "text", name: "ai_draft", nullable: true })
+  aiDraft!: string | null;
+
+  /** The AI's note to the admin, such as why it left a request for them. Never shown to the user. */
+  @Column({ type: "text", name: "ai_note", nullable: true })
+  aiNote!: string | null;
+
+  /** Null on requests sent before the support AI existed, which are never drafted automatically. */
+  @Column({
+    type: "varchar",
+    length: 16,
+    name: "ai_draft_status",
+    nullable: true,
+    default: "pending",
+  })
+  aiDraftStatus!: AiDraftStatus | null;
+
+  @Column({ type: "integer", name: "ai_draft_attempts", default: 0 })
+  aiDraftAttempts!: number;
+
+  @Column({ type: "timestamptz", name: "ai_draft_next_retry_at", nullable: true })
+  aiDraftNextRetryAt!: Date | null;
+
+  @Column({ type: "timestamptz", name: "ai_draft_locked_at", nullable: true })
+  aiDraftLockedAt!: Date | null;
+
+  @Column({ type: "text", name: "ai_draft_last_error", nullable: true })
+  aiDraftLastError!: string | null;
+
   @CreateDateColumn()
   createdAt!: Date;
+
+  @UpdateDateColumn({ type: "timestamptz", name: "updated_at" })
+  updatedAt!: Date;
 }

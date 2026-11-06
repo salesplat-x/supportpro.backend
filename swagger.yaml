@@ -3361,3 +3361,174 @@ paths:
                 type: object
       security:
         - bearerAuth: []
+  /voice/transcribe:
+    post:
+      summary: Any verified user. Audio in, transcription text out.
+      tags:
+        - voice
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - audio
+              properties:
+                audio:
+                  type: string
+                  format: binary
+                  description: Recording up to 10 MB and 2 minutes (webm, ogg, mp3, m4a, wav or flac). The length limit is VOICE_MAX_DURATION_SECONDS.
+      responses:
+        "200":
+          description: Transcription
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      transcription:
+                        type: string
+        "400":
+          description: Missing, empty, unsupported or unreadable audio, a file over 10 MB (LIMIT_FILE_SIZE), or a recording that is too long (over 2 minutes by default)
+        "401":
+          description: Login required
+        "403":
+          description: EMAIL_VERIFICATION_REQUIRED. The user has not verified their email address yet.
+        "429":
+          description: Too many voice messages (20 per 15 minutes per user)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: You've sent a lot of voice messages recently — please try again in a few minutes.
+        "500":
+          description: The speech-to-text provider failed, or recordings cannot be measured on the server
+        "504":
+          description: VOICE_TIMEOUT. The request ran past its deadline (VOICE_REQUEST_DEADLINE_MS, 60 s by default).
+      security:
+        - bearerAuth: []
+  /voice/chat:
+    post:
+      summary: Any verified user. Audio in, spoken reply (mp3) out.
+      tags:
+        - voice
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - audio
+              properties:
+                audio:
+                  type: string
+                  format: binary
+                  description: Recording up to 10 MB and 2 minutes (webm, ogg, mp3, m4a, wav or flac). The length limit is VOICE_MAX_DURATION_SECONDS.
+      responses:
+        "200":
+          description: Spoken reply
+          headers:
+            X-Voice-Fallback:
+              description: '"true" when the canned fallback clip was returned because voice replies are not set up, an upstream service failed or the request ran past its deadline.'
+              schema:
+                type: string
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Missing, empty, unsupported or unreadable audio, a file over 10 MB (LIMIT_FILE_SIZE), or a recording that is too long (over 2 minutes by default)
+        "401":
+          description: Login required
+        "403":
+          description: EMAIL_VERIFICATION_REQUIRED. The user has not verified their email address yet.
+        "429":
+          description: Too many voice messages (20 per 15 minutes per user)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: You've sent a lot of voice messages recently — please try again in a few minutes.
+        "500":
+          description: Unexpected server error. Provider failures and timeouts are answered with the fallback clip (X-Voice-Fallback true), not an error.
+      security:
+        - bearerAuth: []
+  /voice/stream:
+    post:
+      summary: Any verified user. Audio in, spoken reply (mp3) streamed out.
+      tags:
+        - voice
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - audio
+              properties:
+                audio:
+                  type: string
+                  format: binary
+                  description: Recording up to 10 MB and 2 minutes (webm, ogg, mp3, m4a, wav or flac). The length limit is VOICE_MAX_DURATION_SECONDS.
+      responses:
+        "200":
+          description: Spoken reply, streamed
+          headers:
+            X-Voice-Fallback:
+              description: '"true" when the canned fallback clip was returned because voice replies are not set up, an upstream service failed or the request ran past its deadline.'
+              schema:
+                type: string
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Missing, empty, unsupported or unreadable audio, a file over 10 MB (LIMIT_FILE_SIZE), or a recording that is too long (over 2 minutes by default)
+        "401":
+          description: Login required
+        "403":
+          description: EMAIL_VERIFICATION_REQUIRED. The user has not verified their email address yet.
+        "429":
+          description: Too many voice messages (20 per 15 minutes per user)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: You've sent a lot of voice messages recently — please try again in a few minutes.
+        "500":
+          description: Unexpected server error. Provider failures and timeouts are answered with the fallback clip (X-Voice-Fallback true), not an error.
+      security:
+        - bearerAuth: []

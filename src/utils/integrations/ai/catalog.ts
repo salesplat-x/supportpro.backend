@@ -30,6 +30,7 @@ export const AI_FEATURE_KEYS = [
   "applicant_message",
   "onboarding_email",
   "application_follow_up_email",
+  "support_reply",
 ] as const;
 
 export type AiFeatureKey = (typeof AI_FEATURE_KEYS)[number];

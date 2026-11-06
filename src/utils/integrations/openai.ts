@@ -1,4 +1,5 @@
-import OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
+import env from "../../config/env.js";
 import { complete, completeWhileWaiting, embed } from "./ai/gateway.js";
 import { renderPrompt } from "./ai/prompts.js";
 import {
@@ -6,11 +7,45 @@ import {
   MAX_CULTURE_FIT_JOB_BRIEF_CHARS,
   PROBLEM_SOLVING_CATEGORIES,
 } from "../../config/assessmentQuestions.js";
+import { createLimiter } from "../concurrencyLimiter.js";
+import { withRetry } from "../retry.js";
 
 // Every call names its AI job. The gateway looks up which provider and model the admin chose for
 // it, and renderPrompt uses the admin's edited prompt or the default in config/aiPrompts.yaml.
 // Personality / personalized questions are persisted in the `questions` table after a
 // successful generation, so reopening AI Config fetches those rows and doesn't call the AI again.
+
+let voiceClient: OpenAI | undefined;
+const voiceOpenAI = (): OpenAI => {
+  voiceClient ??= new OpenAI({ apiKey: env.openai_secret });
+  return voiceClient;
+};
+
+// Voice requests are synchronous and user-facing, so they get their own small pool (a burst
+// of long recordings can't starve CV scoring or scouting) and tight limits per call.
+const voiceLimiter = createLimiter(env.voiceConcurrency);
+const VOICE_ATTEMPTS = 2;
+
+export interface VoiceCallOptions {
+  /** Aborted when the voice request's overall deadline passes. */
+  signal?: AbortSignal;
+}
+
+const voiceRequestOptions = ({ signal }: VoiceCallOptions) => ({
+  timeout: env.voiceCallTimeoutMs,
+  // withRetry already retries; SDK retries on top would multiply the attempts.
+  maxRetries: 0,
+  ...(signal ? { signal } : {}),
+});
+
+const runVoiceCall = <T>(label: string, signal: AbortSignal | undefined, call: () => Promise<T>) =>
+  voiceLimiter.run(() => {
+    // The request may have been given up on while this call waited for a slot.
+    if (signal?.aborted) {
+      return Promise.reject(new Error(`${label} skipped: the voice request was abandoned`));
+    }
+    return withRetry(call, { retries: VOICE_ATTEMPTS, label });
+  });
 
 export const gradeAssessmentAnswers = async (
   questionsJSON: string
@@ -656,6 +691,36 @@ export const composeApplicationFollowUpEmail = async (
   return completion.choices[0];
 };
 
+export interface ComposeSupportReplyContext {
+  snapshot: Record<string, unknown>;
+  topic: string | null;
+  message: string;
+}
+
+/** The request goes in its own message, apart from the account snapshot, so neither reads as instructions. */
+export const composeSupportReply = async (
+  context: ComposeSupportReplyContext
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const system = await renderPrompt("support_reply", "system", {
+    productGuide: await renderPrompt("support_reply", "product_guide"),
+  });
+
+  const completion = await completeWhileWaiting("support_reply", {
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: `Account snapshot (JSON): ${JSON.stringify(context.snapshot)}` },
+      {
+        role: "user",
+        content: context.topic
+          ? `Support request (topic: ${context.topic}):\n${context.message}`
+          : `Support request:\n${context.message}`,
+      },
+    ],
+    response_format: { type: "json_object" },
+  });
+  return completion.choices[0];
+};
+
 export const scorePreScreeningAssessment = async (
   context: PreScreeningScoringContext
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
@@ -677,6 +742,49 @@ export const scorePreScreeningAssessment = async (
     response_format: { type: "json_object" },
   });
   return completion.choices[0];
+};
+
+const VOICE_SYSTEM_PROMPT =
+  "You are Grace, a friendly and helpful voice assistant. Your reply will be read aloud, so " +
+  "respond conversationally in short, plain sentences with no markdown, lists or emoji.";
+
+/**
+ * Speech-to-text. The filename's extension tells Whisper which audio format it is
+ * receiving, so callers must pass one it supports (mp3, mp4, m4a, wav, webm, ogg, flac).
+ */
+export const transcribeAudio = async (
+  audio: Buffer,
+  filename: string,
+  options: VoiceCallOptions = {}
+): Promise<string> => {
+  const transcription = await runVoiceCall("OpenAI transcription", options.signal, async () =>
+    voiceOpenAI().audio.transcriptions.create(
+      { file: await toFile(audio, filename), model: "whisper-1" },
+      voiceRequestOptions(options)
+    )
+  );
+  return transcription.text.trim();
+};
+
+/** Short conversational reply for the voice assistant. Capped because TTS bills per character. */
+export const generateVoiceReply = async (
+  userText: string,
+  options: VoiceCallOptions = {}
+): Promise<string> => {
+  const completion = await runVoiceCall("OpenAI voice reply", options.signal, () =>
+    voiceOpenAI().chat.completions.create(
+      {
+        model: "gpt-4o",
+        max_tokens: 300,
+        messages: [
+          { role: "system", content: VOICE_SYSTEM_PROMPT },
+          { role: "user", content: userText },
+        ],
+      },
+      voiceRequestOptions(options)
+    )
+  );
+  return completion.choices[0]?.message?.content?.trim() ?? "";
 };
 
 export interface ProblemSolvingQuestionsContext {

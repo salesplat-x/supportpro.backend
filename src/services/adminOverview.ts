@@ -27,7 +27,7 @@ export interface AdminOverview {
     jobs: { total: number; active: number };
     applications: PeriodTotals;
     stuckApplications: number;
-    unreadFeedback: number;
+    supportAwaitingReply: number;
     unresolvedErrors: number;
     revenue: { total: number; inRange: number; previous: number };
   };
@@ -120,7 +120,7 @@ export const getAdminOverview = async (
     applicationsByStatus,
     stuckApplications,
     stuckByStage,
-    unreadFeedback,
+    supportAwaitingReply,
     unresolvedErrors,
     revenue,
     organizationsByPlan,
@@ -156,7 +156,7 @@ export const getAdminOverview = async (
        FROM applications a WHERE ${stuckApplicationSql("a")}
        GROUP BY a."currentStage" ORDER BY count DESC`
     ),
-    scalar(`SELECT COUNT(*)::int AS value FROM feedback WHERE "isRead" = false`),
+    scalar(`SELECT COUNT(*)::int AS value FROM feedback WHERE "replied_at" IS NULL`),
     scalar(`SELECT COUNT(*)::int AS value FROM error_logs WHERE resolved = false`),
     run<{ total: number | null; in_range: number | null; previous: number | null }>(
       `SELECT
@@ -232,7 +232,7 @@ export const getAdminOverview = async (
         previous: applications?.previous ?? 0,
       },
       stuckApplications,
-      unreadFeedback,
+      supportAwaitingReply,
       unresolvedErrors,
       revenue: {
         total: revenueTotals?.total ?? 0,

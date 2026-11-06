@@ -81,6 +81,36 @@ class EmailService {
     });
   }
 
+  /** Sends the admin's reply to a support request. It throws, so the caller can record a failure. */
+  async sendSupportReply(details: {
+    to: string;
+    subject: string;
+    paragraphs: string[];
+    quote: string;
+    ctaLabel: string;
+    ctaUrl: string;
+    idempotencyKey: string;
+  }): Promise<void> {
+    const html = renderTemplate("support-reply", {
+      paragraphs: details.paragraphs,
+      quote: details.quote,
+      ctaLabel: details.ctaLabel,
+      ctaUrl: details.ctaUrl,
+    });
+    await this.provider.send({
+      to: details.to,
+      subject: details.subject,
+      html,
+      text: [
+        ...details.paragraphs,
+        `Your message: ${details.quote}`,
+        `${details.ctaLabel}: ${details.ctaUrl}`,
+      ].join("\n\n"),
+      tags: [{ name: "category", value: "support-reply" }],
+      idempotencyKey: details.idempotencyKey,
+    });
+  }
+
   /** Sends an onboarding follow-up. Unlike sendEmail it throws, so failures can be recorded. */
   async sendOnboardingFollowUp(details: {
     to: string;
