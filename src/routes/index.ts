@@ -22,6 +22,7 @@ import errorLogRoutes from "./errorLog.js";
 import prescreeningRoutes from "./prescreening.js";
 import adminRoutes from "./admin.js";
 import feedbackRoutes from "./feedback.js";
+import voiceRoutes from "./voice.js";
 import staffRoutes from "./staff.js";
 import staffInviteRoutes from "./staffInvite.js";
 import staffDocumentRoutes from "./staffDocument.js";
@@ -59,6 +60,7 @@ errorLogRoutes(v1Router);
 prescreeningRoutes(v1Router);
 adminRoutes(v1Router);
 feedbackRoutes(v1Router);
+voiceRoutes(v1Router);
 emailPreferencesRoutes(v1Router);
 
 export default v1Router;
