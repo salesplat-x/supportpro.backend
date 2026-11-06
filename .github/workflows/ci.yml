@@ -4,7 +4,7 @@ on:
   push:
     branches: ["main"]
   pull_request:
-    branches: ["main"]
+    branches: ["main", "dev"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -132,7 +132,7 @@ jobs:
 
   commitlint:
     name: Commit Lint
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read

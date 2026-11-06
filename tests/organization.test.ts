@@ -29,8 +29,17 @@ import {
   createJob,
 } from "./helpers/fixtures.js";
 import * as paystack from "../src/utils/integrations/paystack.js";
-import { DEFAULT_BILLING_PLAN_KEY } from "../src/types/enums.js";
+import {
+  BillingInterval,
+  BillingStatus,
+  DEFAULT_BILLING_PLAN_KEY,
+  OrganizationStatus,
+} from "../src/types/enums.js";
+import * as organizationService from "../src/services/organization.js";
 import { uploadToSpaces, deleteFromSpaces } from "../src/utils/integrations/spaces.js";
+import { apiData } from "./helpers/http.js";
+import { AddOrganizationCompanyValues1789000800000 } from "../src/migrations/1789000800000-AddOrganizationCompanyValues.js";
+import type { QueryRunner } from "typeorm";
 
 const mockUploadToSpaces = uploadToSpaces as jest.Mock;
 const mockDeleteFromSpaces = deleteFromSpaces as jest.Mock;
@@ -121,6 +130,42 @@ describe("POST /v1/organizations/ — create organization (Recruiter only)", () 
     expect(res.status).toBe(201);
     expect(res.body.data.organization.name).toBe("TechCorp Ltd");
     expect(res.body.data.organization.status).toBe("pending");
+  });
+
+  it("Create ignores plan, billing, verification and ownership fields in the body → defaults", async () => {
+    const { user: recruiter, token } = await recruiterForTechCorp();
+    const { user: someoneElse } = await createRecruiter();
+    const res = await request(app)
+      .post("/v1/organizations/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        ...validOrgBody,
+        status: OrganizationStatus.Verified,
+        billingPlan: "enterprise",
+        billingStatus: BillingStatus.PastDue,
+        billingInterval: BillingInterval.Annually,
+        billingPeriodEnd: "2099-12-31T00:00:00.000Z",
+        verifiedAt: "2026-01-01T00:00:00.000Z",
+        verifiedById: someoneElse.id,
+        ownerId: someoneElse.id,
+        logoKey: "organizations/someone-else/logo.png",
+      });
+
+    expect(res.status).toBe(201);
+    const createdId = (res.body as { data: { organization: Organization } }).data.organization.id;
+    const created = await testDataSource
+      .getRepository(Organization)
+      .findOneByOrFail({ id: createdId });
+    expect(created.name).toBe("TechCorp Ltd");
+    expect(created.status).toBe(OrganizationStatus.Pending);
+    expect(created.billingPlan).toBe(DEFAULT_BILLING_PLAN_KEY);
+    expect(created.billingStatus).toBe(BillingStatus.Active);
+    expect(created.billingInterval).toBeNull();
+    expect(created.billingPeriodEnd).toBeNull();
+    expect(created.verifiedAt).toBeNull();
+    expect(created.verifiedById).toBeNull();
+    expect(created.ownerId).toBe(recruiter.id);
+    expect(created.logoKey).toBeNull();
   });
 
   it("Admin cannot create organization → 403", async () => {
@@ -468,6 +513,131 @@ describe("PATCH /v1/organizations/:id — update organization", () => {
     expect(res.status).toBe(200);
     expect(res.body.data.organization.name).toBe("Renamed");
     expect(res.body.data.organization.logoUrl).toBe("https://original.example.com/logo.png");
+  });
+
+  it("Owner cannot self-verify or change the plan: protected fields are ignored → 200, unchanged", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const { user: someoneElse } = await createRecruiter();
+    const org = await createOrganization(recruiter, { name: "Acme Hiring" });
+    const before = await testDataSource.getRepository(Organization).findOneByOrFail({ id: org.id });
+    expect(before.status).toBe(OrganizationStatus.Pending);
+    expect(before.billingPlan).toBe(DEFAULT_BILLING_PLAN_KEY);
+
+    const res = await request(app)
+      .patch(`/v1/organizations/${org.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        name: "Acme Hiring Ltd",
+        status: OrganizationStatus.Verified,
+        verifiedAt: "2026-01-01T00:00:00.000Z",
+        verifiedById: someoneElse.id,
+        billingPlan: "enterprise",
+        billingStatus: BillingStatus.Active,
+        billingInterval: BillingInterval.Annually,
+        billingPeriodEnd: "2099-12-31T00:00:00.000Z",
+        ownerId: someoneElse.id,
+        logoKey: "organizations/someone-else/logo.png",
+        createdAt: "2000-01-01T00:00:00.000Z",
+      });
+
+    expect(res.status).toBe(200);
+    const returned = (res.body as { data: { organization: Organization } }).data.organization;
+    expect(returned.name).toBe("Acme Hiring Ltd");
+    expect(returned.status).toBe(OrganizationStatus.Pending);
+    expect(returned.billingPlan).toBe(DEFAULT_BILLING_PLAN_KEY);
+
+    const after = await testDataSource.getRepository(Organization).findOneByOrFail({ id: org.id });
+    expect(after.name).toBe("Acme Hiring Ltd");
+    expect(after.status).toBe(OrganizationStatus.Pending);
+    expect(after.verifiedAt).toBeNull();
+    expect(after.verifiedById).toBeNull();
+    expect(after.billingPlan).toBe(DEFAULT_BILLING_PLAN_KEY);
+    expect(after.billingStatus).toBe(before.billingStatus);
+    expect(after.billingInterval).toBe(before.billingInterval);
+    expect(after.billingPeriodEnd).toBe(before.billingPeriodEnd);
+    expect(after.ownerId).toBe(recruiter.id);
+    expect(after.logoKey).toBe(before.logoKey);
+    expect(after.createdAt.toISOString()).toBe(before.createdAt.toISOString());
+  });
+
+  it("Sending only protected fields changes nothing → 200, unchanged", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter, { name: "Only Extras" });
+
+    const res = await request(app)
+      .patch(`/v1/organizations/${org.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: OrganizationStatus.Verified, billingPlan: "enterprise" });
+
+    expect(res.status).toBe(200);
+    const after = await testDataSource.getRepository(Organization).findOneByOrFail({ id: org.id });
+    expect(after.name).toBe("Only Extras");
+    expect(after.status).toBe(OrganizationStatus.Pending);
+    expect(after.billingPlan).toBe(DEFAULT_BILLING_PLAN_KEY);
+  });
+
+  it("A changed id in the body cannot redirect the update to another company", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const { user: otherOwner } = await createRecruiter();
+    const org = await createOrganization(recruiter, { name: "Mine" });
+    const other = await createOrganization(otherOwner, { name: "Theirs" });
+
+    const res = await request(app)
+      .patch(`/v1/organizations/${org.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ id: other.id, name: "Overwritten" });
+
+    expect(res.status).toBe(200);
+    const repo = testDataSource.getRepository(Organization);
+    expect((await repo.findOneByOrFail({ id: org.id })).name).toBe("Overwritten");
+    const theirs = await repo.findOneByOrFail({ id: other.id });
+    expect(theirs.name).toBe("Theirs");
+    expect(theirs.ownerId).toBe(otherOwner.id);
+  });
+
+  it("Every editable field still updates when sent beside protected ones", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+
+    const editable = {
+      name: "Editable Co",
+      phone: "+2348058272524",
+      address: "1 New Road, Abuja",
+      industry: "Logistics",
+      twitter: "https://x.com/editableco",
+      linkedin: "https://linkedin.com/company/editableco",
+      facebook: "https://facebook.com/editableco",
+    };
+    const res = await request(app)
+      .patch(`/v1/organizations/${org.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ ...editable, status: OrganizationStatus.Verified, billingPlan: "enterprise" });
+
+    expect(res.status).toBe(200);
+    const after = await testDataSource.getRepository(Organization).findOneByOrFail({ id: org.id });
+    expect(after).toMatchObject(editable);
+    expect(after.status).toBe(OrganizationStatus.Pending);
+    expect(after.billingPlan).toBe(DEFAULT_BILLING_PLAN_KEY);
+  });
+
+  it("Service layer ignores protected fields even if a caller skips the HTTP validator", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const org = await createOrganization(recruiter, { name: "Direct Call" });
+
+    const payload = {
+      name: "Direct Call Renamed",
+      status: OrganizationStatus.Verified,
+      billingPlan: "enterprise",
+      ownerId: null,
+    } as unknown as organizationService.UpdateOrganizationPayload;
+    const result = await organizationService.updateOrganization(recruiter.id, org.id, payload);
+
+    expect(result.name).toBe("Direct Call Renamed");
+    const after = await testDataSource.getRepository(Organization).findOneByOrFail({ id: org.id });
+    expect(after.name).toBe("Direct Call Renamed");
+    expect(after.status).toBe(OrganizationStatus.Pending);
+    expect(after.billingPlan).toBe(DEFAULT_BILLING_PLAN_KEY);
+    expect(after.ownerId).toBe(recruiter.id);
   });
 
   it("Non-owner recruiter cannot update → 403", async () => {
@@ -1053,5 +1223,143 @@ describe("Organization domain field", () => {
       .set("Authorization", `Bearer ${token}`)
       .send({ ...validOrgBody, domain: "techcorp.com" });
     expect(res.status).toBe(201);
+  });
+});
+
+describe("Organization companyValues field", () => {
+  const orgFrom = (res: Parameters<typeof apiData>[0]) =>
+    apiData<{ organization: Organization }>(res).organization;
+
+  const patchValues = (orgId: string, token: string, companyValues: unknown) =>
+    request(app)
+      .patch(`/v1/organizations/${orgId}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ companyValues });
+
+  it("defaults to an empty list for a new company", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+
+    const stored = await testDataSource.getRepository(Organization).findOneByOrFail({ id: org.id });
+    expect(stored.companyValues).toEqual([]);
+  });
+
+  it("Owner sets company values → 200, trimmed and returned", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+
+    const res = await patchValues(org.id, token, [
+      "  Ownership  ",
+      "Customer obsession",
+      "Bias for action",
+    ]);
+
+    expect(res.status).toBe(200);
+    expect(orgFrom(res).companyValues).toEqual([
+      "Ownership",
+      "Customer obsession",
+      "Bias for action",
+    ]);
+    const stored = await testDataSource.getRepository(Organization).findOneByOrFail({ id: org.id });
+    expect(stored.companyValues).toEqual(["Ownership", "Customer obsession", "Bias for action"]);
+  });
+
+  it("keeps values that contain commas intact", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+
+    const res = await patchValues(org.id, token, ["Be kind, be direct", "Learn fast"]);
+
+    expect(res.status).toBe(200);
+    expect(orgFrom(res).companyValues).toEqual(["Be kind, be direct", "Learn fast"]);
+  });
+
+  it("drops duplicate values (case-insensitive), keeping the first spelling", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+
+    const res = await patchValues(org.id, token, ["Integrity", "integrity ", "Teamwork"]);
+
+    expect(res.status).toBe(200);
+    expect(orgFrom(res).companyValues).toEqual(["Integrity", "Teamwork"]);
+  });
+
+  it("an empty list clears the values", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter, { companyValues: ["Integrity"] });
+
+    const res = await patchValues(org.id, token, []);
+
+    expect(res.status).toBe(200);
+    expect(orgFrom(res).companyValues).toEqual([]);
+  });
+
+  it("is listed with the company in GET /organizations/me", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    await createOrganization(recruiter, { companyValues: ["Integrity", "Teamwork"] });
+
+    const res = await request(app)
+      .get("/v1/organizations/me")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(JSON.stringify(apiData(res))).toContain('"companyValues":["Integrity","Teamwork"]');
+  });
+
+  it.each([
+    ["not a list", "Integrity"],
+    ["more than 10 values", Array.from({ length: 11 }, (_, i) => `Value ${i + 1}`)],
+    ["an empty value", ["Integrity", "   "]],
+    ["a value over 200 characters", ["x".repeat(201)]],
+    ["a value that is not text", ["Integrity", 42]],
+  ])("rejects %s → 400 and leaves the values unchanged", async (_label, companyValues) => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter, { companyValues: ["Integrity"] });
+
+    const res = await patchValues(org.id, token, companyValues);
+
+    expect(res.status).toBe(400);
+    const stored = await testDataSource.getRepository(Organization).findOneByOrFail({ id: org.id });
+    expect(stored.companyValues).toEqual(["Integrity"]);
+  });
+
+  it("accepts exactly 10 values of 200 characters", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+    const values = Array.from({ length: 10 }, (_, i) => `${i}`.padEnd(200, "v"));
+
+    const res = await patchValues(org.id, token, values);
+
+    expect(res.status).toBe(200);
+    expect(orgFrom(res).companyValues).toEqual(values);
+  });
+
+  it("Non-owner recruiter cannot change company values → 403", async () => {
+    const { user: owner } = await createRecruiter();
+    const { token: otherToken } = await createRecruiter();
+    const org = await createOrganization(owner, { companyValues: ["Integrity"] });
+
+    const res = await patchValues(org.id, otherToken, ["Hijacked"]);
+
+    expect(res.status).toBe(403);
+    const stored = await testDataSource.getRepository(Organization).findOneByOrFail({ id: org.id });
+    expect(stored.companyValues).toEqual(["Integrity"]);
+  });
+
+  it("AddOrganizationCompanyValues migration adds a non-null jsonb column defaulting to []", async () => {
+    const Migration = AddOrganizationCompanyValues1789000800000;
+    const queries: string[] = [];
+    const runner = {
+      query: (sql: string) => Promise.resolve(void queries.push(sql)),
+    } as unknown as QueryRunner;
+
+    await new Migration().up(runner);
+    expect(queries).toEqual([
+      `ALTER TABLE "organizations" ADD "company_values" jsonb NOT NULL DEFAULT '[]'`,
+    ]);
+
+    queries.length = 0;
+    await new Migration().down(runner);
+    expect(queries).toEqual([`ALTER TABLE "organizations" DROP COLUMN "company_values"`]);
   });
 });

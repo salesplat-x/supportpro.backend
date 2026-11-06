@@ -1,0 +1,465 @@
+$ timeout -k 10 400 npx jest --config /home/user/tab/work/supportpro/wt/jest.local.config.js tests/questions.test.ts tests/assessmentQuestions.test.ts 
+PASS tests/assessmentQuestions.test.ts (12.011 s)
+  ● Console
+
+    console.log
+      2026-10-26 17:53:17:5317 info: Docs available at http://localhost:3003/v1/docs
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:17:5317 http: POST /v1/questions/problem-solving 200 1224 - 25.806 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:17:5317 http: POST /v1/questions/problem-solving 200 796 - 11.467 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:17:5317 http: POST /v1/questions/problem-solving 200 1861 - 9.435 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:17:5317 http: POST /v1/questions/problem-solving 200 441 - 8.086 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:17:5317 http: POST /v1/questions/problem-solving 200 441 - 8.183 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:17:5317 http: POST /v1/questions/problem-solving 200 441 - 6.594 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:18:5318 http: POST /v1/questions/problem-solving 403 114 - 6.923 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:18:5318 http: POST /v1/questions/problem-solving 403 114 - 0.554 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:18:5318 http: POST /v1/questions/problem-solving 401 84 - 0.289 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:18:5318 http: POST /v1/questions/problem-solving 404 81 - 4.149 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:18:5318 http: POST /v1/questions/problem-solving 400 144 - 3.662 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:18:5318 http: POST /v1/questions/problem-solving 400 144 - 2.542 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:19:5319 http: POST /v1/questions/problem-solving 400 170 - 2.915 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:19:5319 http: POST /v1/questions/problem-solving 400 170 - 2.614 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:19:5319 http: POST /v1/questions/problem-solving 400 170 - 3.001 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:19:5319 warn: AI problem-solving question reply unusable (attempt 1/2): The AI reply was not valid JSON
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:19:5319 http: POST /v1/questions/problem-solving 200 796 - 10.883 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:19:5319 http: POST /v1/questions/problem-solving 200 1151 - 6.950 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:20:5320 warn: AI problem-solving question reply unusable (attempt 1/2): The AI reply was not valid JSON
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:20:5320 warn: AI problem-solving question reply unusable (attempt 2/2): The AI reply was not valid JSON
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:20:5320 http: POST /v1/questions/problem-solving 502 157 - 6.345 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:20:5320 warn: AI problem-solving question generation failed (attempt 1/2): connect ECONNREFUSED
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+          at Generator.throw (<anonymous>)
+
+    console.log
+      2026-10-26 17:53:20:5320 warn: AI problem-solving question generation failed (attempt 2/2): connect ECONNREFUSED
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+          at Generator.throw (<anonymous>)
+
+    console.log
+      2026-10-26 17:53:20:5320 http: POST /v1/questions/problem-solving 502 157 - 6.017 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:20:5320 http: POST /v1/questions/problem-solving 400 167 - 4.643 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:20:5320 http: POST /v1/questions/problem-solving 200 796 - 6.313 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:20:5320 http: POST /v1/questions/culture-fit 200 883 - 10.503 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:21:5321 http: POST /v1/questions/culture-fit 200 410 - 7.705 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:21:5321 http: POST /v1/questions/culture-fit 200 440 - 7.870 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:21:5321 http: POST /v1/questions/culture-fit 403 114 - 5.160 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:21:5321 http: POST /v1/questions/culture-fit 403 114 - 0.448 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:21:5321 warn: AI culture-fit question reply unusable (attempt 1/2): The AI reply was empty
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:21:5321 warn: AI culture-fit question reply unusable (attempt 2/2): The AI reply was empty
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:21:5321 http: POST /v1/questions/culture-fit 502 153 - 8.342 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:22:5322 http: POST /v1/questions/culture-fit 400 170 - 2.554 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:22:5322 http: GET /v1/questions?questionType=problem_solving&jobId=42307bc7-3d2a-4a87-aaf1-e8662456388b 200 365 - 5.979 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:22:5322 http: GET /v1/questions?questionType=culture_fit&jobId=84b388ca-4815-4e1b-9806-6b7065adcf03 200 359 - 5.390 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:22:5322 http: GET /v1/questions?questionType=problem_solving&jobId=e23902f6-a9e6-46c6-b841-c9a4b143ac87 403 114 - 4.414 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:22:5322 http: GET /v1/questions?questionType=culture_fit&jobId=568a66de-c9a1-42d9-93c3-8d026a5f8041 403 114 - 3.870 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:23:5323 http: GET /v1/questions?questionType=problem_solving 400 106 - 3.150 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:23:5323 http: GET /v1/questions?questionType=problem_solving&jobId=00000000-0000-4000-8000-000000000000 404 81 - 3.737 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+PASS tests/questions.test.ts (13.887 s)
+  ● Console
+
+    console.log
+      2026-10-26 17:53:17:5317 info: Docs available at http://localhost:3003/v1/docs
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:17:5317 http: POST /v1/questions/ 201 385 - 19.281 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:17:5317 http: POST /v1/questions/ 403 114 - 0.832 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:17:5317 http: POST /v1/questions/ 403 114 - 0.922 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:17:5317 http: POST /v1/questions/ 401 84 - 0.434 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:17:5317 http: POST /v1/questions/ 400 141 - 5.129 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:18:5318 http: GET /v1/questions/?questionType=prescreening&roleId=e078d7dd-426c-4ced-83cc-a59fdcc415c1 200 69 - 6.320 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:18:5318 http: GET /v1/questions/?questionType=prescreening&roleId=1af9610d-d98d-463e-bc6e-d935ab688098 403 114 - 2.552 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:18:5318 http: GET /v1/questions/?questionType=prescreening 401 84 - 0.307 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:18:5318 http: GET /v1/questions/ 400 291 - 4.109 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:18:5318 http: GET /v1/questions/20e0ae1d-1222-4855-8607-42a0f5539175 200 398 - 2.286 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:18:5318 http: GET /v1/questions/00000000-0000-0000-0000-000000000000 404 86 - 2.533 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:18:5318 http: POST /v1/questions/personalized 200 1661 - 22.480 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:19:5319 http: POST /v1/questions/personalized 404 81 - 4.945 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:19:5319 http: POST /v1/questions/personalized 400 110 - 5.199 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:19:5319 http: POST /v1/questions/personalized 401 84 - 0.436 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:19:5319 http: POST /v1/questions/personality 200 353 - 9.747 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:19:5319 http: POST /v1/questions/personality 200 353 - 7.940 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:20:5320 http: POST /v1/questions/personality 403 114 - 0.489 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:20:5320 http: POST /v1/questions/personality 400 184 - 2.690 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:20:5320 http: POST /v1/questions/personality 400 120 - 5.674 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:20:5320 http: POST /v1/questions/personality/ensure 200 1166 - 14.516 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:20:5320 http: POST /v1/questions/personality/ensure 200 1193 - 27.763 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:21:5321 http: POST /v1/questions/personality/ensure 200 1668 - 10.808 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:21:5321 http: POST /v1/questions/personality/ensure 400 110 - 5.611 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:21:5321 http: POST /v1/questions/personality/ensure 404 81 - 4.048 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:21:5321 http: GET /v1/questions/?questionType=personality&jobId=8706e59d-e966-4875-8961-69f0c3402c10&limit=200&offset=0 200 612 - 19.391 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:21:5321 http: GET /v1/questions/?questionType=personality&jobId=8706e59d-e966-4875-8961-69f0c3402c10&limit=200&offset=0 200 612 - 4.241 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:21:5321 http: GET /v1/questions/?questionType=personality&jobId=cae759da-0c1e-4d49-abc4-e12edbcca2e1&limit=200&offset=0 200 340 - 18.243 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:21:5321 http: GET /v1/questions/?questionType=personality&jobId=cae759da-0c1e-4d49-abc4-e12edbcca2e1&limit=200&offset=0 200 340 - 17.121 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:22:5322 http: GET /v1/questions/?questionType=personality&jobId=55172e97-3072-407b-be28-fbcd2b738193&limit=200&offset=0 400 124 - 3.840 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:22:5322 http: POST /v1/questions/answer/prescreening 200 85 - 14.386 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:22:5322 http: POST /v1/questions/answer/prescreening 400 112 - 5.134 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:22:5322 http: POST /v1/questions/answer/prescreening 403 123 - 4.228 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:23:5323 http: POST /v1/questions/answer/prescreening 403 114 - 2.353 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:23:5323 http: POST /v1/questions/answer/prescreening 403 114 - 0.493 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:23:5323 http: POST /v1/questions/answer/personalized 200 1135 - 16.028 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:23:5323 http: POST /v1/questions/answer/personalized 400 126 - 6.033 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:23:5323 http: POST /v1/questions/answer/personalized 200 1138 - 14.175 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:24:5324 http: POST /v1/questions/answer/personality 200 1116 - 14.110 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:24:5324 http: POST /v1/questions/answer/personality 400 101 - 5.956 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:24:5324 http: POST /v1/questions/answer/personality 200 1116 - 14.133 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:24:5324 http: POST /v1/questions/answer/personality 200 1134 - 11.546 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:24:5324 http: POST /v1/questions/answer/personality 403 114 - 0.432 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:25:5325 http: POST /v1/questions/answer/personality 200 1265 - 11.355 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:25:5325 http: POST /v1/questions/answer/personality 400 108 - 6.432 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:25:5325 http: POST /v1/questions/answer/personality 200 1112 - 11.487 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      2026-10-26 17:53:25:5325 http: POST /v1/questions/answer/personalized 200 1170 - 29.001 ms
+
+      at Console.log (../../backend/node_modules/winston/lib/winston/transports/console.js:87:23)
+
+
+Test Suites: 2 passed, 2 total
+Tests:       79 passed, 79 total
+Snapshots:   0 total
+Time:        14.537 s
+Ran all test suites matching tests/questions.test.ts|tests/assessmentQuestions.test.ts.

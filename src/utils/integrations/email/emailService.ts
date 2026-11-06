@@ -2,7 +2,13 @@ import logger from "../../logger.js";
 import { UserRole } from "../../../types/enums.js";
 import env from "../../../config/env.js";
 import ResendProvider from "./providers/resend.provider.js";
-import { companyInvitePlainText, verificationPlainText } from "./plainText.js";
+import {
+  companyInvitePlainText,
+  documentToSignPlainText,
+  signedDocumentPlainText,
+  staffInvitePlainText,
+  verificationPlainText,
+} from "./plainText.js";
 import { renderTemplate } from "./template.js";
 import type { EmailPayload, EmailProvider } from "./types.js";
 
@@ -14,6 +20,29 @@ interface UserLike {
   lastName: string;
   userRole: UserRole;
 }
+
+/** What an email nobody reviewed has to carry: a way out, and protection against a double send. */
+export interface AutomaticEmail {
+  idempotencyKey: string;
+  unsubscribeUrl: string;
+  oneClickUrl?: string;
+}
+
+const unsubscribeText = (automatic?: AutomaticEmail): string[] =>
+  automatic ? [`Stop these reminders: ${automatic.unsubscribeUrl}`] : [];
+
+const automaticFields = (automatic?: AutomaticEmail) =>
+  automatic
+    ? {
+        idempotencyKey: automatic.idempotencyKey,
+        headers: {
+          "List-Unsubscribe": `<${automatic.oneClickUrl ?? automatic.unsubscribeUrl}>`,
+          ...(automatic.oneClickUrl
+            ? { "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" }
+            : {}),
+        },
+      }
+    : {};
 
 class EmailService {
   private provider: EmailProvider;
@@ -30,15 +59,15 @@ class EmailService {
     }
   }
 
-  /** Sends an admin's onboarding follow-up. Unlike sendEmail it throws, so failures can be recorded. */
-  async sendOnboardingFollowUp(details: {
+  /** Sends a notice about someone's work at their company. It throws, so the caller decides what a failure means. */
+  async sendPeopleUpdate(details: {
     to: string;
     subject: string;
     paragraphs: string[];
     ctaLabel: string;
     ctaUrl: string;
   }): Promise<void> {
-    const html = renderTemplate("onboarding-follow-up", {
+    const html = renderTemplate("people-update", {
       paragraphs: details.paragraphs,
       ctaLabel: details.ctaLabel,
       ctaUrl: details.ctaUrl,
@@ -48,11 +77,40 @@ class EmailService {
       subject: details.subject,
       html,
       text: [...details.paragraphs, `${details.ctaLabel}: ${details.ctaUrl}`].join("\n\n"),
-      tags: [{ name: "category", value: "onboarding-follow-up" }],
+      tags: [{ name: "category", value: "people-update" }],
     });
   }
 
-  /** Sends an admin's follow-up about a talent's stuck job application. Unlike sendEmail it throws, so failures can be recorded. */
+  /** Sends an onboarding follow-up. Unlike sendEmail it throws, so failures can be recorded. */
+  async sendOnboardingFollowUp(details: {
+    to: string;
+    subject: string;
+    paragraphs: string[];
+    ctaLabel: string;
+    ctaUrl: string;
+    automatic?: AutomaticEmail;
+  }): Promise<void> {
+    const html = renderTemplate("onboarding-follow-up", {
+      paragraphs: details.paragraphs,
+      ctaLabel: details.ctaLabel,
+      ctaUrl: details.ctaUrl,
+      unsubscribeUrl: details.automatic?.unsubscribeUrl,
+    });
+    await this.provider.send({
+      to: details.to,
+      subject: details.subject,
+      html,
+      text: [
+        ...details.paragraphs,
+        `${details.ctaLabel}: ${details.ctaUrl}`,
+        ...unsubscribeText(details.automatic),
+      ].join("\n\n"),
+      tags: [{ name: "category", value: "onboarding-follow-up" }],
+      ...automaticFields(details.automatic),
+    });
+  }
+
+  /** Sends a follow-up about a talent's stuck job application. Unlike sendEmail it throws, so failures can be recorded. */
   async sendApplicationFollowUp(details: {
     to: string;
     subject: string;
@@ -61,6 +119,7 @@ class EmailService {
     paragraphs: string[];
     ctaLabel: string;
     ctaUrl: string;
+    automatic?: AutomaticEmail;
   }): Promise<void> {
     const html = renderTemplate("application-follow-up", {
       jobTitle: details.jobTitle,
@@ -68,13 +127,19 @@ class EmailService {
       paragraphs: details.paragraphs,
       ctaLabel: details.ctaLabel,
       ctaUrl: details.ctaUrl,
+      unsubscribeUrl: details.automatic?.unsubscribeUrl,
     });
     await this.provider.send({
       to: details.to,
       subject: details.subject,
       html,
-      text: [...details.paragraphs, `${details.ctaLabel}: ${details.ctaUrl}`].join("\n\n"),
+      text: [
+        ...details.paragraphs,
+        `${details.ctaLabel}: ${details.ctaUrl}`,
+        ...unsubscribeText(details.automatic),
+      ].join("\n\n"),
       tags: [{ name: "category", value: "application-follow-up" }],
+      ...automaticFields(details.automatic),
     });
   }
 
@@ -155,6 +220,64 @@ class EmailService {
       html,
       text: companyInvitePlainText(details),
       tags: [{ name: "category", value: "company-invite" }],
+    });
+  }
+
+  /** Unlike sendEmail it throws, so the caller can record that the invite did not go out. */
+  async sendStaffInvite(details: {
+    email: string;
+    firstName: string;
+    companyName: string;
+    companyLogoUrl?: string | null;
+    inviterName: string;
+    jobTitle: string;
+    inviteLink: string;
+  }): Promise<void> {
+    const html = renderTemplate("staff-invite", details);
+    await this.provider.send({
+      to: details.email,
+      subject: `${details.companyName} has added you to their team`,
+      html,
+      text: staffInvitePlainText(details),
+      tags: [{ name: "category", value: "staff-invite" }],
+    });
+  }
+
+  async sendDocumentToSign(details: {
+    email: string;
+    firstName: string;
+    companyName: string;
+    companyLogoUrl?: string | null;
+    documentTitle: string;
+    signLink: string;
+  }): Promise<void> {
+    await this.provider.send({
+      to: details.email,
+      subject: `${details.companyName} sent you your ${details.documentTitle.toLowerCase()} to sign`,
+      html: renderTemplate("staff-document-sign", details),
+      text: documentToSignPlainText(details),
+      tags: [{ name: "category", value: "staff-document-sign" }],
+    });
+  }
+
+  async sendSignedDocument(details: {
+    email: string;
+    firstName: string;
+    companyName: string;
+    documentTitle: string;
+    signerName: string;
+    fileName: string;
+    pdf: Buffer;
+    idempotencyKey: string;
+  }): Promise<void> {
+    await this.provider.send({
+      to: details.email,
+      subject: `Signed: ${details.documentTitle} for ${details.companyName}`,
+      html: renderTemplate("staff-document-signed", details),
+      text: signedDocumentPlainText(details),
+      tags: [{ name: "category", value: "staff-document-signed" }],
+      attachments: [{ filename: details.fileName, content: details.pdf }],
+      idempotencyKey: details.idempotencyKey,
     });
   }
 

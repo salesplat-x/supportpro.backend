@@ -933,6 +933,11 @@ paths:
               - prescreening
               - personality
               - personalized
+              - problem_solving
+              - culture_fit
+          description: >-
+            problem_solving and culture_fit need jobId and are visible only to
+            members of the company that owns the job (403 for anyone else).
         - name: jobId
           in: query
           required: false
@@ -1042,6 +1047,165 @@ paths:
                 - dichotomyPair
       security:
         - bearerAuth: []
+  /questions/problem-solving:
+    post:
+      summary: Recruiter — generate problem-solving questions for a job
+      description: >-
+        Writes reasoning questions that suit any job; nothing about the job is sent to the AI. Only members of the company that owns the job may call it.
+        Questions are saved on the job with a category and scoring criteria.
+        A job holds at most 30 problem-solving questions.
+      tags:
+        - questions
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                jobId:
+                  type: string
+                  format: uuid
+                count:
+                  type: integer
+                  minimum: 1
+                  maximum: 10
+                  default: 5
+                  description: How many questions to generate (capped by the 30-question pool).
+              required:
+                - jobId
+      responses:
+        "200":
+          description: Questions generated and saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      questions:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            jobId:
+                              type: string
+                            type:
+                              type: string
+                              enum:
+                                - problem_solving
+                            question:
+                              type: string
+                            category:
+                              type: string
+                            criteria:
+                              type: string
+                              nullable: true
+        "400":
+          description: Invalid jobId or count, or the job's question pool is full
+        "401":
+          description: Login required
+        "403":
+          description: Not a recruiter, email not verified, or not a member of the job's company
+        "404":
+          description: Job not found
+        "409":
+          description: Another request saved the same questions while this one was generating; nothing was saved
+        "502":
+          description: The AI service gave no usable questions after a retry; nothing was saved
+      security:
+        - bearerAuth: []
+  /questions/culture-fit:
+    post:
+      summary: Recruiter — generate culture-fit questions for a job
+      description: >-
+        Writes behavioural questions against the company's values (companyValues). With no values set it still answers, with general working-style questions. Only members of the company that owns the job may call it.
+        Questions are saved on the job with a category and scoring criteria.
+        A job holds at most 30 culture-fit questions.
+      tags:
+        - questions
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                jobId:
+                  type: string
+                  format: uuid
+                count:
+                  type: integer
+                  minimum: 1
+                  maximum: 10
+                  default: 5
+                  description: How many questions to generate (capped by the 30-question pool).
+              required:
+                - jobId
+      responses:
+        "200":
+          description: Questions generated and saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      questions:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            jobId:
+                              type: string
+                            type:
+                              type: string
+                              enum:
+                                - culture_fit
+                            question:
+                              type: string
+                            category:
+                              type: string
+                            criteria:
+                              type: string
+                              nullable: true
+                      basedOnCompanyValues:
+                        type: boolean
+                        description: >-
+                          false when the company has no values yet — the questions then
+                          cover general ways of working.
+        "400":
+          description: Invalid jobId or count, or the job's question pool is full
+        "401":
+          description: Login required
+        "403":
+          description: Not a recruiter, email not verified, or not a member of the job's company
+        "404":
+          description: Job not found
+        "409":
+          description: Another request saved the same questions while this one was generating; nothing was saved
+        "502":
+          description: The AI service gave no usable questions after a retry; nothing was saved
+      security:
+        - bearerAuth: []
   /questions/answer/prescreening:
     post:
       summary: Talent
@@ -1131,7 +1295,10 @@ paths:
         - bearerAuth: []
   /questions/{_id}:
     get:
-      summary: ""
+      summary: Fetch one question
+      description: >-
+        Sign-in is optional. Problem-solving and culture-fit questions carry scoring criteria, so they are
+        returned only to members of the company that owns the job (and admins); everyone else gets 404.
       tags:
         - questions
       parameters:
@@ -1147,6 +1314,11 @@ paths:
             application/json:
               schema:
                 type: object
+        "404":
+          description: Question not found, or a problem-solving/culture-fit question the caller may not see
+      security:
+        - {}
+        - bearerAuth: []
   /plans/:
     post:
       summary: Admin
@@ -1430,6 +1602,67 @@ paths:
                 - phone
                 - website
                 - address
+      security:
+        - bearerAuth: []
+  /organizations/{_id}:
+    patch:
+      summary: Recruiter (company owner) — update company details
+      tags:
+        - organizations
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                phone:
+                  type: string
+                address:
+                  type: string
+                industry:
+                  type: string
+                twitter:
+                  type: string
+                linkedin:
+                  type: string
+                facebook:
+                  type: string
+                companyValues:
+                  type: array
+                  maxItems: 10
+                  description: >-
+                    The company's values, used to write culture-fit questions.
+                    Values are trimmed and duplicates (ignoring case) dropped;
+                    an empty list clears them.
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 200
+      responses:
+        "200":
+          description: Company updated
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid field (e.g. more than 10 company values, or a value over 200 characters)
+        "401":
+          description: Login required
+        "403":
+          description: Only the company owner can update it
+        "404":
+          description: Company not found
       security:
         - bearerAuth: []
   /notifications/:
@@ -1995,26 +2228,6 @@ paths:
                 type: object
       security:
         - bearerAuth: []
-  /jobs/cv-similarity/{jobId}:
-    patch:
-      summary: Talent
-      tags:
-        - jobs
-      parameters:
-        - name: jobId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: object
-      security:
-        - bearerAuth: []
   /jobs/match/{_id}:
     get:
       summary: Recruiter, Admin
@@ -2565,6 +2778,10 @@ paths:
           required: true
           schema:
             type: string
+      description: >-
+        The candidate can read their own application; the job's company (and admins) can read
+        any application for its jobs. Test scores and graded answers are only returned to the
+        company, never to the candidate.
       responses:
         "200":
           description: Successful response
@@ -2572,6 +2789,77 @@ paths:
             application/json:
               schema:
                 type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      count:
+                        type: number
+                      application:
+                        type: object
+                        properties:
+                          problemSolvingScore:
+                            type: number
+                            nullable: true
+                            description: >-
+                              Problem-solving result as a percentage (null until taken). Not sent to the candidate.
+                          cultureFitScore:
+                            type: number
+                            nullable: true
+                            description: >-
+                              Culture-fit result as a percentage (null until taken). Not sent to the candidate.
+                          personalityFitScore:
+                            type: number
+                            nullable: true
+                            description: >-
+                              The AI's 0-100 judgement of how the applicant's personality (MBTI) fits this job, made right after the personality check (null until then, or if the AI call failed). Not sent to the candidate.
+                          personalityFitReason:
+                            type: string
+                            nullable: true
+                            description: >-
+                              The AI's short reason for personalityFitScore. Not sent to the candidate.
+                          personalityFitPending:
+                            type: boolean
+                            description: >-
+                              True while the AI is working out the personality fit, so the page can wait instead of offering a retry. Not sent to the candidate.
+                          problemSolvingAnswers:
+                            description: Graded problem-solving answers, in the order asked. Company only.
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                question:
+                                  type: string
+                                answer:
+                                  type: string
+                                score:
+                                  type: number
+                                  description: The AI's grade for this answer, 0-5.
+                                maxScore:
+                                  type: number
+                                  example: 5
+                                feedback:
+                                  type: string
+                                  description: One line on why it got that grade.
+                          cultureFitAnswers:
+                            description: Graded culture-fit answers, in the order asked. Company only.
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                question:
+                                  type: string
+                                answer:
+                                  type: string
+                                score:
+                                  type: number
+                                  description: The AI's grade for this answer, 0-5.
+                                maxScore:
+                                  type: number
+                                  example: 5
+                                feedback:
+                                  type: string
+                                  description: One line on why it got that grade.
       security:
         - bearerAuth: []
   /applications/{_id}/status:
@@ -2606,6 +2894,283 @@ paths:
                     - shortlisted
               required:
                 - status
+      security:
+        - bearerAuth: []
+  /applications/{_id}/personality-fit:
+    post:
+      summary: Recruiter — retry the personality fit for an application
+      description: >-
+        Asks the AI again how the applicant's personality (MBTI) type fits the job, for when the automatic try after the personality test failed.
+        Returns the existing fit without calling the AI if one is already saved. Only the job's company can call it.
+      tags:
+        - applications
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The saved personality fit
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      personalityFitScore:
+                        type: number
+                        description: The AI's 0-100 judgement of the fit.
+                      personalityFitReason:
+                        type: string
+        "400":
+          description: The candidate hasn't finished the personality test, or the test is switched off for this job.
+        "403":
+          description: The application belongs to another company.
+        "404":
+          description: Application not found.
+        "409":
+          description: The fit is already being worked out.
+        "502":
+          description: The AI call failed or gave an unusable reply (PERSONALITY_FIT_FAILED). Safe to retry.
+      security:
+        - bearerAuth: []
+  /questions/candidate/problem-solving:
+    get:
+      summary: Candidate — load my problem-solving questions for a job
+      description: >-
+        For an applicant to a job whose problem-solving test is switched on. The first call picks the recruiter's chosen number of questions at random from the job's pool and keeps them on the application; later calls return the same set.
+        Scoring criteria are never sent.
+      tags:
+        - questions
+      parameters:
+        - name: jobId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The candidate's questions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      questions:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            question:
+                              type: string
+                            questionType:
+                              type: string
+        "400":
+          description: Bad jobId, the test is not switched on for this job, or the candidate hasn't applied
+        "401":
+          description: Not logged in
+        "403":
+          description: Only candidates can load these questions
+        "404":
+          description: Job not found
+        "409":
+          description: The job has no problem-solving questions yet (the recruiter hasn't generated them)
+      security:
+        - bearerAuth: []
+  /questions/candidate/culture-fit:
+    get:
+      summary: Candidate — load my culture-fit questions for a job
+      description: >-
+        For an applicant to a job whose culture-fit test is switched on. The first call picks the recruiter's chosen number of questions at random from the job's pool and keeps them on the application; later calls return the same set.
+        Scoring criteria are never sent.
+      tags:
+        - questions
+      parameters:
+        - name: jobId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The candidate's questions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      questions:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            question:
+                              type: string
+                            questionType:
+                              type: string
+        "400":
+          description: Bad jobId, the test is not switched on for this job, or the candidate hasn't applied
+        "401":
+          description: Not logged in
+        "403":
+          description: Only candidates can load these questions
+        "404":
+          description: Job not found
+        "409":
+          description: The job has no culture-fit questions yet (the recruiter hasn't generated them)
+      security:
+        - bearerAuth: []
+  /questions/answer/problem-solving:
+    post:
+      summary: Candidate — submit my problem-solving answers
+      description: >-
+        Answers to exactly the problem-solving questions the candidate was given. Each answer is graded 0-5 against its question's criteria; the score is total / (5 x answers) as a percentage, saved on the application as problemSolvingScore.
+        One submission per test. The candidate is not shown the score.
+      tags:
+        - questions
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                jobId:
+                  type: string
+                  format: uuid
+                answers:
+                  type: object
+                  description: Question id to answer text (1-5000 characters each).
+                  additionalProperties:
+                    type: string
+              required:
+                - jobId
+                - answers
+      responses:
+        "200":
+          description: Answers received and scored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      submitted:
+                        type: boolean
+                      questionType:
+                        type: string
+                      answered:
+                        type: integer
+        "400":
+          description: Bad body, a missing or extra answer, questions not loaded yet, the test is off, the job is closed, or the candidate hasn't applied
+        "401":
+          description: Not logged in
+        "403":
+          description: Only candidates can submit answers
+        "404":
+          description: Job not found
+        "409":
+          description: Already submitted
+        "502":
+          description: The answers couldn't be scored right now; nothing was saved, so the candidate can try again
+      security:
+        - bearerAuth: []
+  /questions/answer/culture-fit:
+    post:
+      summary: Candidate — submit my culture-fit answers
+      description: >-
+        Answers to exactly the culture-fit questions the candidate was given. Each answer is graded 0-5 against its question's criteria; the score is total / (5 x answers) as a percentage, saved on the application as cultureFitScore.
+        One submission per test. The candidate is not shown the score.
+      tags:
+        - questions
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                jobId:
+                  type: string
+                  format: uuid
+                answers:
+                  type: object
+                  description: Question id to answer text (1-5000 characters each).
+                  additionalProperties:
+                    type: string
+              required:
+                - jobId
+                - answers
+      responses:
+        "200":
+          description: Answers received and scored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      submitted:
+                        type: boolean
+                      questionType:
+                        type: string
+                      answered:
+                        type: integer
+        "400":
+          description: Bad body, a missing or extra answer, questions not loaded yet, the test is off, the job is closed, or the candidate hasn't applied
+        "401":
+          description: Not logged in
+        "403":
+          description: Only candidates can submit answers
+        "404":
+          description: Job not found
+        "409":
+          description: Already submitted
+        "502":
+          description: The answers couldn't be scored right now; nothing was saved, so the candidate can try again
       security:
         - bearerAuth: []
   /ai-config/:
@@ -2652,6 +3217,24 @@ paths:
                     type: string
                 recruiterGuide:
                   type: string
+                problemSolvingAssessment:
+                  type: boolean
+                  default: false
+                  description: Switch the problem-solving test on for this job. Needs noOfProblemSolvingQuestions (here or already saved).
+                noOfProblemSolvingQuestions:
+                  type: integer
+                  minimum: 1
+                  maximum: 10
+                  description: How many problem-solving questions each candidate gets.
+                cultureFitAssessment:
+                  type: boolean
+                  default: false
+                  description: Switch the culture-fit test on for this job. Needs noOfCultureFitQuestions (here or already saved).
+                noOfCultureFitQuestions:
+                  type: integer
+                  minimum: 1
+                  maximum: 10
+                  description: How many culture-fit questions each candidate gets.
               required:
                 - jobId
                 - name
@@ -2739,6 +3322,24 @@ paths:
                   type: string
                 recruiterGuide:
                   type: string
+                problemSolvingAssessment:
+                  type: boolean
+                  default: false
+                  description: Switch the problem-solving test on for this job. Needs noOfProblemSolvingQuestions (here or already saved).
+                noOfProblemSolvingQuestions:
+                  type: integer
+                  minimum: 1
+                  maximum: 10
+                  description: How many problem-solving questions each candidate gets.
+                cultureFitAssessment:
+                  type: boolean
+                  default: false
+                  description: Switch the culture-fit test on for this job. Needs noOfCultureFitQuestions (here or already saved).
+                noOfCultureFitQuestions:
+                  type: integer
+                  minimum: 1
+                  maximum: 10
+                  description: How many culture-fit questions each candidate gets.
       security:
         - bearerAuth: []
     delete:

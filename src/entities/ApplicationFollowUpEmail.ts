@@ -61,6 +61,10 @@ export class ApplicationFollowUpEmail {
   @Column({ type: "text", nullable: true, default: null })
   error!: string | null;
 
+  /** "auto" for the stuck-user timer, so the admin screens can tell the two apart. */
+  @Column({ type: "varchar", length: 16, default: "admin" })
+  source!: string;
+
   @CreateDateColumn({ name: "created_at" })
   createdAt!: Date;
 }

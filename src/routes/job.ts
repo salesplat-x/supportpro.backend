@@ -15,6 +15,7 @@ import {
   retryVerdictsValidator,
   draftApplicantMessagesValidator,
   singleFitReportValidator,
+  retryCvScoreValidator,
   bulkFitReportValidator,
   generateJobContentValidator,
   generateJobFieldValidator,
@@ -86,12 +87,6 @@ router.get(
   asyncHandler(job.topTalents, "load top talents")
 );
 router.patch(
-  "/cv-similarity/:jobId",
-  validateAccess([UserRole.Talent]),
-  requireVerifiedEmail,
-  asyncHandler(job.gradeCv, "score CV")
-);
-router.patch(
   "/prescreening-check/:jobId",
   validateAccess([UserRole.Talent]),
   requireVerifiedEmail,
@@ -125,6 +120,13 @@ router.post(
   requireVerifiedEmail,
   validate(retryVerdictsValidator),
   asyncHandler(job.retryVerdicts, "retry AI matches")
+);
+router.post(
+  "/:jobId/applications/:applicationId/cv-score",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(retryCvScoreValidator),
+  asyncHandler(job.retryCvScore, "retry CV match score")
 );
 router.post(
   "/:jobId/applicants/messages/draft",

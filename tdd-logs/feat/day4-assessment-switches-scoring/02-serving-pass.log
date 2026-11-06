@@ -1,0 +1,53 @@
+$ timeout -k 10 400 npx jest --config /home/user/tab/work/supportpro/wt/jest.local.config.js tests/assessmentServing.test.ts 
+2026-10-26 17:53:07:537 info: Docs available at http://localhost:3003/v1/docs
+2026-10-26 17:53:07:537 http: GET /v1/questions/candidate/problem-solving?jobId=2f34fa37-c018-48a9-b41c-2b06c058db33 200 506 - 27.896 ms
+2026-10-26 17:53:07:537 http: GET /v1/questions/candidate/problem-solving?jobId=0cb9d86a-18c4-4a71-93b9-b7d518914ed7 200 506 - 11.673 ms
+2026-10-26 17:53:07:537 http: GET /v1/questions/candidate/problem-solving?jobId=0cb9d86a-18c4-4a71-93b9-b7d518914ed7 200 506 - 7.459 ms
+2026-10-26 17:53:07:537 http: GET /v1/questions/candidate/problem-solving?jobId=415b45a7-97ba-4928-9369-da2b3fd4d6ce 200 224 - 9.927 ms
+2026-10-26 17:53:07:537 http: GET /v1/questions/candidate/problem-solving?jobId=c568ba6c-167a-45a3-88c1-20962a853b54 409 148 - 7.613 ms
+2026-10-26 17:53:08:538 http: GET /v1/questions/candidate/problem-solving?jobId=523c5404-b86f-4f3c-9c7f-3539e7848eac 400 122 - 5.637 ms
+2026-10-26 17:53:08:538 http: GET /v1/questions/candidate/problem-solving?jobId=668e280c-51d4-4ac3-a27f-ffb0a245b273 400 124 - 6.154 ms
+2026-10-26 17:53:08:538 http: GET /v1/questions/candidate/problem-solving?jobId=77ac0ca8-ea77-4740-a1cd-952864a0a47e 403 114 - 0.504 ms
+2026-10-26 17:53:08:538 http: GET /v1/questions/candidate/problem-solving?jobId=8b1d3c3e-1b7a-4a59-9a5c-1f0f8f0e2a11 404 81 - 4.009 ms
+2026-10-26 17:53:08:538 http: GET /v1/questions/candidate/problem-solving?jobId=not-a-uuid 400 144 - 2.725 ms
+2026-10-26 17:53:08:538 http: GET /v1/questions/candidate/culture-fit?jobId=3a5fdda4-fe8d-4d7f-896a-1b1ff272ca75 200 349 - 8.810 ms
+2026-10-26 17:53:09:539 http: GET /v1/questions/candidate/culture-fit?jobId=05a2bbd6-9847-4619-a52e-eb814b0a4a37 200 349 - 9.320 ms
+2026-10-26 17:53:09:539 http: GET /v1/questions/candidate/culture-fit?jobId=05a2bbd6-9847-4619-a52e-eb814b0a4a37 200 349 - 7.335 ms
+2026-10-26 17:53:09:539 http: GET /v1/questions/candidate/culture-fit?jobId=6124b8b3-629e-45cd-b711-65e4f032cfa9 200 214 - 7.898 ms
+2026-10-26 17:53:09:539 http: GET /v1/questions/candidate/culture-fit?jobId=1730e0cb-3bd1-49ac-9ab9-ec9b5276f8c8 409 144 - 5.762 ms
+2026-10-26 17:53:09:539 http: GET /v1/questions/candidate/culture-fit?jobId=a24dc948-e371-4f9d-95d0-74ac6a3843f2 400 118 - 4.498 ms
+2026-10-26 17:53:09:539 http: GET /v1/questions/candidate/culture-fit?jobId=3f1e2b25-c9a4-44cc-ba3e-236f45f0e6eb 400 124 - 5.208 ms
+2026-10-26 17:53:09:539 http: GET /v1/questions/candidate/culture-fit?jobId=1fb95fae-48b8-4db7-b4f5-3ef232d23e9f 403 114 - 0.472 ms
+2026-10-26 17:53:10:5310 http: GET /v1/questions/candidate/culture-fit?jobId=8b1d3c3e-1b7a-4a59-9a5c-1f0f8f0e2a11 404 81 - 3.417 ms
+2026-10-26 17:53:10:5310 http: GET /v1/questions/candidate/culture-fit?jobId=not-a-uuid 400 144 - 1.850 ms
+2026-10-26 17:53:10:5310 http: GET /v1/questions/candidate/problem-solving?jobId=c446d236-ab27-4cfa-b92b-a69b9c3f8781 200 506 - 8.597 ms
+2026-10-26 17:53:10:5310 http: GET /v1/questions/candidate/problem-solving?jobId=c446d236-ab27-4cfa-b92b-a69b9c3f8781 200 506 - 7.650 ms
+2026-10-26 17:53:10:5310 http: GET /v1/questions/candidate/problem-solving?jobId=c446d236-ab27-4cfa-b92b-a69b9c3f8781 200 506 - 5.208 ms
+PASS tests/assessmentServing.test.ts (7.815 s)
+  ✓ one applicant's set doesn't change another's (216 ms)
+  GET candidate problem_solving questions
+    ✓ gives the applicant 3 questions from the pool, without the criteria (252 ms)
+    ✓ stores the set on the application and returns the same set next time (182 ms)
+    ✓ serves every question when the pool is smaller than the count (152 ms)
+    ✓ no questions generated yet → 409 with a plain message (155 ms)
+    ✓ the test is switched off for this job → 400 (169 ms)
+    ✓ a candidate who hasn't applied → 400 (167 ms)
+    ✓ a recruiter can't use the candidate route → 403 (165 ms)
+    ✓ unknown job → 404, bad jobId → 400 (177 ms)
+  GET candidate culture_fit questions
+    ✓ gives the applicant 2 questions from the pool, without the criteria (176 ms)
+    ✓ stores the set on the application and returns the same set next time (215 ms)
+    ✓ serves every question when the pool is smaller than the count (173 ms)
+    ✓ no questions generated yet → 409 with a plain message (160 ms)
+    ✓ the test is switched off for this job → 400 (178 ms)
+    ✓ a candidate who hasn't applied → 400 (178 ms)
+    ✓ a recruiter can't use the candidate route → 403 (185 ms)
+    ✓ unknown job → 404, bad jobId → 400 (187 ms)
+  AddAssessmentQuestionsToApplications migration
+    ✓ adds the two question-set columns and removes them on down (152 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       18 passed, 18 total
+Snapshots:   0 total
+Time:        8.06 s, estimated 11 s
+Ran all test suites matching tests/assessmentServing.test.ts.

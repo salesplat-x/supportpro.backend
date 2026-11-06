@@ -5,6 +5,10 @@ import { validateAccess, requireVerifiedEmail } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { UserRole } from "../types/enums.js";
 import {
+  adminAiFeatureKeyValidator,
+  adminChangeOwnerValidator,
+  adminAiFeatureModelValidator,
+  adminAiFeaturePromptsValidator,
   adminApplicationFollowUpEmailValidator,
   adminOverviewQueryValidator,
   adminApplicationIdParamValidator,
@@ -165,6 +169,43 @@ router.post(
   requireVerifiedEmail,
   validate(adminApplicationFollowUpEmailValidator),
   asyncHandler(admin.sendApplicationFollowUpEmail, "send application follow-up email")
+);
+
+router.patch(
+  "/organizations/:_id/owner",
+  validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(adminChangeOwnerValidator),
+  asyncHandler(admin.changeOrganizationOwner, "change company creator")
+);
+
+router.get(
+  "/ai-models",
+  validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
+  asyncHandler(admin.getAiModels, "load AI models")
+);
+router.patch(
+  "/ai-models/features/:key",
+  validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(adminAiFeatureModelValidator),
+  asyncHandler(admin.updateAiFeatureModel, "update AI model")
+);
+
+router.get(
+  "/ai-models/features/:key/prompts",
+  validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(adminAiFeatureKeyValidator),
+  asyncHandler(admin.getAiFeaturePrompts, "load AI prompts")
+);
+router.put(
+  "/ai-models/features/:key/prompts",
+  validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(adminAiFeaturePromptsValidator),
+  asyncHandler(admin.updateAiFeaturePrompts, "save AI prompts")
 );
 
 export default (app: Router) => app.use("/admin", router);

@@ -35,6 +35,29 @@ import { FeatureUsageCounter } from "../entities/FeatureUsageCounter.js";
 import { OrganizationPlanHistory } from "../entities/OrganizationPlanHistory.js";
 import { OnboardingEmail } from "../entities/OnboardingEmail.js";
 import { ApplicationFollowUpEmail } from "../entities/ApplicationFollowUpEmail.js";
+import { StaffMember } from "../entities/StaffMember.js";
+import { StaffActivity } from "../entities/StaffActivity.js";
+import { StaffAccessLog } from "../entities/StaffAccessLog.js";
+import { Benefit } from "../entities/Benefit.js";
+import { PayPackage } from "../entities/PayPackage.js";
+import { ShareGrant } from "../entities/ShareGrant.js";
+import { CommissionPlan } from "../entities/CommissionPlan.js";
+import { StaffDocument } from "../entities/StaffDocument.js";
+import { StaffChecklistTask } from "../entities/StaffChecklistTask.js";
+import { PeopleAiClaim } from "../entities/PeopleAiClaim.js";
+import { StaffJobDescription } from "../entities/StaffJobDescription.js";
+import { StaffGoal } from "../entities/StaffGoal.js";
+import { StaffGoalProgressEvent } from "../entities/StaffGoalProgressEvent.js";
+import { StaffWeeklyReport } from "../entities/StaffWeeklyReport.js";
+import { StaffDevelopmentItem } from "../entities/StaffDevelopmentItem.js";
+import { StaffMonthlyFeedback } from "../entities/StaffMonthlyFeedback.js";
+import { StaffEfficiencyTip } from "../entities/StaffEfficiencyTip.js";
+import { CompanyQuarterGoal } from "../entities/CompanyQuarterGoal.js";
+import { AiFeatureSetting } from "../entities/AiFeatureSetting.js";
+import { StaffHrAssignment } from "../entities/StaffHrAssignment.js";
+import { StaffCompletionRequest } from "../entities/StaffCompletionRequest.js";
+import { OrganizationOwnershipTransfer } from "../entities/OrganizationOwnershipTransfer.js";
+import { StuckEmailTimer } from "../entities/StuckEmailTimer.js";
 
 const ALL_ENTITIES = [
   User,
@@ -68,6 +91,29 @@ const ALL_ENTITIES = [
   OrganizationPlanHistory,
   OnboardingEmail,
   ApplicationFollowUpEmail,
+  StaffMember,
+  StaffActivity,
+  StaffAccessLog,
+  Benefit,
+  PayPackage,
+  ShareGrant,
+  CommissionPlan,
+  StaffDocument,
+  StaffChecklistTask,
+  PeopleAiClaim,
+  StaffJobDescription,
+  StaffGoal,
+  StaffGoalProgressEvent,
+  StaffWeeklyReport,
+  StaffDevelopmentItem,
+  StaffMonthlyFeedback,
+  StaffEfficiencyTip,
+  CompanyQuarterGoal,
+  AiFeatureSetting,
+  StaffHrAssignment,
+  StaffCompletionRequest,
+  OrganizationOwnershipTransfer,
+  StuckEmailTimer,
 ];
 
 async function run(): Promise<void> {

@@ -5,3 +5,6 @@
 {{/if}} {{/each}}
 <p><a class="button" href="{{ctaUrl}}">{{ctaLabel}}</a></p>
 <p class="signoff muted">The Auxhr team</p>
+{{#if unsubscribeUrl}}
+<p class="muted">Don't want these reminders? <a href="{{unsubscribeUrl}}">Unsubscribe</a>.</p>
+{{/if}}

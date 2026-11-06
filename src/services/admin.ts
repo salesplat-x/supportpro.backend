@@ -13,6 +13,12 @@ import { applyOnboardingFilters, OnboardingSummary, onboardingSummaries } from "
 import { loadOrganizationMembers, OrganizationMemberView } from "./organization.js";
 import { disablePaystackSubscriptions } from "./payment.js";
 import { deleteSpacesObjectQuietly } from "../utils/integrations/spaces.js";
+import { deleteEvidenceQuietly, evidenceKeysFor } from "./completionRequests.js";
+import {
+  type OwnershipTransferView,
+  activeSubscriptionSummary,
+  listOwnershipTransfers,
+} from "./ownershipTransfer.js";
 
 const userRepo = () => AppDataSource.getRepository(User);
 const jobRepo = () => AppDataSource.getRepository(Job);
@@ -208,6 +214,8 @@ export const listOrganizations = async (
 
 export type AdminOrganizationView = Organization & {
   members: OrganizationMemberView[];
+  ownershipTransfers: OwnershipTransferView[];
+  activeSubscription: { planName: string | null; nextPaymentDate: Date | null } | null;
 };
 
 export const getOrganization = async (organizationId: string): Promise<AdminOrganizationView> => {
@@ -218,8 +226,12 @@ export const getOrganization = async (organizationId: string): Promise<AdminOrga
   if (!org) {
     throw new NotFoundError("Organization not found");
   }
-  const members = await loadOrganizationMembers(organizationId);
-  return Object.assign(org, { members });
+  const [members, ownershipTransfers, activeSubscription] = await Promise.all([
+    loadOrganizationMembers(organizationId),
+    listOwnershipTransfers(organizationId),
+    activeSubscriptionSummary(organizationId),
+  ]);
+  return Object.assign(org, { members, ownershipTransfers, activeSubscription });
 };
 
 export const deleteOrganizationAsAdmin = async (organizationId: string): Promise<void> => {
@@ -228,11 +240,13 @@ export const deleteOrganizationAsAdmin = async (organizationId: string): Promise
     throw new NotFoundError("Company not found");
   }
 
+  const evidence = await evidenceKeysFor({ organizationId });
   const chargeableSubscriptions = await AppDataSource.transaction((manager) =>
     purgeOrganizationCascade(manager, organizationId)
   );
   await disablePaystackSubscriptions(chargeableSubscriptions);
   await deleteSpacesObjectQuietly(org.logoKey, organizationId);
+  await deleteEvidenceQuietly(evidence);
 };
 
 export const updateOrganizationStatus = async (

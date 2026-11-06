@@ -320,6 +320,16 @@ export interface SendOnboardingEmailPayload {
   confirm?: boolean;
 }
 
+const assertNotOptedOut = async (userId: string): Promise<void> => {
+  const user = await AppDataSource.getRepository(User).findOne({
+    where: { id: userId },
+    select: { id: true, followUpEmailsOptedOutAt: true },
+  });
+  if (user?.followUpEmailsOptedOutAt) {
+    throw new ConflictError("This person unsubscribed from follow-up emails");
+  }
+};
+
 export const sendOnboardingEmail = async (
   adminId: string,
   userId: string,
@@ -330,6 +340,7 @@ export const sendOnboardingEmail = async (
   if (!subject || !body) {
     throw new ValidationError("Add a subject and a message");
   }
+  await assertNotOptedOut(userId);
   if (subject.length > MAX_SUBJECT_LENGTH || body.length > MAX_BODY_LENGTH) {
     throw new ValidationError("The subject or message is too long");
   }

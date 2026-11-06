@@ -70,6 +70,21 @@ export class Organization {
   @Column({ type: "varchar", nullable: true, default: null, name: "logo_key" })
   logoKey!: string | null;
 
+  @Column({ type: "jsonb", default: "[]", name: "company_values" })
+  companyValues!: string[];
+
+  @Column({ type: "text", nullable: true })
+  mission!: string | null;
+
+  @Column({ type: "text", nullable: true })
+  vision!: string | null;
+
+  @Column({ type: "jsonb", default: "[]", name: "yearly_goals" })
+  yearlyGoals!: string[];
+
+  @Column({ type: "jsonb", nullable: true, name: "default_checklist" })
+  defaultChecklist!: { title: string; dueInDays: number }[] | null;
+
   @Column({ type: "enum", enum: OrganizationStatus, default: OrganizationStatus.Pending })
   status!: OrganizationStatus;
 

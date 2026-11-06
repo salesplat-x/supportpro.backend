@@ -23,6 +23,12 @@ import prescreeningRoutes from "./prescreening.js";
 import adminRoutes from "./admin.js";
 import feedbackRoutes from "./feedback.js";
 import voiceRoutes from "./voice.js";
+import staffRoutes from "./staff.js";
+import staffInviteRoutes from "./staffInvite.js";
+import staffDocumentRoutes from "./staffDocument.js";
+import documentCheckRoutes from "./documentCheck.js";
+import myWorkRoutes from "./myWork.js";
+import emailPreferencesRoutes from "./emailPreferences.js";
 
 const v1Router = Router();
 
@@ -38,6 +44,11 @@ messageRoutes(v1Router);
 conversationRoutes(v1Router);
 notificationRoutes(v1Router);
 organizationRoutes(v1Router);
+staffRoutes(v1Router);
+staffInviteRoutes(v1Router);
+staffDocumentRoutes(v1Router);
+documentCheckRoutes(v1Router);
+myWorkRoutes(v1Router);
 aiConfigRoutes(v1Router);
 paymentRoutes(v1Router);
 pricingRoutes(v1Router);
@@ -50,5 +61,6 @@ prescreeningRoutes(v1Router);
 adminRoutes(v1Router);
 feedbackRoutes(v1Router);
 voiceRoutes(v1Router);
+emailPreferencesRoutes(v1Router);
 
 export default v1Router;

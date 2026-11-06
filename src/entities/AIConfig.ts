@@ -71,6 +71,18 @@ export class AIConfig {
   @Column({ type: "int", nullable: true, default: null })
   noOfJPQuestions!: number | null;
 
+  @Column({ default: false })
+  problemSolvingAssessment!: boolean;
+
+  @Column({ type: "int", nullable: true, default: null })
+  noOfProblemSolvingQuestions!: number | null;
+
+  @Column({ default: false })
+  cultureFitAssessment!: boolean;
+
+  @Column({ type: "int", nullable: true, default: null })
+  noOfCultureFitQuestions!: number | null;
+
   @Column({ type: "jsonb", nullable: true, default: null })
   stages!: Record<string, string> | null;
 

@@ -32,6 +32,29 @@ import { FeatureUsageCounter } from "../../src/entities/FeatureUsageCounter.js";
 import { OrganizationPlanHistory } from "../../src/entities/OrganizationPlanHistory.js";
 import { OnboardingEmail } from "../../src/entities/OnboardingEmail.js";
 import { ApplicationFollowUpEmail } from "../../src/entities/ApplicationFollowUpEmail.js";
+import { StaffMember } from "../../src/entities/StaffMember.js";
+import { StaffActivity } from "../../src/entities/StaffActivity.js";
+import { StaffAccessLog } from "../../src/entities/StaffAccessLog.js";
+import { Benefit } from "../../src/entities/Benefit.js";
+import { PayPackage } from "../../src/entities/PayPackage.js";
+import { ShareGrant } from "../../src/entities/ShareGrant.js";
+import { CommissionPlan } from "../../src/entities/CommissionPlan.js";
+import { StaffDocument } from "../../src/entities/StaffDocument.js";
+import { StaffChecklistTask } from "../../src/entities/StaffChecklistTask.js";
+import { PeopleAiClaim } from "../../src/entities/PeopleAiClaim.js";
+import { StaffJobDescription } from "../../src/entities/StaffJobDescription.js";
+import { StaffGoal } from "../../src/entities/StaffGoal.js";
+import { StaffGoalProgressEvent } from "../../src/entities/StaffGoalProgressEvent.js";
+import { StaffWeeklyReport } from "../../src/entities/StaffWeeklyReport.js";
+import { StaffDevelopmentItem } from "../../src/entities/StaffDevelopmentItem.js";
+import { StaffMonthlyFeedback } from "../../src/entities/StaffMonthlyFeedback.js";
+import { StaffEfficiencyTip } from "../../src/entities/StaffEfficiencyTip.js";
+import { CompanyQuarterGoal } from "../../src/entities/CompanyQuarterGoal.js";
+import { AiFeatureSetting } from "../../src/entities/AiFeatureSetting.js";
+import { StaffHrAssignment } from "../../src/entities/StaffHrAssignment.js";
+import { StaffCompletionRequest } from "../../src/entities/StaffCompletionRequest.js";
+import { OrganizationOwnershipTransfer } from "../../src/entities/OrganizationOwnershipTransfer.js";
+import { StuckEmailTimer } from "../../src/entities/StuckEmailTimer.js";
 
 let container: StartedPostgreSqlContainer;
 export let testDataSource: DataSource;
@@ -68,6 +91,29 @@ const ALL_ENTITIES = [
   OrganizationPlanHistory,
   OnboardingEmail,
   ApplicationFollowUpEmail,
+  StaffMember,
+  StaffActivity,
+  StaffAccessLog,
+  Benefit,
+  PayPackage,
+  ShareGrant,
+  CommissionPlan,
+  StaffDocument,
+  StaffChecklistTask,
+  PeopleAiClaim,
+  StaffJobDescription,
+  StaffGoal,
+  StaffGoalProgressEvent,
+  StaffWeeklyReport,
+  StaffDevelopmentItem,
+  StaffMonthlyFeedback,
+  StaffEfficiencyTip,
+  CompanyQuarterGoal,
+  AiFeatureSetting,
+  StaffHrAssignment,
+  StaffCompletionRequest,
+  OrganizationOwnershipTransfer,
+  StuckEmailTimer,
 ];
 
 export async function startTestDatabase(): Promise<void> {

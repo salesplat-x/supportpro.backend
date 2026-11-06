@@ -5,6 +5,7 @@ import { draftApplicantMessages } from "../services/applicantMessaging.js";
 import { generateSingleFitReport, generateBulkFitReport } from "../services/fitReport.js";
 import { JobStatus, UserRole } from "../types/enums.js";
 import { sendSuccessResponse } from "../utils/response.js";
+import { hideAssessmentResultsFromCandidate } from "../services/application.js";
 
 export const create = async (req: Request, res: Response) => {
   const result = await jobService.createJob(req.user.id, req.body);
@@ -79,11 +80,6 @@ export const topTalents = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Top talents fetched", result);
 };
 
-export const gradeCv = async (req: Request, res: Response) => {
-  const result = await jobService.gradeCv(req.user.id, req.params["jobId"]!);
-  sendSuccessResponse(res, "CV graded", result);
-};
-
 export const applications = async (req: Request, res: Response) => {
   const result = await jobService.jobApplications(req.user.id, req.user.userRole, {
     jobId: req.params["jobId"]!,
@@ -138,8 +134,19 @@ export const retryVerdicts = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Retried missing AI matches", result);
 };
 
+export const retryCvScore = async (req: Request, res: Response) => {
+  const application = await jobService.retryCvSimilarityScore(
+    req.user.id,
+    req.params["jobId"]!,
+    req.params["applicationId"]!
+  );
+  sendSuccessResponse(res, "CV match score calculated", { application });
+};
+
 export const apply = async (req: Request, res: Response) => {
-  const result = await jobService.apply(req.user, { jobId: req.params["jobId"]! });
+  const result = hideAssessmentResultsFromCandidate(
+    await jobService.apply(req.user, { jobId: req.params["jobId"]! })
+  );
   sendSuccessResponse(res, "Application submitted", { application: result }, 201);
 };
 
@@ -149,6 +156,8 @@ export const activatePayment = async (req: Request, res: Response) => {
 };
 
 export const checkPrescreening = async (req: Request, res: Response) => {
-  const result = await jobService.checkPrescreeningAdvance(req.user.id, req.params["jobId"]!);
+  const result = hideAssessmentResultsFromCandidate(
+    await jobService.checkPrescreeningAdvance(req.user.id, req.params["jobId"]!)
+  );
   sendSuccessResponse(res, "Prescreening stage checked", { application: result });
 };

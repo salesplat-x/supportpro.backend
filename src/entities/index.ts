@@ -29,3 +29,31 @@ export { FeatureUsageCounter } from "./FeatureUsageCounter.js";
 export { OrganizationPlanHistory } from "./OrganizationPlanHistory.js";
 export { OnboardingEmail } from "./OnboardingEmail.js";
 export { ApplicationFollowUpEmail } from "./ApplicationFollowUpEmail.js";
+export { StaffMember } from "./StaffMember.js";
+export { StaffActivity } from "./StaffActivity.js";
+export { StaffAccessLog } from "./StaffAccessLog.js";
+export { Benefit } from "./Benefit.js";
+export { PayPackage, PayPeriod } from "./PayPackage.js";
+export { ShareGrant } from "./ShareGrant.js";
+export { CommissionPlan } from "./CommissionPlan.js";
+export type { CommissionTier } from "./CommissionPlan.js";
+export { StaffDocument, DocumentStatus, DocumentTemplate } from "./StaffDocument.js";
+export { StaffChecklistTask } from "./StaffChecklistTask.js";
+export { PeopleAiClaim } from "./PeopleAiClaim.js";
+export { StaffJobDescription } from "./StaffJobDescription.js";
+export { StaffGoal, GoalStatus, GoalSource } from "./StaffGoal.js";
+export { StaffGoalProgressEvent } from "./StaffGoalProgressEvent.js";
+export { StaffWeeklyReport } from "./StaffWeeklyReport.js";
+export {
+  StaffDevelopmentItem,
+  DevelopmentStatus,
+  DevelopmentSource,
+} from "./StaffDevelopmentItem.js";
+export { StaffMonthlyFeedback } from "./StaffMonthlyFeedback.js";
+export { StaffEfficiencyTip } from "./StaffEfficiencyTip.js";
+export { CompanyQuarterGoal } from "./CompanyQuarterGoal.js";
+export { AiFeatureSetting } from "./AiFeatureSetting.js";
+export { StaffHrAssignment } from "./StaffHrAssignment.js";
+export { StaffCompletionRequest } from "./StaffCompletionRequest.js";
+export { OrganizationOwnershipTransfer } from "./OrganizationOwnershipTransfer.js";
+export { StuckEmailTimer } from "./StuckEmailTimer.js";

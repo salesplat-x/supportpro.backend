@@ -1,0 +1,9 @@
+$ timeout -k 10 400 npx jest --config /home/user/tab/work/supportpro/wt/jest.local.config.js tests/assessmentDay4Docs.test.ts tests/assessmentQuestionsDocs.test.ts 
+PASS tests/assessmentDay4Docs.test.ts
+PASS tests/assessmentQuestionsDocs.test.ts
+
+Test Suites: 2 passed, 2 total
+Tests:       11 passed, 11 total
+Snapshots:   0 total
+Time:        4.009 s
+Ran all test suites matching tests/assessmentDay4Docs.test.ts|tests/assessmentQuestionsDocs.test.ts.

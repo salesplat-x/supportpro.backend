@@ -33,7 +33,7 @@ export const createUser = async (
   role: UserRole.Talent | UserRole.Recruiter,
   ip?: string,
   redirectPath?: string
-): Promise<{ user: User; token: string }> => {
+): Promise<{ user: Omit<User, "password">; token: string }> => {
   const email = payload.email.toLowerCase();
 
   const existing = await userRepo().findOne({ where: { email } });
@@ -70,13 +70,14 @@ export const createUser = async (
   logger.info(`User registered: id=${saved.id} email=${saved.email} ip=${ip ?? "unknown"}`);
 
   const token = signToken(saved);
-  return { user: saved, token };
+  const { password: _password, ...safeUser } = saved;
+  return { user: safeUser, token };
 };
 
 export const loginUser = async (
   { email, password }: { email: string; password: string },
   ip?: string
-): Promise<{ user: User; token: string }> => {
+): Promise<{ user: Omit<User, "password">; token: string }> => {
   const user = await userRepo()
     .createQueryBuilder("user")
     .addSelect("user.password")
@@ -107,7 +108,8 @@ export const loginUser = async (
 
   logger.info(`User logged in: id=${user.id} email=${user.email} ip=${ip ?? "unknown"}`);
   const token = signToken(user);
-  return { user, token };
+  const { password: _password, ...safeUser } = user;
+  return { user: safeUser, token };
 };
 
 const hashResetToken = (token: string): string => createHash("sha256").update(token).digest("hex");

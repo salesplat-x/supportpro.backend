@@ -295,4 +295,25 @@ describe("GET /v1/conversations/:id — single conversation", () => {
       .set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(404);
   });
+
+  it("ignores a link or company sent by the client", async () => {
+    const { token } = await createTalent();
+
+    const res = await request(app)
+      .post("/v1/notifications")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        message: "Hello",
+        link: "https://evil.example.com",
+        organizationId: "9f3b1f7e-1111-4222-8333-444444444444",
+        dedupeKey: "chosen-by-client",
+      });
+
+    expect(res.status).toBe(201);
+    const saved = (res.body as { data: { notification: Record<string, unknown> } }).data
+      .notification;
+    expect(saved["link"]).toBeNull();
+    expect(saved["organizationId"]).toBeNull();
+    expect(saved["dedupeKey"]).toBeNull();
+  });
 });

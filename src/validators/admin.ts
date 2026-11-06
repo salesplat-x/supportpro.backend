@@ -14,6 +14,7 @@ import {
   STUCK_STAGES,
 } from "../services/applicationFollowUpRules.js";
 import { OVERVIEW_RANGES } from "../services/adminOverview.js";
+import { AI_FEATURE_KEYS } from "../utils/integrations/ai/catalog.js";
 import { idParam, paginationRules } from "./shared.js";
 
 const onboardingQueryRules = (stages: readonly string[]) => [
@@ -130,4 +131,32 @@ export const adminOverviewQueryValidator = [
     .optional()
     .isIn(OVERVIEW_RANGES.map(String))
     .withMessage(`days must be one of: ${OVERVIEW_RANGES.join(", ")}`),
+];
+
+export const adminAiFeatureModelValidator = [
+  param("key").isIn(AI_FEATURE_KEYS).withMessage("Unknown AI job"),
+  body("provider").isString().trim().isLength({ min: 1, max: 32 }).withMessage("Choose a provider"),
+  body("model").isString().trim().isLength({ min: 1, max: 128 }).withMessage("Choose a model"),
+];
+
+export const adminAiFeatureKeyValidator = [
+  param("key").isIn(AI_FEATURE_KEYS).withMessage("Unknown AI job"),
+];
+
+export const adminAiFeaturePromptsValidator = [
+  ...adminAiFeatureKeyValidator,
+  body("prompts").isObject().withMessage("Send the prompt text to save"),
+  body("prompts.*").isString().withMessage("A prompt must be text"),
+];
+
+export const adminChangeOwnerValidator = [
+  param("_id").isUUID().withMessage("Invalid company"),
+  body("newOwnerUserId").isUUID().withMessage("Choose someone from the team"),
+  body("reason")
+    .isString()
+    .withMessage("Say why the creator is changing")
+    .bail()
+    .trim()
+    .isLength({ min: 3, max: 500 })
+    .withMessage("The reason must be between 3 and 500 characters"),
 ];
