@@ -1028,14 +1028,22 @@ export async function runSeed(ds: DataSource, options: SeedCliOptions): Promise<
   const feedbackRepo = ds.getRepository(Feedback);
   const feedbackRows: Feedback[] = [];
   const feedbackUsers = [...talents.slice(0, 8), ...recruiters.slice(0, 4)];
+  const feedbackTopics = ["account", "billing", "jobs", "applications", "bug", "idea"] as const;
+  const hoursAgo = (hours: number) => new Date(now.getTime() - hours * 60 * 60 * 1000);
   for (let i = 0; i < feedbackUsers.length; i++) {
     const user = must(feedbackUsers[i], `feedback user ${i}`);
+    const replied = i % 4 === 0;
     feedbackRows.push(
       feedbackRepo.create({
         userId: user.id,
-        subject: i % 2 === 0 ? "Seeded product feedback" : "Seeded hiring workflow note",
-        message: `${fullName(user)} left seeded feedback for local development.`,
-        isRead: i % 3 === 0,
+        topic: feedbackTopics[i % feedbackTopics.length]!,
+        message: `${fullName(user)} sent a seeded support request for local development.`,
+        isRead: replied || i % 4 === 1,
+        createdAt: hoursAgo(i % 3 === 2 ? 72 : 2 + i),
+        reply: replied ? "Thanks for reaching out. Here is a seeded reply." : null,
+        repliedAt: replied ? hoursAgo(1) : null,
+        repliedById: replied ? (admin?.id ?? null) : null,
+        replyEmailStatus: replied ? "sent" : null,
       })
     );
   }

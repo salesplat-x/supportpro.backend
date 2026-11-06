@@ -63,6 +63,20 @@ export const voiceLimiter = rateLimit({
   skip: () => env.app_env === "test",
 });
 
+/** Each support message can start an AI draft, so one account can send 10 an hour. */
+export const supportSubmitLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id ?? "unauthenticated",
+  message: {
+    status: false,
+    message: "You've sent a lot of messages in the last hour. Please try again later.",
+  },
+  skip: () => env.app_env === "test",
+});
+
 export const verificationLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 5,
