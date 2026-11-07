@@ -3532,3 +3532,148 @@ paths:
           description: Unexpected server error. Provider failures and timeouts are answered with the fallback clip (X-Voice-Fallback true), not an error.
       security:
         - bearerAuth: []
+  /references/applications/{applicationId}:
+    post:
+      summary: Candidate names a referee for an application
+      description: >-
+        The candidate who applied adds one referee (name, email, relationship). At most 3
+        referees can be named per application, and the same email cannot be added twice. The
+        referee is emailed a link that works once and expires after 14 days. If the email
+        cannot be sent the referee is still saved with status not_sent. Other users get 403.
+      tags:
+        - references
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, relationship]
+              properties:
+                name:
+                  type: string
+                  maxLength: 120
+                email:
+                  type: string
+                  format: email
+                relationship:
+                  type: string
+                  maxLength: 120
+      responses:
+        "201":
+          description: The referee was saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                      email:
+                        type: string
+                      relationship:
+                        type: string
+                      status:
+                        type: string
+                        enum: [not_sent, sent, answered, expired]
+                      sentAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      expiresAt:
+                        type: string
+                        format: date-time
+                      answeredAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+        "400":
+          description: Invalid input, or 3 referees are already named
+        "401":
+          description: Login required
+        "403":
+          description: Only the candidate who applied can add referees
+        "404":
+          description: Application not found
+        "409":
+          description: This referee has already been added
+      security:
+        - bearerAuth: []
+    get:
+      summary: Candidate sees who was asked for a reference
+      description: >-
+        Lists the referees named for the application with their status (not_sent, sent,
+        answered or expired). It never returns links or answers.
+      tags:
+        - references
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The referees of the application
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      applicationId:
+                        type: string
+                      references:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            name:
+                              type: string
+                            email:
+                              type: string
+                            relationship:
+                              type: string
+                            status:
+                              type: string
+                              enum: [not_sent, sent, answered, expired]
+                            sentAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            expiresAt:
+                              type: string
+                              format: date-time
+                            answeredAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+        "401":
+          description: Login required
+        "403":
+          description: Only the candidate who applied can list their referees
+        "404":
+          description: Application not found
+      security:
+        - bearerAuth: []
