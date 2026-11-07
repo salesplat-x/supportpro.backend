@@ -1,5 +1,5 @@
 import logger from "../../logger.js";
-import { UserRole } from "../../../types/enums.js";
+import { UserRole, type AiInterviewMode } from "../../../types/enums.js";
 import env from "../../../config/env.js";
 import ResendProvider from "./providers/resend.provider.js";
 import {
@@ -170,6 +170,36 @@ class EmailService {
       ].join("\n\n"),
       tags: [{ name: "category", value: "application-follow-up" }],
       ...automaticFields(details.automatic),
+    });
+  }
+
+  async sendAiInterviewInvite(details: {
+    to: string;
+    firstName?: string | null;
+    jobTitle: string;
+    companyName?: string;
+    mode: AiInterviewMode;
+    ctaUrl: string;
+  }): Promise<void> {
+    const how = details.mode === "audio_video" ? "audio and video" : "audio only";
+    const paragraphs = [
+      `Hi ${details.firstName || "there"},`,
+      `You're through to the interview for ${details.jobTitle}${details.companyName ? ` at ${details.companyName}` : ""}.`,
+      `There are 5 questions, and you'll record your answers (${how}).`,
+    ];
+    const html = renderTemplate("application-follow-up", {
+      jobTitle: details.jobTitle,
+      companyName: details.companyName,
+      paragraphs,
+      ctaLabel: "Open your interview",
+      ctaUrl: details.ctaUrl,
+    });
+    await this.provider.send({
+      to: details.to,
+      subject: `Your interview for ${details.jobTitle}`,
+      html,
+      text: [...paragraphs, `Open your interview: ${details.ctaUrl}`].join("\n\n"),
+      tags: [{ name: "category", value: "ai-interview-invite" }],
     });
   }
 

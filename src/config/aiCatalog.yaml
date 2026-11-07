@@ -264,6 +264,13 @@ features:
     kind: chat
     format: json_object
     default: { provider: openai, model: gpt-4o }
+  - key: ai_interview_questions
+    name: AI interview question AI
+    description: Writes the spoken questions of an AI interview from the job description.
+    group: Assessments
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-4o }
   - key: personality_questions
     name: Personality question AI
     description: Writes the personality assessment questions.
