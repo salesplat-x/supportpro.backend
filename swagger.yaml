@@ -4195,3 +4195,85 @@ paths:
           description: Recording storage is not set up (DO_SPACES_* missing)
       security:
         - bearerAuth: []
+  /interviews/{interviewId}:
+    get:
+      summary: Candidate loads an AI interview with its questions and where to resume
+      description: >-
+        Day 13–14. Returns the interview's questions in order, which ones have an answer
+        recording, and the first unanswered question (nextQuestionId, null once all are
+        answered). Only the candidate of the interview can open it; the company and other
+        users get 403.
+      tags:
+        - interviews
+      parameters:
+        - name: interviewId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The interview with its questions and answer progress
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      jobId:
+                        type: string
+                        format: uuid
+                      mode:
+                        type: string
+                        enum:
+                          - audio
+                          - audio_video
+                      status:
+                        type: string
+                        enum:
+                          - pending
+                          - ready
+                          - invited
+                          - failed
+                      totalQuestions:
+                        type: integer
+                      answeredCount:
+                        type: integer
+                      nextQuestionId:
+                        type: string
+                        format: uuid
+                        nullable: true
+                      questions:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              format: uuid
+                            position:
+                              type: integer
+                            question:
+                              type: string
+                            answered:
+                              type: boolean
+                            recordedAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+        "401":
+          description: Not logged in
+        "403":
+          description: Not the candidate of this interview
+        "404":
+          description: Interview not found
+      security:
+        - bearerAuth: []
