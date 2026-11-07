@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import * as recordings from "../services/aiInterviewRecording.js";
 import * as candidateInterviews from "../services/aiInterviewCandidate.js";
 import * as transcripts from "../services/aiInterviewTranscript.js";
+import * as assessments from "../services/aiInterviewScoring.js";
 
 export const uploadRecording = async (req: Request, res: Response) => {
   const saved = await recordings.saveRecording(
@@ -35,6 +36,14 @@ export const getCandidateInterview = async (req: Request, res: Response) => {
 
 export const getInterviewTranscripts = async (req: Request, res: Response) => {
   const data = await transcripts.getCompanyInterviewTranscripts(
+    req.user.id,
+    req.params["interviewId"]!
+  );
+  res.status(200).json({ success: true, data });
+};
+
+export const getInterviewAssessment = async (req: Request, res: Response) => {
+  const data = await assessments.getCompanyInterviewAssessment(
     req.user.id,
     req.params["interviewId"]!
   );

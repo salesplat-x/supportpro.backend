@@ -278,6 +278,20 @@ features:
     kind: chat
     format: json_object
     default: { provider: openai, model: gpt-4o }
+  - key: ai_interview_followup
+    name: AI interview follow-up AI
+    description: Writes at most one spoken follow-up question after a candidate's interview answer.
+    group: Assessments
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-4o }
+  - key: ai_interview_scoring
+    name: AI interview scoring AI
+    description: Scores a recorded interview's answers and writes a summary, as advice for the recruiter.
+    group: Assessments
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-4o }
   - key: personality_questions
     name: Personality question AI
     description: Writes the personality assessment questions.

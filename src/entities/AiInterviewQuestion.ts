@@ -12,7 +12,7 @@ import type { AiInterview } from "./AiInterview.js";
 export type AiInterviewTranscriptStatus = "pending" | "completed" | "failed";
 
 @Entity("ai_interview_questions")
-@Unique("UQ_ai_interview_questions_position", ["interviewId", "position"])
+@Unique("UQ_ai_interview_questions_position_follow_up", ["interviewId", "position", "isFollowUp"])
 export class AiInterviewQuestion {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
@@ -21,11 +21,17 @@ export class AiInterviewQuestion {
   interviewId!: string;
 
   @ManyToOne("AiInterview", "questions", { onDelete: "CASCADE", eager: false })
-  @JoinColumn({ name: "interview_id" })
+  @JoinColumn({
+    name: "interview_id",
+    foreignKeyConstraintName: "FK_ai_interview_questions_interview",
+  })
   interview!: AiInterview;
 
   @Column({ type: "int" })
   position!: number;
+
+  @Column({ type: "boolean", name: "is_follow_up", default: false })
+  isFollowUp!: boolean;
 
   @Column({ type: "text" })
   question!: string;

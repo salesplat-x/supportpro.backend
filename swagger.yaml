@@ -4043,6 +4043,9 @@ paths:
                               type: string
                             position:
                               type: integer
+                            isFollowUp:
+                              type: boolean
+                              description: True for a follow-up asked after the answer at the same position.
                             question:
                               type: string
                             recorded:
@@ -4062,6 +4065,96 @@ paths:
           description: Login required
         "403":
           description: Not a member of the company that posted the job
+        "404":
+          description: Interview not found
+      security:
+        - bearerAuth: []
+  /interviews/{interviewId}/assessment:
+    get:
+      summary: Posting company reads the advice on an interview (scores, summary, flags)
+      description: >-
+        Once every answer is in and transcribed, the scoring covers clear speaking, fit for the
+        role and confidence from 1 to 5, each with a reason, writes a short summary and lists
+        flags worth a closer look. The scores are advice only: nothing here changes the
+        application or the candidate's status. status is pending while the scoring waits or
+        retries, completed once saved, and failed when the retries ran out; scores, summary and
+        flags are null until it is completed. Only members of the company that posted the job
+        can read it; the candidate and other users get 403.
+      tags:
+        - interviews
+      parameters:
+        - name: interviewId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The advice for the interview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      interviewId:
+                        type: string
+                      status:
+                        type: string
+                        nullable: true
+                        enum: [pending, completed, failed]
+                      scores:
+                        type: object
+                        nullable: true
+                        properties:
+                          clearSpeaking:
+                            type: object
+                            properties:
+                              score:
+                                type: integer
+                                minimum: 1
+                                maximum: 5
+                              reason:
+                                type: string
+                          fitForRole:
+                            type: object
+                            properties:
+                              score:
+                                type: integer
+                                minimum: 1
+                                maximum: 5
+                              reason:
+                                type: string
+                          confidence:
+                            type: object
+                            properties:
+                              score:
+                                type: integer
+                                minimum: 1
+                                maximum: 5
+                              reason:
+                                type: string
+                      summary:
+                        type: string
+                        nullable: true
+                      flags:
+                        type: array
+                        nullable: true
+                        items:
+                          type: string
+                      scoredAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+        "401":
+          description: Login required
+        "403":
+          description: Not a member of the company that posted the job; the candidate is refused too
         "404":
           description: Interview not found
       security:
