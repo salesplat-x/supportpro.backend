@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import * as recordings from "../services/aiInterviewRecording.js";
 import * as candidateInterviews from "../services/aiInterviewCandidate.js";
+import * as transcripts from "../services/aiInterviewTranscript.js";
 
 export const uploadRecording = async (req: Request, res: Response) => {
   const saved = await recordings.saveRecording(
@@ -30,4 +31,12 @@ export const getCandidateInterview = async (req: Request, res: Response) => {
     req.params["interviewId"]!
   );
   res.status(200).json({ success: true, data: interview });
+};
+
+export const getInterviewTranscripts = async (req: Request, res: Response) => {
+  const data = await transcripts.getCompanyInterviewTranscripts(
+    req.user.id,
+    req.params["interviewId"]!
+  );
+  res.status(200).json({ success: true, data });
 };
