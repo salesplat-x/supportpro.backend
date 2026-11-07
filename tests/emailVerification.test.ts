@@ -262,6 +262,46 @@ describe("POST /v1/auth/change-email", () => {
     expect(updated?.emailVerifiedAt).toBeNull();
   });
 
+  it("keeps the redirect path in the new verification email", async () => {
+    const { token: authToken } = await createTalent({ emailVerifiedAt: null });
+
+    const res = await request(app)
+      .post("/v1/auth/change-email")
+      .set("Authorization", `Bearer ${authToken}`)
+      .send({
+        newEmail: "redirected@example.com",
+        currentPassword: PLAIN_PASSWORD,
+        redirectPath: "/apply/job-123",
+      });
+
+    expect(res.status).toBe(200);
+    expect(sendVerificationEmail).toHaveBeenLastCalledWith(
+      expect.objectContaining({ email: "redirected@example.com" }),
+      expect.any(String),
+      "/apply/job-123"
+    );
+  });
+
+  it("refuses a redirect path outside the allowed flows", async () => {
+    const { token: authToken } = await createTalent({ emailVerifiedAt: null });
+
+    const res = await request(app)
+      .post("/v1/auth/change-email")
+      .set("Authorization", `Bearer ${authToken}`)
+      .send({
+        newEmail: "evil@example.com",
+        currentPassword: PLAIN_PASSWORD,
+        redirectPath: "https://evil.example.com",
+      });
+
+    expect(res.status).toBe(400);
+    expect(sendVerificationEmail).not.toHaveBeenCalledWith(
+      expect.objectContaining({ email: "evil@example.com" }),
+      expect.anything(),
+      expect.anything()
+    );
+  });
+
   it("rejects changing an already-verified email → 409", async () => {
     const { token: authToken } = await createTalent();
 

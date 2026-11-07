@@ -322,7 +322,7 @@ export const resendVerification = async (
 
 export const changeEmail = async (
   userId: string,
-  payload: { newEmail: string; currentPassword: string },
+  payload: { newEmail: string; currentPassword: string; redirectPath?: string },
   ip?: string
 ): Promise<{ user: User; token: string }> => {
   const user = await userRepo()
@@ -361,7 +361,7 @@ export const changeEmail = async (
     .execute();
 
   const updated = await userRepo().findOneOrFail({ where: { id: userId } });
-  await new EmailService().sendVerificationEmail(updated, token);
+  await new EmailService().sendVerificationEmail(updated, token, payload.redirectPath);
   logger.info(`Email changed: id=${updated.id} email=${updated.email} ip=${ip ?? "unknown"}`);
 
   const signedToken = signToken(updated);
