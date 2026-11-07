@@ -21,14 +21,17 @@ const client = new S3Client({
 });
 
 /** Fails loudly on a misconfigured deploy instead of silently saving a broken `.../undefined/...` URL. */
+export const isSpacesConfigured = (): boolean =>
+  Boolean(
+    env.doSpacesEndpoint &&
+    env.doSpacesRegion &&
+    env.doSpacesBucket &&
+    env.doSpacesKey &&
+    env.doSpacesSecret
+  );
+
 export const assertSpacesConfigured = (): void => {
-  if (
-    !env.doSpacesEndpoint ||
-    !env.doSpacesRegion ||
-    !env.doSpacesBucket ||
-    !env.doSpacesKey ||
-    !env.doSpacesSecret
-  ) {
+  if (!isSpacesConfigured()) {
     throw new Error("DigitalOcean Spaces is not configured — missing DO_SPACES_* env vars");
   }
 };
@@ -101,7 +104,8 @@ export const spacesKeyFor = (
     | "scout-cvs"
     | "notarized-scans"
     | "signed-documents"
-    | "completion-evidence",
+    | "completion-evidence"
+    | "interview-recordings",
   ownerId: string,
   originalname: string
 ): string => {
