@@ -61,6 +61,9 @@ export class ApplicationReference {
   @Column({ type: "timestamptz", name: "answered_at", nullable: true, default: null })
   answeredAt!: Date | null;
 
+  @Column({ type: "jsonb", nullable: true, default: null })
+  answers!: Record<string, string> | null;
+
   @CreateDateColumn({ type: "timestamptz", name: "created_at" })
   createdAt!: Date;
 
