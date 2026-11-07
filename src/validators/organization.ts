@@ -87,3 +87,13 @@ export const createOrganizationValidator = [
     .withMessage("Enter a valid LinkedIn URL (e.g. https://linkedin.com/company/acme)"),
   body("facebook").optional().isString(),
 ];
+
+export const joinWithAccessCodeValidator = [
+  body("code")
+    .isString()
+    .withMessage("Enter your company's access code")
+    .bail()
+    .trim()
+    .isLength({ min: 8, max: 20 })
+    .withMessage("Enter your company's access code"),
+];

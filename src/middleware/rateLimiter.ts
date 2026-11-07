@@ -146,3 +146,25 @@ export const cvUploadLimiter = rateLimit({
   },
   skip: () => env.app_env === "test",
 });
+
+/** Guessing access codes is the risk, so each account gets 10 tries in 15 minutes. */
+export const accessCodeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id ?? "unauthenticated",
+  message: { status: false, message: "Too many tries. Wait a few minutes and try again." },
+  skip: () => env.app_env === "test",
+});
+
+/** Stops one network spreading guesses across many accounts. */
+export const accessCodeIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: clientIpKey,
+  message: { status: false, message: "Too many tries. Wait a few minutes and try again." },
+  skip: () => env.app_env === "test",
+});

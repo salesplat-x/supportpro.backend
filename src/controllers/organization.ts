@@ -128,3 +128,32 @@ export const acceptOrganizationInvite = async (req: Request, res: Response) => {
   );
   sendSuccessResponse(res, "You have joined the company", { organization: result });
 };
+
+export const getOrganizationAccessCode = async (req: Request, res: Response) => {
+  const result = await organizationService.getOrganizationAccessCode(
+    req.user.id,
+    req.params["_id"]!
+  );
+  sendSuccessResponse(res, "Access code fetched", result);
+};
+
+export const rotateOrganizationAccessCode = async (req: Request, res: Response) => {
+  const result = await organizationService.rotateOrganizationAccessCode(
+    req.user.id,
+    req.params["_id"]!
+  );
+  sendSuccessResponse(res, "Access code created", result);
+};
+
+export const disableOrganizationAccessCode = async (req: Request, res: Response) => {
+  await organizationService.disableOrganizationAccessCode(req.user.id, req.params["_id"]!);
+  sendSuccessResponse(res, "Access code turned off", {});
+};
+
+export const joinOrganizationWithAccessCode = async (req: Request, res: Response) => {
+  const result = await organizationService.joinOrganizationWithAccessCode(
+    req.user.id,
+    req.body.code
+  );
+  sendSuccessResponse(res, `You joined ${result.organizationName}`, result);
+};

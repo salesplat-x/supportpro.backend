@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { EntityManager, In } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { Organization } from "../entities/Organization.js";
 import { User } from "../entities/User.js";
@@ -11,8 +12,19 @@ import { OrganizationInvite, OrganizationInviteStatus } from "../entities/Organi
 import { OrganizationStatus, UserRole } from "../types/enums.js";
 import env from "../config/env.js";
 import EmailService from "../utils/integrations/email/emailService.js";
-import { AuthorizationError, ConflictError, NotFoundError, ValidationError } from "../utils/errors";
-import { assertWithinLimit } from "./entitlements.js";
+import {
+  AuthorizationError,
+  ConflictError,
+  NotFoundError,
+  PlanLimitError,
+  ValidationError,
+} from "../utils/errors";
+import {
+  assertWithinLimit,
+  ensureOrganizationBillingCurrent,
+  getPlanFeature,
+} from "./entitlements.js";
+import { isUniqueViolation } from "./staffRecord.js";
 import {
   uploadToSpaces,
   deleteSpacesObjectQuietly,
@@ -53,6 +65,98 @@ const assertCompanyHasOpenSeat = async (organizationId: string): Promise<void> =
   await assertWithinLimit(org, "team_members", async () => {
     const members = await memberRepo().count({ where: { organizationId } });
     return members + pendingInvites;
+  });
+};
+
+interface NewMember {
+  organizationId: string;
+  userId: string;
+  workEmail: string;
+  onAdded?: (manager: EntityManager) => Promise<void>;
+}
+
+/**
+ * The only way a recruiter becomes a company member. The company row is locked while
+ * seats are counted and the member is added, so two joins can't both take the last seat.
+ * Billing can write to that row, so it is brought up to date before the lock and the
+ * check inside reads the plan without touching billing.
+ */
+const addMemberWithSeat = async ({
+  organizationId,
+  userId,
+  workEmail,
+  onAdded,
+}: NewMember): Promise<void> => {
+  const current = await orgRepo().findOne({ where: { id: organizationId } });
+  if (!current) {
+    throw new NotFoundError("Company not found");
+  }
+  await ensureOrganizationBillingCurrent(current);
+
+  await AppDataSource.transaction(async (manager) => {
+    const org = await manager.getRepository(Organization).findOne({
+      where: { id: organizationId },
+      lock: { mode: "pessimistic_write" },
+    });
+    if (!org) {
+      throw new NotFoundError("Company not found");
+    }
+
+    const user = await manager.getRepository(User).findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundError("User not found");
+    }
+    const ownEmails = [...new Set([user.email.toLowerCase(), workEmail.toLowerCase()])];
+
+    const seats = getPlanFeature(org, "team_members");
+    if (seats?.kind === "metered" && seats.limit != null) {
+      const members = await manager
+        .getRepository(OrganizationMember)
+        .count({ where: { organizationId } });
+      const invites = await manager.getRepository(OrganizationInvite).find({
+        where: { organizationId, status: OrganizationInviteStatus.Pending },
+      });
+      const heldForOthers = invites.filter(
+        (invite) =>
+          invite.expiresAt.getTime() >= Date.now() &&
+          !ownEmails.includes(invite.email.toLowerCase())
+      ).length;
+      if (members + heldForOthers >= seats.limit) {
+        throw new PlanLimitError(
+          `Your company has reached its plan limit for ${seats.label ?? "team_members"} (${seats.limit}). Ask your organization owner to upgrade.`,
+          "team_members",
+          org.billingPlan
+        );
+      }
+    }
+
+    try {
+      await manager.getRepository(OrganizationMember).insert({
+        userId,
+        organizationId,
+        workEmail,
+        role: "member",
+      });
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new ConflictError("You are already a member of this company");
+      }
+      throw err;
+    }
+
+    await manager
+      .getRepository(User)
+      .update({ id: userId }, { activeOrganizationId: organizationId });
+    await manager
+      .getRepository(OrganizationInvite)
+      .update(
+        { organizationId, email: In(ownEmails), status: OrganizationInviteStatus.Pending },
+        { status: OrganizationInviteStatus.Accepted }
+      );
+
+    if (onAdded) {
+      await onAdded(manager);
+    }
   });
 };
 
@@ -505,20 +609,16 @@ export const approveJoinRequest = async (
     throw new ConflictError("This recruiter is already a member of your company");
   }
 
-  await assertCompanyHasOpenSeat(request.organizationId);
-
-  const member = memberRepo().create({
-    userId: request.userId,
+  await addMemberWithSeat({
     organizationId: request.organizationId,
+    userId: request.userId,
     workEmail: request.workEmail,
-    role: "member",
+    onAdded: (manager) =>
+      manager
+        .getRepository(OrganizationJoinRequest)
+        .update({ id: request.id }, { status: OrganizationJoinRequestStatus.Approved })
+        .then(() => undefined),
   });
-  await memberRepo().save(member);
-
-  await userRepo().update({ id: request.userId }, { activeOrganizationId: request.organizationId });
-
-  request.status = OrganizationJoinRequestStatus.Approved;
-  await joinReqRepo().save(request);
 
   return request.organization;
 };
@@ -969,20 +1069,145 @@ export const acceptOrganizationInvite = async (
   assertCompanyAllowsJoinRequests(invite.organization);
   assertRecruiterWorkEmailMatchesCompany(invite.organization, invite.email);
 
-  await assertCompanyHasOpenSeat(invite.organizationId);
-
-  const member = memberRepo().create({
-    userId,
+  await addMemberWithSeat({
     organizationId: invite.organizationId,
+    userId,
     workEmail: invite.email,
-    role: "member",
   });
-  await memberRepo().save(member);
-
-  await userRepo().update({ id: userId }, { activeOrganizationId: invite.organizationId });
-
-  invite.status = OrganizationInviteStatus.Accepted;
-  await inviteRepo().save(invite);
 
   return invite.organization;
+};
+
+const ACCESS_CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+const ACCESS_CODE_LENGTH = 8;
+const ACCESS_CODE_ATTEMPTS = 5;
+const ACCESS_CODE_MISS = "That code doesn't match a company. Check it with your company owner.";
+
+const generateAccessCode = (): string => {
+  const chars = Array.from(
+    { length: ACCESS_CODE_LENGTH },
+    () => ACCESS_CODE_ALPHABET[crypto.randomInt(ACCESS_CODE_ALPHABET.length)]
+  ).join("");
+  return `${chars.slice(0, 4)}-${chars.slice(4)}`;
+};
+
+/** Accepts any case, spaces and dashes. Returns the stored XXXX-XXXX form, or null. */
+export const normalizeAccessCode = (input: unknown): string | null => {
+  if (typeof input !== "string") return null;
+  const chars = input.toUpperCase().replace(/[\s-]/g, "");
+  if (chars.length !== ACCESS_CODE_LENGTH) return null;
+  if ([...chars].some((char) => !ACCESS_CODE_ALPHABET.includes(char))) return null;
+  return `${chars.slice(0, 4)}-${chars.slice(4)}`;
+};
+
+const readAccessCode = async (organizationId: string): Promise<string | null> => {
+  const row = await orgRepo().findOne({
+    where: { id: organizationId },
+    select: { id: true, accessCode: true },
+  });
+  return row?.accessCode ?? null;
+};
+
+export const getOrganizationAccessCode = async (
+  ownerId: string,
+  organizationId: string
+): Promise<{ code: string | null }> => {
+  await assertOwnership(ownerId, organizationId);
+  return { code: await readAccessCode(organizationId) };
+};
+
+/** Creates the company's code, or replaces it. A replaced code stops working at once. */
+export const rotateOrganizationAccessCode = async (
+  ownerId: string,
+  organizationId: string
+): Promise<{ code: string }> => {
+  const org = await assertOwnership(ownerId, organizationId);
+  if (org.status !== OrganizationStatus.Verified) {
+    throw new ValidationError("Access codes are available once your company is verified.");
+  }
+  assertCompanyAllowsJoinRequests(org);
+  await assertCompanyHasOpenSeat(org.id);
+
+  for (let attempt = 0; attempt < ACCESS_CODE_ATTEMPTS; attempt += 1) {
+    const code = generateAccessCode();
+    try {
+      await orgRepo().update({ id: org.id }, { accessCode: code });
+      return { code };
+    } catch (err) {
+      if (!isUniqueViolation(err)) throw err;
+    }
+  }
+  throw new Error("Could not create a unique access code");
+};
+
+export const disableOrganizationAccessCode = async (
+  ownerId: string,
+  organizationId: string
+): Promise<void> => {
+  await assertOwnership(ownerId, organizationId);
+  await orgRepo().update({ id: organizationId }, { accessCode: null });
+};
+
+export const joinOrganizationWithAccessCode = async (
+  userId: string,
+  rawCode: unknown
+): Promise<{ organizationId: string; organizationName: string }> => {
+  const code = normalizeAccessCode(rawCode);
+  const org = code ? await orgRepo().findOne({ where: { accessCode: code } }) : null;
+  if (!org) {
+    throw new NotFoundError(ACCESS_CODE_MISS);
+  }
+
+  const user = await userRepo().findOne({ where: { id: userId } });
+  if (!user) {
+    throw new NotFoundError("User not found");
+  }
+  if (user.userRole !== UserRole.Recruiter) {
+    throw new AuthorizationError("Only recruiters can join a company");
+  }
+  if (org.status !== OrganizationStatus.Verified) {
+    throw new ValidationError(
+      "This company isn't verified yet. Try again once AuxHR has verified it."
+    );
+  }
+  if (org.ownerId === userId) {
+    throw new ConflictError("You are the owner of this company");
+  }
+  const existingMember = await memberRepo().findOne({
+    where: { userId, organizationId: org.id },
+  });
+  if (existingMember) {
+    throw new ConflictError("You are already a member of this company");
+  }
+
+  try {
+    assertCompanyAllowsJoinRequests(org);
+    assertRecruiterWorkEmailMatchesCompany(org, user.email);
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      throw new ValidationError(
+        "Your account email must use your company's work email domain to join with a code. Ask your company owner for an email invite instead."
+      );
+    }
+    throw err;
+  }
+
+  await addMemberWithSeat({ organizationId: org.id, userId, workEmail: user.email });
+
+  if (org.ownerId) {
+    const name = `${user.firstName} ${user.lastName}`.trim() || "A recruiter";
+    try {
+      await createNotification(
+        org.ownerId,
+        `${name} joined ${org.name} with your access code.`,
+        "New teammate joined"
+      );
+    } catch (err) {
+      logger.error(
+        `Access code join notification failed for owner ${org.ownerId}: ${(err as Error).message}`
+      );
+    }
+  }
+
+  return { organizationId: org.id, organizationName: org.name };
 };
