@@ -39,6 +39,22 @@ router.get(
   asyncHandler(references.listReferees, "list referees")
 );
 
+router.get(
+  "/applications/:applicationId/answers",
+  loginRequired,
+  requireVerifiedEmail,
+  validate(applicationParams),
+  asyncHandler(references.readReferences, "read references")
+);
+
+router.post(
+  "/:referenceId/resend",
+  loginRequired,
+  requireVerifiedEmail,
+  validate([param("referenceId").isUUID().withMessage("referenceId must be a valid id")]),
+  asyncHandler(references.resendReference, "resend reference request")
+);
+
 const tokenParams = [
   param("token").isHexadecimal().isLength({ min: 64, max: 64 }).withMessage("invalid link"),
 ];
