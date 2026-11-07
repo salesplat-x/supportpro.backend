@@ -28,6 +28,24 @@ export class AiInterviewQuestion {
   @Column({ type: "text" })
   question!: string;
 
+  @Column({ type: "varchar", length: 255, name: "recording_key", nullable: true, default: null })
+  recordingKey!: string | null;
+
+  @Column({
+    type: "varchar",
+    length: 100,
+    name: "recording_mime_type",
+    nullable: true,
+    default: null,
+  })
+  recordingMimeType!: string | null;
+
+  @Column({ type: "int", name: "recording_size", nullable: true, default: null })
+  recordingSize!: number | null;
+
+  @Column({ type: "timestamptz", name: "recorded_at", nullable: true, default: null })
+  recordedAt!: Date | null;
+
   @CreateDateColumn({ type: "timestamptz", name: "created_at" })
   createdAt!: Date;
 }
