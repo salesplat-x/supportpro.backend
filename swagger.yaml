@@ -3922,7 +3922,7 @@ paths:
     get:
       summary: Candidate loads an AI interview with its questions and where to resume
       description: >-
-        Day 13–14. Returns the interview's questions in order, which ones have an answer
+        Returns the interview's questions in order, which ones have an answer
         recording, and the first unanswered question (nextQuestionId, null once all are
         answered). Only the candidate of the interview can open it; the company and other
         users get 403.
