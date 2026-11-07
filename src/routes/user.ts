@@ -4,6 +4,7 @@ import { validate } from "../middleware/validate.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { loginRequired, requireVerifiedEmail, validateAccess } from "../middleware/auth.js";
 import { cvUpload, avatarUpload } from "../middleware/multer.js";
+import { cvUploadLimiter } from "../middleware/rateLimiter.js";
 import { UserRole } from "../types/enums.js";
 import {
   updateUserValidator,
@@ -28,6 +29,7 @@ router.patch(
   "/profile",
   validateAccess([UserRole.Talent]),
   requireVerifiedEmail,
+  cvUploadLimiter,
   cvUpload.single("cv"),
   validate(updateProfileValidator),
   asyncHandler(user.editProfile, "update profile")

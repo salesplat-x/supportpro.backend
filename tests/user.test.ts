@@ -14,6 +14,7 @@ import {
   WorkType,
   CompensationPeriod,
   CvEmbeddingStatus,
+  CvParseStatus,
 } from "../src/types/enums.js";
 import { generateHashedPassword, signToken } from "../src/utils/crypto.js";
 import {
@@ -25,13 +26,24 @@ import {
 } from "./helpers/fixtures.js";
 import { uploadToSpaces, deleteFromSpaces } from "../src/utils/integrations/spaces.js";
 import { extractText } from "../src/utils/text.js";
+import { readTalentCv } from "../src/utils/integrations/openai.js";
+import { cleanCvReading, parseTalentCv } from "../src/services/user.js";
 
 const mockUploadToSpaces = uploadToSpaces as jest.Mock;
 const mockDeleteFromSpaces = deleteFromSpaces as jest.Mock;
 const mockExtractText = extractText as jest.Mock;
+const mockReadTalentCv = readTalentCv as jest.Mock;
+
+const cvReply = (reading: unknown) => ({ message: { content: JSON.stringify(reading) } });
+
+beforeEach(() => {
+  mockReadTalentCv.mockReset();
+  mockReadTalentCv.mockResolvedValue(cvReply({ yearsExperience: 6, skills: ["SQL", "Python"] }));
+});
 
 jest.mock("../src/utils/integrations/openai.js", () => ({
   createEmbedding: jest.fn().mockResolvedValue([{ embedding: new Array(512).fill(0.1) }]),
+  readTalentCv: jest.fn(),
 }));
 
 jest.mock("../src/utils/integrations/spaces.js", () => {
@@ -850,5 +862,170 @@ describe("Profile completion", () => {
 
     expect(loaded?.userRoles).toHaveLength(1);
     expect(loaded?.userRoles[0]?.name).toBe("software-engineer");
+  });
+});
+
+describe("Talent CV reader", () => {
+  const readingOf = (userId: string) =>
+    testDataSource.getRepository(User).findOne({
+      where: { id: userId },
+      select: {
+        id: true,
+        cvKey: true,
+        cvSkills: true,
+        cvYearsExperience: true,
+        cvParseStatus: true,
+      },
+    });
+
+  const settledReading = async (userId: string) => {
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const row = await readingOf(userId);
+      if (row?.cvParseStatus !== CvParseStatus.Pending) return row;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    return readingOf(userId);
+  };
+
+  const uploadCv = (token: string, name = "cv.pdf") =>
+    request(app)
+      .patch("/v1/user/profile")
+      .set("Authorization", `Bearer ${token}`)
+      .attach("cv", Buffer.from("%PDF-1.4 fake"), name);
+
+  it("answers the upload as pending, then stores the years and skills it read", async () => {
+    const { token, user } = await createTalent();
+
+    const res = await uploadCv(token);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.user.cvParseStatus).toBe(CvParseStatus.Pending);
+    expect(res.body.data.user.cvSkills).toBeNull();
+
+    const row = await settledReading(user.id);
+    expect(row?.cvParseStatus).toBe(CvParseStatus.Done);
+    expect(row?.cvYearsExperience).toBe(6);
+    expect(row?.cvSkills).toEqual(["SQL", "Python"]);
+    expect(mockReadTalentCv).toHaveBeenCalledWith(expect.stringContaining("Software engineer"));
+
+    const me = await request(app).get("/v1/user/me").set("Authorization", `Bearer ${token}`);
+    expect(me.body.data.user.cvSkills).toEqual(["SQL", "Python"]);
+    expect(me.body.data.user.cvYearsExperience).toBe(6);
+    expect(me.body.data.user.cvParseStatus).toBe(CvParseStatus.Done);
+  });
+
+  it("keeps the upload and marks the reading failed when the AI call fails", async () => {
+    mockReadTalentCv.mockRejectedValueOnce(new Error("provider down"));
+    const { token, user } = await createTalent();
+
+    const res = await uploadCv(token);
+
+    expect(res.status).toBe(200);
+    const row = await settledReading(user.id);
+    expect(row?.cvParseStatus).toBe(CvParseStatus.Failed);
+    expect(row?.cvSkills).toBeNull();
+    expect(row?.cvKey).toBeTruthy();
+  });
+
+  it("marks the reading failed when the AI reply is not JSON", async () => {
+    mockReadTalentCv.mockResolvedValueOnce({ message: { content: "not json" } });
+    const { token, user } = await createTalent();
+
+    await uploadCv(token);
+
+    expect((await settledReading(user.id))?.cvParseStatus).toBe(CvParseStatus.Failed);
+  });
+
+  it("clears the previous CV's reading when a new CV is uploaded", async () => {
+    const { token, user } = await createTalent();
+    await uploadCv(token, "first.pdf");
+    await settledReading(user.id);
+
+    mockReadTalentCv.mockImplementationOnce(() => new Promise(() => undefined));
+    const res = await uploadCv(token, "second.pdf");
+
+    expect(res.body.data.user.cvSkills).toBeNull();
+    expect(res.body.data.user.cvYearsExperience).toBeNull();
+    const row = await readingOf(user.id);
+    expect(row?.cvParseStatus).toBe(CvParseStatus.Pending);
+    expect(row?.cvSkills).toBeNull();
+  });
+
+  it("drops a reading that finishes after a newer CV was uploaded", async () => {
+    const { token, user } = await createTalent();
+    await uploadCv(token, "first.pdf");
+    await settledReading(user.id);
+    const firstKey = (await readingOf(user.id))!.cvKey!;
+
+    mockReadTalentCv.mockResolvedValueOnce(cvReply({ yearsExperience: 2, skills: ["Excel"] }));
+    await uploadCv(token, "second.pdf");
+    await settledReading(user.id);
+
+    mockReadTalentCv.mockClear();
+    await parseTalentCv(user.id, firstKey);
+
+    expect(mockReadTalentCv).not.toHaveBeenCalled();
+
+    const row = await readingOf(user.id);
+    expect(row?.cvSkills).toEqual(["Excel"]);
+    expect(row?.cvYearsExperience).toBe(2);
+  });
+
+  it("ignores an AI reply for an older CV that arrives after a newer CV was read", async () => {
+    const { token, user } = await createTalent();
+    let finishFirst: (value: unknown) => void = () => undefined;
+    mockReadTalentCv
+      .mockImplementationOnce(() => new Promise((resolve) => (finishFirst = resolve)))
+      .mockResolvedValueOnce(cvReply({ yearsExperience: 2, skills: ["Excel"] }));
+
+    await uploadCv(token, "first.pdf");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await uploadCv(token, "second.pdf");
+    await settledReading(user.id);
+
+    finishFirst(cvReply({ yearsExperience: 30, skills: ["Stale"] }));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const row = await readingOf(user.id);
+    expect(mockReadTalentCv).toHaveBeenCalledTimes(2);
+    expect(row?.cvSkills).toEqual(["Excel"]);
+    expect(row?.cvYearsExperience).toBe(2);
+    expect(row?.cvParseStatus).toBe(CvParseStatus.Done);
+  });
+
+  it("keeps the reading when a profile save overlaps it", async () => {
+    const { token, user } = await createTalent();
+    await uploadCv(token);
+    await settledReading(user.id);
+
+    const res = await request(app)
+      .patch("/v1/user/me")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ bio: "Updated while the CV was being read" });
+
+    expect(res.status).toBe(200);
+    const row = await readingOf(user.id);
+    expect(row?.cvSkills).toEqual(["SQL", "Python"]);
+    expect(row?.cvParseStatus).toBe(CvParseStatus.Done);
+  });
+
+  it("cleans whatever the AI returns", () => {
+    expect(
+      cleanCvReading({
+        yearsExperience: 5.6,
+        skills: [" SQL ", "sql", "", "Power   BI", 42, "x".repeat(61), ...Array(40).fill("A")],
+      })
+    ).toEqual({ cvYearsExperience: 6, cvSkills: ["SQL", "Power BI", "A"] });
+
+    const many = Array.from({ length: 50 }, (_, index) => `Skill ${index}`);
+    expect(cleanCvReading({ yearsExperience: null, skills: many }).cvSkills).toHaveLength(30);
+
+    expect(cleanCvReading({ yearsExperience: -1, skills: "SQL" })).toEqual({
+      cvYearsExperience: null,
+      cvSkills: [],
+    });
+    expect(cleanCvReading({ yearsExperience: 500 }).cvYearsExperience).toBeNull();
+    expect(cleanCvReading({ yearsExperience: "6" }).cvYearsExperience).toBeNull();
+    expect(cleanCvReading(null)).toEqual({ cvYearsExperience: null, cvSkills: [] });
   });
 });

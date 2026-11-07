@@ -16,7 +16,10 @@ export const updateUser = async (req: Request, res: Response) => {
 
 export const editProfile = async (req: Request, res: Response) => {
   const result = await userService.editProfile(req.user.id, req.body, req.file);
-  sendSuccessResponse(res, "Profile updated", { user: withoutCvText(result) });
+  const cvReading = await userService.loadCvReading(req.user.id);
+  sendSuccessResponse(res, "Profile updated", {
+    user: { ...withoutCvText(result), ...cvReading },
+  });
 };
 
 export const updateAvatar = async (req: Request, res: Response) => {
@@ -37,8 +40,9 @@ export const myOnboarding = async (req: Request, res: Response) => {
 export const me = async (req: Request, res: Response) => {
   const result = await userService.me(req.user.id);
   const profileCompletion = userService.getProfileCompletion(result);
+  const cvReading = await userService.loadCvReading(req.user.id);
   sendSuccessResponse(res, "User fetched", {
-    user: { ...withoutCvText(result), profileCompletion },
+    user: { ...withoutCvText(result), ...cvReading, profileCompletion },
   });
 };
 

@@ -242,6 +242,13 @@ features:
     kind: chat
     format: json_object
     default: { provider: openai, model: gpt-4o-mini }
+  - key: talent_cv_reader
+    name: Talent CV reader AI
+    description: Reads a talent's uploaded CV for their years of experience and skills.
+    group: Matching
+    kind: chat
+    format: json_schema
+    default: { provider: openai, model: gpt-4o-mini }
   - key: scout_cv_scoring
     name: Scout CV scoring AI
     description: Scores an uploaded CV against a scouting campaign and extracts the person's details.

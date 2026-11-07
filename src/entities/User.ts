@@ -10,7 +10,13 @@ import {
   UpdateDateColumn,
   Index,
 } from "typeorm";
-import { UserRole, Currency, CompensationPeriod, CvEmbeddingStatus } from "../types/enums.js";
+import {
+  UserRole,
+  Currency,
+  CompensationPeriod,
+  CvEmbeddingStatus,
+  CvParseStatus,
+} from "../types/enums.js";
 import type { Organization } from "./Organization.js";
 import type { Role } from "./Role.js";
 import type { PreScreening } from "./PreScreening.js";
@@ -129,6 +135,25 @@ export class User {
 
   @Column({ type: "text", nullable: true, default: null })
   cvEmbeddingLastError!: string | null;
+
+  /**
+   * What the CV reader found. Hidden from default selects so the whole-row profile
+   * saves never write a stale copy over a result that lands mid-request.
+   */
+  @Column({ type: "jsonb", nullable: true, name: "cv_skills", select: false })
+  cvSkills!: string[] | null;
+
+  @Column({ type: "int", nullable: true, name: "cv_years_experience", select: false })
+  cvYearsExperience!: number | null;
+
+  @Column({
+    type: "varchar",
+    length: 16,
+    nullable: true,
+    name: "cv_parse_status",
+    select: false,
+  })
+  cvParseStatus!: CvParseStatus | null;
 
   @Column({ type: "simple-array", nullable: true, default: null })
   workType!: string[] | null;

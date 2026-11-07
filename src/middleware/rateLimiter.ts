@@ -132,3 +132,17 @@ export const peopleAiLimiter = rateLimit({
   },
   skip: () => env.app_env === "test",
 });
+
+/** Each CV upload costs an embedding and a CV reading, so one talent can upload 20 an hour. */
+export const cvUploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id ?? "unauthenticated",
+  message: {
+    status: false,
+    message: "You've uploaded a lot of CVs in the last hour. Please try again later.",
+  },
+  skip: () => env.app_env === "test",
+});
