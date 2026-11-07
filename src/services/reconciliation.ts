@@ -8,6 +8,7 @@ import { reconcileDueDocumentFinalization } from "./contracts.js";
 import { clearOldAiClaims } from "./peopleAi.js";
 import { runStuckEmailSweep } from "./stuckEmails.js";
 import { reconcileDueSupportDrafts } from "./supportAi.js";
+import { reconcileDueInterviewTranscripts } from "./aiInterviewTranscript.js";
 
 /**
  * CV embedding generation runs fire-and-forget after a profile update responds
@@ -86,5 +87,13 @@ export const reconcileDurableJobs = async (): Promise<void> => {
     await clearOldAiClaims();
   } catch (err) {
     logger.error(`AI claim cleanup failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  try {
+    await reconcileDueInterviewTranscripts();
+  } catch (err) {
+    logger.error(
+      `Interview transcript sweep failed: ${err instanceof Error ? err.message : String(err)}`
+    );
   }
 };

@@ -34,8 +34,10 @@ const loadQuestion = async (interviewId: string, questionId: string) => {
   return { interview, question };
 };
 
-const canOpen = async (userId: string, interview: AiInterview): Promise<boolean> => {
-  if (interview.talentId === userId) return true;
+export const isPostingCompanyMember = async (
+  userId: string,
+  interview: AiInterview
+): Promise<boolean> => {
   const job = await AppDataSource.getRepository(Job).findOne({
     where: { id: interview.jobId },
     select: { id: true, organizationId: true, postedById: true },
@@ -45,6 +47,11 @@ const canOpen = async (userId: string, interview: AiInterview): Promise<boolean>
     return (await getActiveOrganizationId(userId)) === job.organizationId;
   }
   return job.postedById === userId;
+};
+
+const canOpen = async (userId: string, interview: AiInterview): Promise<boolean> => {
+  if (interview.talentId === userId) return true;
+  return isPostingCompanyMember(userId, interview);
 };
 
 export const saveRecording = async (
@@ -74,6 +81,13 @@ export const saveRecording = async (
     recordingMimeType: mimeType,
     recordingSize: file.size,
     recordedAt,
+    transcriptStatus: "pending",
+    transcript: null,
+    transcribedAt: null,
+    transcriptAttempts: 0,
+    transcriptNextRetryAt: null,
+    transcriptLockedAt: null,
+    transcriptLastError: null,
   });
   if (previousKey && previousKey !== key) {
     await deleteSpacesObjectQuietly(previousKey, `interview question ${question.id}`);
