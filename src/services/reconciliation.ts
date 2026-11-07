@@ -10,6 +10,7 @@ import { runStuckEmailSweep } from "./stuckEmails.js";
 import { reconcileDueSupportDrafts } from "./supportAi.js";
 import { closeExpiredJobs } from "./job.js";
 import { reconcileDueInterviewTranscripts } from "./aiInterviewTranscript.js";
+import { reconcileDueInterviewScoring } from "./aiInterviewScoring.js";
 
 /**
  * CV embedding generation runs fire-and-forget after a profile update responds
@@ -101,6 +102,14 @@ export const reconcileDurableJobs = async (): Promise<void> => {
   } catch (err) {
     logger.error(
       `Interview transcript sweep failed: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+
+  try {
+    await reconcileDueInterviewScoring();
+  } catch (err) {
+    logger.error(
+      `Interview scoring sweep failed: ${err instanceof Error ? err.message : String(err)}`
     );
   }
 };

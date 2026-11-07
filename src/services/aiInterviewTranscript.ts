@@ -16,6 +16,7 @@ import logger from "../utils/logger.js";
 import { getFromSpaces } from "../utils/integrations/spaces.js";
 import { transcribe } from "./voice.js";
 import { isPostingCompanyMember } from "./aiInterviewRecording.js";
+import { askFollowUpSafely } from "./aiInterviewFollowUp.js";
 
 const EXTENSIONS: Record<string, string> = {
   "audio/webm": "webm",
@@ -106,6 +107,7 @@ export const transcribeAnswerRecording = async (questionId: string): Promise<voi
     return;
   }
 
+  let saved = false;
   try {
     const extension = transcriptExtensionFor(question.recordingMimeType ?? "");
     if (!extension) {
@@ -124,9 +126,11 @@ export const transcribeAnswerRecording = async (questionId: string): Promise<voi
         transcriptLastError: null,
       }
     );
+    saved = true;
   } catch (err) {
     await recordFailure(questionId, recordingKey, err);
   }
+  if (saved) await askFollowUpSafely(questionId);
 };
 
 export const reconcileDueInterviewTranscripts = async (): Promise<{ scanned: number }> => {
@@ -156,13 +160,14 @@ export const getCompanyInterviewTranscripts = async (userId: string, interviewId
   }
   const rows = await questionRepo().find({
     where: { interviewId },
-    order: { position: "ASC" },
+    order: { position: "ASC", isFollowUp: "ASC" },
   });
   return {
     interviewId: interview.id,
     questions: rows.map((row) => ({
       questionId: row.id,
       position: row.position,
+      isFollowUp: row.isFollowUp,
       question: row.question,
       recorded: row.recordedAt !== null,
       transcriptStatus: row.transcriptStatus,

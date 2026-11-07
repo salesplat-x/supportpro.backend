@@ -772,6 +772,70 @@ export const scorePreScreeningAssessment = async (
   return completion.choices[0];
 };
 
+export interface AiInterviewFollowUpContext {
+  roleName: string;
+  jobBrief: string;
+  requirements: string | null;
+  question: string;
+  answer: string;
+}
+
+export const generateAiInterviewFollowUp = async (
+  context: AiInterviewFollowUpContext
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const system = await renderPrompt("ai_interview_followup", "system");
+  const prompt = await renderPrompt("ai_interview_followup", "user", {
+    roleName: context.roleName,
+    jobDescription: context.jobBrief,
+    requirements: context.requirements ?? "None given.",
+    question: context.question,
+    answer: context.answer,
+  });
+  const completion = await complete("ai_interview_followup", {
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: prompt },
+    ],
+    temperature: 0,
+    response_format: { type: "json_object" },
+  });
+  return completion.choices[0];
+};
+
+export interface AiInterviewScoringAnswer {
+  position: number;
+  question: string;
+  transcript: string;
+}
+
+export interface AiInterviewScoringContext {
+  roleName: string;
+  jobBrief: string;
+  requirements: string | null;
+  answers: AiInterviewScoringAnswer[];
+}
+
+export const scoreAiInterviewAnswers = async (
+  context: AiInterviewScoringContext
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const system = await renderPrompt("ai_interview_scoring", "system");
+  const prompt = await renderPrompt("ai_interview_scoring", "user", {
+    roleName: context.roleName,
+    jobDescription: context.jobBrief,
+    requirements: context.requirements ?? "None given.",
+    answers: JSON.stringify(context.answers),
+  });
+  const completion = await complete("ai_interview_scoring", {
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: prompt },
+    ],
+    temperature: 0,
+    response_format: { type: "json_object" },
+  });
+  return completion.choices[0];
+};
+
 const VOICE_SYSTEM_PROMPT =
   "You are Grace, a friendly and helpful voice assistant. Your reply will be read aloud, so " +
   "respond conversationally in short, plain sentences with no markdown, lists or emoji.";

@@ -92,6 +92,17 @@ export const saveRecording = async (
   if (previousKey && previousKey !== key) {
     await deleteSpacesObjectQuietly(previousKey, `interview question ${question.id}`);
   }
+  await AppDataSource.getRepository(AiInterview).update(interview.id, {
+    scoringStatus: null,
+    scores: null,
+    summary: null,
+    flags: null,
+    scoredAt: null,
+    scoringAttempts: 0,
+    scoringNextRetryAt: null,
+    scoringLockedAt: null,
+    scoringLastError: null,
+  });
   return { questionId: question.id, recordedAt, size: file.size, mimeType };
 };
 
