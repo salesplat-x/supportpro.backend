@@ -41,4 +41,12 @@ router.get(
   asyncHandler(interview.openRecording, "open interview recording")
 );
 
+router.get(
+  "/:interviewId/transcripts",
+  loginRequired,
+  requireVerifiedEmail,
+  validate(interviewParams),
+  asyncHandler(interview.getInterviewTranscripts, "load interview transcripts")
+);
+
 export default (app: Router) => app.use("/interviews", router);

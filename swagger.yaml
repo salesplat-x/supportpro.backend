@@ -4277,3 +4277,69 @@ paths:
           description: Interview not found
       security:
         - bearerAuth: []
+  /interviews/{interviewId}/transcripts:
+    get:
+      summary: Posting company reads the answer transcripts of an AI interview
+      description: >-
+        Returns each question of the interview with whether it has a recording and
+        its transcript. A background job writes the transcript after the candidate uploads
+        a recording; transcriptStatus is pending while it waits or retries, completed once
+        saved, and failed when the recording is too long, unreadable or silent, or the
+        retries ran out. Only members of the company that posted the job can read it; the
+        candidate and other users get 403.
+      tags:
+        - interviews
+      parameters:
+        - name: interviewId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Each question with its recording state and transcript
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      interviewId:
+                        type: string
+                      questions:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            questionId:
+                              type: string
+                            position:
+                              type: integer
+                            question:
+                              type: string
+                            recorded:
+                              type: boolean
+                            transcriptStatus:
+                              type: string
+                              nullable: true
+                              enum: [pending, completed, failed]
+                            transcript:
+                              type: string
+                              nullable: true
+                            transcribedAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+        "401":
+          description: Login required
+        "403":
+          description: Not a member of the company that posted the job
+        "404":
+          description: Interview not found
+      security:
+        - bearerAuth: []
