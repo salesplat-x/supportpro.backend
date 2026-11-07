@@ -3,7 +3,9 @@ import { body, param } from "express-validator";
 import * as references from "../controllers/applicationReferences.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { loginRequired, requireVerifiedEmail } from "../middleware/auth.js";
+import { documentLinkLimiter } from "../middleware/rateLimiter.js";
 import { validate } from "../middleware/validate.js";
+import * as referenceLink from "../controllers/referenceLink.js";
 
 const router = Router();
 
@@ -35,6 +37,24 @@ router.get(
   requireVerifiedEmail,
   validate(applicationParams),
   asyncHandler(references.listReferees, "list referees")
+);
+
+const tokenParams = [
+  param("token").isHexadecimal().isLength({ min: 64, max: 64 }).withMessage("invalid link"),
+];
+
+router.get(
+  "/respond/:token",
+  documentLinkLimiter,
+  validate(tokenParams),
+  asyncHandler(referenceLink.openLink, "open reference link")
+);
+
+router.post(
+  "/respond/:token",
+  documentLinkLimiter,
+  validate(tokenParams),
+  asyncHandler(referenceLink.submitAnswers, "submit reference answers")
 );
 
 export default (app: Router) => app.use("/references", router);
