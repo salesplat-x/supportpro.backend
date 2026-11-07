@@ -97,6 +97,7 @@ export interface UpdateOrganizationPayload {
   linkedin?: string | null;
   twitter?: string | null;
   companyValues?: string[];
+  indeedFeedEnabled?: boolean;
 }
 
 export interface OrganizationMemberUserView {
@@ -612,7 +613,17 @@ export const updateOrganization = async (
 ): Promise<Organization> => {
   const org = await assertOwnership(ownerId, organizationId);
 
-  const { name, phone, address, industry, twitter, linkedin, facebook, companyValues } = payload;
+  const {
+    name,
+    phone,
+    address,
+    industry,
+    twitter,
+    linkedin,
+    facebook,
+    companyValues,
+    indeedFeedEnabled,
+  } = payload;
   const updates = Object.fromEntries(
     Object.entries({
       name,
@@ -623,6 +634,7 @@ export const updateOrganization = async (
       linkedin,
       facebook,
       companyValues,
+      indeedFeedEnabled,
     }).filter(([, value]) => value !== undefined)
   ) as UpdateOrganizationPayload;
 

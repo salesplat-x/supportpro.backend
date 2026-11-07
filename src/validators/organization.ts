@@ -31,7 +31,13 @@ export const updateOrganizationValidator = [
     .trim()
     .isLength({ min: 1, max: MAX_COMPANY_VALUE_LENGTH })
     .withMessage(`Each company value must be 1-${MAX_COMPANY_VALUE_LENGTH} characters`),
+  body("indeedFeedEnabled")
+    .optional()
+    .isBoolean({ strict: true })
+    .withMessage("indeedFeedEnabled must be true or false"),
 ];
+
+export const jobFeedValidator = [param("_id").isUUID().withMessage("Invalid company id")];
 
 export const setMemberCanManagePeopleValidator = [
   param("_id").isUUID().withMessage("Invalid company id"),

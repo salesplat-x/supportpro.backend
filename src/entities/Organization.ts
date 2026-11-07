@@ -85,6 +85,9 @@ export class Organization {
   @Column({ type: "jsonb", nullable: true, name: "default_checklist" })
   defaultChecklist!: { title: string; dueInDays: number }[] | null;
 
+  @Column({ type: "boolean", default: false, name: "indeed_feed_enabled" })
+  indeedFeedEnabled!: boolean;
+
   @Column({ type: "enum", enum: OrganizationStatus, default: OrganizationStatus.Pending })
   status!: OrganizationStatus;
 

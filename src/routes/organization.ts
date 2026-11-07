@@ -18,6 +18,7 @@ import {
   setMemberCanManagePeopleValidator,
   switchOrganizationValidator,
   updateOrganizationValidator,
+  jobFeedValidator,
 } from "../validators/organization.js";
 
 const router = Router();
@@ -42,6 +43,12 @@ router.get(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   asyncHandler(organization.listVerifiedOrganizations, "load verified companies")
+);
+
+router.get(
+  "/:_id/jobs.xml",
+  validate(jobFeedValidator),
+  asyncHandler(organization.getJobFeed, "load job feed")
 );
 
 router.get(
