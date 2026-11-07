@@ -8,10 +8,22 @@ import { validate } from "../middleware/validate.js";
 
 const router = Router();
 
+const interviewParams = [
+  param("interviewId").isUUID().withMessage("interviewId must be a valid id"),
+];
+
 const recordingParams = [
   param("interviewId").isUUID().withMessage("interviewId must be a valid id"),
   param("questionId").isUUID().withMessage("questionId must be a valid id"),
 ];
+
+router.get(
+  "/:interviewId",
+  loginRequired,
+  requireVerifiedEmail,
+  validate(interviewParams),
+  asyncHandler(interview.getCandidateInterview, "load interview")
+);
 
 router.put(
   "/:interviewId/questions/:questionId/recording",
