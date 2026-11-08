@@ -28,6 +28,7 @@ import staffInviteRoutes from "./staffInvite.js";
 import staffDocumentRoutes from "./staffDocument.js";
 import documentCheckRoutes from "./documentCheck.js";
 import myWorkRoutes from "./myWork.js";
+import applicationChecksRoutes from "./applicationChecks.js";
 import emailPreferencesRoutes from "./emailPreferences.js";
 
 const v1Router = Router();
@@ -49,6 +50,7 @@ staffInviteRoutes(v1Router);
 staffDocumentRoutes(v1Router);
 documentCheckRoutes(v1Router);
 myWorkRoutes(v1Router);
+applicationChecksRoutes(v1Router);
 aiConfigRoutes(v1Router);
 paymentRoutes(v1Router);
 pricingRoutes(v1Router);

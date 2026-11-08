@@ -55,6 +55,7 @@ import { StaffHrAssignment } from "../../src/entities/StaffHrAssignment.js";
 import { StaffCompletionRequest } from "../../src/entities/StaffCompletionRequest.js";
 import { OrganizationOwnershipTransfer } from "../../src/entities/OrganizationOwnershipTransfer.js";
 import { StuckEmailTimer } from "../../src/entities/StuckEmailTimer.js";
+import { ApplicationConsent } from "../../src/entities/ApplicationConsent.js";
 
 let container: StartedPostgreSqlContainer;
 export let testDataSource: DataSource;
@@ -114,6 +115,7 @@ const ALL_ENTITIES = [
   StaffCompletionRequest,
   OrganizationOwnershipTransfer,
   StuckEmailTimer,
+  ApplicationConsent,
 ];
 
 export async function startTestDatabase(): Promise<void> {
