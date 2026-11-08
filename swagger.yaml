@@ -5437,3 +5437,145 @@ paths:
           description: Application not found
       security:
         - bearerAuth: []
+  /checks/applications/{applicationId}:
+    post:
+      summary: Company orders a background check for an application
+      description: >-
+        A recruiter of the company that posted the job orders one check on the candidate:
+        identity, employment, education or criminal. The check starts as pending. It is refused
+        with 409 until the candidate has agreed to background checks for this application. Other
+        users get 403.
+      tags:
+        - checks
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type]
+              properties:
+                type:
+                  type: string
+                  enum: [identity, employment, education, criminal]
+      responses:
+        "201":
+          description: The check was ordered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      applicationId:
+                        type: string
+                      type:
+                        type: string
+                        enum: [identity, employment, education, criminal]
+                      status:
+                        type: string
+                        enum: [pending, passed, flagged, failed]
+                      resultText:
+                        type: string
+                        nullable: true
+                      orderedById:
+                        type: string
+                      createdAt:
+                        type: string
+                        format: date-time
+                      updatedAt:
+                        type: string
+                        format: date-time
+        "400":
+          description: The check type is not one of the four
+        "401":
+          description: Login required
+        "403":
+          description: Only a recruiter of the company that posted the job can order checks
+        "404":
+          description: Application not found
+        "409":
+          description: The candidate has not agreed to background checks yet
+      security:
+        - bearerAuth: []
+    get:
+      summary: Company reads the checks for an application with one overall status
+      description: >-
+        Lists the checks ordered on the application and their overall status: failed if any
+        check failed, else flagged if any is flagged, else pending if any is pending, else
+        verified. An application with no checks is none. Only the company owner and the
+        recruiter who ordered a check can read them; other users get 403.
+      tags:
+        - checks
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The checks and their overall status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      applicationId:
+                        type: string
+                      overallStatus:
+                        type: string
+                        enum: [failed, flagged, pending, verified, none]
+                      checks:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            applicationId:
+                              type: string
+                            type:
+                              type: string
+                              enum: [identity, employment, education, criminal]
+                            status:
+                              type: string
+                              enum: [pending, passed, flagged, failed]
+                            resultText:
+                              type: string
+                              nullable: true
+                            orderedById:
+                              type: string
+                            createdAt:
+                              type: string
+                              format: date-time
+                            updatedAt:
+                              type: string
+                              format: date-time
+        "401":
+          description: Login required
+        "403":
+          description: Only the company owner or the recruiter who ordered can read checks
+        "404":
+          description: Application not found
+      security:
+        - bearerAuth: []
