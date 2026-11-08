@@ -43,7 +43,10 @@ async function setup() {
   const application = await createApplication(talent, job);
   const { token: otherToken } = await createRecruiter();
   const { token: otherCandidateToken } = await createTalent();
-  const agree = (token?: string, body: Record<string, unknown> = { version: CHECKS_CONSENT_VERSION }) => {
+  const agree = (
+    token?: string,
+    body: Record<string, unknown> = { version: CHECKS_CONSENT_VERSION }
+  ) => {
     const req = request(app).post(`/v1/checks/applications/${application.id}/consent`);
     return token ? req.set("Authorization", `Bearer ${token}`).send(body) : req.send(body);
   };
