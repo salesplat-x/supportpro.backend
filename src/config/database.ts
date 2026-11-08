@@ -60,6 +60,7 @@ import { AiInterview } from "../entities/AiInterview.js";
 import { AiInterviewQuestion } from "../entities/AiInterviewQuestion.js";
 import { SavedJob } from "../entities/SavedJob.js";
 import { ApplicationConsent } from "../entities/ApplicationConsent.js";
+import { ApplicationCheck } from "../entities/ApplicationCheck.js";
 
 const databaseConfig: DataSourceOptions = {
   type: "postgres",
@@ -128,6 +129,7 @@ const databaseConfig: DataSourceOptions = {
     AiInterviewQuestion,
     SavedJob,
     ApplicationConsent,
+    ApplicationCheck,
   ],
   migrations: [path.join(__dirname, "../migrations/*.{js,ts}")],
   synchronize: false,
