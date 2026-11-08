@@ -58,3 +58,4 @@ export { StaffCompletionRequest } from "./StaffCompletionRequest.js";
 export { OrganizationOwnershipTransfer } from "./OrganizationOwnershipTransfer.js";
 export { StuckEmailTimer } from "./StuckEmailTimer.js";
 export { ApplicationConsent } from "./ApplicationConsent.js";
+export { ApplicationCheck } from "./ApplicationCheck.js";

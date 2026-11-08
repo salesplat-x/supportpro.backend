@@ -22,6 +22,9 @@ const toConsent = (row: ApplicationConsent) => ({
   agreedAt: row.agreedAt,
 });
 
+export const findConsent = async (applicationId: string): Promise<ApplicationConsent | null> =>
+  repo().findOne({ where: { applicationId } });
+
 export const agreeToChecks = async (userId: string, applicationId: string, version: string) => {
   const application = await findApplication(applicationId);
   if (application.talentId !== userId) {
@@ -30,7 +33,7 @@ export const agreeToChecks = async (userId: string, applicationId: string, versi
   if (version !== CHECKS_CONSENT_VERSION) {
     throw new ValidationError(`Consent text version must be ${CHECKS_CONSENT_VERSION}`);
   }
-  const existing = await repo().findOne({ where: { applicationId } });
+  const existing = await findConsent(applicationId);
   if (existing) return { created: false, consent: toConsent(existing) };
   const saved = await repo().save(
     repo().create({ applicationId, talentId: userId, version, agreedAt: new Date() })
