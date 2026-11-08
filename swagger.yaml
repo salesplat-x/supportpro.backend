@@ -5314,3 +5314,126 @@ paths:
           description: Interview not found
       security:
         - bearerAuth: []
+  /checks/applications/{applicationId}/consent:
+    post:
+      summary: Candidate agrees to background checks for an application
+      description: >-
+        The candidate who applied agrees once to background checks for this application, at the
+        current consent text version. The first agreement is kept; a repeat returns it with 200.
+        No check can be ordered until this is given. Other users get 403.
+      tags:
+        - checks
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version]
+              properties:
+                version:
+                  type: string
+                  description: The consent text version the candidate read, currently 2026-11-v1
+                  example: 2026-11-v1
+      responses:
+        "200":
+          description: The candidate had already agreed; the first agreement is returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      applicationId:
+                        type: string
+                      version:
+                        type: string
+                      agreedAt:
+                        type: string
+                        format: date-time
+        "201":
+          description: The agreement was recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      applicationId:
+                        type: string
+                      version:
+                        type: string
+                      agreedAt:
+                        type: string
+                        format: date-time
+        "400":
+          description: The consent text version is not the current one
+        "401":
+          description: Login required
+        "403":
+          description: Only the candidate who applied can agree
+        "404":
+          description: Application not found
+      security:
+        - bearerAuth: []
+    get:
+      summary: Company reads whether the candidate agreed to background checks
+      description: >-
+        Returns whether the candidate has agreed to background checks for this application.
+        Only a recruiter of the company that posted the job can read it; other users get 403.
+      tags:
+        - checks
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Consent state for the application
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      applicationId:
+                        type: string
+                      consented:
+                        type: boolean
+                      version:
+                        type: string
+                        nullable: true
+                      agreedAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+        "401":
+          description: Login required
+        "403":
+          description: Only the posting company can read consent
+        "404":
+          description: Application not found
+      security:
+        - bearerAuth: []

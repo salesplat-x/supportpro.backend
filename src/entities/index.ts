@@ -61,3 +61,4 @@ export { ApplicationReference } from "./ApplicationReference.js";
 export { AiInterview } from "./AiInterview.js";
 export { AiInterviewQuestion } from "./AiInterviewQuestion.js";
 export { SavedJob } from "./SavedJob.js";
+export { ApplicationConsent } from "./ApplicationConsent.js";

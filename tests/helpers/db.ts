@@ -64,6 +64,7 @@ import { ApplicationReference } from "../../src/entities/ApplicationReference.js
 import { SavedJob } from "../../src/entities/SavedJob.js";
 import { AiInterview } from "../../src/entities/AiInterview.js";
 import { AiInterviewQuestion } from "../../src/entities/AiInterviewQuestion.js";
+import { ApplicationConsent } from "../../src/entities/ApplicationConsent.js";
 
 export let testDataSource: DataSource;
 let databaseName: string | undefined;
@@ -127,6 +128,7 @@ const ALL_ENTITIES = [
   AiInterview,
   AiInterviewQuestion,
   SavedJob,
+  ApplicationConsent,
 ];
 
 const TEMPLATE_DATABASE = "test_template";
