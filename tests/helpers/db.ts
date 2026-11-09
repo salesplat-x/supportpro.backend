@@ -56,6 +56,8 @@ import { StaffCompletionRequest } from "../../src/entities/StaffCompletionReques
 import { OrganizationOwnershipTransfer } from "../../src/entities/OrganizationOwnershipTransfer.js";
 import { StuckEmailTimer } from "../../src/entities/StuckEmailTimer.js";
 import { ApplicationReference } from "../../src/entities/ApplicationReference.js";
+import { AiInterview } from "../../src/entities/AiInterview.js";
+import { AiInterviewQuestion } from "../../src/entities/AiInterviewQuestion.js";
 
 let container: StartedPostgreSqlContainer;
 export let testDataSource: DataSource;
@@ -116,6 +118,8 @@ const ALL_ENTITIES = [
   OrganizationOwnershipTransfer,
   StuckEmailTimer,
   ApplicationReference,
+  AiInterview,
+  AiInterviewQuestion,
 ];
 
 export async function startTestDatabase(): Promise<void> {
@@ -155,14 +159,17 @@ async function drainBackgroundWork(): Promise<void> {
     { drainInFlightMatchVerdicts },
     { drainInFlightScoutRuns },
     { drainInFlightCandidateEmbeddings },
+    { drainInFlightAiInterviews },
   ] = await Promise.all([
     import("../../src/services/applicationStage.js"),
     import("../../src/services/scoutRun.js"),
     import("../../src/services/scoutCandidate.js"),
+    import("../../src/services/aiInterview.js"),
   ]);
   await drainInFlightScoutRuns();
   await drainInFlightCandidateEmbeddings();
   await drainInFlightMatchVerdicts();
+  await drainInFlightAiInterviews();
 }
 
 export async function stopTestDatabase(): Promise<void> {

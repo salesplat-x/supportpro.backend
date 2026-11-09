@@ -1115,3 +1115,29 @@ export const efficiencyTip = async (input: {
   });
   return completion.choices[0];
 };
+
+export interface AiInterviewQuestionsContext {
+  count: number;
+  roleName: string;
+  jobBrief: string;
+  requirements: string | null;
+}
+
+export const generateAiInterviewQuestions = async (
+  context: AiInterviewQuestionsContext
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const system = await renderPrompt("ai_interview_questions", "system", { count: context.count });
+  const prompt = await renderPrompt("ai_interview_questions", "user", {
+    roleName: context.roleName,
+    jobDescription: context.jobBrief,
+    requirements: context.requirements ?? "None given.",
+  });
+  const completion = await complete("ai_interview_questions", {
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: prompt },
+    ],
+    response_format: { type: "json_object" },
+  });
+  return completion.choices[0];
+};
