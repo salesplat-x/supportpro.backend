@@ -55,6 +55,12 @@ jobs:
             previous_image="$(docker inspect -f '{{.Image}}' supportpro-backend 2>/dev/null || true)"
             echo "==> Currently running image: ${previous_image:-none}"
 
+            # Old releases pile up until the pull fails with "no space left on device".
+            # The serving container's image is in use, so prune keeps it for rollback.
+            echo "==> Removing unused images"
+            docker image prune -af
+            df -h / | tail -1
+
             echo "==> Pulling latest image"
             docker pull salesplat/supportpro-backend:latest
 

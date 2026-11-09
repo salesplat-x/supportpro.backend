@@ -21,12 +21,20 @@ import type { User } from "./User.js";
   unique: true,
   where: `"domain" IS NOT NULL`,
 })
+@Index("IDX_organizations_access_code_unique", ["accessCode"], {
+  unique: true,
+  where: `"access_code" IS NOT NULL`,
+})
 export class Organization {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
 
   @Column({ type: "uuid", nullable: true, default: null, name: "owner_id" })
   ownerId!: string | null;
+
+  /** Teammates join with this. Never selected by default, so company payloads never carry it. */
+  @Column({ type: "varchar", length: 9, nullable: true, name: "access_code", select: false })
+  accessCode!: string | null;
 
   @ManyToOne("User", { nullable: true, eager: false })
   @JoinColumn({ name: "owner_id" })

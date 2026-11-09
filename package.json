@@ -42,7 +42,7 @@
     "plans:sync": "TS_NODE_PROJECT=tsconfig.dev.json node -r dotenv/config ./node_modules/.bin/ts-node src/scripts/syncPlans.ts",
     "seed:admin": "TS_NODE_PROJECT=tsconfig.dev.json node -r dotenv/config ./node_modules/.bin/ts-node src/scripts/seedAdmin.ts",
     "migration:generate": "TS_NODE_PROJECT=tsconfig.dev.json node -r dotenv/config ./node_modules/.bin/typeorm-ts-node-commonjs migration:generate -d src/database/dataSource.ts",
-    "migration:run": "TS_NODE_PROJECT=tsconfig.dev.json node -r dotenv/config ./node_modules/.bin/typeorm-ts-node-commonjs migration:run -d src/database/dataSource.ts",
+    "migration:run": "TS_NODE_PROJECT=tsconfig.dev.json node -r dotenv/config ./node_modules/.bin/typeorm-ts-node-commonjs migration:run -d src/database/dataSource.ts -t each",
     "migration:revert": "TS_NODE_PROJECT=tsconfig.dev.json node -r dotenv/config ./node_modules/.bin/typeorm-ts-node-commonjs migration:revert -d src/database/dataSource.ts",
     "migrate:prod": "node ./dist/scripts/migrate.js",
     "migration:check": "TS_NODE_PROJECT=tsconfig.dev.json node -r dotenv/config ./node_modules/.bin/ts-node src/scripts/checkMigrationDrift.ts",

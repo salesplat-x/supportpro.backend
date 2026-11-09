@@ -6,6 +6,7 @@ export const AI_FEATURE_KEYS = [
   "cv_matching",
   "applicant_verdict",
   "talent_fit_evidence",
+  "talent_cv_reader",
   "scout_cv_scoring",
   "scout_shortlist_summary",
   "personalized_questions",

@@ -13,7 +13,9 @@ import {
 import {
   FeatureUsageCounter,
   Job,
+  Notification,
   Organization,
+  OrganizationInvite,
   OrganizationMember,
   Payment,
   ScoutRun,
@@ -35,9 +37,12 @@ import {
   DEFAULT_BILLING_PLAN_KEY,
   OrganizationStatus,
 } from "../src/types/enums.js";
+import { OrganizationInviteStatus } from "../src/entities/OrganizationInvite.js";
+import { OrganizationJoinRequest } from "../src/entities/OrganizationJoinRequest.js";
 import * as organizationService from "../src/services/organization.js";
 import { uploadToSpaces, deleteFromSpaces } from "../src/utils/integrations/spaces.js";
 import { apiData } from "./helpers/http.js";
+import { signToken } from "../src/utils/crypto.js";
 import { AddOrganizationCompanyValues1789000800000 } from "../src/migrations/1789000800000-AddOrganizationCompanyValues.js";
 import type { QueryRunner } from "typeorm";
 
@@ -1194,6 +1199,403 @@ describe("Organization invites", () => {
       .getRepository(Organization)
       .findOne({ where: { id: org.id } });
     expect(refreshedOrg?.billingPlan).toBe("pro");
+  });
+});
+
+describe("Company access codes and seats", () => {
+  const codeCorpBody = {
+    name: "Code Corp",
+    domain: "@codecorp.com",
+    email: "owner@codecorp.com",
+    phone: "+2348012345670",
+    address: "1 Code Street",
+    industry: "Technology",
+    website: "https://codecorp.com",
+    linkedin: "https://linkedin.com/company/codecorp",
+  };
+
+  async function createVerifiedOrg(billingPlan = "enterprise") {
+    const { token, user } = await createRecruiter({ email: "owner@codecorp.com" });
+    const res = await request(app)
+      .post("/v1/organizations/")
+      .set("Authorization", `Bearer ${token}`)
+      .send(codeCorpBody);
+    expect(res.status).toBe(201);
+    const org = res.body.data.organization as { id: string };
+    await testDataSource
+      .getRepository(Organization)
+      .update(org.id, { billingPlan, status: OrganizationStatus.Verified });
+    return { org, token, user };
+  }
+
+  const createCode = (orgId: string, token: string) =>
+    request(app)
+      .post(`/v1/organizations/${orgId}/access-code`)
+      .set("Authorization", `Bearer ${token}`);
+
+  const joinWith = (code: unknown, token: string) =>
+    request(app)
+      .post("/v1/organizations/access-code/join")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ code });
+
+  const addMember = async (orgId: string, email: string) => {
+    const { user } = await createRecruiter({ email });
+    const repo = testDataSource.getRepository(OrganizationMember);
+    await repo.save(
+      repo.create({ userId: user.id, organizationId: orgId, workEmail: email, role: "member" })
+    );
+    return user;
+  };
+
+  const memberCount = (orgId: string) =>
+    testDataSource.getRepository(OrganizationMember).count({ where: { organizationId: orgId } });
+
+  it("lets the owner create, read, replace and turn off the code", async () => {
+    const { org, token } = await createVerifiedOrg();
+
+    const empty = await request(app)
+      .get(`/v1/organizations/${org.id}/access-code`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(empty.status).toBe(200);
+    expect(empty.body.data.code).toBeNull();
+
+    const created = await createCode(org.id, token);
+    expect(created.status).toBe(200);
+    expect(created.body.data.code).toMatch(/^[2-9A-HJKMNP-Z]{4}-[2-9A-HJKMNP-Z]{4}$/);
+
+    const read = await request(app)
+      .get(`/v1/organizations/${org.id}/access-code`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(read.body.data.code).toBe(created.body.data.code);
+
+    const replaced = await createCode(org.id, token);
+    expect(replaced.body.data.code).not.toBe(created.body.data.code);
+
+    const { token: joinerToken } = await createRecruiter({ email: "late@codecorp.com" });
+    const oldCode = await joinWith(created.body.data.code, joinerToken);
+    expect(oldCode.status).toBe(404);
+
+    const off = await request(app)
+      .delete(`/v1/organizations/${org.id}/access-code`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(off.status).toBe(200);
+    const afterOff = await joinWith(replaced.body.data.code, joinerToken);
+    expect(afterOff.status).toBe(404);
+  });
+
+  it("never sends the code in company payloads", async () => {
+    const { org, token } = await createVerifiedOrg();
+    const code = (await createCode(org.id, token)).body.data.code as string;
+
+    const { token: otherToken } = await createRecruiter({ email: "browser@elsewhere.com" });
+    const verified = await request(app)
+      .get("/v1/organizations/verified")
+      .set("Authorization", `Bearer ${otherToken}`);
+    const mine = await request(app)
+      .get("/v1/organizations/me")
+      .set("Authorization", `Bearer ${token}`);
+    const me = await request(app).get("/v1/user/me").set("Authorization", `Bearer ${token}`);
+
+    for (const res of [verified, mine, me]) {
+      expect(res.status).toBe(200);
+      expect(JSON.stringify(res.body)).not.toContain(code);
+    }
+  });
+
+  it("refuses code management to anyone but the owner", async () => {
+    const { org } = await createVerifiedOrg();
+    const memberToken = signToken(await addMember(org.id, "member@codecorp.com"));
+
+    for (const method of ["get", "post", "delete"] as const) {
+      const res = await request(app)
+        [method](`/v1/organizations/${org.id}/access-code`)
+        .set("Authorization", `Bearer ${memberToken}`);
+      expect(res.status).toBe(403);
+    }
+  });
+
+  it("refuses a code for a company that is not verified yet", async () => {
+    const { org, token } = await createVerifiedOrg();
+    await testDataSource
+      .getRepository(Organization)
+      .update(org.id, { status: OrganizationStatus.Pending });
+
+    const res = await createCode(org.id, token);
+    expect(res.status).toBe(400);
+    expect(res.body.message ?? res.body.error?.message).toMatch(/verified/i);
+  });
+
+  it("refuses a code for a company on a personal email domain", async () => {
+    const { token, user } = await createRecruiter({ email: "solo@gmail.com" });
+    const org = await createOrganization(user, {
+      domain: null,
+      email: "solo@gmail.com",
+      status: OrganizationStatus.Verified,
+      billingPlan: "enterprise",
+    });
+
+    const res = await createCode(org.id, token);
+    expect(res.status).toBe(400);
+  });
+
+  it("refuses to create a code when every seat is taken", async () => {
+    const { org, token } = await createVerifiedOrg(DEFAULT_BILLING_PLAN_KEY);
+
+    const res = await createCode(org.id, token);
+    expect(res.status).toBe(402);
+    expect(res.body.error.featureKey).toBe("team_members");
+  });
+
+  it("adds a recruiter on the company domain, makes it their company and tells the owner", async () => {
+    const { org, token, user: owner } = await createVerifiedOrg();
+    const code = (await createCode(org.id, token)).body.data.code as string;
+    const { token: joinerToken, user: joiner } = await createRecruiter({
+      email: "ada@codecorp.com",
+      firstName: "Ada",
+      lastName: "Obi",
+    });
+
+    const res = await joinWith(code.toLowerCase().replace("-", " "), joinerToken);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ organizationId: org.id, organizationName: "Code Corp" });
+    const saved = await testDataSource.getRepository(User).findOneBy({ id: joiner.id });
+    expect(saved?.activeOrganizationId).toBe(org.id);
+    const member = await testDataSource
+      .getRepository(OrganizationMember)
+      .findOneBy({ userId: joiner.id, organizationId: org.id });
+    expect(member?.role).toBe("member");
+    expect(member?.workEmail).toBe("ada@codecorp.com");
+    const notes = await testDataSource.getRepository(Notification).findBy({ userId: owner.id });
+    expect(notes.some((note) => note.message.includes("Ada Obi joined Code Corp"))).toBe(true);
+  });
+
+  it("accepts the code with or without the dash", async () => {
+    const { org, token } = await createVerifiedOrg();
+    const code = (await createCode(org.id, token)).body.data.code as string;
+    const { token: joinerToken } = await createRecruiter({ email: "nodash@codecorp.com" });
+
+    const res = await joinWith(code.replace("-", ""), joinerToken);
+    expect(res.status).toBe(200);
+  });
+
+  it("gives every wrong or malformed code the same answer", async () => {
+    await createVerifiedOrg();
+    const { token } = await createRecruiter({ email: "guess@codecorp.com" });
+
+    const wrong = await joinWith("ABCD-EFGH", token);
+    const shape = await joinWith("0000-0000", token);
+    expect(wrong.status).toBe(404);
+    expect(shape.status).toBe(404);
+    expect(shape.body.message ?? shape.body.error?.message).toBe(
+      wrong.body.message ?? wrong.body.error?.message
+    );
+
+    const missing = await joinWith(undefined, token);
+    expect(missing.status).toBe(400);
+  });
+
+  it("refuses an email outside the company domain without naming the domain", async () => {
+    const { org, token } = await createVerifiedOrg();
+    const code = (await createCode(org.id, token)).body.data.code as string;
+    const { token: outsiderToken } = await createRecruiter({ email: "outsider@gmail.com" });
+
+    const res = await joinWith(code, outsiderToken);
+
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(res.body)).not.toContain("codecorp");
+    expect(await memberCount(org.id)).toBe(1);
+  });
+
+  it("refuses a company that lost its verification after the code was made", async () => {
+    const { org, token } = await createVerifiedOrg();
+    const code = (await createCode(org.id, token)).body.data.code as string;
+    await testDataSource
+      .getRepository(Organization)
+      .update(org.id, { status: OrganizationStatus.Pending });
+    const { token: joinerToken } = await createRecruiter({ email: "early@codecorp.com" });
+
+    const res = await joinWith(code, joinerToken);
+    expect(res.status).toBe(400);
+  });
+
+  it("refuses the owner and existing members", async () => {
+    const { org, token } = await createVerifiedOrg();
+    const code = (await createCode(org.id, token)).body.data.code as string;
+    const member = await addMember(org.id, "already@codecorp.com");
+
+    expect((await joinWith(code, token)).status).toBe(409);
+    expect((await joinWith(code, signToken(member))).status).toBe(409);
+  });
+
+  it("refuses talents and unverified recruiters", async () => {
+    const { org, token } = await createVerifiedOrg();
+    const code = (await createCode(org.id, token)).body.data.code as string;
+    const { token: talentToken } = await createTalent({ email: "talent@codecorp.com" });
+    const { token: unverifiedToken } = await createRecruiter({
+      email: "new@codecorp.com",
+      emailVerifiedAt: null,
+    });
+
+    expect((await joinWith(code, talentToken)).status).toBe(403);
+    expect((await joinWith(code, unverifiedToken)).status).toBe(403);
+  });
+
+  it("refuses a join when the plan is full", async () => {
+    const { org, token } = await createVerifiedOrg("pro");
+    const code = (await createCode(org.id, token)).body.data.code as string;
+    await addMember(org.id, "one@codecorp.com");
+    await addMember(org.id, "two@codecorp.com");
+    const { token: joinerToken } = await createRecruiter({ email: "three@codecorp.com" });
+
+    const res = await joinWith(code, joinerToken);
+    expect(res.status).toBe(402);
+    expect(res.body.error.featureKey).toBe("team_members");
+  });
+
+  it("gives the last seat to exactly one of two people joining at once", async () => {
+    const { org, token } = await createVerifiedOrg("pro");
+    const code = (await createCode(org.id, token)).body.data.code as string;
+    await addMember(org.id, "one@codecorp.com");
+    const { token: firstToken } = await createRecruiter({ email: "first@codecorp.com" });
+    const { token: secondToken } = await createRecruiter({ email: "second@codecorp.com" });
+
+    const statuses = (await Promise.all([joinWith(code, firstToken), joinWith(code, secondToken)]))
+      .map((res) => res.status)
+      .sort();
+
+    expect(statuses).toEqual([200, 402]);
+    expect(await memberCount(org.id)).toBe(3);
+  });
+
+  it("adds a person once when they submit twice at the same moment", async () => {
+    const { org, token } = await createVerifiedOrg();
+    const code = (await createCode(org.id, token)).body.data.code as string;
+    const { token: joinerToken } = await createRecruiter({ email: "twice@codecorp.com" });
+
+    const statuses = (await Promise.all([joinWith(code, joinerToken), joinWith(code, joinerToken)]))
+      .map((res) => res.status)
+      .sort();
+
+    expect(statuses).toEqual([200, 409]);
+    expect(await memberCount(org.id)).toBe(2);
+  });
+
+  it("keeps a seat held by someone else's invite", async () => {
+    const { org, token } = await createVerifiedOrg("pro");
+    const code = (await createCode(org.id, token)).body.data.code as string;
+    await addMember(org.id, "one@codecorp.com");
+    const send = await request(app)
+      .post(`/v1/organizations/${org.id}/invites`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ email: "invited@codecorp.com" });
+    expect(send.status).toBe(201);
+    const { token: joinerToken } = await createRecruiter({ email: "walkin@codecorp.com" });
+
+    const res = await joinWith(code, joinerToken);
+    expect(res.status).toBe(402);
+  });
+
+  it("uses the joiner's own invite seat and marks that invite accepted", async () => {
+    const { org, token } = await createVerifiedOrg("pro");
+    const code = (await createCode(org.id, token)).body.data.code as string;
+    await addMember(org.id, "one@codecorp.com");
+    await request(app)
+      .post(`/v1/organizations/${org.id}/invites`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ email: "invited@codecorp.com" })
+      .expect(201);
+    const { token: joinerToken } = await createRecruiter({ email: "invited@codecorp.com" });
+
+    const res = await joinWith(code, joinerToken);
+
+    expect(res.status).toBe(200);
+    const invite = await testDataSource
+      .getRepository(OrganizationInvite)
+      .findOneBy({ organizationId: org.id, email: "invited@codecorp.com" });
+    expect(invite?.status).toBe(OrganizationInviteStatus.Accepted);
+  });
+
+  it("lets an invite fill the seat it was holding", async () => {
+    const { org, token } = await createVerifiedOrg("pro");
+    await addMember(org.id, "one@codecorp.com");
+    await request(app)
+      .post(`/v1/organizations/${org.id}/invites`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ email: "held@codecorp.com" })
+      .expect(201);
+    const inviteToken = inviteTokenFromEmail();
+    const { token: joinerToken } = await createRecruiter({ email: "held@codecorp.com" });
+
+    const accept = await request(app)
+      .post(`/v1/organizations/invites/${inviteToken}/accept`)
+      .set("Authorization", `Bearer ${joinerToken}`);
+
+    expect(accept.status).toBe(200);
+    expect(await memberCount(org.id)).toBe(3);
+  });
+
+  it("approves a join request and adds the member in one step", async () => {
+    const { org, token } = await createVerifiedOrg();
+    const { token: requesterToken, user: requester } = await createRecruiter({
+      email: "asker@codecorp.com",
+    });
+    await request(app)
+      .post(`/v1/organizations/${org.id}/join-request`)
+      .set("Authorization", `Bearer ${requesterToken}`)
+      .send({ workEmail: "asker@codecorp.com" })
+      .expect(200);
+    const joinRequest = await testDataSource
+      .getRepository(OrganizationJoinRequest)
+      .findOneByOrFail({ userId: requester.id });
+
+    const res = await request(app)
+      .patch(`/v1/organizations/join-requests/${joinRequest.id}/approve`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const saved = await testDataSource
+      .getRepository(OrganizationJoinRequest)
+      .findOneByOrFail({ id: joinRequest.id });
+    expect(saved.status).toBe("approved");
+    expect(await memberCount(org.id)).toBe(2);
+  });
+
+  it("gives the last seat to one of two join requests approved at once", async () => {
+    const { org, token } = await createVerifiedOrg("pro");
+    await addMember(org.id, "one@codecorp.com");
+    const ids: string[] = [];
+    for (const email of ["a@codecorp.com", "b@codecorp.com"]) {
+      const { token: requesterToken, user } = await createRecruiter({ email });
+      await request(app)
+        .post(`/v1/organizations/${org.id}/join-request`)
+        .set("Authorization", `Bearer ${requesterToken}`)
+        .send({ workEmail: email })
+        .expect(200);
+      ids.push(
+        (
+          await testDataSource
+            .getRepository(OrganizationJoinRequest)
+            .findOneByOrFail({ userId: user.id })
+        ).id
+      );
+    }
+
+    const results = await Promise.all(
+      ids.map((id) =>
+        request(app)
+          .patch(`/v1/organizations/join-requests/${id}/approve`)
+          .set("Authorization", `Bearer ${token}`)
+      )
+    );
+
+    expect(results.map((res) => res.status).sort()).toEqual([200, 402]);
+    expect(await memberCount(org.id)).toBe(3);
+    const pending = await testDataSource
+      .getRepository(OrganizationJoinRequest)
+      .countBy({ organizationId: org.id, status: "pending" as never });
+    expect(pending).toBe(1);
   });
 });
 

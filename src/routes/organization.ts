@@ -5,12 +5,14 @@ import { asyncHandler } from "../middleware/asyncHandler.js";
 import { validateAccess, requireVerifiedEmail } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { avatarUpload } from "../middleware/multer.js";
+import { accessCodeIpLimiter, accessCodeLimiter } from "../middleware/rateLimiter.js";
 import { UserRole } from "../types/enums.js";
 import {
   createOrganizationValidator,
   deleteOrganizationValidator,
   inviteTokenValidator,
   joinRequestIdValidator,
+  joinWithAccessCodeValidator,
   joinRequestOrganizationValidator,
   organizationLogoValidator,
   revokeOrganizationInviteValidator,
@@ -42,6 +44,40 @@ router.get(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   asyncHandler(organization.listVerifiedOrganizations, "load verified companies")
+);
+
+router.post(
+  "/access-code/join",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  accessCodeIpLimiter,
+  accessCodeLimiter,
+  validate(joinWithAccessCodeValidator),
+  asyncHandler(organization.joinOrganizationWithAccessCode, "join with access code")
+);
+
+router.get(
+  "/:_id/access-code",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(switchOrganizationValidator),
+  asyncHandler(organization.getOrganizationAccessCode, "load access code")
+);
+
+router.post(
+  "/:_id/access-code",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(switchOrganizationValidator),
+  asyncHandler(organization.rotateOrganizationAccessCode, "create access code")
+);
+
+router.delete(
+  "/:_id/access-code",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(switchOrganizationValidator),
+  asyncHandler(organization.disableOrganizationAccessCode, "turn off access code")
 );
 
 router.get(

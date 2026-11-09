@@ -3,10 +3,16 @@ import { AppDataSource } from "../database/dataSource.js";
 import { Application, Role, TalentEmbedding, User } from "../entities";
 import { NotFoundError, ValidationError, AuthorizationError } from "../utils/errors";
 import logger from "../utils/logger.js";
-import { UserRole, ApplicationStatus, ApplicationType, CvEmbeddingStatus } from "../types/enums.js";
+import {
+  UserRole,
+  ApplicationStatus,
+  ApplicationType,
+  CvEmbeddingStatus,
+  CvParseStatus,
+} from "../types/enums.js";
 import { generateCvPdf } from "../utils/cvPdf.js";
 import { extractText, overlapChunkText, preprocessText, sortDirection } from "../utils/text.js";
-import { createEmbedding } from "../utils/integrations/openai.js";
+import { createEmbedding, readTalentCv } from "../utils/integrations/openai.js";
 import {
   uploadToSpaces,
   deleteSpacesObjectQuietly,
@@ -244,6 +250,9 @@ export const editProfile = async (
     update.cvEmbeddingNextRetryAt = null;
     update.cvEmbeddingLockedAt = null;
     update.cvEmbeddingLastError = null;
+    update.cvSkills = null;
+    update.cvYearsExperience = null;
+    update.cvParseStatus = CvParseStatus.Pending;
   }
 
   const previousCvKey = existingUser.cvKey;
@@ -263,6 +272,11 @@ export const editProfile = async (
           )
           .finally(resolve);
       });
+    });
+
+    const cvKey = update.cvKey!;
+    setImmediate(() => {
+      void parseTalentCv(userId, cvKey);
     });
   }
 
@@ -293,6 +307,87 @@ export const editProfile = async (
   }
 
   return saved;
+};
+
+const MAX_CV_SKILLS = 30;
+const MAX_CV_SKILL_LENGTH = 60;
+const MAX_CV_YEARS = 60;
+
+export const cleanCvReading = (
+  raw: unknown
+): { cvSkills: string[]; cvYearsExperience: number | null } => {
+  const reading = (raw && typeof raw === "object" ? raw : {}) as {
+    yearsExperience?: unknown;
+    skills?: unknown;
+  };
+  const years = reading.yearsExperience;
+  const cvYearsExperience =
+    typeof years === "number" && Number.isFinite(years) && years >= 0 && years <= MAX_CV_YEARS
+      ? Math.round(years)
+      : null;
+
+  const seen = new Set<string>();
+  const cvSkills: string[] = [];
+  for (const item of Array.isArray(reading.skills) ? reading.skills : []) {
+    if (typeof item !== "string") continue;
+    const skill = item.trim().replace(/\s+/g, " ");
+    if (!skill || skill.length > MAX_CV_SKILL_LENGTH) continue;
+    const key = skill.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    cvSkills.push(skill);
+    if (cvSkills.length === MAX_CV_SKILLS) break;
+  }
+  return { cvSkills, cvYearsExperience };
+};
+
+/**
+ * Reads the CV the talent just uploaded. Every write is matched on the CV's key, so a
+ * reading that finishes after a newer upload changes nothing. Never throws.
+ */
+export const parseTalentCv = async (userId: string, cvKey: string): Promise<void> => {
+  try {
+    const user = await userRepo()
+      .createQueryBuilder("user")
+      .addSelect("user.cvText")
+      .where("user.id = :userId AND user.cvKey = :cvKey", { userId, cvKey })
+      .getOne();
+    const text = user?.cvText?.trim();
+    if (!text) return;
+
+    const choice = await readTalentCv(text);
+    const content = choice?.message?.content;
+    if (!content) {
+      throw new Error("The CV reader returned no content");
+    }
+    const reading = cleanCvReading(JSON.parse(content));
+    await userRepo().update(
+      { id: userId, cvKey },
+      { ...reading, cvParseStatus: CvParseStatus.Done }
+    );
+  } catch (err) {
+    logger.error("Talent CV reading failed", {
+      userId,
+      message: err instanceof Error ? err.message : String(err),
+    });
+    await userRepo()
+      .update({ id: userId, cvKey }, { cvParseStatus: CvParseStatus.Failed })
+      .catch(() => undefined);
+  }
+};
+
+export const loadCvReading = async (
+  userId: string
+): Promise<Pick<User, "cvSkills" | "cvYearsExperience" | "cvParseStatus">> => {
+  const row = await userRepo().findOne({
+    where: { id: userId },
+    select: { id: true, cvSkills: true, cvYearsExperience: true, cvParseStatus: true },
+  });
+  return {
+    cvSkills: row?.cvSkills ?? null,
+    cvYearsExperience: row?.cvYearsExperience ?? null,
+    cvParseStatus: row?.cvParseStatus ?? null,
+  };
 };
 
 export const updateAvatar = async (userId: string, file?: Express.Multer.File): Promise<User> => {

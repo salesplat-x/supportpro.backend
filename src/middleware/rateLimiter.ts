@@ -132,3 +132,39 @@ export const peopleAiLimiter = rateLimit({
   },
   skip: () => env.app_env === "test",
 });
+
+/** Each CV upload costs an embedding and a CV reading, so one talent can upload 20 an hour. */
+export const cvUploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id ?? "unauthenticated",
+  message: {
+    status: false,
+    message: "You've uploaded a lot of CVs in the last hour. Please try again later.",
+  },
+  skip: () => env.app_env === "test",
+});
+
+/** Guessing access codes is the risk, so each account gets 10 tries in 15 minutes. */
+export const accessCodeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id ?? "unauthenticated",
+  message: { status: false, message: "Too many tries. Wait a few minutes and try again." },
+  skip: () => env.app_env === "test",
+});
+
+/** Stops one network spreading guesses across many accounts. */
+export const accessCodeIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: clientIpKey,
+  message: { status: false, message: "Too many tries. Wait a few minutes and try again." },
+  skip: () => env.app_env === "test",
+});

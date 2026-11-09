@@ -74,6 +74,12 @@ export enum CvEmbeddingStatus {
   Failed = "failed",
 }
 
+export enum CvParseStatus {
+  Pending = "pending",
+  Done = "done",
+  Failed = "failed",
+}
+
 export enum GenerationStatus {
   Pending = "pending",
   Succeeded = "succeeded",

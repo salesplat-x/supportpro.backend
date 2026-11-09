@@ -50,4 +50,5 @@ export const verifyEmailValidator = [
 export const changeEmailValidator = [
   body("newEmail").isEmail().normalizeEmail().withMessage("Valid email is required"),
   body("currentPassword").notEmpty().withMessage("Current password is required"),
+  redirectPathRule,
 ];

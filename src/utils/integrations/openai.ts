@@ -323,6 +323,34 @@ export const scoutShortlistSummary = async (
   return completion.choices[0];
 };
 
+const TALENT_CV_READER_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["yearsExperience", "skills"],
+  properties: {
+    yearsExperience: { type: ["number", "null"] },
+    skills: { type: "array", items: { type: "string" } },
+  },
+} as const;
+
+export const readTalentCv = async (
+  cvText: string
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const prompt = await renderPrompt("talent_cv_reader", "system");
+
+  const completion = await complete("talent_cv_reader", {
+    messages: [
+      { role: "system", content: prompt },
+      { role: "user", content: cvText },
+    ],
+    response_format: {
+      type: "json_schema",
+      json_schema: { name: "talent_cv_reader", strict: true, schema: TALENT_CV_READER_SCHEMA },
+    },
+  });
+  return completion.choices[0];
+};
+
 export interface TalentFitContext {
   jobDescription: string;
   cvText: string;
