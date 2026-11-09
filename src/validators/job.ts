@@ -264,3 +264,21 @@ export const jobApplicationsQueryValidator = [
   query("skip").optional().isInt({ min: 0 }).toInt(),
   query("limit").optional().isInt({ min: 1, max: 200 }).toInt(),
 ];
+
+// Day 10: salary comparison for the job being set up.
+export const salaryComparisonValidator = [
+  query("roleId").isUUID().withMessage("roleId must be a valid id"),
+  query("experienceLevel").isString().trim().notEmpty().withMessage("experienceLevel is required"),
+  query("currency")
+    .isString()
+    .trim()
+    .isLength({ min: 3, max: 3 })
+    .withMessage("currency is required"),
+  query("compensationPeriod")
+    .isIn(Object.values(CompensationPeriod))
+    .withMessage("compensationPeriod must be monthly or yearly"),
+  query("locationCity").optional().isString(),
+  query("locationState").optional().isString(),
+  query("locationCountry").optional().isString(),
+  query("excludeJobId").optional().isUUID(),
+];
