@@ -9,6 +9,8 @@ import {
 } from "typeorm";
 import type { AiInterview } from "./AiInterview.js";
 
+export type AiInterviewTranscriptStatus = "pending" | "completed" | "failed";
+
 @Entity("ai_interview_questions")
 @Unique("UQ_ai_interview_questions_position", ["interviewId", "position"])
 export class AiInterviewQuestion {
@@ -45,6 +47,33 @@ export class AiInterviewQuestion {
 
   @Column({ type: "timestamptz", name: "recorded_at", nullable: true, default: null })
   recordedAt!: Date | null;
+
+  @Column({
+    type: "varchar",
+    length: 20,
+    name: "transcript_status",
+    nullable: true,
+    default: null,
+  })
+  transcriptStatus!: AiInterviewTranscriptStatus | null;
+
+  @Column({ type: "text", nullable: true, default: null })
+  transcript!: string | null;
+
+  @Column({ type: "timestamptz", name: "transcribed_at", nullable: true, default: null })
+  transcribedAt!: Date | null;
+
+  @Column({ type: "int", name: "transcript_attempts", default: 0 })
+  transcriptAttempts!: number;
+
+  @Column({ type: "timestamptz", name: "transcript_next_retry_at", nullable: true, default: null })
+  transcriptNextRetryAt!: Date | null;
+
+  @Column({ type: "timestamptz", name: "transcript_locked_at", nullable: true, default: null })
+  transcriptLockedAt!: Date | null;
+
+  @Column({ type: "text", name: "transcript_last_error", nullable: true, default: null })
+  transcriptLastError!: string | null;
 
   @CreateDateColumn({ type: "timestamptz", name: "created_at" })
   createdAt!: Date;
