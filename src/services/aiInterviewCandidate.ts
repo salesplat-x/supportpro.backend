@@ -6,6 +6,7 @@ import { AuthorizationError, NotFoundError } from "../utils/errors";
 export interface CandidateInterviewQuestion {
   id: string;
   position: number;
+  isFollowUp: boolean;
   question: string;
   answered: boolean;
   recordedAt: Date | null;
@@ -21,11 +22,12 @@ export const getCandidateInterview = async (userId: string, interviewId: string)
   }
   const rows = await AppDataSource.getRepository(AiInterviewQuestion).find({
     where: { interviewId },
-    order: { position: "ASC" },
+    order: { position: "ASC", isFollowUp: "ASC" },
   });
   const questions: CandidateInterviewQuestion[] = rows.map((row) => ({
     id: row.id,
     position: row.position,
+    isFollowUp: row.isFollowUp,
     question: row.question,
     answered: row.recordedAt !== null,
     recordedAt: row.recordedAt,
