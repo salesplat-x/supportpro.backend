@@ -1037,6 +1037,7 @@ export interface JobApplicationsParams {
   matchVerdict?: MatchVerdict;
   experience?: string;
   maxSalary?: string | number;
+  source?: string;
   offset?: number | string;
   limit?: number | string;
   /** Defaults to "aiMatch" — best AI match first, matching what the applicant table shows. */
@@ -1106,6 +1107,12 @@ export const jobApplications = async (
 
   if (payload.experience) {
     qb.andWhere("talent.experience = :experience", { experience: payload.experience });
+  }
+
+  if (payload.source) {
+    qb.andWhere("LOWER(application.source) = :source", {
+      source: payload.source.trim().toLowerCase(),
+    });
   }
 
   if (payload.maxSalary) {
@@ -1276,10 +1283,11 @@ export const retryMissingVerdicts = async (
 
 export interface ApplyPayload {
   jobId: string;
+  source?: string;
 }
 
 export const apply = async (user: User, payload: ApplyPayload): Promise<Application> => {
-  const { jobId } = payload;
+  const { jobId, source } = payload;
 
   const job = await jobRepo().findOne({
     where: { id: jobId },
@@ -1312,6 +1320,7 @@ export const apply = async (user: User, payload: ApplyPayload): Promise<Applicat
     talentId: user.id,
     jobId,
     applicationType: ApplicationType.Application,
+    source: source?.trim().toLowerCase() || null,
     stages,
     recruiterId: job.postedById,
     currentStage: entryStage as Application["currentStage"],
