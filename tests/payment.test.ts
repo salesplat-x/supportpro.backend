@@ -1424,6 +1424,66 @@ const monthlyPlanRow = (planKey: string, paystackAmount: number) =>
     paystackPlanCode: `PLN_${planKey}_${Date.now()}`,
   });
 
+describe("live Paystack amount checks for a per-job charge", () => {
+  const JOB_PRICE_KOBO = 7_500_000;
+  const FEE_KOBO = 112_500;
+
+  const livePaystackReporting = (reported: { amount: number; requested_amount?: number }) => {
+    jest.spyOn(paystack, "isDummyPaystack").mockReturnValue(false);
+    jest.spyOn(paystack, "verifyTransaction").mockImplementation(async (reference) => ({
+      status: true,
+      data: { ...reported, status: "success", currency: "NGN", reference },
+    }));
+  };
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it("verify activates the job when the customer also paid Paystack's fee", async () => {
+    const { user, token, orgId } = await createBillableRecruiter();
+    const draft = await payableDraft(user, orgId);
+    const reference = await payForJob(token, draft.id);
+    livePaystackReporting({ amount: JOB_PRICE_KOBO + FEE_KOBO, requested_amount: JOB_PRICE_KOBO });
+
+    await verifyReference(token, reference).expect(200);
+
+    expect((await jobRepo().findOne({ where: { id: draft.id } }))!.status).toBe(JobStatus.Active);
+  });
+
+  it("verify still refuses a charge for less than the job price", async () => {
+    const { user, token, orgId } = await createBillableRecruiter();
+    const draft = await payableDraft(user, orgId);
+    const reference = await payForJob(token, draft.id);
+    livePaystackReporting({ amount: 10_000, requested_amount: 10_000 });
+
+    await verifyReference(token, reference).expect(400);
+
+    expect((await jobRepo().findOne({ where: { id: draft.id } }))!.status).toBe(JobStatus.Draft);
+  });
+
+  it("charge.success activates the job when the customer also paid Paystack's fee", async () => {
+    const { user, token, orgId } = await createBillableRecruiter();
+    const draft = await payableDraft(user, orgId);
+    const reference = await payForJob(token, draft.id);
+    jest.spyOn(paystack, "isDummyPaystack").mockReturnValue(false);
+
+    await sendWebhook({
+      event: "charge.success",
+      data: {
+        id: 9001,
+        reference,
+        status: "success",
+        amount: JOB_PRICE_KOBO + FEE_KOBO,
+        requested_amount: JOB_PRICE_KOBO,
+        currency: "NGN",
+      },
+    });
+
+    expect((await jobRepo().findOne({ where: { id: draft.id } }))!.status).toBe(JobStatus.Active);
+  });
+});
+
 describe("plan switching keeps plans separate", () => {
   afterEach(() => {
     jest.restoreAllMocks();

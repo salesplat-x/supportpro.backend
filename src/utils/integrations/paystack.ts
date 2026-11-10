@@ -98,6 +98,7 @@ export interface VerifyTransactionResult {
   data: {
     message?: string;
     amount: number;
+    requested_amount?: number;
     status: string;
     plan?: string;
     gateway_response?: string;

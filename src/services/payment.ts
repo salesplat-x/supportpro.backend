@@ -368,6 +368,13 @@ const applySubscriptionRenewal = async (
   return extendedOrganizationId;
 };
 
+/**
+ * When the customer bears Paystack's fees, `amount` is the fee-inclusive charge and
+ * `requested_amount` is what we initialized with, so that is the figure to match.
+ */
+const requestedKobo = (data: { amount?: unknown; requested_amount?: unknown }): number =>
+  Number(data.requested_amount ?? data.amount);
+
 const paidJobId = (payment: Payment): string | null =>
   (payment.initialConfig as { metadata?: { jobId?: string } } | null)?.metadata?.jobId ?? null;
 
@@ -393,7 +400,6 @@ export const verify = async (
     throw new ValidationError("Unable to verify payment");
   }
 
-  const chargedKobo = response.data.amount;
   const currency = response.data.currency;
   const status = response.data.status;
 
@@ -402,7 +408,7 @@ export const verify = async (
       if (currency !== payment.currency) {
         throw new ValidationError("Payment currency does not match");
       }
-      if (chargedKobo !== payment.amountKobo) {
+      if (requestedKobo(response.data) !== payment.amountKobo) {
         throw new ValidationError("Payment amount does not match");
       }
     }
@@ -488,13 +494,14 @@ export const paystackWebhook = async (payload: {
     }
 
     if (!isDummyPaystack()) {
-      const chargedKobo = Number(data.amount);
+      const chargedKobo = requestedKobo(data);
       const currency = data.currency as string | undefined;
-      if (currency && currency !== payment.currency) {
-        await finish();
-        return;
-      }
-      if (Number.isFinite(chargedKobo) && chargedKobo !== payment.amountKobo) {
+      const currencyMismatch = !!currency && currency !== payment.currency;
+      const amountMismatch = Number.isFinite(chargedKobo) && chargedKobo !== payment.amountKobo;
+      if (currencyMismatch || amountMismatch) {
+        logger.error(
+          `Paystack charge ${reference} paid ${chargedKobo} ${currency} but payment ${payment.id} expects ${payment.amountKobo} ${payment.currency}; not fulfilled`
+        );
         await finish();
         return;
       }
