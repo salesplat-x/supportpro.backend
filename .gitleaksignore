@@ -11,3 +11,4 @@ bfcabd7a036a697b999340e92c94e9a08c73e324:tests/setup.ts:stripe-access-token:17
 48da0543882d4fc37d4d34f39a74eea9be7c2de3:tests/goals.test.ts:generic-api-key:686
 # Character set for company access codes, not a secret.
 8427749a215458096f0cd4ced9be6ba1a49caca7:src/services/organization.ts:generic-api-key:1081
+45dcd7c4c51e23c48a2e99a9f38dc5b2d30c29be:src/services/organization.ts:generic-api-key:1081
