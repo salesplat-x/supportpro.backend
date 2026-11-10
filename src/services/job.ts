@@ -36,6 +36,7 @@ import {
 import { TalentEmbedding } from "../entities/TalentEmbedding.js";
 import {
   convertSimilarityToPercentage,
+  escapeLike,
   extractText,
   preprocessText,
   sortDirection,
@@ -261,6 +262,7 @@ export interface FetchJobsParams {
   state?: string;
   country?: string;
   workMode?: string;
+  q?: string;
   limit?: number | string;
   offset?: number | string;
   sort?: string;
@@ -652,6 +654,16 @@ export const fetchAllJobs = async (
 
   if (payload.status) {
     qb.andWhere("job.status = :status", { status: payload.status });
+  }
+
+  const keyword = typeof payload.q === "string" ? payload.q.trim() : "";
+  if (keyword) {
+    qb.andWhere(
+      "(role.name ILIKE :keyword ESCAPE '\\' OR organization.name ILIKE :keyword ESCAPE '\\')",
+      {
+        keyword: `%${escapeLike(keyword)}%`,
+      }
+    );
   }
 
   if (payload.experienceLevel) {

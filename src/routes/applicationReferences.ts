@@ -1,0 +1,40 @@
+import { Router } from "express";
+import { body, param } from "express-validator";
+import * as references from "../controllers/applicationReferences.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
+import { loginRequired, requireVerifiedEmail } from "../middleware/auth.js";
+import { validate } from "../middleware/validate.js";
+
+const router = Router();
+
+const applicationParams = [
+  param("applicationId").isUUID().withMessage("applicationId must be a valid id"),
+];
+
+const refereeBody = [
+  body("name").isString().trim().isLength({ min: 1, max: 120 }).withMessage("name is required"),
+  body("email").isString().trim().isEmail().withMessage("a valid email is required"),
+  body("relationship")
+    .isString()
+    .trim()
+    .isLength({ min: 1, max: 120 })
+    .withMessage("relationship is required"),
+];
+
+router.post(
+  "/applications/:applicationId",
+  loginRequired,
+  requireVerifiedEmail,
+  validate([...applicationParams, ...refereeBody]),
+  asyncHandler(references.addReferee, "add referee")
+);
+
+router.get(
+  "/applications/:applicationId",
+  loginRequired,
+  requireVerifiedEmail,
+  validate(applicationParams),
+  asyncHandler(references.listReferees, "list referees")
+);
+
+export default (app: Router) => app.use("/references", router);

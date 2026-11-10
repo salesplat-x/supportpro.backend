@@ -173,6 +173,35 @@ class EmailService {
     });
   }
 
+  async sendReferenceRequest(details: {
+    to: string;
+    refereeName: string;
+    candidateName: string;
+    jobTitle: string;
+    companyName?: string;
+    ctaUrl: string;
+  }): Promise<void> {
+    const paragraphs = [
+      `Hi ${details.refereeName},`,
+      `${details.candidateName} has applied for ${details.jobTitle}${details.companyName ? ` at ${details.companyName}` : ""} and named you as a referee.`,
+      "Please answer 6 short questions about working with them. It takes a few minutes and needs no account. The link works once and expires in 14 days.",
+    ];
+    const html = renderTemplate("application-follow-up", {
+      jobTitle: details.jobTitle,
+      companyName: details.companyName,
+      paragraphs,
+      ctaLabel: "Give your reference",
+      ctaUrl: details.ctaUrl,
+    });
+    await this.provider.send({
+      to: details.to,
+      subject: `${details.candidateName} asked you for a reference`,
+      html,
+      text: [...paragraphs, `Give your reference: ${details.ctaUrl}`].join("\n\n"),
+      tags: [{ name: "category", value: "reference-request" }],
+    });
+  }
+
   /** Sends a recruiter's message to a shortlisted applicant. Unlike sendEmail it throws, so the caller can record a per-recipient failure without failing the whole batch. */
   async sendApplicantMessage(details: {
     to: string;

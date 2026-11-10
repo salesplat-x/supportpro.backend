@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import * as onboardingService from "../services/onboarding.js";
 import * as userService from "../services/user.js";
+import { getTalentDashboard } from "../services/talentDashboard.js";
 import { sendSuccessResponse } from "../utils/response.js";
 import { hideAssessmentResultsFromCandidate } from "../services/application.js";
 
@@ -74,6 +75,11 @@ export const downloadTalentCv = async (req: Request, res: Response) => {
 export const reprocessCv = async (req: Request, res: Response) => {
   await userService.reprocessCv(req.user.id, req.params["_id"]!);
   sendSuccessResponse(res, "CV re-analyzed", {});
+};
+
+export const dashboard = async (req: Request, res: Response) => {
+  const result = await getTalentDashboard(req.user.id);
+  sendSuccessResponse(res, "Dashboard fetched", result);
 };
 
 export const applications = async (req: Request, res: Response) => {

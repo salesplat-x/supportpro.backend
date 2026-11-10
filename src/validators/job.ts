@@ -179,6 +179,16 @@ export const allJobsQueryValidator = [
   query("country").optional().isString(),
   query("workMode").optional().isString(),
   query("postedBy").optional().isString(),
+  query("q")
+    .optional()
+    .not()
+    .isArray()
+    .withMessage("q must be text")
+    .isString()
+    .withMessage("q must be text")
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage("q must be at most 100 characters"),
 ];
 
 export const topTalentsValidator = [

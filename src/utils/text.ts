@@ -90,6 +90,10 @@ export function convertToSentenceCase(str: string): string {
     .join(" ");
 }
 
+export function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, "\\$&");
+}
+
 export function sortDirection(direction: string): "ASC" | "DESC" {
   return direction?.toLowerCase() === "asc" ? "ASC" : "DESC";
 }
