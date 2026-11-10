@@ -86,6 +86,12 @@ router.get(
   asyncHandler(user.viewProfile, "load profile")
 );
 router.get(
+  "/dashboard",
+  validateAccess([UserRole.Talent]),
+  requireVerifiedEmail,
+  asyncHandler(user.dashboard, "load your dashboard")
+);
+router.get(
   "/applications",
   validateAccess([UserRole.Talent]),
   requireVerifiedEmail,
