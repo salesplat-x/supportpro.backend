@@ -709,6 +709,51 @@ describe("GET /v1/jobs/", () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.data.jobs)).toBe(true);
   });
+
+  describe("keyword search", () => {
+    const titles = async (query: string) => {
+      const res = await request(app).get(`/v1/jobs/?q=${encodeURIComponent(query)}`);
+      expect(res.status).toBe(200);
+      return (res.body.data.jobs as Array<{ role: { name: string } }>).map((job) => job.role.name);
+    };
+
+    beforeEach(async () => {
+      const { user: recruiter } = await createRecruiter();
+      const organizationId = recruiter.activeOrganizationId!;
+      await testDataSource
+        .getRepository(Organization)
+        .update(organizationId, { name: "Brightline Studio" });
+      await createJob(recruiter, await createRole("Product Designer"), { organizationId });
+      await createJob(recruiter, await createRole("Growth 100% Lead"), { organizationId });
+      await createJob(recruiter, await createRole("Data_Analyst"), { organizationId });
+      await createJob(recruiter, await createRole("Product Manager"), {
+        organizationId,
+        status: JobStatus.Closed,
+      });
+    });
+
+    it("matches the role name or the company name, ignoring case", async () => {
+      expect(await titles("product")).toEqual(["Product Designer"]);
+      expect((await titles("BRIGHTLINE")).sort()).toEqual(
+        ["Data_Analyst", "Growth 100% Lead", "Product Designer"].sort()
+      );
+    });
+
+    it("treats % and _ as plain characters", async () => {
+      expect(await titles("100%")).toEqual(["Growth 100% Lead"]);
+      expect(await titles("a_a")).toEqual(["Data_Analyst"]);
+      expect(await titles("%")).toEqual(["Growth 100% Lead"]);
+    });
+
+    it("ignores a blank keyword", async () => {
+      expect(await titles("   ")).toHaveLength(3);
+    });
+
+    it("rejects a repeated or overlong keyword", async () => {
+      expect((await request(app).get("/v1/jobs/?q=a&q=b")).status).toBe(400);
+      expect((await request(app).get(`/v1/jobs/?q=${"x".repeat(101)}`)).status).toBe(400);
+    });
+  });
 });
 
 describe("Job salary validation", () => {
