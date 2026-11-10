@@ -29,6 +29,7 @@ import staffDocumentRoutes from "./staffDocument.js";
 import documentCheckRoutes from "./documentCheck.js";
 import myWorkRoutes from "./myWork.js";
 import emailPreferencesRoutes from "./emailPreferences.js";
+import applicationReferencesRoutes from "./applicationReferences.js";
 
 const v1Router = Router();
 
@@ -62,5 +63,6 @@ adminRoutes(v1Router);
 feedbackRoutes(v1Router);
 voiceRoutes(v1Router);
 emailPreferencesRoutes(v1Router);
+applicationReferencesRoutes(v1Router);
 
 export default v1Router;
