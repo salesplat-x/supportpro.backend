@@ -58,3 +58,5 @@ export { StaffCompletionRequest } from "./StaffCompletionRequest.js";
 export { OrganizationOwnershipTransfer } from "./OrganizationOwnershipTransfer.js";
 export { StuckEmailTimer } from "./StuckEmailTimer.js";
 export { ApplicationReference } from "./ApplicationReference.js";
+export { AiInterview } from "./AiInterview.js";
+export { AiInterviewQuestion } from "./AiInterviewQuestion.js";

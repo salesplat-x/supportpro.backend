@@ -10,6 +10,7 @@ export const AI_FEATURE_KEYS = [
   "scout_cv_scoring",
   "scout_shortlist_summary",
   "personalized_questions",
+  "ai_interview_questions",
   "personality_questions",
   "problem_solving_questions",
   "culture_fit_questions",

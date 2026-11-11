@@ -3347,6 +3347,15 @@ paths:
                   minimum: 1
                   maximum: 10
                   description: How many culture-fit questions each candidate gets.
+                aiInterview:
+                  type: boolean
+                  default: false
+                  description: Switch the AI interview on for this job. It runs after every screening stage; on reaching it the AI writes 5 questions from the job description and the candidate gets an invite email. Needs aiInterviewMode (here or already saved).
+                aiInterviewMode:
+                  type: string
+                  enum: [audio, audio_video]
+                  nullable: true
+                  description: How the candidate answers the AI interview — audio only, or audio and video.
               required:
                 - jobId
                 - name
@@ -3452,6 +3461,15 @@ paths:
                   minimum: 1
                   maximum: 10
                   description: How many culture-fit questions each candidate gets.
+                aiInterview:
+                  type: boolean
+                  default: false
+                  description: Switch the AI interview on for this job. It runs after every screening stage; on reaching it the AI writes 5 questions from the job description and the candidate gets an invite email. Needs aiInterviewMode (here or already saved).
+                aiInterviewMode:
+                  type: string
+                  enum: [audio, audio_video]
+                  nullable: true
+                  description: How the candidate answers the AI interview — audio only, or audio and video.
       security:
         - bearerAuth: []
     delete:
