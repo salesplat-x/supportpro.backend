@@ -8,7 +8,12 @@ import {
   testDataSource,
 } from "./helpers/db.js";
 import { User } from "../src/entities/User.js";
-import { DEFAULT_BILLING_PLAN_KEY, JobStatus, UserRole } from "../src/types/enums.js";
+import {
+  DEFAULT_BILLING_PLAN_KEY,
+  EmploymentType,
+  JobStatus,
+  UserRole,
+} from "../src/types/enums.js";
 import { generateHashedPassword, signToken } from "../src/utils/crypto.js";
 import {
   createJob,
@@ -24,6 +29,8 @@ import { Job } from "../src/entities/Job.js";
 import { Organization } from "../src/entities/Organization.js";
 import { AiRecommendation } from "../src/entities/AiRecommendation.js";
 import { Application } from "../src/entities/Application.js";
+import { Notification } from "../src/entities/Notification.js";
+import { closeExpiredJobs } from "../src/services/job.js";
 import {
   MatchVerdict,
   MatchRecommendation,
@@ -1690,5 +1697,217 @@ describe("PATCH /v1/jobs/:_id — plan gating on activation", () => {
       .send({ status: "active" });
 
     expect(res.status).toBe(200);
+  });
+});
+
+const isoDay = (offsetDays: number): string =>
+  new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+describe("Job post details — department, job type, closing date, share options", () => {
+  const baseJob = {
+    role: "product designer",
+    jobBrief: "Own the payments experience",
+    experienceLevel: "4-6 years",
+    minSalary: 300000,
+    maxSalary: 380000,
+    compensationPeriod: "monthly",
+    workMode: ["remote"],
+  };
+
+  it("saves the four fields on create and shows them on the job", async () => {
+    const { token } = await createRecruiter();
+    const closesAt = isoDay(10);
+
+    const res = await request(app)
+      .post("/v1/jobs/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        ...baseJob,
+        department: "Design",
+        employmentType: "contract",
+        closesAt,
+        shareOptions: true,
+      });
+
+    expect(res.status).toBe(201);
+    const fetched = await request(app)
+      .get(`/v1/jobs/${res.body.data.job.id}`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(fetched.body.data.job).toMatchObject({
+      department: "Design",
+      employmentType: "contract",
+      closesAt,
+      shareOptions: true,
+    });
+  });
+
+  it("defaults to full time with no department, closing date or share options", async () => {
+    const { token } = await createRecruiter();
+
+    const res = await request(app)
+      .post("/v1/jobs/")
+      .set("Authorization", `Bearer ${token}`)
+      .send(baseJob);
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.job).toMatchObject({
+      department: null,
+      employmentType: "full_time",
+      closesAt: null,
+      shareOptions: false,
+    });
+  });
+
+  it("rejects an unknown job type and a past closing date", async () => {
+    const { token } = await createRecruiter();
+
+    const badType = await request(app)
+      .post("/v1/jobs/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ ...baseJob, employmentType: "seasonal" });
+    expect(badType.status).toBe(400);
+
+    const pastDate = await request(app)
+      .post("/v1/jobs/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ ...baseJob, closesAt: isoDay(-1) });
+    expect(pastDate.status).toBe(400);
+  });
+
+  it("an edit may resend a job's own past closing date, but not set a new past one", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const job = await createJob(recruiter, role, {
+      status: JobStatus.Closed,
+      closesAt: isoDay(-3),
+    });
+
+    const same = await request(app)
+      .patch(`/v1/jobs/${job.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ closesAt: isoDay(-3), department: "Design" });
+    expect(same.status).toBe(200);
+
+    const moved = await request(app)
+      .patch(`/v1/jobs/${job.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ closesAt: isoDay(-1) });
+    expect(moved.status).toBe(400);
+  });
+
+  it("publishing is refused while the closing date has passed", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const config = await createAIConfig(recruiter);
+    const job = await createJob(recruiter, role, {
+      status: JobStatus.Closed,
+      aiConfigId: config.id,
+      closesAt: isoDay(-1),
+    });
+
+    const res = await request(app)
+      .patch(`/v1/jobs/${job.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: "active" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toMatch(/closing date/i);
+  });
+});
+
+describe("closeExpiredJobs — the reconciliation sweep closes jobs after their closing date", () => {
+  it("closes only active jobs whose closing date has passed, and notifies their applicants", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const expired = await createJob(recruiter, role, { closesAt: isoDay(-1) });
+    const today = await createJob(recruiter, role, { closesAt: isoDay(0) });
+    const open = await createJob(recruiter, role, { closesAt: null });
+    const draft = await createJob(recruiter, role, {
+      status: JobStatus.Draft,
+      closesAt: isoDay(-1),
+    });
+    const { user: talent } = await createTalent();
+    await createApplication(talent, expired);
+
+    const closed = await closeExpiredJobs();
+
+    expect(closed).toEqual([expired.id]);
+    const statuses = await testDataSource
+      .getRepository(Job)
+      .find({ where: { id: In([expired.id, today.id, open.id, draft.id]) } });
+    const byId = new Map(statuses.map((job) => [job.id, job.status]));
+    expect(byId.get(expired.id)).toBe(JobStatus.Closed);
+    expect(byId.get(today.id)).toBe(JobStatus.Active);
+    expect(byId.get(open.id)).toBe(JobStatus.Active);
+    expect(byId.get(draft.id)).toBe(JobStatus.Draft);
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const notified = await testDataSource
+      .getRepository(Notification)
+      .count({ where: { userId: talent.id } });
+    expect(notified).toBe(1);
+
+    expect(await closeExpiredJobs()).toEqual([]);
+  });
+});
+
+describe("GET /v1/jobs/me — paging, tab counts and locations", () => {
+  async function seedCompanyJobs() {
+    const { user: recruiter, token } = await createRecruiter();
+    const role = await createRole();
+    const organizationId = recruiter.activeOrganizationId!;
+    const make = (status: JobStatus, locationState: string | null, extra: Partial<Job> = {}) =>
+      createJob(recruiter, role, { organizationId, status, locationState, ...extra });
+    await make(JobStatus.Active, "Lagos", { workMode: ["hybrid"] });
+    await make(JobStatus.Active, "lagos");
+    await make(JobStatus.Active, "Abuja", { employmentType: EmploymentType.Contract });
+    await make(JobStatus.Draft, null);
+    await make(JobStatus.PendingPayment, "Lagos");
+    await make(JobStatus.Closed, "Oyo");
+    await make(JobStatus.Suspended, "Oyo");
+    return { token, organizationId };
+  }
+
+  it("returns the page, the filtered total, company-wide counts per tab and the states", async () => {
+    const { token } = await seedCompanyJobs();
+    const { user: other } = await createRecruiter();
+    await createJob(other, await createRole(), { organizationId: other.activeOrganizationId });
+
+    const res = await request(app)
+      .get("/v1/jobs/me?limit=2&offset=0")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.jobs).toHaveLength(2);
+    expect(res.body.data.total).toBe(7);
+    expect(res.body.data.counts).toEqual({ all: 7, active: 3, draft: 2, closed: 2 });
+    expect(res.body.data.states).toEqual(["Abuja", "Lagos", "Oyo"]);
+  });
+
+  it("filters by a list of statuses and by job type, keeping the counts company-wide", async () => {
+    const { token } = await seedCompanyJobs();
+
+    const drafts = await request(app)
+      .get("/v1/jobs/me?status=draft,pending_payment")
+      .set("Authorization", `Bearer ${token}`);
+    expect(drafts.status).toBe(200);
+    expect(drafts.body.data.total).toBe(2);
+    expect(drafts.body.data.counts.all).toBe(7);
+
+    const contracts = await request(app)
+      .get("/v1/jobs/me?employmentType=contract")
+      .set("Authorization", `Bearer ${token}`);
+    expect(contracts.body.data.total).toBe(1);
+    expect(contracts.body.data.jobs[0].locationState).toBe("Abuja");
+  });
+
+  it("rejects an unknown status in the list", async () => {
+    const { token } = await seedCompanyJobs();
+
+    const res = await request(app)
+      .get("/v1/jobs/me?status=active,archived")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(400);
   });
 });

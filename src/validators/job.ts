@@ -7,6 +7,7 @@ import {
   ApplicationType,
   ApplicationStatus,
   CompensationPeriod,
+  EmploymentType,
   MatchVerdict,
 } from "../types/enums.js";
 import { workModeNeedsLocation } from "../utils/workMode.js";
@@ -67,6 +68,27 @@ export const generateJobFieldValidator = [
   }),
 ];
 
+const jobPostDetailValidators = [
+  body("department")
+    .optional({ values: "null" })
+    .isString()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage("department must be at most 100 characters"),
+  body("employmentType")
+    .optional()
+    .isIn(Object.values(EmploymentType))
+    .withMessage(`employmentType must be one of: ${Object.values(EmploymentType).join(", ")}`),
+  body("closesAt")
+    .optional({ values: "null" })
+    .isDate({ format: "YYYY-MM-DD", strictMode: true })
+    .withMessage("closesAt must be a date like 2026-11-24"),
+  body("shareOptions")
+    .optional()
+    .isBoolean({ strict: true })
+    .withMessage("shareOptions must be true or false"),
+];
+
 export const createJobValidator = [
   body("role").notEmpty().trim().withMessage("Role is required"),
   body("aiConfig").optional().isString(),
@@ -113,6 +135,7 @@ export const createJobValidator = [
   body("skills.*").optional().isString(),
   body("goals").optional().isArray(),
   body("goals.*").optional().isString(),
+  ...jobPostDetailValidators,
 ];
 
 export const updateJobValidator = [
@@ -165,6 +188,7 @@ export const updateJobValidator = [
   body("requirements").optional().isString(),
   body("skills").optional().isArray(),
   body("goals").optional().isArray(),
+  ...jobPostDetailValidators,
 ];
 
 export const allJobsQueryValidator = [
@@ -178,6 +202,19 @@ export const allJobsQueryValidator = [
   query("state").optional().isString(),
   query("country").optional().isString(),
   query("workMode").optional().isString(),
+  query("status")
+    .optional()
+    .isString()
+    .custom((value: string) =>
+      value.split(",").every((status) => (Object.values(JobStatus) as string[]).includes(status))
+    )
+    .withMessage(
+      `status must be a comma-separated list of: ${Object.values(JobStatus).join(", ")}`
+    ),
+  query("employmentType")
+    .optional()
+    .isIn(Object.values(EmploymentType))
+    .withMessage(`employmentType must be one of: ${Object.values(EmploymentType).join(", ")}`),
   query("postedBy").optional().isString(),
   query("q")
     .optional()

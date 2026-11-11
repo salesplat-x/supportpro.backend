@@ -8,7 +8,7 @@ import {
   UpdateDateColumn,
   Index,
 } from "typeorm";
-import { CompensationPeriod, JobStatus } from "../types/enums.js";
+import { CompensationPeriod, EmploymentType, JobStatus } from "../types/enums.js";
 import type { Role } from "./Role.js";
 import type { User } from "./User.js";
 import type { AIConfig } from "./AIConfig.js";
@@ -92,6 +92,19 @@ export class Job {
 
   @Column({ type: "simple-array", nullable: true, default: null })
   goals!: string[] | null;
+
+  @Column({ type: "varchar", length: 100, nullable: true, default: null })
+  department!: string | null;
+
+  @Column({ type: "enum", enum: EmploymentType, default: EmploymentType.FullTime })
+  employmentType!: EmploymentType;
+
+  // The last day applications are taken; the reconciliation sweep closes the job after it.
+  @Column({ type: "date", nullable: true, default: null })
+  closesAt!: string | null;
+
+  @Column({ default: false })
+  shareOptions!: boolean;
 
   @Column({ default: 0 })
   noOfApplicants!: number;

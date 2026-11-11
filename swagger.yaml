@@ -1951,6 +1951,21 @@ paths:
                   type: array
                   items:
                     type: string
+                department:
+                  type: string
+                  maxLength: 100
+                  nullable: true
+                employmentType:
+                  type: string
+                  enum: [full_time, part_time, contract, internship]
+                closesAt:
+                  type: string
+                  format: date
+                  nullable: true
+                  description: Last day applications are taken. Must be today or later; the job closes itself after it.
+                shareOptions:
+                  type: boolean
+                  description: Whether the job offers share options.
               required:
                 - role
                 - jobBrief
@@ -2105,6 +2120,21 @@ paths:
                   type: array
                   items:
                     type: string
+                department:
+                  type: string
+                  maxLength: 100
+                  nullable: true
+                employmentType:
+                  type: string
+                  enum: [full_time, part_time, contract, internship]
+                closesAt:
+                  type: string
+                  format: date
+                  nullable: true
+                  description: Last day applications are taken. Must be today or later; the job closes itself after it.
+                shareOptions:
+                  type: boolean
+                  description: Whether the job offers share options.
       security:
         - bearerAuth: []
     get:
@@ -2171,6 +2201,25 @@ paths:
           required: false
           schema:
             type: string
+        - name: status
+          in: query
+          required: false
+          description: Comma-separated statuses, e.g. draft,pending_payment.
+          schema:
+            type: string
+        - name: employmentType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [full_time, part_time, contract, internship]
+        - name: q
+          in: query
+          required: false
+          description: Matches the role or company name.
+          schema:
+            type: string
+            maxLength: 100
         - name: limit
           in: query
           required: false
@@ -2196,6 +2245,34 @@ paths:
             application/json:
               schema:
                 type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      jobs:
+                        type: array
+                        items:
+                          type: object
+                      total:
+                        type: integer
+                        description: Jobs matching the filters, before paging.
+                      counts:
+                        type: object
+                        description: Every job at the company, by tab. draft includes pending_payment; closed includes suspended.
+                        properties:
+                          all:
+                            type: integer
+                          active:
+                            type: integer
+                          draft:
+                            type: integer
+                          closed:
+                            type: integer
+                      states:
+                        type: array
+                        description: The distinct states the company's jobs are in.
+                        items:
+                          type: string
       security:
         - bearerAuth: []
   /jobs/talents/{jobId}:

@@ -55,7 +55,7 @@ export const fetchAll = async (req: Request, res: Response) => {
 
 export const jobsPosted = async (req: Request, res: Response) => {
   const result = await jobService.fetchRecruiterJobs(req.user.id, req.query);
-  sendSuccessResponse(res, "Jobs fetched", { jobs: result });
+  sendSuccessResponse(res, "Jobs fetched", result);
 };
 
 export const fetch = async (req: Request, res: Response) => {
