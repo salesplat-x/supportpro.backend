@@ -202,7 +202,10 @@ export const matchJobValidator = [
   query("incomplete").optional().isBoolean().toBoolean(),
 ];
 
-export const applyValidator = [param("jobId").notEmpty().withMessage("Job ID is required")];
+export const applyValidator = [
+  param("jobId").notEmpty().withMessage("Job ID is required"),
+  body("source").optional().isString().isLength({ min: 1, max: 50 }),
+];
 
 export const retryVerdictsValidator = [
   param("jobId").notEmpty().withMessage("Job ID is required"),
@@ -256,6 +259,7 @@ export const jobApplicationsQueryValidator = [
     .isIn(Object.values(ApplicationStatus))
     .withMessage("Invalid applicationStatus"),
   query("maxSalary").optional().isFloat().toFloat(),
+  query("source").optional().isString().isLength({ min: 1, max: 50 }),
   query("offset").optional().isInt({ min: 0 }).toInt(),
   query("skip").optional().isInt({ min: 0 }).toInt(),
   query("limit").optional().isInt({ min: 1, max: 200 }).toInt(),

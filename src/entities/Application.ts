@@ -105,6 +105,9 @@ export class Application {
   @Column({ type: "varchar", nullable: true, default: null })
   mbtiType!: string | null;
 
+  @Column({ type: "varchar", length: 50, nullable: true, default: null })
+  source!: string | null;
+
   /** Day 6: the AI's 0-100 judgement of how this personality fits the job. */
   @Column({ type: "float", nullable: true, default: null })
   personalityFitScore!: number | null;
