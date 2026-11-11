@@ -24,7 +24,7 @@ import { processNextStage } from "../src/services/applicationStage.js";
 import { drainInFlightAiInterviews, startAiInterview } from "../src/services/aiInterview.js";
 import * as AI from "../src/utils/integrations/openai.js";
 import EmailService from "../src/utils/integrations/email/emailService.js";
-import { CreateAiInterviews1789003000000 } from "../src/migrations/1789003000000-CreateAiInterviews.js";
+import { CreateAiInterviews1789003050000 } from "../src/migrations/1789003050000-CreateAiInterviews.js";
 
 const mockSendInvite = jest.fn();
 
@@ -338,7 +338,7 @@ describe("CreateAiInterviews migration", () => {
 
   it("creates the interview tables, switch columns and stage, and down removes them", async () => {
     const runner = testDataSource.createQueryRunner();
-    const migration = new CreateAiInterviews1789003000000();
+    const migration = new CreateAiInterviews1789003050000();
     try {
       await runner.query(`DROP TABLE IF EXISTS "ai_interview_questions"`);
       await runner.query(`DROP TABLE IF EXISTS "ai_interviews"`);
