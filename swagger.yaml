@@ -3807,3 +3807,355 @@ paths:
           description: Application not found
       security:
         - bearerAuth: []
+  /interviews/{interviewId}/questions/{questionId}/recording:
+    put:
+      summary: Candidate uploads an interview answer recording
+      description: >-
+        One audio or video file up to 25 MB, stored privately. Only the candidate of
+        the interview can upload; an audio-only interview takes audio files only. A new upload
+        replaces the earlier recording for that question.
+      tags:
+        - interviews
+      parameters:
+        - name: interviewId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: questionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                recording:
+                  type: string
+                  format: binary
+                  description: audio/* or video/*, at most 25 MB.
+              required:
+                - recording
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      questionId:
+                        type: string
+                      recordedAt:
+                        type: string
+                        format: date-time
+                      size:
+                        type: integer
+                      mimeType:
+                        type: string
+        "400":
+          description: No file, not audio or video, over 25 MB, or video on an audio-only interview
+        "401":
+          description: Not logged in
+        "403":
+          description: Not the candidate of this interview
+        "404":
+          description: Interview or question not found
+        "503":
+          description: Recording storage is not set up (DO_SPACES_* missing)
+      security:
+        - bearerAuth: []
+    get:
+      summary: Open an interview answer recording
+      description: >-
+        Streams the recording. Only the candidate and members of the company that
+        posted the job can open it; everyone else, platform admins included, gets 403.
+      tags:
+        - interviews
+      parameters:
+        - name: interviewId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: questionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The recording
+          content:
+            audio/*:
+              schema:
+                type: string
+                format: binary
+            video/*:
+              schema:
+                type: string
+                format: binary
+        "401":
+          description: Not logged in
+        "403":
+          description: Not the candidate or a member of the posting company
+        "404":
+          description: Interview, question or recording not found
+        "503":
+          description: Recording storage is not set up (DO_SPACES_* missing)
+      security:
+        - bearerAuth: []
+  /interviews/{interviewId}:
+    get:
+      summary: Candidate loads an AI interview with its questions and where to resume
+      description: >-
+        Returns the interview's questions in order, which ones have an answer
+        recording, and the first unanswered question (nextQuestionId, null once all are
+        answered). Only the candidate of the interview can open it; the company and other
+        users get 403.
+      tags:
+        - interviews
+      parameters:
+        - name: interviewId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The interview with its questions and answer progress
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      jobId:
+                        type: string
+                        format: uuid
+                      mode:
+                        type: string
+                        enum:
+                          - audio
+                          - audio_video
+                      status:
+                        type: string
+                        enum:
+                          - pending
+                          - ready
+                          - invited
+                          - failed
+                      totalQuestions:
+                        type: integer
+                      answeredCount:
+                        type: integer
+                      nextQuestionId:
+                        type: string
+                        format: uuid
+                        nullable: true
+                      questions:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              format: uuid
+                            position:
+                              type: integer
+                            question:
+                              type: string
+                            answered:
+                              type: boolean
+                            recordedAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+        "401":
+          description: Not logged in
+        "403":
+          description: Not the candidate of this interview
+        "404":
+          description: Interview not found
+      security:
+        - bearerAuth: []
+  /interviews/{interviewId}/transcripts:
+    get:
+      summary: Posting company reads the answer transcripts of an AI interview
+      description: >-
+        Returns each question of the interview with whether it has a recording and
+        its transcript. A background job writes the transcript after the candidate uploads
+        a recording; transcriptStatus is pending while it waits or retries, completed once
+        saved, and failed when the recording is too long, unreadable or silent, or the
+        retries ran out. Only members of the company that posted the job can read it; the
+        candidate and other users get 403.
+      tags:
+        - interviews
+      parameters:
+        - name: interviewId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Each question with its recording state and transcript
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      interviewId:
+                        type: string
+                      questions:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            questionId:
+                              type: string
+                            position:
+                              type: integer
+                            isFollowUp:
+                              type: boolean
+                              description: True for a follow-up asked after the answer at the same position.
+                            question:
+                              type: string
+                            recorded:
+                              type: boolean
+                            transcriptStatus:
+                              type: string
+                              nullable: true
+                              enum: [pending, completed, failed]
+                            transcript:
+                              type: string
+                              nullable: true
+                            transcribedAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+        "401":
+          description: Login required
+        "403":
+          description: Not a member of the company that posted the job
+        "404":
+          description: Interview not found
+      security:
+        - bearerAuth: []
+  /interviews/{interviewId}/assessment:
+    get:
+      summary: Posting company reads the advice on an interview (scores, summary, flags)
+      description: >-
+        Once every answer is in and transcribed, the scoring covers clear speaking, fit for the
+        role and confidence from 1 to 5, each with a reason, writes a short summary and lists
+        flags worth a closer look. The scores are advice only: nothing here changes the
+        application or the candidate's status. status is pending while the scoring waits or
+        retries, completed once saved, and failed when the retries ran out; scores, summary and
+        flags are null until it is completed. Only members of the company that posted the job
+        can read it; the candidate and other users get 403.
+      tags:
+        - interviews
+      parameters:
+        - name: interviewId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The advice for the interview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      interviewId:
+                        type: string
+                      status:
+                        type: string
+                        nullable: true
+                        enum: [pending, completed, failed]
+                      scores:
+                        type: object
+                        nullable: true
+                        properties:
+                          clearSpeaking:
+                            type: object
+                            properties:
+                              score:
+                                type: integer
+                                minimum: 1
+                                maximum: 5
+                              reason:
+                                type: string
+                          fitForRole:
+                            type: object
+                            properties:
+                              score:
+                                type: integer
+                                minimum: 1
+                                maximum: 5
+                              reason:
+                                type: string
+                          confidence:
+                            type: object
+                            properties:
+                              score:
+                                type: integer
+                                minimum: 1
+                                maximum: 5
+                              reason:
+                                type: string
+                      summary:
+                        type: string
+                        nullable: true
+                      flags:
+                        type: array
+                        nullable: true
+                        items:
+                          type: string
+                      scoredAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+        "401":
+          description: Login required
+        "403":
+          description: Not a member of the company that posted the job; the candidate is refused too
+        "404":
+          description: Interview not found
+      security:
+        - bearerAuth: []
