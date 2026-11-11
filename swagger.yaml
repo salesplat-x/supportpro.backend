@@ -4159,3 +4159,203 @@ paths:
           description: Interview not found
       security:
         - bearerAuth: []
+  /references/respond/{token}:
+    get:
+      summary: Referee opens the link from the reference email
+      description: >-
+        Public, no account. Returns who is asking and the six questions. A link that does not
+        exist is 404; a link that has expired or already been answered is 410.
+      tags:
+        - references
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The questions to answer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      refereeName:
+                        type: string
+                      candidateName:
+                        type: string
+                      jobTitle:
+                        type: string
+                      companyName:
+                        type: string
+                        nullable: true
+                      expiresAt:
+                        type: string
+                        format: date-time
+                      questions:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                            question:
+                              type: string
+                            required:
+                              type: boolean
+        "400":
+          description: The link is malformed
+        "404":
+          description: The link does not exist
+        "410":
+          description: The link has expired or was already used
+    post:
+      summary: Referee sends the answers
+      description: >-
+        Public, no account. The first five answers are required and the last is optional;
+        each is at most 2000 characters. The link works once: a second use or an expired link
+        is 410.
+      tags:
+        - references
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [answers]
+              properties:
+                answers:
+                  type: object
+                  required: [worked_together, strengths, improve, reliability, hire_again]
+                  properties:
+                    worked_together:
+                      type: string
+                    strengths:
+                      type: string
+                    improve:
+                      type: string
+                    reliability:
+                      type: string
+                    hire_again:
+                      type: string
+                    anything_else:
+                      type: string
+      responses:
+        "200":
+          description: The answers were saved
+        "400":
+          description: A required answer is missing or too long
+        "404":
+          description: The link does not exist
+        "410":
+          description: The link has expired or was already used
+  /references/applications/{applicationId}/answers:
+    get:
+      summary: Posting company reads the references of an application
+      description: >-
+        Returns every referee named for the application with their status (not_sent, sent,
+        answered or expired) and, once they have answered, their answers with the question
+        text. Only members of the company that posted the job can read it; the candidate and
+        other users get 403.
+      tags:
+        - references
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The referees and their answers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      applicationId:
+                        type: string
+                      references:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            name:
+                              type: string
+                            email:
+                              type: string
+                            relationship:
+                              type: string
+                            status:
+                              type: string
+                              enum: [not_sent, sent, answered, expired]
+                            answers:
+                              type: array
+                              nullable: true
+                              items:
+                                type: object
+                                properties:
+                                  key:
+                                    type: string
+                                  question:
+                                    type: string
+                                  answer:
+                                    type: string
+        "401":
+          description: Login required
+        "403":
+          description: Only the company that posted the job can read the references
+        "404":
+          description: Application not found
+      security:
+        - bearerAuth: []
+  /references/{referenceId}/resend:
+    post:
+      summary: Posting company sends a referee a new link
+      description: >-
+        Replaces the referee's link with a new one that works once and expires after 14 days,
+        and emails it. The old link stops working. A referee who already answered cannot be
+        sent another request (409). Only members of the company that posted the job can resend.
+      tags:
+        - references
+      parameters:
+        - name: referenceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The new link was issued; status is not_sent if the email failed
+        "401":
+          description: Login required
+        "403":
+          description: Only the company that posted the job can resend
+        "404":
+          description: Reference not found
+        "409":
+          description: This referee has already answered
+      security:
+        - bearerAuth: []
