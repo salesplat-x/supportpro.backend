@@ -36,6 +36,13 @@ export enum CompensationPeriod {
   Yearly = "yearly",
 }
 
+export enum EmploymentType {
+  FullTime = "full_time",
+  PartTime = "part_time",
+  Contract = "contract",
+  Internship = "internship",
+}
+
 export enum WorkMode {
   Remote = "remote",
   OnSite = "onSite",

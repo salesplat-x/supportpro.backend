@@ -21,6 +21,7 @@ import {
   ApplicationStatus,
   ScreeningStage,
   CompensationPeriod,
+  EmploymentType,
   ExperienceLevel,
   MatchVerdict,
   MatchVerdictStatus,
@@ -42,6 +43,7 @@ import {
   sortDirection,
 } from "../utils/text.js";
 import { workModeNeedsLocation } from "../utils/workMode.js";
+import { resultRows } from "../utils/durableJobs.js";
 import { createStages } from "./aiConfig.js";
 import {
   computeCvSimilarityScore,
@@ -61,6 +63,8 @@ const jobRepo = () => AppDataSource.getRepository(Job);
 const roleRepo = () => AppDataSource.getRepository(Role);
 
 const MAX_PAGE_SIZE = 100;
+
+const todayUtc = (): string => new Date().toISOString().slice(0, 10);
 
 /**
  * GET /jobs and GET /jobs/:_id are optionalAuth, so everything they return is
@@ -211,6 +215,10 @@ export interface CreateJobPayload {
   requirements?: string | null;
   skills?: string[] | null;
   goals?: string[] | null;
+  department?: string | null;
+  employmentType?: EmploymentType;
+  closesAt?: string | null;
+  shareOptions?: boolean;
 }
 
 export interface UpdateJobPayload extends Partial<CreateJobPayload> {
@@ -240,6 +248,10 @@ const EDITABLE_JOB_FIELDS: readonly EditableJobField[] = [
   "requirements",
   "skills",
   "goals",
+  "department",
+  "employmentType",
+  "closesAt",
+  "shareOptions",
 ];
 
 const pickEditableJobFields = (
@@ -249,12 +261,14 @@ const pickEditableJobFields = (
   for (const field of EDITABLE_JOB_FIELDS) {
     if (payload[field] !== undefined) picked[field] = payload[field];
   }
+  if (picked.department === "") picked.department = null;
   return picked as Partial<Pick<CreateJobPayload, EditableJobField>>;
 };
 
 export interface FetchJobsParams {
   roleId?: string;
-  status?: JobStatus;
+  status?: string;
+  employmentType?: string;
   experienceLevel?: string;
   postedBy?: string;
   organizationId?: string;
@@ -308,6 +322,10 @@ export const createJob = async (userId: string, payload: CreateJobPayload): Prom
     }
   } else {
     throw new ValidationError("Role is required");
+  }
+
+  if (payload.closesAt && payload.closesAt < todayUtc()) {
+    throw new ValidationError("The closing date can't be in the past");
   }
 
   if (payload.aiConfigId) {
@@ -509,6 +527,45 @@ export const generateJobField = async (
   return { text };
 };
 
+// Fire and forget, chunked to avoid bulk write timeouts.
+const notifyApplicantsOfStatus = (jobId: string, status: JobStatus): void => {
+  (async () => {
+    const applications = await applicationRepo().find({ where: { jobId } });
+    const notifications = applications
+      .filter(
+        (app) =>
+          app.status !== ApplicationStatus.Shortlisted && app.status !== ApplicationStatus.Rejected
+      )
+      .map((app) =>
+        notificationRepo().create({
+          userId: app.talentId,
+          message: `Applications for this job has been ${status}`,
+        })
+      );
+    const CHUNK = 500;
+    for (let i = 0; i < notifications.length; i += CHUNK) {
+      await notificationRepo().save(notifications.slice(i, i + CHUNK));
+    }
+  })().catch((err: Error) =>
+    logger.error(`Notification fan-out failed for job ${jobId}: ${err.message}`)
+  );
+};
+
+/** Closes active jobs whose closing date has passed. Called by the reconciliation sweep. */
+export const closeExpiredJobs = async (): Promise<string[]> => {
+  const rows = resultRows(
+    await AppDataSource.query(
+      `UPDATE "jobs" SET "status" = $1, "updatedAt" = now()
+       WHERE "status" = $2 AND "closesAt" < CURRENT_DATE
+       RETURNING "id"`,
+      [JobStatus.Closed, JobStatus.Active]
+    )
+  ) as Array<{ id: string }>;
+  const ids = rows.map((row) => row.id);
+  for (const id of ids) notifyApplicantsOfStatus(id, JobStatus.Closed);
+  return ids;
+};
+
 export const updateJob = async (
   userId: string,
   userRole: UserRole,
@@ -526,11 +583,19 @@ export const updateJob = async (
 
   await assertRecruiterJobAccess(userId, userRole, existingJob);
 
+  if (update.closesAt && update.closesAt !== existingJob.closesAt && update.closesAt < todayUtc()) {
+    throw new ValidationError("The closing date can't be in the past");
+  }
+
   if (update.status === JobStatus.Active) {
     const nextAiConfigId =
       update.aiConfigId !== undefined ? update.aiConfigId : existingJob.aiConfigId;
     if (!nextAiConfigId) {
       throw new ValidationError("This job cannot be activated until an AI configuration is added");
+    }
+    const nextClosesAt = update.closesAt !== undefined ? update.closesAt : existingJob.closesAt;
+    if (nextClosesAt && nextClosesAt < todayUtc()) {
+      throw new ValidationError("Move the closing date to today or later before publishing");
     }
 
     // Plan gating is org-wide, shared across every recruiter at the company — only
@@ -567,31 +632,8 @@ export const updateJob = async (
     roleId = existingRole.id;
   }
 
-  // Notify applicants when job status changes — fire and forget, chunked to avoid bulk write timeouts
   if (update.status && update.status !== existingJob.status) {
-    const statusLabel = update.status;
-    const jobId = id;
-    (async () => {
-      const applications = await applicationRepo().find({ where: { jobId } });
-      const notifications = applications
-        .filter(
-          (app) =>
-            app.status !== ApplicationStatus.Shortlisted &&
-            app.status !== ApplicationStatus.Rejected
-        )
-        .map((app) =>
-          notificationRepo().create({
-            userId: app.talentId,
-            message: `Applications for this job has been ${statusLabel}`,
-          })
-        );
-      const CHUNK = 500;
-      for (let i = 0; i < notifications.length; i += CHUNK) {
-        await notificationRepo().save(notifications.slice(i, i + CHUNK));
-      }
-    })().catch((err: Error) =>
-      logger.error(`Notification fan-out failed for job ${id}: ${err.message}`)
-    );
+    notifyApplicantsOfStatus(id, update.status);
   }
 
   const updateData = {
@@ -628,16 +670,7 @@ export const deleteJob = async (userId: string, jobId: string): Promise<void> =>
   });
 };
 
-export const fetchAllJobs = async (
-  payload: FetchJobsParams,
-  options: PublicJobOptions = {}
-): Promise<
-  (PublicJob & {
-    hasApplied?: boolean;
-    applicationStage?: string | null;
-    applicationStages?: Record<string, string> | null;
-  })[]
-> => {
+const buildJobsQuery = async (payload: FetchJobsParams) => {
   const qb = jobRepo()
     .createQueryBuilder("job")
     .leftJoinAndSelect("job.role", "role")
@@ -653,7 +686,13 @@ export const fetchAllJobs = async (
   }
 
   if (payload.status) {
-    qb.andWhere("job.status = :status", { status: payload.status });
+    qb.andWhere("job.status IN (:...statuses)", { statuses: payload.status.split(",") });
+  }
+
+  if (payload.employmentType) {
+    qb.andWhere('job."employmentType" = :employmentType', {
+      employmentType: payload.employmentType,
+    });
   }
 
   const keyword = typeof payload.q === "string" ? payload.q.trim() : "";
@@ -715,10 +754,27 @@ export const fetchAllJobs = async (
     );
   }
 
-  const limit = Math.min(Number(payload.limit) || 50, MAX_PAGE_SIZE);
-  const offset = Number(payload.offset) || 0;
-  const order = sortDirection(payload.sort ?? "desc");
+  return qb;
+};
 
+const pageOf = (payload: FetchJobsParams) => ({
+  limit: Math.min(Number(payload.limit) || 50, MAX_PAGE_SIZE),
+  offset: Number(payload.offset) || 0,
+  order: sortDirection(payload.sort ?? "desc"),
+});
+
+export const fetchAllJobs = async (
+  payload: FetchJobsParams,
+  options: PublicJobOptions = {}
+): Promise<
+  (PublicJob & {
+    hasApplied?: boolean;
+    applicationStage?: string | null;
+    applicationStages?: Record<string, string> | null;
+  })[]
+> => {
+  const qb = await buildJobsQuery(payload);
+  const { limit, offset, order } = pageOf(payload);
   const jobs = await qb.orderBy("job.createdAt", order).skip(offset).take(limit).getMany();
 
   if (!payload.talentId || jobs.length === 0) {
@@ -743,23 +799,90 @@ export const fetchAllJobs = async (
   });
 };
 
+export interface RecruiterJobCounts {
+  all: number;
+  active: number;
+  draft: number;
+  closed: number;
+}
+
+export interface RecruiterJobsResult {
+  jobs: PublicJob[];
+  total: number;
+  counts: RecruiterJobCounts;
+  states: string[];
+}
+
+const COUNT_GROUP: Record<JobStatus, keyof Omit<RecruiterJobCounts, "all">> = {
+  [JobStatus.Active]: "active",
+  [JobStatus.Draft]: "draft",
+  [JobStatus.PendingPayment]: "draft",
+  [JobStatus.Closed]: "closed",
+  [JobStatus.Suspended]: "closed",
+};
+
+const companyJobCounts = async (organizationId: string): Promise<RecruiterJobCounts> => {
+  const rows = await jobRepo()
+    .createQueryBuilder("job")
+    .select("job.status", "status")
+    .addSelect("COUNT(*)", "count")
+    .where("job.organization_id = :organizationId", { organizationId })
+    .groupBy("job.status")
+    .getRawMany<{ status: JobStatus; count: string }>();
+  const counts: RecruiterJobCounts = { all: 0, active: 0, draft: 0, closed: 0 };
+  for (const row of rows) {
+    const count = Number(row.count);
+    counts.all += count;
+    counts[COUNT_GROUP[row.status]] += count;
+  }
+  return counts;
+};
+
+const companyJobStates = async (organizationId: string): Promise<string[]> => {
+  const rows = await jobRepo()
+    .createQueryBuilder("job")
+    .select('DISTINCT TRIM(job."locationState")', "state")
+    .where("job.organization_id = :organizationId", { organizationId })
+    .andWhere("TRIM(job.\"locationState\") <> ''")
+    .getRawMany<{ state: string }>();
+  const byKey = new Map<string, string>();
+  for (const { state } of rows) {
+    const key = state.toLowerCase();
+    const kept = byKey.get(key);
+    if (!kept || (kept[0] === kept[0]!.toLowerCase() && state[0] !== state[0]!.toLowerCase())) {
+      byKey.set(key, state);
+    }
+  }
+  return [...byKey.values()].sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
+};
+
 export const fetchRecruiterJobs = async (
   userId: string,
   payload: FetchJobsParams
-): Promise<
-  (PublicJob & {
-    hasApplied?: boolean;
-    applicationStage?: string | null;
-    applicationStages?: Record<string, string> | null;
-  })[]
-> => {
+): Promise<RecruiterJobsResult> => {
   const activeOrgId = await getActiveOrganizationId(userId);
-  if (!activeOrgId) return [];
+  if (!activeOrgId) {
+    return { jobs: [], total: 0, counts: { all: 0, active: 0, draft: 0, closed: 0 }, states: [] };
+  }
 
-  return fetchAllJobs(
-    { ...payload, postedBy: undefined, organizationId: activeOrgId },
-    { includeApplicantCount: true }
-  );
+  const qb = await buildJobsQuery({
+    ...payload,
+    postedBy: undefined,
+    organizationId: activeOrgId,
+  });
+  const { limit, offset, order } = pageOf(payload);
+  const [[jobs, total], counts, states] = await Promise.all([
+    qb.orderBy("job.createdAt", order).skip(offset).take(limit).getManyAndCount(),
+    companyJobCounts(activeOrgId),
+    companyJobStates(activeOrgId),
+  ]);
+
+  return {
+    jobs: jobs.map((job) => toPublicJob(job, { includeApplicantCount: true })),
+    total,
+    counts,
+    states,
+  };
 };
 
 export const fetchJob = async (
@@ -1037,6 +1160,7 @@ export interface JobApplicationsParams {
   matchVerdict?: MatchVerdict;
   experience?: string;
   maxSalary?: string | number;
+  source?: string;
   offset?: number | string;
   limit?: number | string;
   /** Defaults to "aiMatch" — best AI match first, matching what the applicant table shows. */
@@ -1106,6 +1230,12 @@ export const jobApplications = async (
 
   if (payload.experience) {
     qb.andWhere("talent.experience = :experience", { experience: payload.experience });
+  }
+
+  if (payload.source) {
+    qb.andWhere("LOWER(application.source) = :source", {
+      source: payload.source.trim().toLowerCase(),
+    });
   }
 
   if (payload.maxSalary) {
@@ -1276,10 +1406,11 @@ export const retryMissingVerdicts = async (
 
 export interface ApplyPayload {
   jobId: string;
+  source?: string;
 }
 
 export const apply = async (user: User, payload: ApplyPayload): Promise<Application> => {
-  const { jobId } = payload;
+  const { jobId, source } = payload;
 
   const job = await jobRepo().findOne({
     where: { id: jobId },
@@ -1312,6 +1443,7 @@ export const apply = async (user: User, payload: ApplyPayload): Promise<Applicat
     talentId: user.id,
     jobId,
     applicationType: ApplicationType.Application,
+    source: source?.trim().toLowerCase() || null,
     stages,
     recruiterId: job.postedById,
     currentStage: entryStage as Application["currentStage"],

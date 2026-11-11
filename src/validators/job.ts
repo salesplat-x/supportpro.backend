@@ -7,6 +7,7 @@ import {
   ApplicationType,
   ApplicationStatus,
   CompensationPeriod,
+  EmploymentType,
   MatchVerdict,
 } from "../types/enums.js";
 import { workModeNeedsLocation } from "../utils/workMode.js";
@@ -67,6 +68,27 @@ export const generateJobFieldValidator = [
   }),
 ];
 
+const jobPostDetailValidators = [
+  body("department")
+    .optional({ values: "null" })
+    .isString()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage("department must be at most 100 characters"),
+  body("employmentType")
+    .optional()
+    .isIn(Object.values(EmploymentType))
+    .withMessage(`employmentType must be one of: ${Object.values(EmploymentType).join(", ")}`),
+  body("closesAt")
+    .optional({ values: "null" })
+    .isDate({ format: "YYYY-MM-DD", strictMode: true })
+    .withMessage("closesAt must be a date like 2026-11-24"),
+  body("shareOptions")
+    .optional()
+    .isBoolean({ strict: true })
+    .withMessage("shareOptions must be true or false"),
+];
+
 export const createJobValidator = [
   body("role").notEmpty().trim().withMessage("Role is required"),
   body("aiConfig").optional().isString(),
@@ -113,6 +135,7 @@ export const createJobValidator = [
   body("skills.*").optional().isString(),
   body("goals").optional().isArray(),
   body("goals.*").optional().isString(),
+  ...jobPostDetailValidators,
 ];
 
 export const updateJobValidator = [
@@ -165,6 +188,7 @@ export const updateJobValidator = [
   body("requirements").optional().isString(),
   body("skills").optional().isArray(),
   body("goals").optional().isArray(),
+  ...jobPostDetailValidators,
 ];
 
 export const allJobsQueryValidator = [
@@ -178,6 +202,19 @@ export const allJobsQueryValidator = [
   query("state").optional().isString(),
   query("country").optional().isString(),
   query("workMode").optional().isString(),
+  query("status")
+    .optional()
+    .isString()
+    .custom((value: string) =>
+      value.split(",").every((status) => (Object.values(JobStatus) as string[]).includes(status))
+    )
+    .withMessage(
+      `status must be a comma-separated list of: ${Object.values(JobStatus).join(", ")}`
+    ),
+  query("employmentType")
+    .optional()
+    .isIn(Object.values(EmploymentType))
+    .withMessage(`employmentType must be one of: ${Object.values(EmploymentType).join(", ")}`),
   query("postedBy").optional().isString(),
   query("q")
     .optional()
@@ -202,7 +239,10 @@ export const matchJobValidator = [
   query("incomplete").optional().isBoolean().toBoolean(),
 ];
 
-export const applyValidator = [param("jobId").notEmpty().withMessage("Job ID is required")];
+export const applyValidator = [
+  param("jobId").notEmpty().withMessage("Job ID is required"),
+  body("source").optional().isString().isLength({ min: 1, max: 50 }),
+];
 
 export const retryVerdictsValidator = [
   param("jobId").notEmpty().withMessage("Job ID is required"),
@@ -256,7 +296,26 @@ export const jobApplicationsQueryValidator = [
     .isIn(Object.values(ApplicationStatus))
     .withMessage("Invalid applicationStatus"),
   query("maxSalary").optional().isFloat().toFloat(),
+  query("source").optional().isString().isLength({ min: 1, max: 50 }),
   query("offset").optional().isInt({ min: 0 }).toInt(),
   query("skip").optional().isInt({ min: 0 }).toInt(),
   query("limit").optional().isInt({ min: 1, max: 200 }).toInt(),
+];
+
+// Day 10: salary comparison for the job being set up.
+export const salaryComparisonValidator = [
+  query("roleId").isUUID().withMessage("roleId must be a valid id"),
+  query("experienceLevel").isString().trim().notEmpty().withMessage("experienceLevel is required"),
+  query("currency")
+    .isString()
+    .trim()
+    .isLength({ min: 3, max: 3 })
+    .withMessage("currency is required"),
+  query("compensationPeriod")
+    .isIn(Object.values(CompensationPeriod))
+    .withMessage("compensationPeriod must be monthly or yearly"),
+  query("locationCity").optional().isString(),
+  query("locationState").optional().isString(),
+  query("locationCountry").optional().isString(),
+  query("excludeJobId").optional().isUUID(),
 ];

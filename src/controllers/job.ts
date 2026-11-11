@@ -1,3 +1,4 @@
+import { compareSalaries, type SalaryComparisonQuery } from "../services/salaryComparison.js";
 import { Request, Response } from "express";
 import * as jobService from "../services/job.js";
 import * as paymentService from "../services/payment.js";
@@ -54,7 +55,7 @@ export const fetchAll = async (req: Request, res: Response) => {
 
 export const jobsPosted = async (req: Request, res: Response) => {
   const result = await jobService.fetchRecruiterJobs(req.user.id, req.query);
-  sendSuccessResponse(res, "Jobs fetched", { jobs: result });
+  sendSuccessResponse(res, "Jobs fetched", result);
 };
 
 export const fetch = async (req: Request, res: Response) => {
@@ -145,7 +146,7 @@ export const retryCvScore = async (req: Request, res: Response) => {
 
 export const apply = async (req: Request, res: Response) => {
   const result = hideAssessmentResultsFromCandidate(
-    await jobService.apply(req.user, { jobId: req.params["jobId"]! })
+    await jobService.apply(req.user, { jobId: req.params["jobId"]!, source: req.body.source })
   );
   sendSuccessResponse(res, "Application submitted", { application: result }, 201);
 };
@@ -160,4 +161,9 @@ export const checkPrescreening = async (req: Request, res: Response) => {
     await jobService.checkPrescreeningAdvance(req.user.id, req.params["jobId"]!)
   );
   sendSuccessResponse(res, "Prescreening stage checked", { application: result });
+};
+
+export const salaryComparison = async (req: Request, res: Response) => {
+  const result = await compareSalaries(req.query as unknown as SalaryComparisonQuery);
+  sendSuccessResponse(res, "Salary comparison fetched", result);
 };
