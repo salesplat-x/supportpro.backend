@@ -20,7 +20,7 @@ import { AiInterview } from "../src/entities/AiInterview.js";
 import { AiInterviewQuestion } from "../src/entities/AiInterviewQuestion.js";
 import { ScreeningStage, type AiInterviewMode } from "../src/types/enums.js";
 import * as Spaces from "../src/utils/integrations/spaces.js";
-import { AddRecordingsToAiInterviewQuestions1789003100000 } from "../src/migrations/1789003100000-AddRecordingsToAiInterviewQuestions.js";
+import { AddRecordingsToAiInterviewQuestions1789003150000 } from "../src/migrations/1789003150000-AddRecordingsToAiInterviewQuestions.js";
 
 const bucket = new Map<string, { buffer: Buffer; contentType: string }>();
 jest.mock("../src/utils/integrations/spaces.js", () => {
@@ -263,7 +263,7 @@ describe("AddRecordingsToAiInterviewQuestions migration", () => {
 
   it("adds the recording columns and down removes them", async () => {
     const runner = testDataSource.createQueryRunner();
-    const migration = new AddRecordingsToAiInterviewQuestions1789003100000();
+    const migration = new AddRecordingsToAiInterviewQuestions1789003150000();
     const added = ["recording_key", "recording_mime_type", "recording_size", "recorded_at"];
     try {
       for (const column of added) {
