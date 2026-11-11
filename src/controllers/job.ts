@@ -1,3 +1,4 @@
+import { compareSalaries, type SalaryComparisonQuery } from "../services/salaryComparison.js";
 import { Request, Response } from "express";
 import * as jobService from "../services/job.js";
 import * as paymentService from "../services/payment.js";
@@ -160,4 +161,9 @@ export const checkPrescreening = async (req: Request, res: Response) => {
     await jobService.checkPrescreeningAdvance(req.user.id, req.params["jobId"]!)
   );
   sendSuccessResponse(res, "Prescreening stage checked", { application: result });
+};
+
+export const salaryComparison = async (req: Request, res: Response) => {
+  const result = await compareSalaries(req.query as unknown as SalaryComparisonQuery);
+  sendSuccessResponse(res, "Salary comparison fetched", result);
 };

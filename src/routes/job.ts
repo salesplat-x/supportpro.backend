@@ -5,6 +5,7 @@ import { asyncHandler } from "../middleware/asyncHandler.js";
 import { optionalAuth, requireVerifiedEmail, validateAccess } from "../middleware/auth.js";
 import { UserRole } from "../types/enums.js";
 import {
+  salaryComparisonValidator,
   createJobValidator,
   updateJobValidator,
   allJobsQueryValidator,
@@ -51,6 +52,13 @@ router.post(
   requireVerifiedEmail,
   validate(createJobValidator),
   asyncHandler(job.create, "create job")
+);
+router.get(
+  "/salary-comparison",
+  validateAccess([UserRole.Recruiter, UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(salaryComparisonValidator),
+  asyncHandler(job.salaryComparison, "compare salaries")
 );
 router.patch(
   "/:_id",
