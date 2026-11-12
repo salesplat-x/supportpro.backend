@@ -56,6 +56,8 @@ import { StaffCompletionRequest } from "../entities/StaffCompletionRequest.js";
 import { OrganizationOwnershipTransfer } from "../entities/OrganizationOwnershipTransfer.js";
 import { StuckEmailTimer } from "../entities/StuckEmailTimer.js";
 import { ApplicationReference } from "../entities/ApplicationReference.js";
+import { AiInterview } from "../entities/AiInterview.js";
+import { AiInterviewQuestion } from "../entities/AiInterviewQuestion.js";
 
 const databaseConfig: DataSourceOptions = {
   type: "postgres",
@@ -120,6 +122,8 @@ const databaseConfig: DataSourceOptions = {
     OrganizationOwnershipTransfer,
     StuckEmailTimer,
     ApplicationReference,
+    AiInterview,
+    AiInterviewQuestion,
   ],
   migrations: [path.join(__dirname, "../migrations/*.{js,ts}")],
   synchronize: false,

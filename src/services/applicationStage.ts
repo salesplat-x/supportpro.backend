@@ -41,6 +41,7 @@ import {
 import logger from "../utils/logger.js";
 import { convertSimilarityToPercentage } from "../utils/text.js";
 import { notifyTeamOfHighMatch } from "./matchAlerts.js";
+import { startAiInterviewIfReached } from "./aiInterview.js";
 
 const applicationRepo = () => AppDataSource.getRepository(Application);
 
@@ -620,6 +621,7 @@ export const processNextStage = async (
     void triggerMatchVerdict(talent, application);
   } else {
     application.status = ApplicationStatus.Pending;
+    startAiInterviewIfReached(application, nextStage);
   }
 
   if (nextStage === ScreeningStage.CvSimilarity && aiConfig) {
