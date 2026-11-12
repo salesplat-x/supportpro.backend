@@ -22,6 +22,8 @@ export const getApplicationsQueryValidator = [
 
 export const applicationIdParamValidator = [idParam("_id")];
 
+export const DECISION_EMAIL_MAX_CHARS = 2000;
+
 export const updateApplicationStatusValidator = [
   param("_id").notEmpty().withMessage("Application ID is required"),
   body("status")
@@ -29,6 +31,30 @@ export const updateApplicationStatusValidator = [
     .withMessage(
       `status must be one of: ${ApplicationStatus.Rejected}, ${ApplicationStatus.Shortlisted}`
     ),
+  body("email")
+    .optional()
+    .isObject()
+    .custom((_value, { req }) => req.body.status === ApplicationStatus.Rejected)
+    .withMessage("An email can only be sent with a rejection"),
+  body("email.send")
+    .if(body("email").exists())
+    .isBoolean()
+    .withMessage("email.send must be true or false")
+    .toBoolean(),
+  body("email.body")
+    .if(body("email.send").equals("true"))
+    .isString()
+    .trim()
+    .isLength({ min: 1, max: DECISION_EMAIL_MAX_CHARS })
+    .withMessage(`Write the email, up to ${DECISION_EMAIL_MAX_CHARS} characters`),
+];
+
+export const advanceApplicationValidator = [
+  idParam("_id"),
+  body("sendInterviewInvite")
+    .isBoolean()
+    .withMessage("sendInterviewInvite must be true or false")
+    .toBoolean(),
 ];
 
 export const bulkUpdateApplicationStatusValidator = [

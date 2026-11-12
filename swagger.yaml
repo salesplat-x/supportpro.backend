@@ -3149,8 +3149,62 @@ paths:
                   enum:
                     - rejected
                     - shortlisted
+                email:
+                  type: object
+                  description: >-
+                    Only with a rejection. When send is true the body is saved in the recruiter's chat
+                    with the candidate and emailed to them.
+                  properties:
+                    send:
+                      type: boolean
+                    body:
+                      type: string
+                      maxLength: 2000
               required:
                 - status
+      security:
+        - bearerAuth: []
+  /applications/{_id}/advance:
+    post:
+      summary: Recruiter. Move a candidate forward.
+      description: >-
+        Shortlists the candidate. When the job runs a recorded AI interview and the candidate has
+        none yet, also starts it (writes the questions) and emails the invite if sendInterviewInvite
+        is true. Rejected candidates can't move forward.
+      tags:
+        - applications
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sendInterviewInvite:
+                  type: boolean
+              required:
+                - sendInterviewInvite
+      responses:
+        "200":
+          description: >-
+            application, nextStep (ai_interview or shortlisted) and interview: invited, ready
+            (started, no email sent), failed (the questions could not be written), skipped, or null
+            when no interview was due.
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: The candidate was rejected.
+        "403":
+          description: The job belongs to another company.
       security:
         - bearerAuth: []
   /applications/{_id}/personality-fit:

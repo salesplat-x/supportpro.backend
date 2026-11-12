@@ -259,7 +259,7 @@ describe("candidate reaching the AI interview stage", () => {
       stages: { ai_interview: "completed" },
       currentStage: ScreeningStage.AiInterview,
     });
-    await expect(startAiInterview(application.id)).resolves.toBeUndefined();
+    await expect(startAiInterview(application.id)).resolves.toBe("failed");
 
     const interview = await interviewFor(application.id);
     expect(interview!.status).toBe("failed");

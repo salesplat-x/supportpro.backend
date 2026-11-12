@@ -290,43 +290,72 @@ export const broadcastMessage = async (
     const messageContent = personalized?.content ?? content;
     if (!messageContent) continue;
 
-    let conversation = await findConversation(senderId, app.talentId);
-    if (!conversation) {
-      conversation = await createConversation(sender, app.talent);
-    }
-    const message = messageRepo().create({
-      conversationId: conversation.id,
-      senderId,
-      recipientId: app.talentId,
+    const delivery = await deliverApplicantMessage({
+      sender,
+      application: app,
       content: messageContent,
-      applicationId: app.id,
+      subject: personalized?.subject || `Message from ${recruiterFirstName} about ${jobTitle}`,
+      sendEmail: Boolean(sendEmail),
+      jobTitle,
+      companyName,
     });
-    const savedMessage = await messageRepo().save(message);
-    await conversationRepo().save({ ...conversation, lastMessageId: savedMessage.id });
-    await notifyMessageRecipient(app.talentId, messageContent);
     sent += 1;
-
-    if (sendEmail) {
-      try {
-        await new EmailService().sendApplicantMessage({
-          to: app.talent.email,
-          subject: personalized?.subject || `Message from ${recruiterFirstName} about ${jobTitle}`,
-          recruiterFirstName,
-          jobTitle,
-          companyName,
-          paragraphs: htmlToParagraphs(messageContent),
-          ctaUrl: `${env.website || "https://auxhr.com"}/talentDashboard/chat`,
-        });
-        emailed += 1;
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        logger.error(`Applicant message email to application ${app.id} failed: ${errorMessage}`);
-        emailFailures.push({ applicationId: app.id, error: errorMessage });
-      }
+    if (delivery.emailed) emailed += 1;
+    if (delivery.emailError) {
+      emailFailures.push({ applicationId: app.id, error: delivery.emailError });
     }
   }
 
   return { sent, emailed, emailFailures };
+};
+
+/**
+ * Saves the message in the recruiter's conversation with the candidate and, when asked,
+ * emails it. An email failure is logged and returned, never thrown: the message is already saved.
+ */
+export const deliverApplicantMessage = async (details: {
+  sender: User;
+  application: Application;
+  content: string;
+  subject: string;
+  sendEmail: boolean;
+  jobTitle: string;
+  companyName?: string;
+}): Promise<{ emailed: boolean; emailError?: string }> => {
+  const { sender, application, content } = details;
+  let conversation = await findConversation(sender.id, application.talentId);
+  if (!conversation) {
+    conversation = await createConversation(sender, application.talent);
+  }
+  const savedMessage = await messageRepo().save(
+    messageRepo().create({
+      conversationId: conversation.id,
+      senderId: sender.id,
+      recipientId: application.talentId,
+      content,
+      applicationId: application.id,
+    })
+  );
+  await conversationRepo().save({ ...conversation, lastMessageId: savedMessage.id });
+  await notifyMessageRecipient(application.talentId, content);
+
+  if (!details.sendEmail) return { emailed: false };
+  try {
+    await new EmailService().sendApplicantMessage({
+      to: application.talent.email,
+      subject: details.subject,
+      recruiterFirstName: sender.firstName,
+      jobTitle: details.jobTitle,
+      companyName: details.companyName,
+      paragraphs: htmlToParagraphs(content),
+      ctaUrl: `${env.website || "https://auxhr.com"}/talentDashboard/chat`,
+    });
+    return { emailed: true };
+  } catch (err) {
+    const emailError = err instanceof Error ? err.message : String(err);
+    logger.error(`Applicant message email to application ${application.id} failed: ${emailError}`);
+    return { emailed: false, emailError };
+  }
 };
 
 export const getMessages = async (

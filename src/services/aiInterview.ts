@@ -31,14 +31,19 @@ export const parseAiInterviewQuestions = (content: string | null | undefined): s
   return questions.slice(0, AI_INTERVIEW_QUESTION_COUNT);
 };
 
-export const startAiInterview = async (applicationId: string): Promise<void> => {
+export type AiInterviewStart = "skipped" | "failed" | "ready" | "invited";
+
+export const startAiInterview = async (
+  applicationId: string,
+  options: { sendInvite?: boolean } = {}
+): Promise<AiInterviewStart> => {
   const application = await AppDataSource.getRepository(Application).findOne({
     where: { id: applicationId },
     relations: { job: { aiConfig: true, role: true, organization: true }, talent: true },
   });
   const job = application?.job;
   const config = job?.aiConfig;
-  if (!application || !job || !config?.aiInterview || !config.aiInterviewMode) return;
+  if (!application || !job || !config?.aiInterview || !config.aiInterviewMode) return "skipped";
 
   const interviews = AppDataSource.getRepository(AiInterview);
   const inserted = await interviews
@@ -55,7 +60,7 @@ export const startAiInterview = async (applicationId: string): Promise<void> => 
     .returning(["id"])
     .execute();
   const interviewId = (inserted.raw as Array<{ id: string }>)[0]?.id;
-  if (!interviewId) return; // already started for this application
+  if (!interviewId) return "skipped"; // already started for this application
 
   let questions: string[] | null = null;
   try {
@@ -72,13 +77,14 @@ export const startAiInterview = async (applicationId: string): Promise<void> => 
   if (!questions) {
     await interviews.update(interviewId, { status: "failed" });
     logger.warn(`AI interview for application ${applicationId} has no usable questions`);
-    return;
+    return "failed";
   }
 
   await AppDataSource.getRepository(AiInterviewQuestion).insert(
     questions.map((question, i) => ({ interviewId, position: i + 1, question }))
   );
   await interviews.update(interviewId, { status: "ready" });
+  if (options.sendInvite === false) return "ready";
 
   try {
     await new EmailService().sendAiInterviewInvite({
@@ -90,8 +96,10 @@ export const startAiInterview = async (applicationId: string): Promise<void> => 
       ctaUrl: `${env.website || "https://auxhr.com"}/talentDashboard/applicationPipeline/${job.id}`,
     });
     await interviews.update(interviewId, { status: "invited", invitedAt: new Date() });
+    return "invited";
   } catch (error) {
     logger.warn(`AI interview invite failed for application ${applicationId}: ${String(error)}`);
+    return "ready";
   }
 };
 

@@ -2,6 +2,7 @@ import { In } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { Application } from "../entities/Application.js";
 import { Notification } from "../entities/Notification.js";
+import { User } from "../entities/User.js";
 import { Organization } from "../entities/Organization.js";
 import {
   AppError,
@@ -33,7 +34,14 @@ import { STALE_LOCK_MS } from "../utils/durableJobs.js";
 import { savePersonalityFit } from "./answer.js";
 import { assertCompanyResourceAccess, getActiveOrganizationId } from "./organizationScope.js";
 import { ensureOrganizationBillingCurrent, hasFlag } from "./entitlements.js";
-import { getRecruiterInterview, nextStepFor } from "./aiInterview.js";
+import {
+  type AiInterviewStart,
+  getRecruiterInterview,
+  type NextStep,
+  nextStepFor,
+  startAiInterview,
+} from "./aiInterview.js";
+import { deliverApplicantMessage } from "./message.js";
 
 const notificationRepo = () => AppDataSource.getRepository(Notification);
 
@@ -248,9 +256,14 @@ export const getApplications = async (
   );
 };
 
+export interface DecisionEmail {
+  send: boolean;
+  body: string;
+}
+
 export const updateStatus = async (
   userId: string,
-  payload: { id: string; status: ApplicationStatus }
+  payload: { id: string; status: ApplicationStatus; email?: DecisionEmail }
 ): Promise<Application> => {
   const application = await applicationRepo().findOne({
     where: { id: payload.id },
@@ -293,7 +306,71 @@ export const updateStatus = async (
     }
   }
 
+  if (payload.status === ApplicationStatus.Rejected && payload.email?.send) {
+    await sendRejectionEmail(userId, application, payload.email.body);
+  }
+
   return saved;
+};
+
+const sendRejectionEmail = async (
+  senderId: string,
+  application: Application,
+  body: string
+): Promise<void> => {
+  const sender = await AppDataSource.getRepository(User).findOne({ where: { id: senderId } });
+  if (!sender) return;
+  const jobTitle = application.job.role?.name ?? "the role";
+  await deliverApplicantMessage({
+    sender,
+    application,
+    content: body.trim(),
+    subject: `Update on your application for ${jobTitle}`,
+    sendEmail: true,
+    jobTitle,
+    companyName: application.job.organization?.name,
+  });
+};
+
+export interface AdvanceResult {
+  application: Application;
+  nextStep: NextStep;
+  interview: AiInterviewStart | null;
+}
+
+/**
+ * Move forward: shortlist, and start the recorded interview when it is the next step.
+ * The invite email goes out only when the recruiter asks for it.
+ */
+export const advanceApplication = async (
+  userId: string,
+  payload: { id: string; sendInterviewInvite: boolean }
+): Promise<AdvanceResult> => {
+  const application = await applicationRepo().findOne({
+    where: { id: payload.id },
+    relations: { job: true },
+  });
+  if (!application) throw new NotFoundError("Application not found");
+  await assertCompanyResourceAccess(
+    userId,
+    UserRole.Recruiter,
+    application.job.organizationId,
+    application.job.postedById
+  );
+  if (application.status === ApplicationStatus.Rejected) {
+    throw new ValidationError("This candidate was rejected, so they can't move forward");
+  }
+
+  const nextStep = await nextStepFor(application);
+  const saved =
+    application.status === ApplicationStatus.Shortlisted
+      ? application
+      : await updateStatus(userId, { id: application.id, status: ApplicationStatus.Shortlisted });
+  const interview =
+    nextStep === "ai_interview"
+      ? await startAiInterview(application.id, { sendInvite: payload.sendInterviewInvite })
+      : null;
+  return { application: saved, nextStep, interview };
 };
 
 // Applications the caller doesn't own are silently skipped rather than failing
