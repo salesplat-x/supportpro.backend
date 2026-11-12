@@ -9,6 +9,7 @@ import {
 } from "typeorm";
 import type { User } from "./User.js";
 import type { Organization } from "./Organization.js";
+import type { AiInterviewMode } from "../types/enums.js";
 
 @Entity("ai_configs")
 export class AIConfig {
@@ -82,6 +83,12 @@ export class AIConfig {
 
   @Column({ type: "int", nullable: true, default: null })
   noOfCultureFitQuestions!: number | null;
+
+  @Column({ default: false })
+  aiInterview!: boolean;
+
+  @Column({ type: "varchar", length: 20, nullable: true, default: null })
+  aiInterviewMode!: AiInterviewMode | null;
 
   @Column({ type: "jsonb", nullable: true, default: null })
   stages!: Record<string, string> | null;

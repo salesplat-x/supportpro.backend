@@ -55,6 +55,7 @@ import {
   triggerMatchVerdict,
   resetMatchVerdictRetry,
 } from "./applicationStage.js";
+import { startAiInterviewIfReached } from "./aiInterview.js";
 import { isPrescreeningScoreValid } from "./prescreening.js";
 import { regenerateCvEmbedding } from "./user.js";
 
@@ -1454,6 +1455,7 @@ export const apply = async (user: User, payload: ApplyPayload): Promise<Applicat
   });
 
   const saved = await applicationRepo().save(application);
+  startAiInterviewIfReached(saved, entryStage);
 
   // Increment noOfApplicants
   await jobRepo()
