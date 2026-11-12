@@ -2516,13 +2516,67 @@ paths:
           required: false
           schema:
             type: number
+        - name: q
+          in: query
+          required: false
+          description: Search applicants by name or email.
+          schema:
+            type: string
+            maxLength: 100
+        - name: boardColumn
+          in: query
+          required: false
+          description: Only applicants in this board column. Rejected applicants are never in a column.
+          schema:
+            type: string
+            enum: [applied, cv_matched, pre_screened, personality_test, shortlisted]
+        - name: interview
+          in: query
+          required: false
+          description: Only applicants whose recorded AI interview is at this point.
+          schema:
+            type: string
+            enum: [not_started, in_progress, processing, ready]
       responses:
         "200":
-          description: Successful response
+          description: >-
+            Applications with stage, boardColumn and interview {id, status} on each,
+            plus total (matching the filters, before paging) and aiConfig.
           content:
             application/json:
               schema:
                 type: object
+      security:
+        - bearerAuth: []
+  /jobs/{jobId}/summary:
+    get:
+      summary: Recruiter or Admin. Numbers, pipeline, recent activity, hiring team and key dates for one job.
+      tags:
+        - jobs
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: >-
+            applicants {total, thisWeek}, passRate {value, passed, preScreened, deltaVsLastPost},
+            avgCvMatch {value, deltaThisWeek}, shortlisted {count, pctOfApplicants},
+            pipeline {applied, cvMatched, preScreened, personalityTest, interview},
+            board (count per board column), topSkills [{skill, pct}],
+            recentActivity [{type, title, at}], hiringTeam [{userId, name, role, isOwner}],
+            keyDates {postedAt, postedBy, closesAt, interviewsStartAt}.
+          content:
+            application/json:
+              schema:
+                type: object
+        "403":
+          description: The job belongs to another company.
+        "404":
+          description: Job not found.
       security:
         - bearerAuth: []
   /error-logs/:

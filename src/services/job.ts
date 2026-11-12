@@ -56,6 +56,16 @@ import {
   resetMatchVerdictRetry,
 } from "./applicationStage.js";
 import { startAiInterviewIfReached } from "./aiInterview.js";
+import {
+  type ApplicationProgress,
+  type BoardColumn,
+  type InterviewProgress,
+  boardColumnSql,
+  interviewProgressSql,
+  loadApplicationProgress,
+  NO_PROGRESS,
+} from "./applicationProgress.js";
+import { AiInterview } from "../entities/AiInterview.js";
 import { isPrescreeningScoreValid } from "./prescreening.js";
 import { regenerateCvEmbedding } from "./user.js";
 
@@ -1162,14 +1172,20 @@ export interface JobApplicationsParams {
   experience?: string;
   maxSalary?: string | number;
   source?: string;
+  q?: string;
+  boardColumn?: BoardColumn;
+  interview?: InterviewProgress;
   offset?: number | string;
   limit?: number | string;
   /** Defaults to "aiMatch" — best AI match first, matching what the applicant table shows. */
   sort?: "aiMatch" | "dateApplied" | "cvSimilarity";
 }
 
+export type JobApplicationRow = Application & ApplicationProgress;
+
 export interface JobApplicationsResult {
-  applications: Application[];
+  applications: JobApplicationRow[];
+  total: number;
   aiConfig: {
     cvSimilarity: boolean;
     minCvSimilarityScore: number | null;
@@ -1193,7 +1209,28 @@ export const jobApplications = async (
   const qb = applicationRepo()
     .createQueryBuilder("application")
     .leftJoinAndSelect("application.talent", "talent")
+    .leftJoin(AiInterview, "interview", "interview.applicationId = application.id")
     .where("application.job_id = :jobId", { jobId });
+
+  const search = payload.q?.trim();
+  if (search) {
+    qb.andWhere(
+      "(CONCAT_WS(' ', talent.firstName, talent.lastName) ILIKE :search ESCAPE '\\' OR talent.email ILIKE :search ESCAPE '\\')",
+      { search: `%${escapeLike(search)}%` }
+    );
+  }
+
+  if (payload.boardColumn) {
+    qb.andWhere(`${boardColumnSql("application", "talent")} = :boardColumn`, {
+      boardColumn: payload.boardColumn,
+    });
+  }
+
+  if (payload.interview) {
+    qb.andWhere(`${interviewProgressSql("interview")} = :interviewProgress`, {
+      interviewProgress: payload.interview,
+    });
+  }
 
   if (payload.applicationType) {
     qb.andWhere("application.applicationType = :applicationType", {
@@ -1245,6 +1282,7 @@ export const jobApplications = async (
 
   const offset = Number(payload.offset) || 0;
   const limit = Math.min(Number(payload.limit) || 50, MAX_PAGE_SIZE);
+  const total = await qb.clone().getCount();
 
   // "aiMatch" (the default) mirrors the applicant table's own default sort —
   // best verdict first, then fit score, then most recent. Still-screening
@@ -1279,11 +1317,19 @@ export const jobApplications = async (
 
   const applications = await qb.skip(offset).take(limit).getMany();
 
-  const recommendations = await loadRecommendationsByApplicationIds(applications.map((a) => a.id));
+  const ids = applications.map((a) => a.id);
+  const [recommendations, progress] = await Promise.all([
+    loadRecommendationsByApplicationIds(ids),
+    loadApplicationProgress(ids),
+  ]);
   return {
     applications: applications.map((application) =>
-      overlayVerdictFromRecommendation(application, recommendations.get(application.id))
+      Object.assign(
+        overlayVerdictFromRecommendation(application, recommendations.get(application.id)),
+        progress.get(application.id) ?? NO_PROGRESS
+      )
     ),
+    total,
     aiConfig: job.aiConfig
       ? {
           cvSimilarity: job.aiConfig.cvSimilarity,
