@@ -1,6 +1,7 @@
 import { body, param } from "express-validator";
 import { idParam } from "./shared.js";
 import { MAX_ASSESSMENT_QUESTIONS_PER_CANDIDATE } from "../config/assessmentQuestions.js";
+import { AI_INTERVIEW_MODES } from "../types/enums.js";
 
 const blankToUndefined = (value: unknown) => (value === "" || value === null ? undefined : value);
 
@@ -41,6 +42,12 @@ const assessmentSwitchValidators = [
     .withMessage("cultureFitAssessment must be boolean")
     .toBoolean(),
   assessmentCountValidator("noOfCultureFitQuestions"),
+  body("aiInterview").optional().isBoolean().withMessage("aiInterview must be boolean").toBoolean(),
+  body("aiInterviewMode")
+    .customSanitizer(blankToUndefined)
+    .optional()
+    .isIn([...AI_INTERVIEW_MODES])
+    .withMessage(`aiInterviewMode must be one of: ${AI_INTERVIEW_MODES.join(", ")}`),
 ];
 
 const atLeastOneDichotomyPairValidator = body("personalityEvaluation").custom((_value, { req }) => {

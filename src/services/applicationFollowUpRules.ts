@@ -48,6 +48,7 @@ export const STAGE_LABEL: Record<ScreeningStage, string> = {
   [ScreeningStage.Personalized]: "Role questions",
   [ScreeningStage.Prescreening]: "Pre-screening assessment",
   [ScreeningStage.CvSimilarity]: "CV review",
+  [ScreeningStage.AiInterview]: "AI interview",
   [ScreeningStage.Completed]: "Completed",
 };
 
@@ -93,6 +94,10 @@ export const NEXT_STEP_COPY: Record<ScreeningStage, NextStep> = {
   [ScreeningStage.CvSimilarity]: {
     steps: ["No action needed from the talent — we're finishing an automatic CV check."],
     ctaLabel: "View application",
+  },
+  [ScreeningStage.AiInterview]: {
+    steps: ["Record answers to the 5 AI interview questions sent by email."],
+    ctaLabel: "Open AI interview",
   },
   [ScreeningStage.Completed]: { steps: [], ctaLabel: "View application" },
 };

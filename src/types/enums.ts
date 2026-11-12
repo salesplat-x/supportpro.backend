@@ -118,8 +118,12 @@ export enum ScreeningStage {
   CvSimilarity = "cv_similarity",
   Personalized = "personalized",
   Personality = "personality",
+  AiInterview = "ai_interview",
   Completed = "completed",
 }
+
+export const AI_INTERVIEW_MODES = ["audio", "audio_video"] as const;
+export type AiInterviewMode = (typeof AI_INTERVIEW_MODES)[number];
 
 export enum PaymentStatus {
   Pending = "pending",

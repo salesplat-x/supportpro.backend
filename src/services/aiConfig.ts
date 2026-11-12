@@ -7,7 +7,7 @@ import { Answer } from "../entities/Answer.js";
 import { Application } from "../entities/Application.js";
 import { Job } from "../entities/Job.js";
 import { NotFoundError, ValidationError } from "../utils/errors";
-import { UserRole, ScreeningStage, QuestionType } from "../types/enums.js";
+import { UserRole, ScreeningStage, QuestionType, type AiInterviewMode } from "../types/enums.js";
 import { assertCompanyResourceAccess, getActiveOrganizationId } from "./organizationScope.js";
 
 const aiConfigRepo = () => AppDataSource.getRepository(AIConfig);
@@ -32,6 +32,8 @@ export interface AIConfigPayload {
   noOfProblemSolvingQuestions?: number | null;
   cultureFitAssessment?: boolean;
   noOfCultureFitQuestions?: number | null;
+  aiInterview?: boolean;
+  aiInterviewMode?: AiInterviewMode | null;
 }
 
 const ASSESSMENT_SWITCHES = [
@@ -44,6 +46,9 @@ export const assertAssessmentCounts = (merged: AIConfigPayload): void => {
     if (merged[flag] === true && (merged[count] === null || merged[count] === undefined)) {
       throw new ValidationError(`${count} is required when ${flag} is on`);
     }
+  }
+  if (merged.aiInterview === true && !merged.aiInterviewMode) {
+    throw new ValidationError("aiInterviewMode is required when aiInterview is on");
   }
 };
 
@@ -59,6 +64,7 @@ const STAGE_ORDER: Array<{ flag: keyof AIConfigPayload; stage: ScreeningStage }>
   { flag: "personalizedAssessment", stage: ScreeningStage.Personalized },
   { flag: "prescreeningAssessment", stage: ScreeningStage.Prescreening },
   { flag: "cvSimilarity", stage: ScreeningStage.CvSimilarity },
+  { flag: "aiInterview", stage: ScreeningStage.AiInterview },
 ];
 
 export const createStages = (config: AIConfigPayload): StagesResult => {
