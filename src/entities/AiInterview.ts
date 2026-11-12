@@ -24,6 +24,12 @@ export interface AiInterviewScore {
   reason: string;
 }
 
+/** question is the position of the answer the flag is about; null when it covers the whole interview. */
+export interface AiInterviewFlag {
+  text: string;
+  question: number | null;
+}
+
 export interface AiInterviewScores {
   clearSpeaking: AiInterviewScore;
   fitForRole: AiInterviewScore;
@@ -79,7 +85,7 @@ export class AiInterview {
   summary!: string | null;
 
   @Column({ type: "jsonb", nullable: true, default: null })
-  flags!: string[] | null;
+  flags!: Array<AiInterviewFlag | string> | null;
 
   @Column({ type: "timestamptz", name: "scored_at", nullable: true, default: null })
   scoredAt!: Date | null;

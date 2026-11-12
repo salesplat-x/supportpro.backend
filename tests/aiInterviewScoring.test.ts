@@ -85,7 +85,7 @@ const GOOD_ASSESSMENT = {
   },
   confidence: { score: 4, reason: "Speaks plainly about past results without hedging." },
   summary: "Clear, organised answers with relevant experience. Ask about tooling next time.",
-  flags: ["Little detail on the ticketing tools this role uses."],
+  flags: [{ text: "Little detail on the ticketing tools this role uses.", question: 2 }],
 };
 
 let app: ReturnType<typeof createApp>;
@@ -395,12 +395,27 @@ describe("parsing the assessment reply", () => {
     expect(parsed.flags).toEqual(GOOD_ASSESSMENT.flags);
   });
 
+  it("reads plain-text flags as covering the whole interview", () => {
+    const parsed = parseInterviewAssessment(
+      JSON.stringify({ ...GOOD_ASSESSMENT, flags: ["Check the budget figure."] })
+    );
+    expect(parsed.flags).toEqual([{ text: "Check the budget figure.", question: null }]);
+  });
+
+  it("drops a question position that is not a whole number", () => {
+    const parsed = parseInterviewAssessment(
+      JSON.stringify({ ...GOOD_ASSESSMENT, flags: [{ text: "Vague answer.", question: "two" }] })
+    );
+    expect(parsed.flags).toEqual([{ text: "Vague answer.", question: null }]);
+  });
+
   it.each([
     ["a score above 5", { ...GOOD_ASSESSMENT, confidence: { score: 6, reason: "Strong." } }],
     ["a score of 0", { ...GOOD_ASSESSMENT, fitForRole: { score: 0, reason: "None." } }],
     ["a fractional score", { ...GOOD_ASSESSMENT, clearSpeaking: { score: 3.5, reason: "Ok." } }],
     ["a missing reason", { ...GOOD_ASSESSMENT, clearSpeaking: { score: 4, reason: "" } }],
     ["flags that are not a list", { ...GOOD_ASSESSMENT, flags: "one flag" }],
+    ["a flag with no text", { ...GOOD_ASSESSMENT, flags: [{ question: 1 }] }],
     ["a missing summary", { ...GOOD_ASSESSMENT, summary: "  " }],
     ["a reply that is not JSON", "not json"],
   ])("refuses %s", (_label, reply) => {

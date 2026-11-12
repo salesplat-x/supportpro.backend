@@ -7,6 +7,9 @@ import { ScreeningStage } from "../types/enums.js";
 import EmailService from "../utils/integrations/email/emailService.js";
 import { generateAiInterviewQuestions } from "../utils/integrations/openai.js";
 import logger from "../utils/logger.js";
+import { AIConfig } from "../entities/AIConfig.js";
+import { loadApplicationProgress, type InterviewProgress } from "./applicationProgress.js";
+import { normalizeInterviewFlags } from "./aiInterviewScoring.js";
 
 export const AI_INTERVIEW_QUESTION_COUNT = 5;
 
@@ -110,4 +113,92 @@ export const startAiInterviewIfReached = (application: Application, stage: strin
   });
   inFlightAiInterviews.add(task);
   void task.finally(() => inFlightAiInterviews.delete(task));
+};
+
+export type NextStep = "ai_interview" | "shortlisted";
+
+/** The recorded interview is the next step while the job runs one and this candidate has none. */
+export const nextStepFor = async (application: Application): Promise<NextStep> => {
+  const [config, existing] = await Promise.all([
+    application.job?.aiConfigId
+      ? AppDataSource.getRepository(AIConfig).findOne({
+          where: { id: application.job.aiConfigId },
+          select: { id: true, aiInterview: true, aiInterviewMode: true },
+        })
+      : null,
+    AppDataSource.getRepository(AiInterview).findOne({
+      where: { applicationId: application.id },
+      select: { id: true, status: true },
+    }),
+  ]);
+  const runsInterview = Boolean(config?.aiInterview && config.aiInterviewMode);
+  const hasInterview = existing !== null && existing.status !== "failed";
+  return runsInterview && !hasInterview ? "ai_interview" : "shortlisted";
+};
+
+export interface RecruiterInterview {
+  id: string;
+  mode: AiInterview["mode"];
+  status: InterviewProgress;
+  invitedAt: Date | null;
+  startedAt: Date | null;
+  scoringStatus: AiInterview["scoringStatus"];
+  scores: AiInterview["scores"];
+  summary: string | null;
+  flags: ReturnType<typeof normalizeInterviewFlags>;
+  scoredAt: Date | null;
+  questions: Array<{
+    id: string;
+    position: number;
+    isFollowUp: boolean;
+    question: string;
+    recorded: boolean;
+    recordedAt: Date | null;
+    durationSeconds: number | null;
+    transcriptStatus: AiInterviewQuestion["transcriptStatus"];
+    transcript: string | null;
+  }>;
+}
+
+/** For the company only: callers check access first. */
+export const getRecruiterInterview = async (
+  applicationId: string
+): Promise<RecruiterInterview | null> => {
+  const interview = await AppDataSource.getRepository(AiInterview).findOne({
+    where: { applicationId },
+  });
+  if (!interview || interview.status === "failed") return null;
+  const [rows, progress] = await Promise.all([
+    AppDataSource.getRepository(AiInterviewQuestion).find({
+      where: { interviewId: interview.id },
+      order: { position: "ASC", isFollowUp: "ASC" },
+    }),
+    loadApplicationProgress([applicationId]),
+  ]);
+  const recordedTimes = rows
+    .map((row) => row.recordedAt?.getTime())
+    .filter((time): time is number => time !== undefined);
+  return {
+    id: interview.id,
+    mode: interview.mode,
+    status: progress.get(applicationId)?.interview.status ?? "not_started",
+    invitedAt: interview.invitedAt,
+    startedAt: recordedTimes.length ? new Date(Math.min(...recordedTimes)) : null,
+    scoringStatus: interview.scoringStatus,
+    scores: interview.scores,
+    summary: interview.summary,
+    flags: normalizeInterviewFlags(interview.flags),
+    scoredAt: interview.scoredAt,
+    questions: rows.map((row) => ({
+      id: row.id,
+      position: row.position,
+      isFollowUp: row.isFollowUp,
+      question: row.question,
+      recorded: row.recordedAt !== null,
+      recordedAt: row.recordedAt,
+      durationSeconds: row.recordingDurationSeconds,
+      transcriptStatus: row.transcriptStatus,
+      transcript: row.transcript,
+    })),
+  };
 };

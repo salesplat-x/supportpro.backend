@@ -33,6 +33,7 @@ import { STALE_LOCK_MS } from "../utils/durableJobs.js";
 import { savePersonalityFit } from "./answer.js";
 import { assertCompanyResourceAccess, getActiveOrganizationId } from "./organizationScope.js";
 import { ensureOrganizationBillingCurrent, hasFlag } from "./entitlements.js";
+import { getRecruiterInterview, nextStepFor } from "./aiInterview.js";
 
 const notificationRepo = () => AppDataSource.getRepository(Notification);
 
@@ -172,10 +173,16 @@ export const getApplication = async (
       buildGradedAnswerPairs(application.jobId, application.talentId, QuestionType.ProblemSolving),
       buildGradedAnswerPairs(application.jobId, application.talentId, QuestionType.CultureFit),
     ]);
+    const [interview, nextStep] = await Promise.all([
+      getRecruiterInterview(application.id),
+      nextStepFor(application),
+    ]);
     Object.assign(application, {
       problemSolvingAnswers,
       cultureFitAnswers,
       personalityFitPending: isPersonalityFitPending(application),
+      interview,
+      nextStep,
     });
   }
 

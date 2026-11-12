@@ -1,5 +1,9 @@
 import { AppDataSource } from "../database/dataSource.js";
-import { AiInterview, type AiInterviewScores } from "../entities/AiInterview.js";
+import {
+  AiInterview,
+  type AiInterviewFlag,
+  type AiInterviewScores,
+} from "../entities/AiInterview.js";
 import { AiInterviewQuestion } from "../entities/AiInterviewQuestion.js";
 import { Job } from "../entities/Job.js";
 import { AuthorizationError, NotFoundError, ValidationError } from "../utils/errors";
@@ -24,7 +28,7 @@ const FLAG_MAX_CHARS = 200;
 export interface InterviewAssessment {
   scores: AiInterviewScores;
   summary: string;
-  flags: string[];
+  flags: AiInterviewFlag[];
 }
 
 const unusable = (what: string) => new ValidationError(`The scoring reply was unusable: ${what}`);
@@ -66,17 +70,36 @@ export const parseInterviewAssessment = (
   const summary = typeof body["summary"] === "string" ? body["summary"].trim() : "";
   if (!summary || summary.length > SUMMARY_MAX_CHARS) throw unusable("summary");
   const rawFlags = body["flags"];
-  if (
-    !Array.isArray(rawFlags) ||
-    rawFlags.length > MAX_FLAGS ||
-    rawFlags.some(
-      (flag) => typeof flag !== "string" || !flag.trim() || flag.trim().length > FLAG_MAX_CHARS
-    )
-  ) {
-    throw unusable("flags");
-  }
-  return { scores, summary, flags: rawFlags.map((flag: string) => flag.trim()) };
+  if (!Array.isArray(rawFlags) || rawFlags.length > MAX_FLAGS) throw unusable("flags");
+  const flags = rawFlags.map((flag: unknown) => {
+    const parsedFlag = toFlag(flag);
+    if (!parsedFlag || !parsedFlag.text || parsedFlag.text.length > FLAG_MAX_CHARS) {
+      throw unusable("flags");
+    }
+    return parsedFlag;
+  });
+  return { scores, summary, flags };
 };
+
+const toFlag = (flag: unknown): AiInterviewFlag | null => {
+  if (typeof flag === "string") return { text: flag.trim(), question: null };
+  if (!flag || typeof flag !== "object") return null;
+  const { text, question } = flag as { text?: unknown; question?: unknown };
+  if (typeof text !== "string") return null;
+  return {
+    text: text.trim(),
+    question:
+      typeof question === "number" && Number.isInteger(question) && question > 0 ? question : null,
+  };
+};
+
+/** Flags saved before they carried a question are plain strings. */
+export const normalizeInterviewFlags = (
+  flags: Array<AiInterviewFlag | string> | null
+): AiInterviewFlag[] | null =>
+  flags
+    ? flags.map((flag) => (typeof flag === "string" ? { text: flag, question: null } : flag))
+    : null;
 
 const READY_FOR_SCORING_SQL = `
   UPDATE "ai_interviews" AS i
@@ -202,7 +225,7 @@ export const getCompanyInterviewAssessment = async (userId: string, interviewId:
     status: interview.scoringStatus,
     scores: interview.scores,
     summary: interview.summary,
-    flags: interview.flags,
+    flags: normalizeInterviewFlags(interview.flags),
     scoredAt: interview.scoredAt,
   };
 };

@@ -3065,6 +3065,20 @@ paths:
                             type: boolean
                             description: >-
                               True while the AI is working out the personality fit, so the page can wait instead of offering a retry. Not sent to the candidate.
+                          nextStep:
+                            type: string
+                            enum: [ai_interview, shortlisted]
+                            description: >-
+                              What Move forward does next: ai_interview while the job runs a recorded interview and this candidate has none, otherwise shortlisted. Not sent to the candidate.
+                          interview:
+                            type: object
+                            nullable: true
+                            description: >-
+                              The recorded AI interview, or null when there is none. Not sent to the candidate.
+                              status is not_started, in_progress, processing or ready. Each question has
+                              durationSeconds (length of the recording, null if it could not be measured) and
+                              its transcript. Each flag is {text, question}, where question is the answer's
+                              position, or null when the flag is about the whole interview.
                           problemSolvingAnswers:
                             description: Graded problem-solving answers, in the order asked. Company only.
                             type: array
@@ -4477,7 +4491,14 @@ paths:
                         type: array
                         nullable: true
                         items:
-                          type: string
+                          type: object
+                          properties:
+                            text:
+                              type: string
+                            question:
+                              type: integer
+                              nullable: true
+                              description: Position of the answer the flag is about; null for the whole interview.
                       scoredAt:
                         type: string
                         format: date-time

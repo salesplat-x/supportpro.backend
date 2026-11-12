@@ -11,6 +11,8 @@ import {
   uploadPrivateToSpaces,
 } from "../utils/integrations/spaces.js";
 import { getActiveOrganizationId } from "./organizationScope.js";
+import { probeAudioDurationSeconds } from "../utils/audioDuration.js";
+import logger from "../utils/logger.js";
 
 export interface RecordingFile {
   buffer: Buffer;
@@ -49,6 +51,15 @@ export const isPostingCompanyMember = async (
   return job.postedById === userId;
 };
 
+const measureSeconds = async (buffer: Buffer, mimeType: string): Promise<number | null> => {
+  try {
+    return await probeAudioDurationSeconds(buffer, mimeType.split("/")[1] ?? "webm");
+  } catch (err) {
+    logger.warn(`Interview recording length unreadable: ${(err as Error).message}`);
+    return null;
+  }
+};
+
 const canOpen = async (userId: string, interview: AiInterview): Promise<boolean> => {
   if (interview.talentId === userId) return true;
   return isPostingCompanyMember(userId, interview);
@@ -72,7 +83,10 @@ export const saveRecording = async (
   if (!isSpacesConfigured()) throw notSetUp();
 
   const key = spacesKeyFor("interview-recordings", interview.id, file.originalname);
-  await uploadPrivateToSpaces(file.buffer, key, mimeType);
+  const [, durationSeconds] = await Promise.all([
+    uploadPrivateToSpaces(file.buffer, key, mimeType),
+    measureSeconds(file.buffer, mimeType),
+  ]);
 
   const previousKey = question.recordingKey;
   const recordedAt = new Date();
@@ -80,6 +94,7 @@ export const saveRecording = async (
     recordingKey: key,
     recordingMimeType: mimeType,
     recordingSize: file.size,
+    recordingDurationSeconds: durationSeconds,
     recordedAt,
     transcriptStatus: "pending",
     transcript: null,

@@ -55,6 +55,14 @@ export class AiInterviewQuestion {
   recordedAt!: Date | null;
 
   @Column({
+    type: "double precision",
+    name: "recording_duration_seconds",
+    nullable: true,
+    default: null,
+  })
+  recordingDurationSeconds!: number | null;
+
+  @Column({
     type: "varchar",
     length: 20,
     name: "transcript_status",
