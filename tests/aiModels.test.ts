@@ -195,7 +195,13 @@ describe("GET /v1/admin/ai-models", () => {
   });
 
   it("only offers a retiring model to a job already on it", async () => {
-    const { token } = await createAdmin();
+    const { user, token } = await createAdmin();
+    await testDataSource.getRepository(AiFeatureSetting).save({
+      featureKey: "applicant_verdict",
+      provider: "openai",
+      model: "gpt-4o",
+      updatedById: user.id,
+    });
 
     const overview = await getOverview(token);
 
@@ -203,8 +209,9 @@ describe("GET /v1/admin/ai-models", () => {
     const tips = featureIn(overview, "talent_fit_evidence").options.map((option) => option.model);
     expect(verdict).toContain("gpt-4o");
     expect(verdict).not.toContain("gpt-4o-mini");
-    expect(tips).toContain("gpt-4o-mini");
+    expect(tips).toContain("gpt-5.6-luna");
     expect(tips).not.toContain("gpt-4o");
+    expect(tips).not.toContain("gpt-4o-mini");
   });
 });
 
@@ -306,7 +313,7 @@ describe("PATCH /v1/admin/ai-models/features/:key", () => {
 describe("running a job", () => {
   it("uses the catalogue default when nothing is saved", async () => {
     await efficiencyTip(tipInput);
-    expect(lastRequest()["model"]).toBe("gpt-4o");
+    expect(lastRequest()["model"]).toBe("gpt-5.6-luna");
   });
 
   it("embeds with the CV matching model at 512 dimensions", async () => {
@@ -330,7 +337,7 @@ describe("running a job", () => {
     delete process.env["GROK_API_KEY"];
 
     await efficiencyTip(tipInput);
-    expect(lastRequest()["model"]).toBe("gpt-4o");
+    expect(lastRequest()["model"]).toBe("gpt-5.6-luna");
 
     const overview = await getOverview(token);
     const feature = featureIn(overview, "efficiency_tip");

@@ -1,6 +1,7 @@
 import OpenAI, { toFile } from "openai";
 import env from "../../config/env.js";
-import { complete, completeWhileWaiting, embed } from "./ai/gateway.js";
+import { buildChatRequest, complete, completeWhileWaiting, embed } from "./ai/gateway.js";
+import { findModel, loadAiCatalog } from "./ai/catalog.js";
 import { renderPrompt } from "./ai/prompts.js";
 import {
   CULTURE_FIT_GENERAL_CATEGORIES,
@@ -306,7 +307,7 @@ export interface ScoutShortlistSummaryContext {
 
 /**
  * One comparative paragraph over the (at most 10) shortlisted candidates. Cheap
- * enough for gpt-4o-mini and runs once per run, not once per CV.
+ * enough for a small model and runs once per run, not once per CV.
  */
 export const scoutShortlistSummary = async (
   context: ScoutShortlistSummaryContext
@@ -858,6 +859,9 @@ export const transcribeAudio = async (
   return transcription.text.trim();
 };
 
+const voiceReplyModel = () =>
+  findModel(loadAiCatalog(), { provider: "openai", model: "gpt-5.6-luna" })!;
+
 /** Short conversational reply for the voice assistant. Capped because TTS bills per character. */
 export const generateVoiceReply = async (
   userText: string,
@@ -865,14 +869,13 @@ export const generateVoiceReply = async (
 ): Promise<string> => {
   const completion = await runVoiceCall("OpenAI voice reply", options.signal, () =>
     voiceOpenAI().chat.completions.create(
-      {
-        model: "gpt-4o",
+      buildChatRequest(voiceReplyModel(), {
         max_tokens: 300,
         messages: [
           { role: "system", content: VOICE_SYSTEM_PROMPT },
           { role: "user", content: userText },
         ],
-      },
+      }),
       voiceRequestOptions(options)
     )
   );

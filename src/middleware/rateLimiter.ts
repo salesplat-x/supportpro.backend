@@ -25,7 +25,7 @@ export const authLimiter = rateLimit({
 });
 
 /**
- * A scout run can fire up to 50 gpt-4o calls, so it needs a tighter ceiling than the
+ * A scout run can fire up to 50 AI calls, so it needs a tighter ceiling than the
  * general limiter. Keyed per user rather than per IP so one company behind a shared
  * NAT can't exhaust another's allowance.
  *
