@@ -93,7 +93,7 @@ export const startAiInterview = async (
       jobTitle: job.role?.name ?? "the job",
       companyName: job.organization?.name,
       mode: config.aiInterviewMode,
-      ctaUrl: `${env.website || "https://auxhr.com"}/talentDashboard/applicationPipeline/${job.id}`,
+      ctaUrl: `${env.website || "https://auxhr.com"}/talentDashboard/interview/${interviewId}`,
     });
     await interviews.update(interviewId, { status: "invited", invitedAt: new Date() });
     return "invited";

@@ -905,6 +905,7 @@ export const fetchJob = async (
     applicationStage?: string | null;
     applicationId?: string | null;
     applicationStages?: Record<string, string> | null;
+    interviewId?: string | null;
   }
 > => {
   const job = await jobRepo().findOne({
@@ -928,11 +929,18 @@ export const fetchJob = async (
     where: { talentId: viewer.id, jobId },
     select: { id: true, currentStage: true, stages: true },
   });
+  const interview = existingApplication
+    ? await AppDataSource.getRepository(AiInterview).findOne({
+        where: { applicationId: existingApplication.id, status: In(["ready", "invited"]) },
+        select: { id: true },
+      })
+    : null;
   return Object.assign(publicJob, {
     hasApplied: !!existingApplication,
     applicationStage: existingApplication?.currentStage ?? null,
     applicationId: existingApplication?.id ?? null,
     applicationStages: existingApplication?.stages ?? null,
+    interviewId: interview?.id ?? null,
   });
 };
 

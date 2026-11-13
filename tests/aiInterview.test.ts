@@ -208,7 +208,7 @@ describe("candidate reaching the AI interview stage", () => {
     const invite = mockSendInvite.mock.calls[0][0];
     expect(invite.to).toBe(talent.email);
     expect(invite.mode).toBe("audio_video");
-    expect(invite.ctaUrl).toContain(`/talentDashboard/applicationPipeline/${job.id}`);
+    expect(invite.ctaUrl).toContain(`/talentDashboard/interview/${interview!.id}`);
   });
 
   it("starts the interview when an earlier stage hands over to it", async () => {
@@ -295,6 +295,34 @@ describe("candidate reaching the AI interview stage", () => {
     expect(interview!.status).toBe("ready");
     expect(interview!.invitedAt).toBeNull();
     expect(await questionsFor(interview!.id)).toHaveLength(5);
+  });
+
+  it("gives the candidate their interview id on the job page once questions are ready", async () => {
+    const { job, talent, token } = await setup();
+    const application = await createApplication(talent, job, {
+      stages: { ai_interview: "completed" },
+      currentStage: ScreeningStage.AiInterview,
+    });
+    const before = await request(app).get(`/v1/jobs/${job.id}`).set("Authorization", `Bearer ${token}`);
+    expect(before.status).toBe(200);
+    expect(before.body.data.job.interviewId).toBeNull();
+
+    await startAiInterview(application.id);
+    const interview = await interviewFor(application.id);
+    const after = await request(app).get(`/v1/jobs/${job.id}`).set("Authorization", `Bearer ${token}`);
+    expect(after.body.data.job.interviewId).toBe(interview!.id);
+  });
+
+  it("hides a failed interview from the job page", async () => {
+    mockQuestions.mockRejectedValue(new Error("AI down"));
+    const { job, talent, token } = await setup();
+    const application = await createApplication(talent, job, {
+      stages: { ai_interview: "completed" },
+      currentStage: ScreeningStage.AiInterview,
+    });
+    await startAiInterview(application.id);
+    const res = await request(app).get(`/v1/jobs/${job.id}`).set("Authorization", `Bearer ${token}`);
+    expect(res.body.data.job.interviewId).toBeNull();
   });
 
   it("does nothing for jobs without the interview", async () => {
