@@ -2566,7 +2566,7 @@ paths:
             applicants {total, thisWeek}, passRate {value, passed, preScreened, deltaVsLastPost},
             avgCvMatch {value, deltaThisWeek}, shortlisted {count, pctOfApplicants},
             pipeline {applied, cvMatched, preScreened, personalityTest, interview},
-            board (count per board column), topSkills [{skill, pct}],
+            topSkills [{skill, pct}],
             recentActivity [{type, title, at}], hiringTeam [{userId, name, role, isOwner}],
             keyDates {postedAt, postedBy, closesAt, interviewsStartAt}.
           content:

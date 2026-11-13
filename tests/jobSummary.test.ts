@@ -241,13 +241,6 @@ describe("GET /v1/jobs/:jobId/summary", () => {
       personalityTest: 1,
       interview: 1,
     });
-    expect(data.board).toEqual({
-      applied: 0,
-      cv_matched: 1,
-      pre_screened: 2,
-      personality_test: 0,
-      shortlisted: 1,
-    });
     expect(data.topSkills).toEqual([
       { skill: "Paid Social", pct: 25 },
       { skill: "GA4", pct: 25 },

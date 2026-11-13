@@ -2,7 +2,6 @@ import { AppDataSource } from "../database/dataSource.js";
 import { Job } from "../entities/Job.js";
 import { ApplicationStatus, UserRole } from "../types/enums.js";
 import { NotFoundError } from "../utils/errors";
-import { boardColumnSql, BOARD_COLUMNS, type BoardColumn } from "./applicationProgress.js";
 import { assertRecruiterJobAccess } from "./job.js";
 
 const WEEK = `NOW() - INTERVAL '7 days'`;
@@ -28,7 +27,6 @@ export interface JobSummary {
     personalityTest: number;
     interview: number;
   };
-  board: Record<BoardColumn, number>;
   topSkills: Array<{ skill: string; pct: number }>;
   recentActivity: Array<{ type: JobActivityType; title: string; at: Date }>;
   hiringTeam: Array<{ userId: string; name: string; role: string; isOwner: boolean }>;
@@ -194,18 +192,10 @@ export const getJobSummary = async (
   const postedBy = job.postedBy ? fullName(job.postedBy.firstName, job.postedBy.lastName) : null;
   const lastJobId = await previousJobId(job);
 
-  const [
-    totalsRows,
-    boardRows,
-    skillRows,
-    firstInvite,
-    current,
-    previous,
-    recentActivity,
-    hiringTeam,
-  ] = await Promise.all([
-    run<Record<string, number | string | null>>(
-      `SELECT
+  const [totalsRows, skillRows, firstInvite, current, previous, recentActivity, hiringTeam] =
+    await Promise.all([
+      run<Record<string, number | string | null>>(
+        `SELECT
            COUNT(*)::int AS total,
            COUNT(*) FILTER (WHERE a."createdAt" >= ${WEEK})::int AS this_week,
            AVG(a."cvSimilarityScore") AS avg_cv,
@@ -219,17 +209,11 @@ export const getJobSummary = async (
          LEFT JOIN users u ON u.id = a.talent_id
          LEFT JOIN ai_interviews i ON i.application_id = a.id
          WHERE a.job_id = $1`,
-      [jobId, ApplicationStatus.Shortlisted]
-    ),
-    run<{ board_column: BoardColumn | null; count: number }>(
-      `SELECT ${boardColumnSql("a", "u")} AS board_column, COUNT(*)::int AS count
-         FROM applications a LEFT JOIN users u ON u.id = a.talent_id
-         WHERE a.job_id = $1 GROUP BY 1`,
-      [jobId]
-    ),
-    job.skills?.length
-      ? run<{ skill: string; matched: number; total: number }>(
-          `SELECT s.skill,
+        [jobId, ApplicationStatus.Shortlisted]
+      ),
+      job.skills?.length
+        ? run<{ skill: string; matched: number; total: number }>(
+            `SELECT s.skill,
                COUNT(a.id) FILTER (WHERE jsonb_typeof(u.cv_skills) = 'array' AND EXISTS (
                  SELECT 1 FROM jsonb_array_elements_text(u.cv_skills) x WHERE lower(x) = lower(s.skill)
                ))::int AS matched,
@@ -238,17 +222,18 @@ export const getJobSummary = async (
              LEFT JOIN applications a ON a.job_id = $1
              LEFT JOIN users u ON u.id = a.talent_id
              GROUP BY s.skill, s.ord ORDER BY s.ord`,
-          [jobId, job.skills]
-        )
-      : Promise.resolve([]),
-    run<{ at: Date | null }>(`SELECT MIN(invited_at) AS at FROM ai_interviews WHERE job_id = $1`, [
-      jobId,
-    ]),
-    passRateFor(jobId),
-    lastJobId ? passRateFor(lastJobId) : Promise.resolve(null),
-    loadActivity(job, postedBy),
-    loadHiringTeam(job),
-  ]);
+            [jobId, job.skills]
+          )
+        : Promise.resolve([]),
+      run<{ at: Date | null }>(
+        `SELECT MIN(invited_at) AS at FROM ai_interviews WHERE job_id = $1`,
+        [jobId]
+      ),
+      passRateFor(jobId),
+      lastJobId ? passRateFor(lastJobId) : Promise.resolve(null),
+      loadActivity(job, postedBy),
+      loadHiringTeam(job),
+    ]);
 
   const totals = totalsRows[0] ?? {};
   const count = (key: string) => Number(totals[key] ?? 0);
@@ -258,14 +243,6 @@ export const getJobSummary = async (
   const passRate = current.preScreened > 0 ? pct(current.passed, current.preScreened) : null;
   const previousPassRate =
     previous && previous.preScreened > 0 ? pct(previous.passed, previous.preScreened) : null;
-
-  const board = Object.fromEntries(BOARD_COLUMNS.map((column) => [column, 0])) as Record<
-    BoardColumn,
-    number
-  >;
-  for (const row of boardRows) {
-    if (row.board_column) board[row.board_column] = Number(row.count);
-  }
 
   return {
     applicants: { total, thisWeek: count("this_week") },
@@ -288,7 +265,6 @@ export const getJobSummary = async (
       personalityTest: count("personality_test"),
       interview: count("interview"),
     },
-    board,
     topSkills: skillRows.map((row) => ({ skill: row.skill, pct: pct(row.matched, row.total) })),
     recentActivity,
     hiringTeam,

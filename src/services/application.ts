@@ -3,6 +3,7 @@ import { AppDataSource } from "../database/dataSource.js";
 import { Application } from "../entities/Application.js";
 import { Notification } from "../entities/Notification.js";
 import { User } from "../entities/User.js";
+import { AiInterview } from "../entities/AiInterview.js";
 import { Organization } from "../entities/Organization.js";
 import {
   AppError,
@@ -366,6 +367,12 @@ export const advanceApplication = async (
     application.status === ApplicationStatus.Shortlisted
       ? application
       : await updateStatus(userId, { id: application.id, status: ApplicationStatus.Shortlisted });
+  if (nextStep === "ai_interview") {
+    await AppDataSource.getRepository(AiInterview).delete({
+      applicationId: application.id,
+      status: "failed",
+    });
+  }
   const interview =
     nextStep === "ai_interview"
       ? await startAiInterview(application.id, { sendInvite: payload.sendInterviewInvite })

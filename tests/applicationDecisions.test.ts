@@ -137,6 +137,17 @@ describe("POST /v1/applications/:id/advance", () => {
     expect(mockQuestions).not.toHaveBeenCalled();
   });
 
+  it("can try again after the interview questions failed", async () => {
+    const { token, application } = await setup();
+    mockQuestions.mockRejectedValueOnce(new Error("AI down"));
+
+    const first = await advance(application.id, token, false);
+    expect(first.body.data.interview).toBe("failed");
+
+    const second = await advance(application.id, token, false);
+    expect(second.body.data).toMatchObject({ nextStep: "ai_interview", interview: "ready" });
+  });
+
   it("refuses a rejected candidate and another company", async () => {
     const { token, application } = await setup();
     const { token: otherToken } = await createRecruiter();
