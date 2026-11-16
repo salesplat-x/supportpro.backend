@@ -9,7 +9,6 @@ import {
   NotFoundError,
   ValidationError,
   AuthorizationError,
-  AppError,
   ConflictError,
 } from "../utils/errors";
 import { QuestionType, JobStatus, ApplicationStatus, ScreeningStage } from "../types/enums.js";
@@ -17,13 +16,7 @@ import { calculateTimeLeft } from "../utils/text.js";
 import * as AI from "../utils/integrations/openai.js";
 import { canTakeAssessment, getAssessmentRetryDate, processNextStage } from "./applicationStage.js";
 import { mergeSubmittedAnswers } from "../utils/answerResponses.js";
-import {
-  parseGradedAnswers,
-  scorePercent,
-  GradedAnswersParseError,
-  type GradedAnswer,
-} from "../utils/gradedAnswers.js";
-import { MAX_GENERATION_ATTEMPTS } from "../config/assessmentQuestions.js";
+import { MAX_ANSWER_SCORE } from "../utils/gradedAnswers.js";
 import logger from "../utils/logger.js";
 import { claimRowById, STALE_LOCK_INTERVAL } from "../utils/durableJobs.js";
 import { hideAssessmentResultsFromCandidate } from "./application.js";
@@ -609,37 +602,8 @@ const COMPANY_ASSESSMENT = {
 
 export interface CompanyAssessmentAnswersPayload {
   jobId: string;
-  answers: Record<string, string>;
+  answers: Record<string, number>;
 }
-
-const gradeAllAnswers = async (
-  type: CompanyAssessmentType,
-  items: AI.CompanyAssessmentAnswerItem[]
-): Promise<Map<string, GradedAnswer> | null> => {
-  const graded = new Map<string, GradedAnswer>();
-  const label = COMPANY_ASSESSMENT[type].label;
-  for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt++) {
-    const remaining = items.filter((item) => !graded.has(item.questionId));
-    if (remaining.length === 0) break;
-    try {
-      const reply = await AI.gradeCompanyAssessmentAnswers({ type, items: remaining });
-      const parsed = parseGradedAnswers(
-        reply?.message?.content,
-        remaining.map((item) => item.questionId)
-      );
-      for (const grade of parsed) graded.set(grade.questionId, grade);
-    } catch (err) {
-      const unusable = err instanceof GradedAnswersParseError;
-      logger.warn(
-        `AI ${label} grading ${unusable ? "reply unusable" : "call failed"} (attempt ${attempt}/${MAX_GENERATION_ATTEMPTS}): ${
-          err instanceof Error ? err.message : String(err)
-        }`
-      );
-      if (!unusable) break;
-    }
-  }
-  return graded.size === items.length ? graded : null;
-};
 
 export const submitCompanyAssessmentAnswers = async (
   userId: string,
@@ -660,97 +624,78 @@ export const submitCompanyAssessmentAnswers = async (
     throw new ValidationError(`The ${settings.label} test is not switched on for this job`);
   }
 
-  const application = await applicationRepo().findOne({ where: { jobId, talentId: userId } });
-  if (!application) {
-    throw new ValidationError("You must apply for this job before this stage is available");
-  }
-  if (application[settings.score] !== null && application[settings.score] !== undefined) {
-    throw new ConflictError(`You have already submitted your ${settings.label} answers`);
-  }
-  const assignedIds = application[settings.assigned] ?? [];
-  if (assignedIds.length === 0) {
-    throw new ValidationError(`Load your ${settings.label} questions before answering them`);
-  }
-
-  const questions = await questionRepo()
-    .createQueryBuilder("q")
-    .whereInIds(assignedIds)
-    .andWhere("q.job_id = :jobId", { jobId })
-    .andWhere("q.type = :type", { type })
-    .getMany();
-  if (questions.length !== assignedIds.length) {
-    throw new ValidationError(
-      `Some of your ${settings.label} questions are no longer available. Please reload them and answer again.`
-    );
-  }
-
-  const assigned = new Set(assignedIds);
-  const answeredIds = Object.keys(answers);
-  if (answeredIds.some((id) => !assigned.has(id))) {
-    throw new ValidationError(`Only answer the ${settings.label} questions you were given`);
-  }
-  const missing = assignedIds.filter((id) => !answeredIds.includes(id));
-  if (missing.length > 0) {
-    throw new ValidationError(
-      `Please answer all ${assignedIds.length} ${settings.label} questions (${missing.length} missing)`
-    );
-  }
-
-  const items: AI.CompanyAssessmentAnswerItem[] = questions.map((q) => ({
-    questionId: q.id,
-    question: q.question,
-    criteria: q.criteria ?? "",
-    answer: answers[q.id]!.trim(),
-    ...(type === QuestionType.CultureFit ? { companyValue: q.category ?? null } : {}),
-  }));
-
-  const graded = await gradeAllAnswers(type, items);
-  if (!graded) {
-    throw new AppError(
-      502,
-      "AI_GRADING_FAILED",
-      `We couldn't score your ${settings.label} answers right now. Please try again in a moment.`
-    );
-  }
-
-  const ordered = assignedIds.map((id) => graded.get(id)!);
-  const score = scorePercent(ordered.map((g) => g.score));
-
-  await AppDataSource.transaction(async (manager) => {
-    const locked = await manager.findOne(Application, {
-      where: { id: application.id },
+  return AppDataSource.transaction(async (manager) => {
+    const application = await manager.findOne(Application, {
+      where: { jobId, talentId: userId },
       lock: { mode: "pessimistic_write" },
     });
-    if (!locked) {
-      throw new NotFoundError("Application not found");
+    if (!application) {
+      throw new ValidationError("You must apply for this job before this stage is available");
     }
-    if (locked[settings.score] !== null) {
+    if (application[settings.score] !== null && application[settings.score] !== undefined) {
       throw new ConflictError(`You have already submitted your ${settings.label} answers`);
     }
-    if ((locked[settings.assigned] ?? []).join(",") !== assignedIds.join(",")) {
+    const assignedIds = application[settings.assigned] ?? [];
+    if (assignedIds.length === 0) {
+      throw new ValidationError(`Load your ${settings.label} questions before answering them`);
+    }
+
+    const questions = await manager
+      .getRepository(Question)
+      .createQueryBuilder("q")
+      .whereInIds(assignedIds)
+      .andWhere("q.job_id = :jobId", { jobId })
+      .andWhere("q.type = :type", { type })
+      .getMany();
+    if (
+      questions.length !== assignedIds.length ||
+      questions.some((q) => !q.options?.length || q.correctOption === null)
+    ) {
       throw new ValidationError(
         `Your ${settings.label} questions have changed. Please reload them and answer again.`
       );
     }
+
+    const assigned = new Set(assignedIds);
+    const answeredIds = Object.keys(answers);
+    if (answeredIds.some((id) => !assigned.has(id))) {
+      throw new ValidationError(`Only answer the ${settings.label} questions you were given`);
+    }
+    const missing = assignedIds.filter((id) => !answeredIds.includes(id));
+    if (missing.length > 0) {
+      throw new ValidationError(
+        `Please answer all ${assignedIds.length} ${settings.label} questions (${missing.length} missing)`
+      );
+    }
+
+    const byId = new Map(questions.map((q) => [q.id, q]));
+    const responses = assignedIds.map((id) => {
+      const question = byId.get(id)!;
+      const options = question.options!;
+      const selectedOption = answers[id]!;
+      if (selectedOption >= options.length) {
+        throw new ValidationError(`Pick one of the ${options.length} options for every question`);
+      }
+      const correct = selectedOption === question.correctOption;
+      return {
+        questionId: id,
+        answer: options[selectedOption]!,
+        selectedOption,
+        score: correct ? MAX_ANSWER_SCORE : 0,
+      };
+    });
+    const correctCount = responses.filter((r) => r.score === MAX_ANSWER_SCORE).length;
+    const score = Math.round((100 * correctCount) / responses.length);
+
     await manager.query(`UPDATE "applications" SET "${settings.score}" = $1 WHERE id = $2`, [
       score,
       application.id,
     ]);
     await manager.save(
       Answer,
-      manager.create(Answer, {
-        userId,
-        jobId,
-        questionType: type,
-        responses: ordered.map((g) => ({
-          questionId: g.questionId,
-          answer: answers[g.questionId]!.trim(),
-          score: g.score,
-          feedback: g.feedback,
-        })),
-      })
+      manager.create(Answer, { userId, jobId, questionType: type, responses })
     );
-  });
 
-  return { submitted: true, questionType: type, answered: ordered.length };
+    return { submitted: true as const, questionType: type, answered: responses.length };
+  });
 };

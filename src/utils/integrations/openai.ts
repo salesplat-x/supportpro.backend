@@ -4,6 +4,7 @@ import { buildChatRequest, complete, completeWhileWaiting, embed } from "./ai/ga
 import { findModel, loadAiCatalog } from "./ai/catalog.js";
 import { renderPrompt } from "./ai/prompts.js";
 import {
+  ASSESSMENT_OPTION_COUNT,
   CULTURE_FIT_GENERAL_CATEGORIES,
   MAX_CULTURE_FIT_JOB_BRIEF_CHARS,
   PROBLEM_SOLVING_CATEGORIES,
@@ -896,6 +897,7 @@ export const generateProblemSolvingQuestions = async (
     count,
     questionWord: count > 1 ? "questions" : "question",
     categories: PROBLEM_SOLVING_CATEGORIES.join(", "),
+    optionCount: ASSESSMENT_OPTION_COUNT,
     avoidText: avoid.length
       ? `\n\n${await renderPrompt(job, "avoid", {
           questions: avoid.map((q) => `- ${q}`).join("\n"),
@@ -942,6 +944,7 @@ export const generateCultureFitQuestions = async (
       ? companyValues.map((value) => `- ${value}`).join("\n")
       : await renderPrompt(job, "no_values"),
     jobBrief: jobBrief?.trim().slice(0, MAX_CULTURE_FIT_JOB_BRIEF_CHARS) || "Not provided",
+    optionCount: ASSESSMENT_OPTION_COUNT,
     avoidText: avoid.length
       ? `\n\n${await renderPrompt(job, "avoid", {
           questions: avoid.map((q) => `- ${q}`).join("\n"),
@@ -956,53 +959,6 @@ export const generateCultureFitQuestions = async (
       { role: "system", content: system },
       { role: "user", content: prompt },
     ],
-    response_format: { type: "json_object" },
-  });
-  return completion.choices[0];
-};
-
-export interface CompanyAssessmentAnswerItem {
-  questionId: string;
-  question: string;
-  criteria: string;
-  answer: string;
-  companyValue?: string | null;
-}
-
-export interface GradeCompanyAssessmentContext {
-  type: "problem_solving" | "culture_fit";
-  items: CompanyAssessmentAnswerItem[];
-}
-
-export const gradeCompanyAssessmentAnswers = async (
-  context: GradeCompanyAssessmentContext
-): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
-  const { type, items } = context;
-  const job = "company_answer_grading";
-  const system = await renderPrompt(job, "system", {
-    focus: await renderPrompt(
-      job,
-      type === "culture_fit" ? "focus_culture_fit" : "focus_problem_solving"
-    ),
-  });
-  const answers = items.map((item) => ({
-    questionId: item.questionId,
-    question: item.question,
-    ...(item.companyValue ? { companyValue: item.companyValue } : {}),
-    criteria: item.criteria,
-    answer: item.answer,
-  }));
-  const prompt = await renderPrompt(job, "user", {
-    count: items.length,
-    answerWord: items.length > 1 ? "answers" : "answer",
-    answers: JSON.stringify(answers, null, 2),
-  });
-  const completion = await complete("company_answer_grading", {
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: prompt },
-    ],
-    temperature: 0,
     response_format: { type: "json_object" },
   });
   return completion.choices[0];

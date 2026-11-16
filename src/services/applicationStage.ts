@@ -107,11 +107,15 @@ export type GradedAnswerPair = {
   score: number | null;
   maxScore: number;
   feedback: string | null;
+  options?: string[];
+  selectedOption?: number;
+  correctOption?: number;
 };
 
 type StoredGradedResponse = {
   questionId?: string;
   answer?: string;
+  selectedOption?: number;
   score?: number;
   feedback?: string;
 };
@@ -127,15 +131,27 @@ export const buildGradedAnswerPairs = async (
   const responses = answer.responses as StoredGradedResponse[];
   const ids = responses.map((r) => r.questionId).filter((id): id is string => !!id);
   const questions = ids.length ? await questionRepo().find({ where: { id: In(ids) } }) : [];
-  const questionsById = new Map(questions.map((q) => [q.id, q.question]));
+  const questionsById = new Map(questions.map((q) => [q.id, q]));
 
-  return responses.map((r) => ({
-    question: (r.questionId && questionsById.get(r.questionId)) || "Unknown question",
-    answer: r.answer ?? "",
-    score: typeof r.score === "number" ? r.score : null,
-    maxScore: MAX_ANSWER_SCORE,
-    feedback: r.feedback ?? null,
-  }));
+  return responses.map((r) => {
+    const question = r.questionId ? questionsById.get(r.questionId) : undefined;
+    const choice =
+      typeof r.selectedOption === "number" && question?.options && question.correctOption !== null
+        ? {
+            options: question.options,
+            selectedOption: r.selectedOption,
+            correctOption: question.correctOption,
+          }
+        : {};
+    return {
+      question: question?.question || "Unknown question",
+      answer: r.answer ?? "",
+      score: typeof r.score === "number" ? r.score : null,
+      maxScore: MAX_ANSWER_SCORE,
+      feedback: r.feedback ?? null,
+      ...choice,
+    };
+  });
 };
 
 const persistRecommendation = async (

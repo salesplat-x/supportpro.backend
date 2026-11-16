@@ -3080,7 +3080,7 @@ paths:
                               its transcript. Each flag is {text, question}, where question is the answer's
                               position, or null when the flag is about the whole interview.
                           problemSolvingAnswers:
-                            description: Graded problem-solving answers, in the order asked. Company only.
+                            description: Scored problem-solving answers, in the order asked. Company only. Multiple-choice answers also carry the options, the chosen option and the correct option; older written answers carry the AI's feedback.
                             type: array
                             items:
                               type: object
@@ -3091,15 +3091,26 @@ paths:
                                   type: string
                                 score:
                                   type: number
-                                  description: The AI's grade for this answer, 0-5.
+                                  description: 5 for the correct option and 0 otherwise; older written answers have the AI's grade, 0-5.
                                 maxScore:
                                   type: number
                                   example: 5
                                 feedback:
                                   type: string
-                                  description: One line on why it got that grade.
+                                  nullable: true
+                                  description: One line on why an older written answer got its grade.
+                                options:
+                                  type: array
+                                  items:
+                                    type: string
+                                selectedOption:
+                                  type: integer
+                                  description: The option the candidate chose, from 0.
+                                correctOption:
+                                  type: integer
+                                  description: The correct option, from 0.
                           cultureFitAnswers:
-                            description: Graded culture-fit answers, in the order asked. Company only.
+                            description: Scored culture-fit answers, in the order asked. Company only. Multiple-choice answers also carry the options, the chosen option and the correct option; older written answers carry the AI's feedback.
                             type: array
                             items:
                               type: object
@@ -3110,13 +3121,24 @@ paths:
                                   type: string
                                 score:
                                   type: number
-                                  description: The AI's grade for this answer, 0-5.
+                                  description: 5 for the correct option and 0 otherwise; older written answers have the AI's grade, 0-5.
                                 maxScore:
                                   type: number
                                   example: 5
                                 feedback:
                                   type: string
-                                  description: One line on why it got that grade.
+                                  nullable: true
+                                  description: One line on why an older written answer got its grade.
+                                options:
+                                  type: array
+                                  items:
+                                    type: string
+                                selectedOption:
+                                  type: integer
+                                  description: The option the candidate chose, from 0.
+                                correctOption:
+                                  type: integer
+                                  description: The correct option, from 0.
       security:
         - bearerAuth: []
   /applications/{_id}/status:
@@ -3258,8 +3280,8 @@ paths:
     get:
       summary: Candidate — load my problem-solving questions for a job
       description: >-
-        For an applicant to a job whose problem-solving test is switched on. The first call picks the recruiter's chosen number of questions at random from the job's pool and keeps them on the application; later calls return the same set.
-        Scoring criteria are never sent.
+        For an applicant to a job whose problem-solving test is switched on. The first call picks the recruiter's chosen number of multiple-choice questions at random from the job's pool and keeps them on the application; later calls return the same set.
+        If the pool has no multiple-choice questions yet, they are generated first. The correct option and scoring criteria are never sent.
       tags:
         - questions
       parameters:
@@ -3295,6 +3317,11 @@ paths:
                               type: string
                             questionType:
                               type: string
+                            options:
+                              type: array
+                              description: The four answer options, A to D.
+                              items:
+                                type: string
         "400":
           description: Bad jobId, the test is not switched on for this job, or the candidate hasn't applied
         "401":
@@ -3304,15 +3331,15 @@ paths:
         "404":
           description: Job not found
         "409":
-          description: The job has no problem-solving questions yet (the recruiter hasn't generated them)
+          description: The problem-solving questions couldn't be prepared right now; try again later
       security:
         - bearerAuth: []
   /questions/candidate/culture-fit:
     get:
       summary: Candidate — load my culture-fit questions for a job
       description: >-
-        For an applicant to a job whose culture-fit test is switched on. The first call picks the recruiter's chosen number of questions at random from the job's pool and keeps them on the application; later calls return the same set.
-        Scoring criteria are never sent.
+        For an applicant to a job whose culture-fit test is switched on. The first call picks the recruiter's chosen number of multiple-choice questions at random from the job's pool and keeps them on the application; later calls return the same set.
+        If the pool has no multiple-choice questions yet, they are generated first. The correct option and scoring criteria are never sent.
       tags:
         - questions
       parameters:
@@ -3348,6 +3375,11 @@ paths:
                               type: string
                             questionType:
                               type: string
+                            options:
+                              type: array
+                              description: The four answer options, A to D.
+                              items:
+                                type: string
         "400":
           description: Bad jobId, the test is not switched on for this job, or the candidate hasn't applied
         "401":
@@ -3357,14 +3389,14 @@ paths:
         "404":
           description: Job not found
         "409":
-          description: The job has no culture-fit questions yet (the recruiter hasn't generated them)
+          description: The culture-fit questions couldn't be prepared right now; try again later
       security:
         - bearerAuth: []
   /questions/answer/problem-solving:
     post:
       summary: Candidate — submit my problem-solving answers
       description: >-
-        Answers to exactly the problem-solving questions the candidate was given. Each answer is graded 0-5 against its question's criteria; the score is total / (5 x answers) as a percentage, saved on the application as problemSolvingScore.
+        One chosen option for exactly the problem-solving questions the candidate was given. The score is the share of correct options as a whole percentage, saved on the application as problemSolvingScore.
         One submission per test. The candidate is not shown the score.
       tags:
         - questions
@@ -3381,9 +3413,11 @@ paths:
                   format: uuid
                 answers:
                   type: object
-                  description: Question id to answer text (1-5000 characters each).
+                  description: Question id to the chosen option, 0 to 3 (A to D).
                   additionalProperties:
-                    type: string
+                    type: integer
+                    minimum: 0
+                    maximum: 3
               required:
                 - jobId
                 - answers
@@ -3409,7 +3443,7 @@ paths:
                       answered:
                         type: integer
         "400":
-          description: Bad body, a missing or extra answer, questions not loaded yet, the test is off, the job is closed, or the candidate hasn't applied
+          description: Bad body, a missing or extra answer, an option out of range, questions not loaded yet or changed since, the test is off, the job is closed, or the candidate hasn't applied
         "401":
           description: Not logged in
         "403":
@@ -3418,15 +3452,13 @@ paths:
           description: Job not found
         "409":
           description: Already submitted
-        "502":
-          description: The answers couldn't be scored right now; nothing was saved, so the candidate can try again
       security:
         - bearerAuth: []
   /questions/answer/culture-fit:
     post:
       summary: Candidate — submit my culture-fit answers
       description: >-
-        Answers to exactly the culture-fit questions the candidate was given. Each answer is graded 0-5 against its question's criteria; the score is total / (5 x answers) as a percentage, saved on the application as cultureFitScore.
+        One chosen option for exactly the culture-fit questions the candidate was given. The score is the share of correct options as a whole percentage, saved on the application as cultureFitScore.
         One submission per test. The candidate is not shown the score.
       tags:
         - questions
@@ -3443,9 +3475,11 @@ paths:
                   format: uuid
                 answers:
                   type: object
-                  description: Question id to answer text (1-5000 characters each).
+                  description: Question id to the chosen option, 0 to 3 (A to D).
                   additionalProperties:
-                    type: string
+                    type: integer
+                    minimum: 0
+                    maximum: 3
               required:
                 - jobId
                 - answers
@@ -3471,7 +3505,7 @@ paths:
                       answered:
                         type: integer
         "400":
-          description: Bad body, a missing or extra answer, questions not loaded yet, the test is off, the job is closed, or the candidate hasn't applied
+          description: Bad body, a missing or extra answer, an option out of range, questions not loaded yet or changed since, the test is off, the job is closed, or the candidate hasn't applied
         "401":
           description: Not logged in
         "403":
@@ -3480,8 +3514,6 @@ paths:
           description: Job not found
         "409":
           description: Already submitted
-        "502":
-          description: The answers couldn't be scored right now; nothing was saved, so the candidate can try again
       security:
         - bearerAuth: []
   /ai-config/:

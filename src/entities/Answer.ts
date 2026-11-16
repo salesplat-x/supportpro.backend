@@ -45,6 +45,7 @@ export class Answer {
   responses!: Array<{
     questionId: string;
     answer: string;
+    selectedOption?: number;
     score?: number;
     feedback?: string;
     dichotomyPreference?: string;

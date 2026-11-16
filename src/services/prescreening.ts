@@ -14,6 +14,7 @@ import {
 import { getProfileCompletion } from "./user.js";
 import { advanceApplicationsAfterPrescreening } from "./applicationStage.js";
 import logger from "../utils/logger.js";
+import { redistributeCorrectOptions } from "../utils/generatedQuestions.js";
 import {
   MAX_DURABLE_ATTEMPTS,
   STALE_LOCK_INTERVAL,
@@ -61,16 +62,6 @@ export interface IPreScreeningAnswer {
   selectedOption: number;
 }
 
-const shuffleInPlace = <T>(items: T[]): T[] => {
-  for (let i = items.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    const current = items[i]!;
-    items[i] = items[j]!;
-    items[j] = current;
-  }
-  return items;
-};
-
 const normalizeCorrectOption = (question: IGeneratedQuestion): number => {
   const { options } = question;
   const raw = question.correctOption as number | string;
@@ -83,28 +74,6 @@ const normalizeCorrectOption = (question: IGeneratedQuestion): number => {
   }
   return 0;
 };
-
-/** Shuffle options so the correct answer is not stuck on B for every item. */
-export const redistributeCorrectOptions = (questions: IGeneratedQuestion[]): IGeneratedQuestion[] =>
-  questions.map((question, index) => {
-    const correctIndex = normalizeCorrectOption(question);
-    const indexed = question.options.map((text, optionIndex) => ({ text, optionIndex }));
-    shuffleInPlace(indexed);
-    // Prefer an even spread, then keep the shuffled order so it does not look patterned.
-    const preferredSlot = index % Math.max(question.options.length, 1);
-    const correctEntry = indexed.find((item) => item.optionIndex === correctIndex);
-    if (correctEntry && indexed[preferredSlot] && indexed[preferredSlot] !== correctEntry) {
-      const preferredIndex = indexed.indexOf(correctEntry);
-      const swap = indexed[preferredSlot]!;
-      indexed[preferredSlot] = correctEntry;
-      indexed[preferredIndex] = swap;
-    }
-    return {
-      ...question,
-      options: indexed.map((item) => item.text),
-      correctOption: indexed.findIndex((item) => item.optionIndex === correctIndex),
-    };
-  });
 
 const stripSensitiveFields = (
   questions: IGeneratedQuestion[]
@@ -194,7 +163,11 @@ export const generatePreScreeningForUser = async (
         Array.isArray(candidate.questions) &&
         candidate.questions.every((q) => Array.isArray(q.options) && q.options.length === 4);
       if (Array.isArray(candidate.questions) && count >= 5 && count <= 10 && optionsValid) {
-        parsed = { questions: redistributeCorrectOptions(candidate.questions) };
+        parsed = {
+          questions: redistributeCorrectOptions(
+            candidate.questions.map((q) => ({ ...q, correctOption: normalizeCorrectOption(q) }))
+          ),
+        };
         break;
       }
       logger.error(

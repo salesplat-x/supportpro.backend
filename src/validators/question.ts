@@ -1,7 +1,10 @@
 import { body, query } from "express-validator";
 import { paginationRules, idParam } from "./shared.js";
 import { QuestionType } from "../types/enums.js";
-import { MAX_GENERATED_QUESTIONS_PER_REQUEST } from "../config/assessmentQuestions.js";
+import {
+  ASSESSMENT_OPTION_COUNT,
+  MAX_GENERATED_QUESTIONS_PER_REQUEST,
+} from "../config/assessmentQuestions.js";
 
 const DichotomyPair = ["EI", "SN", "TF", "JP"] as const;
 
@@ -84,8 +87,6 @@ export const candidateAssessmentQuestionsValidator = [
   query("jobId").custom(isPlainText).bail().isUUID().withMessage("jobId must be a valid job id"),
 ];
 
-export const MAX_ASSESSMENT_ANSWER_LENGTH = 5000;
-
 export const companyAssessmentAnswersValidator = [
   body("jobId").custom(isPlainText).bail().isUUID().withMessage("jobId must be a valid job id"),
   body("answers")
@@ -97,11 +98,15 @@ export const companyAssessmentAnswersValidator = [
         throw new Error("answers must not be empty");
       }
       for (const [, value] of entries) {
-        if (typeof value !== "string" || !value.trim()) {
-          throw new Error("Every answer must be some text");
-        }
-        if (value.length > MAX_ASSESSMENT_ANSWER_LENGTH) {
-          throw new Error(`Each answer can be at most ${MAX_ASSESSMENT_ANSWER_LENGTH} characters`);
+        if (
+          typeof value !== "number" ||
+          !Number.isInteger(value) ||
+          value < 0 ||
+          value >= ASSESSMENT_OPTION_COUNT
+        ) {
+          throw new Error(
+            `Every answer must be an option number from 0 to ${ASSESSMENT_OPTION_COUNT - 1}`
+          );
         }
       }
       return true;

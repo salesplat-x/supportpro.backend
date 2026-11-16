@@ -160,6 +160,46 @@ describe("Day 5 — recruiter reads problem-solving and culture-fit results", ()
     ]);
   });
 
+  it("shows the recruiter the options, the chosen option and the correct one for multiple-choice answers", async () => {
+    const { user: recruiter, token: recruiterToken } = await createRecruiter();
+    const job = await createJob(recruiter, await createRole());
+    const { user: talent } = await createTalent();
+    const app_ = await createApplication(talent, job);
+    const options = ["Call them", "Email them", "Wait", "Escalate"];
+    const ps = await createQuestion(
+      QuestionType.ProblemSolving,
+      { jobId: job.id },
+      { question: "A key client churns. What first?", options, correctOption: 0 }
+    );
+    const repo = testDataSource.getRepository(Answer);
+    await repo.save(
+      repo.create({
+        userId: talent.id,
+        jobId: job.id,
+        questionType: QuestionType.ProblemSolving,
+        responses: [{ questionId: ps.id, answer: "Wait", selectedOption: 2, score: 0 }],
+      })
+    );
+
+    const res = await request(app)
+      .get(`/v1/applications/${app_.id}`)
+      .set("Authorization", `Bearer ${recruiterToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.application.problemSolvingAnswers).toEqual([
+      {
+        question: "A key client churns. What first?",
+        answer: "Wait",
+        score: 0,
+        maxScore: 5,
+        feedback: null,
+        options,
+        selectedOption: 2,
+        correctOption: 0,
+      },
+    ]);
+  });
+
   it("returns empty answer lists and null scores when the candidate hasn't taken the tests", async () => {
     const { user: recruiter, token } = await createRecruiter();
     const role = await createRole();
