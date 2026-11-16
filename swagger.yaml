@@ -367,6 +367,92 @@ paths:
           description: Only talents can list their applications
       security:
         - bearerAuth: []
+  /user/dashboard:
+    get:
+      summary: Talent — my dashboard
+      description: >-
+        What the talent has applied to, the tests and interviews waiting for them, and what to do next, earliest due first.
+        Also carries the CV job matches.
+      tags:
+        - user
+      responses:
+        "200":
+          description: The dashboard
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      applications:
+                        type: object
+                        properties:
+                          sent:
+                            type: integer
+                          sentThisWeek:
+                            type: integer
+                            description: Applied in the last 7 days.
+                      tests:
+                        type: object
+                        properties:
+                          toTake:
+                            type: integer
+                          nextDueAt:
+                            type: string
+                            format: date-time
+                            nullable: true
+                      interviews:
+                        type: object
+                        properties:
+                          toRecord:
+                            type: integer
+                          nextDueAt:
+                            type: string
+                            format: date-time
+                            nullable: true
+                      todo:
+                        type: array
+                        description: The current step of each application that needs the talent, earliest due first. Each step has the same shape as a pipeline step.
+                        items:
+                          type: object
+                          properties:
+                            applicationId:
+                              type: string
+                            jobId:
+                              type: string
+                            jobTitle:
+                              type: string
+                            company:
+                              type: object
+                              nullable: true
+                              properties:
+                                name:
+                                  type: string
+                                logoUrl:
+                                  type: string
+                                  nullable: true
+                            step:
+                              type: object
+                      cvReady:
+                        type: boolean
+                      matches:
+                        type: array
+                        items:
+                          type: object
+                      newMatchesToday:
+                        type: integer
+        "401":
+          description: Not logged in
+        "403":
+          description: Only talents have this dashboard
+      security:
+        - bearerAuth: []
   /user/applications/{applicationId}/pipeline:
     get:
       summary: Talent — where one of my applications stands

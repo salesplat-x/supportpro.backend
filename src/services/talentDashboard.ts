@@ -1,6 +1,13 @@
 import { AppDataSource } from "../database/dataSource.js";
 import { JobStatus } from "../types/enums.js";
 import { convertSimilarityToPercentage } from "../utils/text.js";
+import {
+  buildCandidatePipelines,
+  loadTalentApplications,
+  type PipelineStep,
+} from "./candidatePipeline.js";
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 export const TALENT_MATCH_LIMIT = 4;
 export const DEFAULT_MIN_MATCH_PERCENT = 50;
@@ -18,16 +25,83 @@ export interface TalentJobMatch {
   matchPercent: number;
 }
 
-export interface TalentDashboard {
+export interface TalentTodo {
+  applicationId: string;
+  jobId: string;
+  jobTitle: string;
+  company: { name: string; logoUrl: string | null } | null;
+  step: PipelineStep;
+}
+
+export interface TalentApplicationSummary {
+  applications: { sent: number; sentThisWeek: number };
+  tests: { toTake: number; nextDueAt: string | null };
+  interviews: { toRecord: number; nextDueAt: string | null };
+  todo: TalentTodo[];
+}
+
+export interface TalentDashboard extends TalentApplicationSummary {
   cvReady: boolean;
   matches: TalentJobMatch[];
   newMatchesToday: number;
 }
 
+const earliest = (dates: Array<string | null>): string | null =>
+  dates.filter((date): date is string => !!date).sort()[0] ?? null;
+
+export const getTalentApplicationSummary = async (
+  talentId: string
+): Promise<TalentApplicationSummary> => {
+  const applications = await loadTalentApplications(talentId);
+  const pipelines = await buildCandidatePipelines(talentId, applications);
+  const weekAgo = Date.now() - WEEK_MS;
+
+  const todo: TalentTodo[] = pipelines
+    .filter((pipeline) => pipeline.application.group === "needs_you" && pipeline.nextStep)
+    .map((pipeline) => ({
+      applicationId: pipeline.application.id,
+      jobId: pipeline.application.jobId,
+      jobTitle: pipeline.application.job.title,
+      company: pipeline.application.job.organization
+        ? {
+            name: pipeline.application.job.organization.name,
+            logoUrl: pipeline.application.job.organization.logoUrl,
+          }
+        : null,
+      step: pipeline.nextStep!,
+    }))
+    .sort((a, b) => (a.step.dueAt ?? "~").localeCompare(b.step.dueAt ?? "~"));
+
+  const tests = todo.filter((item) => item.step.key !== "ai_interview");
+  const interviews = todo.filter((item) => item.step.key === "ai_interview");
+
+  return {
+    applications: {
+      sent: pipelines.length,
+      sentThisWeek: pipelines.filter(
+        (pipeline) => new Date(pipeline.application.appliedAt).getTime() >= weekAgo
+      ).length,
+    },
+    tests: { toTake: tests.length, nextDueAt: earliest(tests.map((item) => item.step.dueAt)) },
+    interviews: {
+      toRecord: interviews.length,
+      nextDueAt: earliest(interviews.map((item) => item.step.dueAt)),
+    },
+    todo,
+  };
+};
+
 const toMatchPercent = (distance: number): number =>
   convertSimilarityToPercentage(Math.min(Math.max(distance, 0), 1));
 
-export const getTalentDashboard = async (talentId: string): Promise<TalentDashboard> => {
+export const getTalentDashboard = async (talentId: string): Promise<TalentDashboard> => ({
+  ...(await getTalentApplicationSummary(talentId)),
+  ...(await getTalentMatches(talentId)),
+});
+
+const getTalentMatches = async (
+  talentId: string
+): Promise<Pick<TalentDashboard, "cvReady" | "matches" | "newMatchesToday">> => {
   const [readyRow] = (await AppDataSource.query(
     `SELECT EXISTS (
        SELECT 1 FROM talent_embeddings WHERE user_id = $1 AND cv_embedding IS NOT NULL
