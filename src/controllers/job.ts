@@ -1,4 +1,8 @@
-import { compareSalaries, type SalaryComparisonQuery } from "../services/salaryComparison.js";
+import {
+  compareJobPay,
+  compareSalaries,
+  type SalaryComparisonQuery,
+} from "../services/salaryComparison.js";
 import { Request, Response } from "express";
 import * as savedJobsService from "../services/savedJobs.js";
 import * as jobService from "../services/job.js";
@@ -183,4 +187,9 @@ export const saveJob = async (req: Request, res: Response) => {
 export const unsaveJob = async (req: Request, res: Response) => {
   const result = await savedJobsService.unsaveJob(req.user.id, req.params["jobId"]!);
   sendSuccessResponse(res, "Job removed from saved", result);
+};
+
+export const payComparison = async (req: Request, res: Response) => {
+  const result = await compareJobPay(req.params["jobId"]!);
+  sendSuccessResponse(res, "Pay comparison fetched", result);
 };

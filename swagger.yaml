@@ -2580,6 +2580,79 @@ paths:
                                   nullable: true
                                 minutes:
                                   type: integer
+  /jobs/{jobId}/pay-comparison:
+    get:
+      summary: Talent — how an open job's pay compares
+      description: >-
+        Low, middle and high pay of similar jobs (same role and experience level) in the job's state, or its country when it has no state,
+        in the job's currency and pay period. Not available under 5 similar jobs. Always carries the job's own range.
+      tags:
+        - jobs
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The comparison
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      available:
+                        type: boolean
+                      count:
+                        type: integer
+                      low:
+                        type: number
+                      middle:
+                        type: number
+                      high:
+                        type: number
+                      currency:
+                        type: string
+                      compensationPeriod:
+                        type: string
+                        enum: [monthly, yearly]
+                      area:
+                        type: string
+                        nullable: true
+                        description: Where the similar jobs are, such as Lagos.
+                      job:
+                        type: object
+                        properties:
+                          minSalary:
+                            type: number
+                          maxSalary:
+                            type: number
+                            nullable: true
+                          currency:
+                            type: string
+                            nullable: true
+                          compensationPeriod:
+                            type: string
+                            enum: [monthly, yearly]
+        "400":
+          description: Bad jobId
+        "401":
+          description: Not logged in
+        "403":
+          description: Only talents
+        "404":
+          description: No such open job
+      security:
+        - bearerAuth: []
   /jobs/{jobId}/save:
     put:
       summary: Talent — save a job

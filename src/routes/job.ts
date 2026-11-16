@@ -21,7 +21,7 @@ import {
   jobSummaryValidator,
   generateJobContentValidator,
   generateJobFieldValidator,
-  savedJobValidator,
+  jobIdParamValidator,
 } from "../validators/job.js";
 import { jobDescriptionUpload } from "../middleware/multer.js";
 
@@ -172,18 +172,25 @@ router.post(
   requireVerifiedEmail,
   asyncHandler(job.activatePayment, "start job payment")
 );
+router.get(
+  "/:jobId/pay-comparison",
+  validateAccess([UserRole.Talent]),
+  requireVerifiedEmail,
+  validate(jobIdParamValidator),
+  asyncHandler(job.payComparison, "compare pay")
+);
 router.put(
   "/:jobId/save",
   validateAccess([UserRole.Talent]),
   requireVerifiedEmail,
-  validate(savedJobValidator),
+  validate(jobIdParamValidator),
   asyncHandler(job.saveJob, "save job")
 );
 router.delete(
   "/:jobId/save",
   validateAccess([UserRole.Talent]),
   requireVerifiedEmail,
-  validate(savedJobValidator),
+  validate(jobIdParamValidator),
   asyncHandler(job.unsaveJob, "remove saved job")
 );
 router.get("/:_id", optionalAuth, validate(matchJobValidator), asyncHandler(job.fetch, "load job"));

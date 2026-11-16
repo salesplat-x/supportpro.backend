@@ -1,6 +1,7 @@
 import { AppDataSource } from "../database/dataSource.js";
 import { Job } from "../entities/Job.js";
 import { CompensationPeriod, JobStatus } from "../types/enums.js";
+import { NotFoundError } from "../utils/errors";
 
 /**
  * Day 10 (plan feature 5): what similar AuxHR jobs pay. Similar = same role,
@@ -117,4 +118,42 @@ export const compareSalaries = async (query: SalaryComparisonQuery): Promise<Sal
     currency,
     compensationPeriod: query.compensationPeriod,
   };
+};
+
+export type JobPayComparison = SalaryComparison & {
+  area: string | null;
+  job: {
+    minSalary: number;
+    maxSalary: number | null;
+    currency: string | null;
+    compensationPeriod: CompensationPeriod;
+  };
+};
+
+/** How an open job's pay sits against similar jobs in its state, or its country when it has no state. */
+export const compareJobPay = async (jobId: string): Promise<JobPayComparison> => {
+  const job = await AppDataSource.getRepository(Job).findOne({ where: { id: jobId } });
+  if (!job || job.status !== JobStatus.Active) {
+    throw new NotFoundError("Job not found");
+  }
+  const area = job.locationState?.trim() || job.locationCountry?.trim() || null;
+  const own = {
+    minSalary: job.minSalary,
+    maxSalary: job.maxSalary,
+    currency: job.currency,
+    compensationPeriod: job.compensationPeriod,
+  };
+  if (!job.currency) return { available: false, area, job: own };
+
+  const comparison = await compareSalaries({
+    roleId: job.roleId,
+    experienceLevel: job.experienceLevel,
+    currency: job.currency,
+    compensationPeriod: job.compensationPeriod,
+    ...(job.locationState?.trim()
+      ? { locationState: job.locationState, locationCountry: job.locationCountry ?? undefined }
+      : { locationCountry: job.locationCountry ?? undefined }),
+    excludeJobId: job.id,
+  });
+  return { ...comparison, area, job: own };
 };

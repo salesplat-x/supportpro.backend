@@ -11,7 +11,14 @@ import {
   clearAllTables,
   testDataSource,
 } from "./helpers/db.js";
-import { createRecruiter, createRole, createJob, createTalent } from "./helpers/fixtures.js";
+import {
+  createRecruiter,
+  createRole,
+  createJob,
+  createTalent,
+  createCompleteTalent,
+} from "./helpers/fixtures.js";
+import { apiData } from "./helpers/http.js";
 import type { User } from "../src/entities/User.js";
 import type { Role } from "../src/entities/Role.js";
 import type { Job } from "../src/entities/Job.js";
@@ -221,5 +228,76 @@ describe("GET /v1/jobs/salary-comparison (Day 10)", () => {
       .get(`/v1/jobs/salary-comparison?roleId=${role.id}`)
       .set("Authorization", `Bearer ${token}`);
     expect(missing.status).toBe(400);
+  });
+});
+
+describe("GET /v1/jobs/:jobId/pay-comparison — talents", () => {
+  const payFor = (token: string, jobId: string) =>
+    request(app).get(`/v1/jobs/${jobId}/pay-comparison`).set("Authorization", `Bearer ${token}`);
+
+  it("compares an open job with similar jobs in its state and gives its own range", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole("Product Designer");
+    await similarJobs(
+      recruiter,
+      role,
+      [
+        [250000, 250000],
+        [300000, 300000],
+        [320000, 320000],
+        [350000, 350000],
+        [400000, 400000],
+      ],
+      { locationCity: "Ikeja" }
+    );
+    await similarJobs(recruiter, role, [[900000, 900000]], { locationState: "Abuja" });
+    const [job] = await similarJobs(recruiter, role, [[300000, 380000]], { locationCity: "Lekki" });
+    const { token } = await createCompleteTalent();
+
+    const res = await payFor(token, job!.id);
+
+    expect(res.status).toBe(200);
+    expect(apiData(res)).toEqual({
+      available: true,
+      count: 5,
+      low: 250000,
+      middle: 320000,
+      high: 400000,
+      currency: "NGN",
+      compensationPeriod: "monthly",
+      area: "Lagos",
+      job: { minSalary: 300000, maxSalary: 380000, currency: "NGN", compensationPeriod: "monthly" },
+    });
+  });
+
+  it("is not available with fewer than 5 similar jobs, but still gives the job's range", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const role = await createRole();
+    const [job] = await similarJobs(recruiter, role, [
+      [100000, 200000],
+      [100000, 200000],
+    ]);
+    const { token } = await createCompleteTalent();
+
+    const res = await payFor(token, job!.id);
+
+    expect(apiData(res)).toMatchObject({
+      available: false,
+      area: "Lagos",
+      job: { minSalary: 100000 },
+    });
+  });
+
+  it("only for open jobs and talents", async () => {
+    const { user: recruiter, token: recruiterToken } = await createRecruiter();
+    const role = await createRole();
+    const [draft] = await similarJobs(recruiter, role, [[1, 2]], { status: JobStatus.Draft });
+    const [open] = await similarJobs(recruiter, role, [[1, 2]]);
+    const { token } = await createCompleteTalent();
+
+    expect((await payFor(token, draft!.id)).status).toBe(404);
+    expect((await payFor(token, "8b1d3c3e-1b7a-4a59-9a5c-1f0f8f0e2a11")).status).toBe(404);
+    expect((await payFor(token, "nope")).status).toBe(400);
+    expect((await payFor(recruiterToken, open!.id)).status).toBe(403);
   });
 });

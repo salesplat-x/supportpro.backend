@@ -337,6 +337,6 @@ export const salaryComparisonValidator = [
   query("excludeJobId").optional().isUUID(),
 ];
 
-export const savedJobValidator = [
+export const jobIdParamValidator = [
   param("jobId").isUUID().withMessage("jobId must be a valid job id"),
 ];
