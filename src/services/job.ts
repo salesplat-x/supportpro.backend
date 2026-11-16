@@ -70,6 +70,7 @@ import { hasUploadedCv, regenerateCvEmbedding } from "./user.js";
 import { isUniqueViolation } from "./staffRecord.js";
 import { screeningPlan, type ScreeningPlanStep } from "./screeningPlan.js";
 import { savedJobIds } from "./savedJobs.js";
+import { StaffMember, StaffStatus } from "../entities/StaffMember.js";
 import { notifyApplicationReceived, notifyStageReached } from "./talentNotifications.js";
 
 const jobRepo = () => AppDataSource.getRepository(Job);
@@ -932,6 +933,23 @@ export const fetchRecruiterJobs = async (
   };
 };
 
+const STAFF_SIZE_RANGES: Array<[number, string]> = [
+  [10, "1–10"],
+  [50, "11–50"],
+  [200, "51–200"],
+  [500, "201–500"],
+];
+
+export const staffSizeRange = (count: number): string | null => {
+  if (count <= 0) return null;
+  return STAFF_SIZE_RANGES.find(([max]) => count <= max)?.[1] ?? "500+";
+};
+
+const countCompanyStaff = (organizationId: string) =>
+  AppDataSource.getRepository(StaffMember).count({
+    where: { organizationId, status: Not(StaffStatus.Ended) },
+  });
+
 export const fetchJob = async (
   jobId: string,
   viewer?: JobViewer
@@ -944,6 +962,7 @@ export const fetchJob = async (
     interviewId?: string | null;
     isSaved?: boolean;
     screening: ScreeningPlanStep[];
+    company: { mission: string | null; staffSize: string | null } | null;
   }
 > => {
   const job = await jobRepo().findOne({
@@ -958,7 +977,15 @@ export const fetchJob = async (
   }
   const publicJob = Object.assign(
     toPublicJob(job, { includeApplicantCount: await canSeeApplicantCount(job, viewer) }),
-    { screening: screeningPlan(job.aiConfig) }
+    {
+      screening: screeningPlan(job.aiConfig),
+      company: job.organization
+        ? {
+            mission: job.organization.mission ?? null,
+            staffSize: staffSizeRange(await countCompanyStaff(job.organization.id)),
+          }
+        : null,
+    }
   );
   if (viewer?.role !== UserRole.Talent) {
     return publicJob;

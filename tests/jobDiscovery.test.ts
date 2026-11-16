@@ -17,6 +17,10 @@ import { Job } from "../src/entities/Job.js";
 import { CompensationPeriod, EmploymentType, JobStatus } from "../src/types/enums.js";
 import { apiData } from "./helpers/http.js";
 import { screeningPlan } from "../src/services/screeningPlan.js";
+import { staffSizeRange } from "../src/services/job.js";
+import { Organization } from "../src/entities/Organization.js";
+import { createStaff } from "./helpers/staff.js";
+import { setupCompany } from "./helpers/company.js";
 import type { AIConfig } from "../src/entities/AIConfig.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
@@ -222,5 +226,32 @@ describe("GET /v1/jobs/:_id — screening plan", () => {
       expect(text).not.toContain("minPrescreeningScore");
       expect(text).not.toContain("minCvSimilarityScore");
     }
+  });
+});
+
+describe("GET /v1/jobs/:_id — about the company", () => {
+  it("bucketes the company's active staff into a size range", () => {
+    expect(staffSizeRange(0)).toBeNull();
+    expect(staffSizeRange(1)).toBe("1–10");
+    expect(staffSizeRange(51)).toBe("51–200");
+    expect(staffSizeRange(200)).toBe("51–200");
+    expect(staffSizeRange(501)).toBe("500+");
+  });
+
+  it("sends the company's mission and size range with the job", async () => {
+    const { owner, org } = await setupCompany();
+    const organizationId = org.id;
+    await testDataSource
+      .getRepository(Organization)
+      .update(organizationId, { mission: "Payment tools for small shops" });
+    const job = await createJob(owner.user, await createRole(), { organizationId });
+    await createStaff(app, owner.token, organizationId);
+
+    const res = await request(app).get(`/v1/jobs/${job.id}`);
+
+    expect(apiData<{ job: { company: unknown } }>(res).job.company).toEqual({
+      mission: "Payment tools for small shops",
+      staffSize: "1–10",
+    });
   });
 });

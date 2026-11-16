@@ -2640,6 +2640,18 @@ paths:
                       job:
                         type: object
                         properties:
+                          company:
+                            type: object
+                            nullable: true
+                            description: About the company behind the job.
+                            properties:
+                              mission:
+                                type: string
+                                nullable: true
+                              staffSize:
+                                type: string
+                                nullable: true
+                                description: Size range from the company's active staff records, such as 51–200.
                           isSaved:
                             type: boolean
                             description: Talents only. Whether this talent saved the job.
