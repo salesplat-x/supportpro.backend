@@ -7,6 +7,16 @@ export const preview = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Invite fetched", { invite });
 };
 
+export const mine = async (req: Request, res: Response) => {
+  const invites = await staffInvites.listMyStaffInvites(req.user.id);
+  sendSuccessResponse(res, "Invites fetched", { invites });
+};
+
+export const acceptMine = async (req: Request, res: Response) => {
+  const joined = await staffInvites.acceptMyStaffInvite(req.user.id, req.params["staffId"]!);
+  sendSuccessResponse(res, "You've joined the company", { joined });
+};
+
 export const accept = async (req: Request, res: Response) => {
   const joined = await staffInvites.acceptStaffInvite(req.user.id, req.params["token"]!);
   sendSuccessResponse(res, "You've joined the company", { joined });

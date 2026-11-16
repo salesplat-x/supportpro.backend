@@ -53,7 +53,7 @@ export const viewProfiles = async (req: Request, res: Response) => {
 };
 
 export const viewProfile = async (req: Request, res: Response) => {
-  const result = await userService.viewProfile(req.params["_id"]!);
+  const result = await userService.viewProfile(req.params["_id"]!, req.user);
   sendSuccessResponse(res, "Profile fetched", { user: result });
 };
 

@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { EntityManager } from "typeorm";
+import { EntityManager, In, IsNull, Not } from "typeorm";
 import env from "../config/env.js";
 import { AppDataSource } from "../database/dataSource.js";
 import { Organization } from "../entities/Organization.js";
@@ -30,6 +30,7 @@ import {
   viewOf,
 } from "./staffRecord.js";
 import { getProfileCompletion } from "./user.js";
+import { notifyTalent, TALENT_NOTIFICATION } from "./talentNotifications.js";
 
 const DAY_MS = 86_400_000;
 const INVITE_RESEND_COOLDOWN_MS = 60_000;
@@ -120,6 +121,23 @@ export const withTimeout = async <T>(
   }
 };
 
+/** Tells an invitee who already has an AuxHR account; never throws. */
+export const notifyInvitedTalent = async (org: Organization, staff: StaffMember): Promise<void> => {
+  const account = await userRepo()
+    .findOne({ where: { email: staff.email, userRole: UserRole.Talent }, select: { id: true } })
+    .catch(() => null);
+  if (account) {
+    await notifyTalent({
+      userId: account.id,
+      type: TALENT_NOTIFICATION.StaffInvite,
+      title: `${org.name} added you as staff`,
+      message: "Accept to see your contracts, pay and first-week tasks",
+      link: "/talentDashboard/my-work",
+      dedupeKey: `staff_invite:${staff.id}`,
+    });
+  }
+};
+
 /** Never throws: a failed email is recorded on the timeline so HR can resend. */
 export const sendInviteEmail = async (
   org: Organization,
@@ -189,6 +207,7 @@ export const inviteStaff = async (
   });
 
   const inviteEmailSent = await sendInviteEmail(org, staff, token, actor);
+  await notifyInvitedTalent(org, staff);
   return { staff: await viewOf(staff), inviteEmailSent };
 };
 
@@ -241,7 +260,10 @@ export const previewStaffInvite = async (token: string): Promise<StaffInvitePrev
  * everything the join wizard promised: talent account, matching verified email,
  * complete profile.
  */
-export const acceptStaffInvite = async (userId: string, token: string): Promise<JoinedStaff> => {
+const joinStaff = async (
+  userId: string,
+  findStaff: (em: EntityManager, user: User) => Promise<StaffMember | null>
+): Promise<JoinedStaff> => {
   const user = await userRepo().findOne({ where: { id: userId }, relations: { userRoles: true } });
   if (!user) {
     throw new NotFoundError("User not found");
@@ -254,11 +276,8 @@ export const acceptStaffInvite = async (userId: string, token: string): Promise<
   }
 
   return AppDataSource.transaction(async (em) => {
-    const staff = await em.getRepository(StaffMember).findOne({
-      where: { inviteTokenHash: hashToken(token) },
-      lock: { mode: "pessimistic_write" },
-    });
-    if (!staff) {
+    const staff = await findStaff(em, user);
+    if (!staff || inviteStateOf(staff) === "none") {
       throw new NotFoundError("Invite not found");
     }
     if (user.email.toLowerCase() !== staff.email) {
@@ -301,5 +320,71 @@ export const acceptStaffInvite = async (userId: string, token: string): Promise<
     }
     await recordActivities(em, staff, [activityEntry(StaffActivityType.Joined, user)]);
     return joined(staff.joinedAt);
+  });
+};
+
+export const acceptStaffInvite = (userId: string, token: string): Promise<JoinedStaff> =>
+  joinStaff(userId, (em) =>
+    em.getRepository(StaffMember).findOne({
+      where: { inviteTokenHash: hashToken(token) },
+      lock: { mode: "pessimistic_write" },
+    })
+  );
+
+/** Accepts a pending invite from My work; only invites sent to the user's own email are found. */
+export const acceptMyStaffInvite = (userId: string, staffId: string): Promise<JoinedStaff> =>
+  joinStaff(userId, (em, user) =>
+    em.getRepository(StaffMember).findOne({
+      where: { id: staffId, email: user.email.toLowerCase() },
+      lock: { mode: "pessimistic_write" },
+    })
+  );
+
+export interface MyStaffInvite {
+  id: string;
+  organizationName: string;
+  organizationLogoUrl: string | null;
+  jobTitle: string | null;
+  invitedByName: string | null;
+  expiresAt: Date | null;
+}
+
+export const listMyStaffInvites = async (userId: string): Promise<MyStaffInvite[]> => {
+  const user = await userRepo().findOne({
+    where: { id: userId },
+    select: { id: true, email: true, emailVerifiedAt: true, userRole: true },
+  });
+  if (!user || user.userRole !== UserRole.Talent || !user.emailVerifiedAt) return [];
+  const invites = (
+    await AppDataSource.getRepository(StaffMember).find({
+      where: {
+        email: user.email.toLowerCase(),
+        userId: IsNull(),
+        inviteTokenHash: Not(IsNull()),
+        status: Not(StaffStatus.Ended),
+      },
+      order: { invitedAt: "DESC" },
+    })
+  ).filter((staff) => inviteStateOf(staff) === "pending");
+  if (invites.length === 0) return [];
+  const orgs = await AppDataSource.getRepository(Organization).find({
+    where: { id: In(invites.map((staff) => staff.organizationId)) },
+    select: { id: true, name: true, logoUrl: true },
+  });
+  const orgById = new Map(orgs.map((org) => [org.id, org]));
+  return invites.flatMap((staff) => {
+    const org = orgById.get(staff.organizationId);
+    return org
+      ? [
+          {
+            id: staff.id,
+            organizationName: org.name,
+            organizationLogoUrl: org.logoUrl ?? null,
+            jobTitle: staff.jobTitle ?? null,
+            invitedByName: staff.invitedByName ?? null,
+            expiresAt: staff.inviteExpiresAt,
+          },
+        ]
+      : [];
   });
 };

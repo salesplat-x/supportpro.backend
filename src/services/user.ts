@@ -37,6 +37,7 @@ import {
   type CandidatePipeline,
 } from "./candidatePipeline.js";
 import { syncCandidateStage } from "./applicationStage.js";
+import { notifyTalent, profileViewKey, TALENT_NOTIFICATION } from "./talentNotifications.js";
 
 // mammoth (used by extractText) only supports .docx, not legacy binary .doc —
 // keep this in sync with what extractText can actually parse.
@@ -614,8 +615,34 @@ export const me = async (userId: string): Promise<User> => {
   return user;
 };
 
+const notifyProfileViewed = async (talentId: string, viewer: Pick<User, "id" | "userRole">) => {
+  if (viewer.userRole !== UserRole.Recruiter) return;
+  const organizationId = await getActiveOrganizationId(viewer.id);
+  if (!organizationId) return;
+  const [organization, latest] = await Promise.all([
+    AppDataSource.getRepository(Organization).findOne({
+      where: { id: organizationId },
+      select: { id: true, name: true },
+    }),
+    applicationRepo().findOne({
+      where: { talentId, job: { organizationId } },
+      relations: { job: { role: true } },
+      order: { createdAt: "DESC" },
+    }),
+  ]);
+  if (!organization) return;
+  await notifyTalent({
+    userId: talentId,
+    type: TALENT_NOTIFICATION.ProfileViewed,
+    title: `${organization.name} viewed your profile`,
+    message: latest?.job?.role?.name ?? "Your profile",
+    dedupeKey: profileViewKey(organization.id, new Date()),
+  });
+};
+
 export const viewProfile = async (
-  targetUserId: string
+  targetUserId: string,
+  viewer?: Pick<User, "id" | "userRole">
 ): Promise<User & { hasEmbedding: boolean }> => {
   const user = await userRepo().findOne({
     where: { id: targetUserId },
@@ -630,6 +657,7 @@ export const viewProfile = async (
   const hasEmbedding = await AppDataSource.getRepository(TalentEmbedding).exists({
     where: { userId: targetUserId },
   });
+  if (viewer) await notifyProfileViewed(targetUserId, viewer).catch(() => undefined);
   return { ...user, hasEmbedding };
 };
 

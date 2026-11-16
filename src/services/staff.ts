@@ -10,7 +10,12 @@ import { copyDefaultChecklist } from "./checklist.js";
 import { withdrawPendingForStaff } from "./completionRequests.js";
 import { assertCanManagePeople, seesOnlyAssignedStaff } from "./peopleAccess.js";
 import { activityEntry, openStaff, recordActivities } from "./staffAudit.js";
-import { assertCanInvite, issueInvite, sendInviteEmail } from "./staffInvite.js";
+import {
+  assertCanInvite,
+  issueInvite,
+  sendInviteEmail,
+  notifyInvitedTalent,
+} from "./staffInvite.js";
 import {
   StaffView,
   findStaff,
@@ -163,6 +168,7 @@ export const createStaff = async (
   }
 
   const inviteEmailSent = token ? await sendInviteEmail(org, saved, token, actor) : null;
+  if (token) await notifyInvitedTalent(org, saved);
   return { staff: await viewOf(saved), inviteEmailSent };
 };
 

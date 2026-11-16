@@ -367,6 +367,83 @@ paths:
           description: Only talents can list their applications
       security:
         - bearerAuth: []
+  /staff-invites/mine:
+    get:
+      summary: Talent — staff invites waiting for me
+      description: Pending invites sent to the talent's own verified email, newest first. Expired and used invites are left out.
+      tags:
+        - staff
+      responses:
+        "200":
+          description: The invites
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      invites:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            organizationName:
+                              type: string
+                            organizationLogoUrl:
+                              type: string
+                              nullable: true
+                            jobTitle:
+                              type: string
+                              nullable: true
+                            invitedByName:
+                              type: string
+                              nullable: true
+                            expiresAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+        "401":
+          description: Not logged in
+        "403":
+          description: Only talents
+      security:
+        - bearerAuth: []
+  /staff-invites/mine/{staffId}/accept:
+    post:
+      summary: Talent — accept a staff invite from My work
+      description: Joins the company as staff. Same checks as the emailed link; only invites sent to the talent's own email are found.
+      tags:
+        - staff
+      parameters:
+        - name: staffId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Joined
+        "400":
+          description: Bad staffId, or the invite has expired or been used
+        "401":
+          description: Not logged in
+        "403":
+          description: Only talents, with a verified email
+        "404":
+          description: No pending invite for this talent
+        "422":
+          description: The talent's profile isn't complete yet
+      security:
+        - bearerAuth: []
   /user/dashboard:
     get:
       summary: Talent — my dashboard

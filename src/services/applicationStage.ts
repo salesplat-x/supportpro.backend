@@ -42,6 +42,7 @@ import logger from "../utils/logger.js";
 import { convertSimilarityToPercentage } from "../utils/text.js";
 import { notifyTeamOfHighMatch } from "./matchAlerts.js";
 import { startAiInterviewIfReached } from "./aiInterview.js";
+import { notifyStageReached } from "./talentNotifications.js";
 
 const applicationRepo = () => AppDataSource.getRepository(Application);
 
@@ -767,7 +768,11 @@ export const rescoreCvSimilarity = async (
       application.status === ApplicationStatus.RetakeAssessment);
 
   if (awaitingGate) {
-    return applicationRepo().save(await runCvSimilarityGate(talent, application, aiConfig, score));
+    const saved = await applicationRepo().save(
+      await runCvSimilarityGate(talent, application, aiConfig, score)
+    );
+    await notifyStageReached(saved.id);
+    return saved;
   }
   application.cvSimilarityScore = score;
   return applicationRepo().save(application);
@@ -790,6 +795,7 @@ const MAX_SYNC_MOVES = 8;
  * off. Holds the row lock and writes only stage columns, so parallel calls move it once.
  */
 export const syncCandidateStage = async (applicationId: string): Promise<void> => {
+  let movedAny = false;
   for (let move = 0; move < MAX_SYNC_MOVES; move++) {
     const moved = await AppDataSource.transaction(async (manager) => {
       const application = await manager.findOne(Application, {
@@ -835,8 +841,10 @@ export const syncCandidateStage = async (applicationId: string): Promise<void> =
       await manager.update(Application, application.id, stageMoveColumns(next));
       return next.currentStage !== stage;
     });
-    if (!moved) return;
+    if (!moved) break;
+    movedAny = true;
   }
+  if (movedAny) await notifyStageReached(applicationId);
 };
 
 // Runs after a skills test submission: a failing fresh score starts the retake wait on

@@ -17,6 +17,7 @@ import {
   stageMoveColumns,
 } from "./applicationStage.js";
 import { assertStageReached } from "./question.js";
+import { notifyStageReached } from "./talentNotifications.js";
 import { mergeSubmittedAnswers } from "../utils/answerResponses.js";
 import { MAX_ANSWER_SCORE } from "../utils/gradedAnswers.js";
 import logger from "../utils/logger.js";
@@ -295,6 +296,7 @@ export const answerPersonalizedQuestions = async (
     });
     return moved;
   });
+  await notifyStageReached(applicationId);
 
   await saveOrUpdateAnswer(
     { userId, jobId, questionType: QuestionType.Personalized },
@@ -439,6 +441,7 @@ export const evaluatePersonalityType = async (
       manager
     );
   });
+  await notifyStageReached(application.id);
 
   // Day 6: the AI judges how the saved type fits the job. The candidate
   // doesn't wait for it; a failure leaves the fit empty for the recruiter to retry.
@@ -601,7 +604,8 @@ export const submitCompanyAssessmentAnswers = async (
     throw new ValidationError(`The ${settings.label} test is not switched on for this job`);
   }
 
-  return AppDataSource.transaction(async (manager) => {
+  let applicationId = "";
+  const result = await AppDataSource.transaction(async (manager) => {
     const application = await manager.findOne(Application, {
       where: { jobId, talentId: userId },
       lock: { mode: "pessimistic_write" },
@@ -613,6 +617,7 @@ export const submitCompanyAssessmentAnswers = async (
       throw new ConflictError(`You have already submitted your ${settings.label} answers`);
     }
     assertStageReached(application, settings.stage, settings.label);
+    applicationId = application.id;
     const assignedIds = application[settings.assigned] ?? [];
     if (assignedIds.length === 0) {
       throw new ValidationError(`Load your ${settings.label} questions before answering them`);
@@ -687,4 +692,6 @@ export const submitCompanyAssessmentAnswers = async (
 
     return { submitted: true as const, questionType: type, answered: responses.length };
   });
+  await notifyStageReached(applicationId);
+  return result;
 };

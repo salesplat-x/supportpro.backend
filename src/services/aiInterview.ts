@@ -10,6 +10,7 @@ import logger from "../utils/logger.js";
 import { AIConfig } from "../entities/AIConfig.js";
 import { loadApplicationProgress, type InterviewProgress } from "./applicationProgress.js";
 import { normalizeInterviewFlags } from "./aiInterviewScoring.js";
+import { notifyInterviewReady } from "./talentNotifications.js";
 
 export const AI_INTERVIEW_QUESTION_COUNT = 5;
 
@@ -84,6 +85,7 @@ export const startAiInterview = async (
     questions.map((question, i) => ({ interviewId, position: i + 1, question }))
   );
   await interviews.update(interviewId, { status: "ready" });
+  await notifyInterviewReady(applicationId, interviewId);
   if (options.sendInvite === false) return "ready";
 
   try {

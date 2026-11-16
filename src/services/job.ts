@@ -70,6 +70,7 @@ import { hasUploadedCv, regenerateCvEmbedding } from "./user.js";
 import { isUniqueViolation } from "./staffRecord.js";
 import { screeningPlan, type ScreeningPlanStep } from "./screeningPlan.js";
 import { savedJobIds } from "./savedJobs.js";
+import { notifyApplicationReceived, notifyStageReached } from "./talentNotifications.js";
 
 const jobRepo = () => AppDataSource.getRepository(Job);
 
@@ -1568,6 +1569,7 @@ export const apply = async (user: User, payload: ApplyPayload): Promise<Applicat
     return applicationRepo().findOneByOrFail({ jobId, talentId: user.id });
   }
   startAiInterviewIfReached(saved, entryStage);
+  await notifyApplicationReceived(saved.id);
 
   // Increment noOfApplicants
   await jobRepo()
@@ -1579,6 +1581,7 @@ export const apply = async (user: User, payload: ApplyPayload): Promise<Applicat
 
   try {
     await syncCandidateStage(saved.id);
+    await notifyStageReached(saved.id);
   } catch (error) {
     logger.warn(`Stage sync after applying failed for application ${saved.id}: ${String(error)}`);
     return saved;
