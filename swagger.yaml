@@ -2038,6 +2038,33 @@ paths:
             enum:
               - asc
               - desc
+        - name: employmentType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [full_time, part_time, contract, internship]
+        - name: minMonthlySalary
+          in: query
+          required: false
+          description: Only jobs whose top monthly pay (yearly pay divided by 12) is at least this, in the chosen currency. Jobs in other currencies or with no pay are left out.
+          schema:
+            type: integer
+            minimum: 0
+        - name: currency
+          in: query
+          required: false
+          description: Currency for minMonthlySalary. Defaults to NGN.
+          schema:
+            type: string
+            enum: [NGN, USD]
+        - name: postedWithin
+          in: query
+          required: false
+          description: Only jobs posted in the last 7 days.
+          schema:
+            type: string
+            enum: [week]
       responses:
         "200":
           description: Successful response
@@ -2045,6 +2072,21 @@ paths:
             application/json:
               schema:
                 type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      jobs:
+                        type: array
+                        items:
+                          type: object
+                      total:
+                        type: integer
+                        description: How many jobs match the filters, across all pages.
   /jobs/{_id}:
     patch:
       summary: Recruiter
@@ -2154,6 +2196,31 @@ paths:
             application/json:
               schema:
                 type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      job:
+                        type: object
+                        properties:
+                          screening:
+                            type: array
+                            description: The timed steps a candidate goes through, in order. No pass marks.
+                            items:
+                              type: object
+                              properties:
+                                key:
+                                  type: string
+                                  enum: [skills_test, tailored, problem_solving, culture_fit, personality, ai_interview]
+                                questionCount:
+                                  type: integer
+                                  nullable: true
+                                minutes:
+                                  type: integer
   /jobs/me:
     get:
       summary: Recruiter

@@ -21,6 +21,7 @@ import {
   ApplicationStatus,
   ScreeningStage,
   CompensationPeriod,
+  Currency,
   EmploymentType,
   ExperienceLevel,
   MatchVerdict,
@@ -68,6 +69,7 @@ import {
 import { AiInterview } from "../entities/AiInterview.js";
 import { isPrescreeningScoreValid } from "./prescreening.js";
 import { regenerateCvEmbedding } from "./user.js";
+import { screeningPlan, type ScreeningPlanStep } from "./screeningPlan.js";
 
 const jobRepo = () => AppDataSource.getRepository(Job);
 
@@ -288,6 +290,9 @@ export interface FetchJobsParams {
   country?: string;
   workMode?: string;
   q?: string;
+  minMonthlySalary?: number | string;
+  currency?: string;
+  postedWithin?: string;
   limit?: number | string;
   offset?: number | string;
   sort?: string;
@@ -720,6 +725,22 @@ const buildJobsQuery = async (payload: FetchJobsParams) => {
     qb.andWhere("job.experienceLevel = :exp", { exp: payload.experienceLevel });
   }
 
+  if (payload.minMonthlySalary !== undefined && payload.minMonthlySalary !== "") {
+    qb.andWhere("job.currency = :salaryCurrency", {
+      salaryCurrency: payload.currency ?? Currency.NGN,
+    });
+    qb.andWhere(
+      `(CASE WHEN job."compensationPeriod" = :yearly
+          THEN COALESCE(job."maxSalary", job."minSalary") / 12
+          ELSE COALESCE(job."maxSalary", job."minSalary") END) >= :minMonthlySalary`,
+      { yearly: CompensationPeriod.Yearly, minMonthlySalary: Number(payload.minMonthlySalary) }
+    );
+  }
+
+  if (payload.postedWithin === "week") {
+    qb.andWhere(`job."createdAt" >= NOW() - INTERVAL '7 days'`);
+  }
+
   if (payload.postedBy) {
     qb.andWhere("job.posted_by_id = :postedBy", { postedBy: payload.postedBy });
   }
@@ -777,19 +798,24 @@ const pageOf = (payload: FetchJobsParams) => ({
 export const fetchAllJobs = async (
   payload: FetchJobsParams,
   options: PublicJobOptions = {}
-): Promise<
-  (PublicJob & {
+): Promise<{
+  jobs: (PublicJob & {
     hasApplied?: boolean;
     applicationStage?: string | null;
     applicationStages?: Record<string, string> | null;
-  })[]
-> => {
+  })[];
+  total: number;
+}> => {
   const qb = await buildJobsQuery(payload);
   const { limit, offset, order } = pageOf(payload);
-  const jobs = await qb.orderBy("job.createdAt", order).skip(offset).take(limit).getMany();
+  const [jobs, total] = await qb
+    .orderBy("job.createdAt", order)
+    .skip(offset)
+    .take(limit)
+    .getManyAndCount();
 
   if (!payload.talentId || jobs.length === 0) {
-    return jobs.map((job) => toPublicJob(job, options));
+    return { jobs: jobs.map((job) => toPublicJob(job, options)), total };
   }
 
   const applied = await applicationRepo().find({
@@ -800,14 +826,17 @@ export const fetchAllJobs = async (
     applied.map((application) => [application.jobId, application])
   );
 
-  return jobs.map((job) => {
-    const application = applicationByJobId.get(job.id);
-    return Object.assign(toPublicJob(job, options), {
-      hasApplied: !!application,
-      applicationStage: application?.currentStage ?? null,
-      applicationStages: application?.stages ?? null,
-    });
-  });
+  return {
+    jobs: jobs.map((job) => {
+      const application = applicationByJobId.get(job.id);
+      return Object.assign(toPublicJob(job, options), {
+        hasApplied: !!application,
+        applicationStage: application?.currentStage ?? null,
+        applicationStages: application?.stages ?? null,
+      });
+    }),
+    total,
+  };
 };
 
 export interface RecruiterJobCounts {
@@ -906,6 +935,7 @@ export const fetchJob = async (
     applicationId?: string | null;
     applicationStages?: Record<string, string> | null;
     interviewId?: string | null;
+    screening: ScreeningPlanStep[];
   }
 > => {
   const job = await jobRepo().findOne({
@@ -918,9 +948,10 @@ export const fetchJob = async (
   if (!viewer && job.status !== JobStatus.Active) {
     throw new NotFoundError("Job not found");
   }
-  const publicJob = toPublicJob(job, {
-    includeApplicantCount: await canSeeApplicantCount(job, viewer),
-  });
+  const publicJob = Object.assign(
+    toPublicJob(job, { includeApplicantCount: await canSeeApplicantCount(job, viewer) }),
+    { screening: screeningPlan(job.aiConfig) }
+  );
   if (viewer?.role !== UserRole.Talent) {
     return publicJob;
   }

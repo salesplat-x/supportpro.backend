@@ -51,7 +51,7 @@ export const fetchAll = async (req: Request, res: Response) => {
     status: JobStatus.Active,
     talentId,
   });
-  sendSuccessResponse(res, "Jobs fetched", { jobs: result });
+  sendSuccessResponse(res, "Jobs fetched", result);
 };
 
 export const jobsPosted = async (req: Request, res: Response) => {

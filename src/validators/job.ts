@@ -7,6 +7,7 @@ import {
   ApplicationType,
   ApplicationStatus,
   CompensationPeriod,
+  Currency,
   EmploymentType,
   MatchVerdict,
 } from "../types/enums.js";
@@ -227,6 +228,16 @@ export const allJobsQueryValidator = [
     .trim()
     .isLength({ max: 100 })
     .withMessage("q must be at most 100 characters"),
+  query("minMonthlySalary")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("minMonthlySalary must be a whole number of 0 or more")
+    .toInt(),
+  query("currency")
+    .optional()
+    .isIn(Object.values(Currency))
+    .withMessage(`currency must be one of: ${Object.values(Currency).join(", ")}`),
+  query("postedWithin").optional().isIn(["week"]).withMessage("postedWithin must be week"),
 ];
 
 export const topTalentsValidator = [
