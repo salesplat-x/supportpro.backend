@@ -69,6 +69,9 @@ export class Application {
   @Column({ type: "jsonb", default: () => "'{}'", update: false })
   stageReachedAt!: Record<string, string>;
 
+  @Column({ type: "text", nullable: true, default: null })
+  applicantNote!: string | null;
+
   @Column({ type: "simple-array", nullable: true, default: null })
   personalizedQuestions!: string[] | null;
 

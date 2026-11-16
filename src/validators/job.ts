@@ -251,9 +251,18 @@ export const matchJobValidator = [
   query("incomplete").optional().isBoolean().toBoolean(),
 ];
 
+export const MAX_APPLICANT_NOTE_LENGTH = 1000;
+
 export const applyValidator = [
   param("jobId").notEmpty().withMessage("Job ID is required"),
   body("source").optional().isString().isLength({ min: 1, max: 50 }),
+  body("note")
+    .optional({ values: "null" })
+    .isString()
+    .withMessage("note must be text")
+    .trim()
+    .isLength({ max: MAX_APPLICANT_NOTE_LENGTH })
+    .withMessage(`note can be at most ${MAX_APPLICANT_NOTE_LENGTH} characters`),
 ];
 
 export const retryVerdictsValidator = [

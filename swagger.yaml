@@ -3021,13 +3021,20 @@ paths:
                   maxLength: 50
                   description: >-
                     Where the candidate's link came from: the job link's ?source= (or utm_source), e.g. whatsapp, linkedin, x, facebook, indeed. Saved trimmed and lower-cased on the application.
+                note:
+                  type: string
+                  maxLength: 1000
+                  nullable: true
+                  description: An optional short note to the company, saved trimmed on the application. Ignored when the candidate has already applied.
       responses:
-        "200":
-          description: Successful response
+        "201":
+          description: Applied, or the candidate's existing application when they had already applied
           content:
             application/json:
               schema:
                 type: object
+        "400":
+          description: Bad body, the job isn't taking applications, or the candidate has no CV on their profile
       security:
         - bearerAuth: []
     get:

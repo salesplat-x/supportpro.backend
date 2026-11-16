@@ -162,7 +162,10 @@ describe("candidate reaching the AI interview stage", () => {
     });
     const aiConfig = await createAIConfig(recruiter, configOverrides);
     await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
-    const { user: talent, token } = await createTalent({ prescreeningScore: 75 });
+    const { user: talent, token } = await createTalent({
+      prescreeningScore: 75,
+      cvFileName: "cv.pdf",
+    });
     return { job, aiConfig, talent, token };
   }
 

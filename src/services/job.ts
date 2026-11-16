@@ -66,7 +66,8 @@ import {
   NO_PROGRESS,
 } from "./applicationProgress.js";
 import { AiInterview } from "../entities/AiInterview.js";
-import { regenerateCvEmbedding } from "./user.js";
+import { hasUploadedCv, regenerateCvEmbedding } from "./user.js";
+import { isUniqueViolation } from "./staffRecord.js";
 import { screeningPlan, type ScreeningPlanStep } from "./screeningPlan.js";
 import { savedJobIds } from "./savedJobs.js";
 
@@ -1503,10 +1504,11 @@ export const retryMissingVerdicts = async (
 export interface ApplyPayload {
   jobId: string;
   source?: string;
+  note?: string | null;
 }
 
 export const apply = async (user: User, payload: ApplyPayload): Promise<Application> => {
-  const { jobId, source } = payload;
+  const { jobId, source, note } = payload;
 
   const job = await jobRepo().findOne({
     where: { id: jobId },
@@ -1531,6 +1533,14 @@ export const apply = async (user: User, payload: ApplyPayload): Promise<Applicat
     return existingApp;
   }
 
+  const cv = await userRepo().findOne({
+    where: { id: user.id },
+    select: { id: true, cvUploadedAt: true, cvFileName: true, cvText: true },
+  });
+  if (!cv || !hasUploadedCv(cv)) {
+    throw new ValidationError("Add your CV to your profile before applying");
+  }
+
   // Application is created immediately on apply, regardless of assessment completion —
   // every stage (including Pre-Assessment) is completed progressively afterward.
   const { stages, entryStage } = createStages(aiConfig);
@@ -1540,6 +1550,7 @@ export const apply = async (user: User, payload: ApplyPayload): Promise<Applicat
     jobId,
     applicationType: ApplicationType.Application,
     source: source?.trim().toLowerCase() || null,
+    applicantNote: note?.trim() || null,
     stages,
     recruiterId: job.postedById,
     currentStage: entryStage as Application["currentStage"],
@@ -1549,7 +1560,13 @@ export const apply = async (user: User, payload: ApplyPayload): Promise<Applicat
       : null,
   });
 
-  const saved = await applicationRepo().save(application);
+  let saved: Application;
+  try {
+    saved = await applicationRepo().save(application);
+  } catch (error) {
+    if (!isUniqueViolation(error)) throw error;
+    return applicationRepo().findOneByOrFail({ jobId, talentId: user.id });
+  }
   startAiInterviewIfReached(saved, entryStage);
 
   // Increment noOfApplicants

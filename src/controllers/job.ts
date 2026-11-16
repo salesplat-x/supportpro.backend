@@ -157,7 +157,11 @@ export const retryCvScore = async (req: Request, res: Response) => {
 
 export const apply = async (req: Request, res: Response) => {
   const result = hideAssessmentResultsFromCandidate(
-    await jobService.apply(req.user, { jobId: req.params["jobId"]!, source: req.body.source })
+    await jobService.apply(req.user, {
+      jobId: req.params["jobId"]!,
+      source: req.body.source,
+      note: req.body.note,
+    })
   );
   sendSuccessResponse(res, "Application submitted", { application: result }, 201);
 };

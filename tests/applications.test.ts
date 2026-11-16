@@ -686,7 +686,10 @@ describe("PATCH /v1/jobs/applications/:jobId — apply for job", () => {
   });
 
   it("Talent with passing prescreening score applies successfully → 201", async () => {
-    const { token: talentToken } = await createTalent({ prescreeningScore: 75 });
+    const { token: talentToken } = await createTalent({
+      prescreeningScore: 75,
+      cvFileName: "cv.pdf",
+    });
     const { user: recruiter } = await createRecruiter();
     const role = await createRole();
     const job = await createJob(recruiter, role);
@@ -702,7 +705,7 @@ describe("PATCH /v1/jobs/applications/:jobId — apply for job", () => {
   });
 
   it("Talent without prescreeningScore can still apply immediately → 201", async () => {
-    const { token } = await createTalent({ prescreeningScore: null });
+    const { token } = await createTalent({ prescreeningScore: null, cvFileName: "cv.pdf" });
     const { user: recruiter } = await createRecruiter();
     const role = await createRole();
     const job = await createJob(recruiter, role);
@@ -717,7 +720,7 @@ describe("PATCH /v1/jobs/applications/:jobId — apply for job", () => {
   });
 
   it("Talent with score below minPrescreeningScore can still apply immediately → 201", async () => {
-    const { token } = await createTalent({ prescreeningScore: 30 });
+    const { token } = await createTalent({ prescreeningScore: 30, cvFileName: "cv.pdf" });
     const { user: recruiter } = await createRecruiter();
     const role = await createRole();
     const job = await createJob(recruiter, role);
@@ -732,7 +735,7 @@ describe("PATCH /v1/jobs/applications/:jobId — apply for job", () => {
   });
 
   it("Job not found → 404", async () => {
-    const { token } = await createTalent({ prescreeningScore: 75 });
+    const { token } = await createTalent({ prescreeningScore: 75, cvFileName: "cv.pdf" });
     const res = await request(app)
       .patch("/v1/jobs/applications/00000000-0000-0000-0000-000000000000")
       .set("Authorization", `Bearer ${token}`)
@@ -753,7 +756,10 @@ describe("PATCH /v1/jobs/applications/:jobId — apply for job", () => {
   });
 
   it("Applying twice returns the existing application (idempotent)", async () => {
-    const { user: talent, token: talentToken } = await createTalent({ prescreeningScore: 75 });
+    const { user: talent, token: talentToken } = await createTalent({
+      prescreeningScore: 75,
+      cvFileName: "cv.pdf",
+    });
     const { user: recruiter } = await createRecruiter();
     const role = await createRole();
     const job = await createJob(recruiter, role);
@@ -777,6 +783,70 @@ describe("PATCH /v1/jobs/applications/:jobId — apply for job", () => {
       .getRepository(Application)
       .count({ where: { talentId: talent.id, jobId: job.id } });
     expect(count).toBe(1);
+  });
+
+  const openJobWithConfig = async () => {
+    const { user: recruiter } = await createRecruiter();
+    const job = await createJob(recruiter, await createRole());
+    const aiConfig = await createAIConfig(recruiter, { minPrescreeningScore: 60 });
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
+    return job;
+  };
+  const applyTo = (token: string, jobId: string, body: Record<string, unknown> = {}) =>
+    request(app)
+      .patch(`/v1/jobs/applications/${jobId}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send(body);
+
+  it("keeps the candidate's short note, trimmed", async () => {
+    const { user: talent, token } = await createTalent({ cvFileName: "cv.pdf" });
+    const job = await openJobWithConfig();
+
+    const res = await applyTo(token, job.id, { note: "  I designed the merchant app.  " });
+
+    expect(res.status).toBe(201);
+    const saved = await testDataSource
+      .getRepository(Application)
+      .findOneByOrFail({ talentId: talent.id, jobId: job.id });
+    expect(saved.applicantNote).toBe("I designed the merchant app.");
+  });
+
+  it.each([
+    ["a note over 1000 characters", { note: "x".repeat(1001) }],
+    ["a note that isn't text", { note: 5 }],
+  ])("refuses %s → 400", async (_label, body) => {
+    const { token } = await createTalent({ cvFileName: "cv.pdf" });
+    const job = await openJobWithConfig();
+    expect((await applyTo(token, job.id, body)).status).toBe(400);
+  });
+
+  it("refuses a candidate with no CV on their profile → 400", async () => {
+    const { user: talent, token } = await createTalent();
+    const job = await openJobWithConfig();
+
+    const res = await applyTo(token, job.id);
+
+    expect(res.status).toBe(400);
+    expect((res.body as { error: { message: string } }).error.message).toMatch(/CV/);
+    expect(
+      await testDataSource.getRepository(Application).count({ where: { talentId: talent.id } })
+    ).toBe(0);
+  });
+
+  it("two applications sent at once make one application and count one applicant", async () => {
+    const { user: talent, token } = await createTalent({ cvFileName: "cv.pdf" });
+    const job = await openJobWithConfig();
+
+    const results = await Promise.all([applyTo(token, job.id), applyTo(token, job.id)]);
+
+    expect(results.map((res) => res.status)).toEqual([201, 201]);
+    expect(
+      await testDataSource
+        .getRepository(Application)
+        .count({ where: { talentId: talent.id, jobId: job.id } })
+    ).toBe(1);
+    const saved = await testDataSource.getRepository(Job).findOneByOrFail({ id: job.id });
+    expect(saved.noOfApplicants).toBe(1);
   });
 });
 

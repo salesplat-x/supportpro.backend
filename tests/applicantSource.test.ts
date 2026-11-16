@@ -60,7 +60,10 @@ async function openJob() {
 }
 
 async function applyWith(jobId: string, body: Record<string, unknown>) {
-  const { user: talent, token } = await createTalent({ prescreeningScore: 75 });
+  const { user: talent, token } = await createTalent({
+    prescreeningScore: 75,
+    cvFileName: "cv.pdf",
+  });
   const res = await request(app)
     .patch(`/v1/jobs/applications/${jobId}`)
     .set("Authorization", `Bearer ${token}`)
