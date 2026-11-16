@@ -11,6 +11,7 @@ import {
   updateProfileValidator,
   userProfilesQueryValidator,
   userApplicationsQueryValidator,
+  applicationPipelineParamValidator,
   userIdParamValidator,
 } from "../validators/user.js";
 
@@ -97,6 +98,13 @@ router.get(
   requireVerifiedEmail,
   validate(userApplicationsQueryValidator),
   asyncHandler(user.applications, "load your applications")
+);
+router.get(
+  "/applications/:applicationId/pipeline",
+  validateAccess([UserRole.Talent]),
+  requireVerifiedEmail,
+  validate(applicationPipelineParamValidator),
+  asyncHandler(user.applicationPipeline, "load your application")
 );
 
 export default (app: Router) => app.use("/user", router);

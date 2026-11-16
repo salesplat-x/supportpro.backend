@@ -773,37 +773,95 @@ export const rescoreCvSimilarity = async (
   return applicationRepo().save(application);
 };
 
-// Advances every one of the talent's applications currently parked at the (global,
-// job-agnostic) Prescreening stage, gated per-application by that job's own
-// minPrescreeningScore — never mutates the global PreScreening/User.prescreeningScore.
+export const STAGE_SWITCH: Partial<Record<ScreeningStage, keyof AIConfig>> = {
+  [ScreeningStage.CvSimilarity]: "cvSimilarity",
+  [ScreeningStage.Personalized]: "personalizedAssessment",
+  [ScreeningStage.ProblemSolving]: "problemSolvingAssessment",
+  [ScreeningStage.CultureFit]: "cultureFitAssessment",
+  [ScreeningStage.Personality]: "personalityEvaluation",
+  [ScreeningStage.AiInterview]: "aiInterview",
+};
+
+const MAX_SYNC_MOVES = 8;
+
+/**
+ * Moves an application past stages that are already settled: a valid skills test score,
+ * a problem-solving or culture-fit test already scored, or a stage the recruiter switched
+ * off. Holds the row lock and writes only stage columns, so parallel calls move it once.
+ */
+export const syncCandidateStage = async (applicationId: string): Promise<void> => {
+  for (let move = 0; move < MAX_SYNC_MOVES; move++) {
+    const moved = await AppDataSource.transaction(async (manager) => {
+      const application = await manager.findOne(Application, {
+        where: { id: applicationId },
+        lock: { mode: "pessimistic_write" },
+      });
+      if (!application) return false;
+      const open =
+        application.status === ApplicationStatus.Pending ||
+        application.status === ApplicationStatus.RetakeAssessment;
+      if (!open) return false;
+
+      const [talent, job] = await Promise.all([
+        manager.findOne(User, { where: { id: application.talentId } }),
+        manager.findOne(Job, { where: { id: application.jobId }, relations: { aiConfig: true } }),
+      ]);
+      if (!talent) return false;
+      const config = job?.aiConfig ?? null;
+      const stage = application.currentStage;
+
+      if (stage === ScreeningStage.Prescreening) {
+        const score = talent.prescreeningScore;
+        if (score === null || score === undefined) return false;
+        if (!isPrescreeningScoreValid(talent.prescreeningScoredAt)) return false;
+        if (score < (config?.minPrescreeningScore ?? 0)) {
+          if (application.status === ApplicationStatus.RetakeAssessment) return false;
+          application.status = ApplicationStatus.RetakeAssessment;
+          application.assessmentRetryDate = getAssessmentRetryDate();
+          await manager.update(Application, application.id, stageMoveColumns(application));
+          return false;
+        }
+      } else {
+        if (application.status !== ApplicationStatus.Pending) return false;
+        const scored =
+          (stage === ScreeningStage.ProblemSolving && application.problemSolvingScore !== null) ||
+          (stage === ScreeningStage.CultureFit && application.cultureFitScore !== null);
+        const flag = STAGE_SWITCH[stage];
+        const switchedOff = !!config && !!flag && !config[flag];
+        if (!scored && !switchedOff) return false;
+      }
+
+      const next = await processNextStage(talent, application, stage, config);
+      await manager.update(Application, application.id, stageMoveColumns(next));
+      return next.currentStage !== stage;
+    });
+    if (!moved) return;
+  }
+};
+
+// Runs after a skills test submission: a failing fresh score starts the retake wait on
+// every application parked at the skills test; a passing one moves them on.
 export const advanceApplicationsAfterPrescreening = async (
   talent: User,
   prescreeningScore: number
 ): Promise<void> => {
   const apps = await applicationRepo().find({
     where: { talentId: talent.id, currentStage: ScreeningStage.Prescreening },
+    relations: { job: { aiConfig: true } },
   });
 
   for (const application of apps) {
-    const job = await jobRepo().findOne({
-      where: { id: application.jobId },
-      relations: { aiConfig: true },
-    });
-    const minScore = (job?.aiConfig as AIConfig | undefined)?.minPrescreeningScore ?? 0;
-
-    let updated: Application;
+    const minScore = application.job?.aiConfig?.minPrescreeningScore ?? 0;
     if (prescreeningScore < minScore) {
-      application.status = ApplicationStatus.RetakeAssessment;
-      application.assessmentRetryDate = getAssessmentRetryDate();
-      updated = application;
-    } else {
-      updated = await processNextStage(
-        talent,
-        application,
-        ScreeningStage.Prescreening,
-        job?.aiConfig ?? null
+      await applicationRepo().update(
+        { id: application.id, currentStage: ScreeningStage.Prescreening },
+        {
+          status: ApplicationStatus.RetakeAssessment,
+          assessmentRetryDate: getAssessmentRetryDate(),
+        }
       );
+    } else {
+      await syncCandidateStage(application.id);
     }
-    await applicationRepo().save(updated);
   }
 };

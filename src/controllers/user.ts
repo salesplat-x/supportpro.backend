@@ -87,6 +87,14 @@ export const applications = async (req: Request, res: Response) => {
     req.user.id,
     req.query as Record<string, string>
   );
-  result.forEach(hideAssessmentResultsFromCandidate);
-  sendSuccessResponse(res, "Applications fetched", { applications: result });
+  result.applications.forEach(hideAssessmentResultsFromCandidate);
+  sendSuccessResponse(res, "Applications fetched", result);
+};
+
+export const applicationPipeline = async (req: Request, res: Response) => {
+  const pipeline = await userService.talentApplicationPipeline(
+    req.user.id,
+    req.params["applicationId"]!
+  );
+  sendSuccessResponse(res, "Application pipeline fetched", pipeline);
 };

@@ -48,9 +48,8 @@ import { resultRows } from "../utils/durableJobs.js";
 import { createStages } from "./aiConfig.js";
 import {
   computeCvSimilarityScore,
-  getAssessmentRetryDate,
-  processNextStage,
   rescoreCvSimilarity,
+  syncCandidateStage,
   loadRecommendationsByApplicationIds,
   overlayVerdictFromRecommendation,
   triggerMatchVerdict,
@@ -67,7 +66,6 @@ import {
   NO_PROGRESS,
 } from "./applicationProgress.js";
 import { AiInterview } from "../entities/AiInterview.js";
-import { isPrescreeningScoreValid } from "./prescreening.js";
 import { regenerateCvEmbedding } from "./user.js";
 import { screeningPlan, type ScreeningPlanStep } from "./screeningPlan.js";
 
@@ -1550,7 +1548,13 @@ export const apply = async (user: User, payload: ApplyPayload): Promise<Applicat
     .where("id = :id", { id: jobId })
     .execute();
 
-  return saved;
+  try {
+    await syncCandidateStage(saved.id);
+  } catch (error) {
+    logger.warn(`Stage sync after applying failed for application ${saved.id}: ${String(error)}`);
+    return saved;
+  }
+  return applicationRepo().findOneByOrFail({ id: saved.id });
 };
 
 export interface AddScoutToJobPipelinePayload {
@@ -1668,37 +1672,6 @@ export const checkPrescreeningAdvance = async (
   if (!application) {
     throw new NotFoundError("Job application not found");
   }
-
-  if (application.currentStage !== ScreeningStage.Prescreening) {
-    return application;
-  }
-
-  const user = await userRepo().findOne({ where: { id: userId } });
-  if (
-    !user ||
-    user.prescreeningScore === null ||
-    user.prescreeningScore === undefined ||
-    !isPrescreeningScoreValid(user.prescreeningScoredAt)
-  ) {
-    return application;
-  }
-
-  const job = await jobRepo().findOne({ where: { id: jobId }, relations: { aiConfig: true } });
-  const minScore = job?.aiConfig?.minPrescreeningScore ?? 0;
-
-  let updated: Application;
-  if (user.prescreeningScore < minScore) {
-    application.status = ApplicationStatus.RetakeAssessment;
-    application.assessmentRetryDate = getAssessmentRetryDate();
-    updated = application;
-  } else {
-    updated = await processNextStage(
-      user,
-      application,
-      ScreeningStage.Prescreening,
-      job?.aiConfig ?? null
-    );
-  }
-
-  return applicationRepo().save(updated);
+  await syncCandidateStage(application.id);
+  return applicationRepo().findOneByOrFail({ id: application.id });
 };

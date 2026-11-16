@@ -317,6 +317,13 @@ paths:
             enum:
               - asc
               - desc
+        - name: group
+          in: query
+          required: false
+          description: Only applications that need the candidate, are in progress, or are closed. Paging applies after this filter.
+          schema:
+            type: string
+            enum: [needs_you, in_progress, closed]
       responses:
         "200":
           description: Successful response
@@ -324,6 +331,268 @@ paths:
             application/json:
               schema:
                 type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      applications:
+                        type: array
+                        description: Each application also carries candidateStatus (interview_to_do, test_to_take, screening, shortlisted, applied, not_proceeding), group, currentStep, totalSteps and nextStep. Pass marks and hidden scores are never sent.
+                        items:
+                          type: object
+                      total:
+                        type: integer
+                        description: Applications matching the filters, across all pages.
+                      counts:
+                        type: object
+                        description: Applications in each group, ignoring the group filter.
+                        properties:
+                          all:
+                            type: integer
+                          needs_you:
+                            type: integer
+                          in_progress:
+                            type: integer
+                          closed:
+                            type: integer
+        "400":
+          description: Bad query
+        "401":
+          description: Not logged in
+        "403":
+          description: Only talents can list their applications
+      security:
+        - bearerAuth: []
+  /user/applications/{applicationId}/pipeline:
+    get:
+      summary: Talent — where one of my applications stands
+      description: >-
+        Every step of the application in order, with what is done, the one current step and what comes next.
+        Settled stages are moved on first (a valid skills test score, a test already scored, a stage the recruiter switched off).
+        Only the candidate who applied can read it; anyone else gets 404.
+      tags:
+        - user
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The application's steps
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      application:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                          jobId:
+                            type: string
+                          status:
+                            type: string
+                          appliedAt:
+                            type: string
+                            format: date-time
+                          candidateStatus:
+                            type: string
+                            enum: [interview_to_do, test_to_take, screening, shortlisted, applied, not_proceeding]
+                          group:
+                            type: string
+                            enum: [needs_you, in_progress, closed]
+                          job:
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                              title:
+                                type: string
+                              status:
+                                type: string
+                              workMode:
+                                type: array
+                                items:
+                                  type: string
+                              locationCity:
+                                type: string
+                                nullable: true
+                              locationState:
+                                type: string
+                                nullable: true
+                              locationCountry:
+                                type: string
+                                nullable: true
+                              organization:
+                                type: object
+                                nullable: true
+                                properties:
+                                  id:
+                                    type: string
+                                  name:
+                                    type: string
+                                  logoUrl:
+                                    type: string
+                                    nullable: true
+                      steps:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                              enum: [applied, skills_test, cv_match, tailored, problem_solving, culture_fit, personality, ai_interview, references, company_review]
+                            state:
+                              type: string
+                              enum: [done, current, upcoming]
+                            sentAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            doneAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            dueAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                              description: Only on the current step. Shown to the candidate, not enforced.
+                            isNew:
+                              type: boolean
+                              description: A problem-solving or culture-fit test the candidate hasn't opened yet.
+                            questionCount:
+                              type: integer
+                              nullable: true
+                            minutes:
+                              type: integer
+                              nullable: true
+                            score:
+                              type: number
+                              nullable: true
+                              description: The candidate's own skills test score. Other test scores are never sent.
+                            passed:
+                              type: boolean
+                              nullable: true
+                            matchLabel:
+                              type: string
+                              enum: [strong, good, fair]
+                              nullable: true
+                            answersSent:
+                              type: integer
+                              nullable: true
+                            retryAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            interviewId:
+                              type: string
+                              nullable: true
+                              description: Set once the recorded interview can be started.
+                            refereeCount:
+                              type: integer
+                              nullable: true
+                            maxReferees:
+                              type: integer
+                              nullable: true
+                            outcome:
+                              type: string
+                              enum: [shortlisted, not_proceeding]
+                              nullable: true
+                      currentStep:
+                        type: integer
+                        nullable: true
+                        description: The current step's position, from 1. Null once a decision is made.
+                      totalSteps:
+                        type: integer
+                      nextStep:
+                        nullable: true
+                        description: The current step, the same shape as a step.
+                        type: object
+                        properties:
+                          key:
+                            type: string
+                            enum: [applied, skills_test, cv_match, tailored, problem_solving, culture_fit, personality, ai_interview, references, company_review]
+                          state:
+                            type: string
+                            enum: [done, current, upcoming]
+                          sentAt:
+                            type: string
+                            format: date-time
+                            nullable: true
+                          doneAt:
+                            type: string
+                            format: date-time
+                            nullable: true
+                          dueAt:
+                            type: string
+                            format: date-time
+                            nullable: true
+                            description: Only on the current step. Shown to the candidate, not enforced.
+                          isNew:
+                            type: boolean
+                            description: A problem-solving or culture-fit test the candidate hasn't opened yet.
+                          questionCount:
+                            type: integer
+                            nullable: true
+                          minutes:
+                            type: integer
+                            nullable: true
+                          score:
+                            type: number
+                            nullable: true
+                            description: The candidate's own skills test score. Other test scores are never sent.
+                          passed:
+                            type: boolean
+                            nullable: true
+                          matchLabel:
+                            type: string
+                            enum: [strong, good, fair]
+                            nullable: true
+                          answersSent:
+                            type: integer
+                            nullable: true
+                          retryAt:
+                            type: string
+                            format: date-time
+                            nullable: true
+                          interviewId:
+                            type: string
+                            nullable: true
+                            description: Set once the recorded interview can be started.
+                          refereeCount:
+                            type: integer
+                            nullable: true
+                          maxReferees:
+                            type: integer
+                            nullable: true
+                          outcome:
+                            type: string
+                            enum: [shortlisted, not_proceeding]
+                            nullable: true
+        "400":
+          description: Bad applicationId
+        "401":
+          description: Not logged in
+        "403":
+          description: Only talents can read their applications
+        "404":
+          description: No such application of yours
       security:
         - bearerAuth: []
   /subscriptions/enable/{id}:

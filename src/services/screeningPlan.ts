@@ -53,7 +53,11 @@ type CountFields = Pick<
 const positive = (value: number | null | undefined) =>
   typeof value === "number" && value > 0 ? Math.floor(value) : 0;
 
-export const configuredQuestionCount = (config: CountFields, stage: string): number | null => {
+export const configuredQuestionCount = (
+  config: Partial<CountFields> | null,
+  stage: string
+): number | null => {
+  if (!config) return stage === ScreeningStage.AiInterview ? AI_INTERVIEW_QUESTION_COUNT : null;
   switch (stage) {
     case ScreeningStage.Personalized:
       return positive(config.noPersonalizedQuestions);

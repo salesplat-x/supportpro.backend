@@ -1,4 +1,4 @@
-import { body, query } from "express-validator";
+import { body, param, query } from "express-validator";
 import { paginationRules, idParam } from "./shared.js";
 import {
   ExperienceLevel,
@@ -83,6 +83,14 @@ export const userApplicationsQueryValidator = [
     .optional()
     .isIn(Object.values(ApplicationStatus))
     .withMessage("Invalid applicationStatus"),
+  query("group")
+    .optional()
+    .isIn(["needs_you", "in_progress", "closed"])
+    .withMessage("group must be needs_you, in_progress or closed"),
 ];
 
 export const userIdParamValidator = [idParam("_id")];
+
+export const applicationPipelineParamValidator = [
+  param("applicationId").isUUID().withMessage("applicationId must be a valid application id"),
+];
