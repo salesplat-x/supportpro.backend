@@ -303,13 +303,17 @@ describe("candidate reaching the AI interview stage", () => {
       stages: { ai_interview: "completed" },
       currentStage: ScreeningStage.AiInterview,
     });
-    const before = await request(app).get(`/v1/jobs/${job.id}`).set("Authorization", `Bearer ${token}`);
+    const before = await request(app)
+      .get(`/v1/jobs/${job.id}`)
+      .set("Authorization", `Bearer ${token}`);
     expect(before.status).toBe(200);
     expect(before.body.data.job.interviewId).toBeNull();
 
     await startAiInterview(application.id);
     const interview = await interviewFor(application.id);
-    const after = await request(app).get(`/v1/jobs/${job.id}`).set("Authorization", `Bearer ${token}`);
+    const after = await request(app)
+      .get(`/v1/jobs/${job.id}`)
+      .set("Authorization", `Bearer ${token}`);
     expect(after.body.data.job.interviewId).toBe(interview!.id);
   });
 
@@ -321,7 +325,9 @@ describe("candidate reaching the AI interview stage", () => {
       currentStage: ScreeningStage.AiInterview,
     });
     await startAiInterview(application.id);
-    const res = await request(app).get(`/v1/jobs/${job.id}`).set("Authorization", `Bearer ${token}`);
+    const res = await request(app)
+      .get(`/v1/jobs/${job.id}`)
+      .set("Authorization", `Bearer ${token}`);
     expect(res.body.data.job.interviewId).toBeNull();
   });
 
