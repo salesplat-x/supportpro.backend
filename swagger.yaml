@@ -2437,6 +2437,7 @@ paths:
                     properties:
                       jobs:
                         type: array
+                        description: For a talent, each job also carries hasApplied and isSaved.
                         items:
                           type: object
                       total:
@@ -2562,6 +2563,9 @@ paths:
                       job:
                         type: object
                         properties:
+                          isSaved:
+                            type: boolean
+                            description: Talents only. Whether this talent saved the job.
                           screening:
                             type: array
                             description: The timed steps a candidate goes through, in order. No pass marks.
@@ -2576,6 +2580,87 @@ paths:
                                   nullable: true
                                 minutes:
                                   type: integer
+  /jobs/{jobId}/save:
+    put:
+      summary: Talent — save a job
+      description: >-
+        Saves an open job to the talent's list. Saving the same job again changes nothing. Closed jobs can't be newly saved.
+      tags:
+        - jobs
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      saved:
+                        type: boolean
+                        example: true
+        "400":
+          description: Bad jobId, or the job is no longer taking applications
+        "401":
+          description: Not logged in
+        "403":
+          description: Only talents can save jobs
+        "404":
+          description: No such open job
+      security:
+        - bearerAuth: []
+    delete:
+      summary: Talent — remove a saved job
+      description: >-
+        Removes the job from the talent's saved list, whatever the job's state. Safe to repeat.
+      tags:
+        - jobs
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      saved:
+                        type: boolean
+                        example: false
+        "400":
+          description: Bad jobId
+        "401":
+          description: Not logged in
+        "403":
+          description: Only talents can save jobs
+      security:
+        - bearerAuth: []
   /jobs/me:
     get:
       summary: Recruiter

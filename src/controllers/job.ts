@@ -1,5 +1,6 @@
 import { compareSalaries, type SalaryComparisonQuery } from "../services/salaryComparison.js";
 import { Request, Response } from "express";
+import * as savedJobsService from "../services/savedJobs.js";
 import * as jobService from "../services/job.js";
 import * as paymentService from "../services/payment.js";
 import { draftApplicantMessages } from "../services/applicantMessaging.js";
@@ -172,4 +173,14 @@ export const checkPrescreening = async (req: Request, res: Response) => {
 export const salaryComparison = async (req: Request, res: Response) => {
   const result = await compareSalaries(req.query as unknown as SalaryComparisonQuery);
   sendSuccessResponse(res, "Salary comparison fetched", result);
+};
+
+export const saveJob = async (req: Request, res: Response) => {
+  const result = await savedJobsService.saveJob(req.user.id, req.params["jobId"]!);
+  sendSuccessResponse(res, "Job saved", result);
+};
+
+export const unsaveJob = async (req: Request, res: Response) => {
+  const result = await savedJobsService.unsaveJob(req.user.id, req.params["jobId"]!);
+  sendSuccessResponse(res, "Job removed from saved", result);
 };

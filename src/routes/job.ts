@@ -21,6 +21,7 @@ import {
   jobSummaryValidator,
   generateJobContentValidator,
   generateJobFieldValidator,
+  savedJobValidator,
 } from "../validators/job.js";
 import { jobDescriptionUpload } from "../middleware/multer.js";
 
@@ -170,6 +171,20 @@ router.post(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   asyncHandler(job.activatePayment, "start job payment")
+);
+router.put(
+  "/:jobId/save",
+  validateAccess([UserRole.Talent]),
+  requireVerifiedEmail,
+  validate(savedJobValidator),
+  asyncHandler(job.saveJob, "save job")
+);
+router.delete(
+  "/:jobId/save",
+  validateAccess([UserRole.Talent]),
+  requireVerifiedEmail,
+  validate(savedJobValidator),
+  asyncHandler(job.unsaveJob, "remove saved job")
 );
 router.get("/:_id", optionalAuth, validate(matchJobValidator), asyncHandler(job.fetch, "load job"));
 

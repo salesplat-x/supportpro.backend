@@ -60,6 +60,7 @@ import { StaffCompletionRequest } from "../../src/entities/StaffCompletionReques
 import { OrganizationOwnershipTransfer } from "../../src/entities/OrganizationOwnershipTransfer.js";
 import { StuckEmailTimer } from "../../src/entities/StuckEmailTimer.js";
 import { ApplicationReference } from "../../src/entities/ApplicationReference.js";
+import { SavedJob } from "../../src/entities/SavedJob.js";
 import { AiInterview } from "../../src/entities/AiInterview.js";
 import { AiInterviewQuestion } from "../../src/entities/AiInterviewQuestion.js";
 
@@ -124,6 +125,7 @@ const ALL_ENTITIES = [
   ApplicationReference,
   AiInterview,
   AiInterviewQuestion,
+  SavedJob,
 ];
 
 export async function startTestDatabase(): Promise<void> {

@@ -68,6 +68,7 @@ import {
 import { AiInterview } from "../entities/AiInterview.js";
 import { regenerateCvEmbedding } from "./user.js";
 import { screeningPlan, type ScreeningPlanStep } from "./screeningPlan.js";
+import { savedJobIds } from "./savedJobs.js";
 
 const jobRepo = () => AppDataSource.getRepository(Job);
 
@@ -801,6 +802,7 @@ export const fetchAllJobs = async (
     hasApplied?: boolean;
     applicationStage?: string | null;
     applicationStages?: Record<string, string> | null;
+    isSaved?: boolean;
   })[];
   total: number;
 }> => {
@@ -816,10 +818,14 @@ export const fetchAllJobs = async (
     return { jobs: jobs.map((job) => toPublicJob(job, options)), total };
   }
 
-  const applied = await applicationRepo().find({
-    where: { talentId: payload.talentId, jobId: In(jobs.map((job) => job.id)) },
-    select: { jobId: true, currentStage: true, stages: true },
-  });
+  const jobIds = jobs.map((job) => job.id);
+  const [applied, saved] = await Promise.all([
+    applicationRepo().find({
+      where: { talentId: payload.talentId, jobId: In(jobIds) },
+      select: { jobId: true, currentStage: true, stages: true },
+    }),
+    savedJobIds(payload.talentId, jobIds),
+  ]);
   const applicationByJobId = new Map(
     applied.map((application) => [application.jobId, application])
   );
@@ -831,6 +837,7 @@ export const fetchAllJobs = async (
         hasApplied: !!application,
         applicationStage: application?.currentStage ?? null,
         applicationStages: application?.stages ?? null,
+        isSaved: saved.has(job.id),
       });
     }),
     total,
@@ -933,6 +940,7 @@ export const fetchJob = async (
     applicationId?: string | null;
     applicationStages?: Record<string, string> | null;
     interviewId?: string | null;
+    isSaved?: boolean;
     screening: ScreeningPlanStep[];
   }
 > => {
@@ -954,10 +962,13 @@ export const fetchJob = async (
     return publicJob;
   }
 
-  const existingApplication = await applicationRepo().findOne({
-    where: { talentId: viewer.id, jobId },
-    select: { id: true, currentStage: true, stages: true },
-  });
+  const [existingApplication, saved] = await Promise.all([
+    applicationRepo().findOne({
+      where: { talentId: viewer.id, jobId },
+      select: { id: true, currentStage: true, stages: true },
+    }),
+    savedJobIds(viewer.id, [jobId]),
+  ]);
   const interview = existingApplication
     ? await AppDataSource.getRepository(AiInterview).findOne({
         where: { applicationId: existingApplication.id, status: In(["ready", "invited"]) },
@@ -970,6 +981,7 @@ export const fetchJob = async (
     applicationId: existingApplication?.id ?? null,
     applicationStages: existingApplication?.stages ?? null,
     interviewId: interview?.id ?? null,
+    isSaved: saved.has(jobId),
   });
 };
 
