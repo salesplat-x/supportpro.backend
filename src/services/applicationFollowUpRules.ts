@@ -41,6 +41,8 @@ export const STUCK_STAGES: ScreeningStage[] = [
   ScreeningStage.Personalized,
   ScreeningStage.Prescreening,
   ScreeningStage.CvSimilarity,
+  ScreeningStage.ProblemSolving,
+  ScreeningStage.CultureFit,
 ];
 
 export const STAGE_LABEL: Record<ScreeningStage, string> = {
@@ -48,6 +50,8 @@ export const STAGE_LABEL: Record<ScreeningStage, string> = {
   [ScreeningStage.Personalized]: "Role questions",
   [ScreeningStage.Prescreening]: "Pre-screening assessment",
   [ScreeningStage.CvSimilarity]: "CV review",
+  [ScreeningStage.ProblemSolving]: "Problem-solving test",
+  [ScreeningStage.CultureFit]: "Culture-fit test",
   [ScreeningStage.AiInterview]: "AI interview",
   [ScreeningStage.Completed]: "Completed",
 };
@@ -94,6 +98,14 @@ export const NEXT_STEP_COPY: Record<ScreeningStage, NextStep> = {
   [ScreeningStage.CvSimilarity]: {
     steps: ["No action needed from the talent — we're finishing an automatic CV check."],
     ctaLabel: "View application",
+  },
+  [ScreeningStage.ProblemSolving]: {
+    steps: ["Take the short multiple-choice problem-solving test for this role."],
+    ctaLabel: "Take problem-solving test",
+  },
+  [ScreeningStage.CultureFit]: {
+    steps: ["Take the short multiple-choice culture-fit test for this role."],
+    ctaLabel: "Take culture-fit test",
   },
   [ScreeningStage.AiInterview]: {
     steps: ["Record answers to the 5 AI interview questions sent by email."],

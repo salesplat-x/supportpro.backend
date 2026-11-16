@@ -94,7 +94,7 @@ describe("POST /v1/ai-config/ with the Day 4 switches", () => {
     expect(config.noOfCultureFitQuestions).toBeNull();
   });
 
-  it("does not add the new tests to the screening stages", async () => {
+  it("adds the tests to the screening stages in the candidate journey order", async () => {
     const { token, job } = await recruiterWithJob();
     const withTests = await createConfig(token, {
       ...baseConfigBody,
@@ -105,9 +105,21 @@ describe("POST /v1/ai-config/ with the Day 4 switches", () => {
       noOfCultureFitQuestions: 2,
     });
     const config = await savedConfig(createdId(withTests));
-    expect(Object.keys(config.stages ?? {}).sort()).toEqual(
-      ["cv_similarity", "personality", "personalized", "prescreening"].sort()
-    );
+    const order: string[] = [];
+    const values = new Set(Object.values(config.stages ?? {}));
+    let cursor = Object.keys(config.stages ?? {}).find((key) => !values.has(key));
+    while (cursor && cursor !== "completed") {
+      order.push(cursor);
+      cursor = config.stages![cursor];
+    }
+    expect(order).toEqual([
+      "prescreening",
+      "cv_similarity",
+      "personalized",
+      "problem_solving",
+      "culture_fit",
+      "personality",
+    ]);
   });
 
   it.each([

@@ -5,16 +5,18 @@ import { Application } from "../entities/Application.js";
 import { User } from "../entities/User.js";
 import { Job } from "../entities/Job.js";
 import { IsNull, type EntityManager } from "typeorm";
-import {
-  NotFoundError,
-  ValidationError,
-  AuthorizationError,
-  ConflictError,
-} from "../utils/errors";
+import { NotFoundError, ValidationError, AuthorizationError, ConflictError } from "../utils/errors";
 import { QuestionType, JobStatus, ApplicationStatus, ScreeningStage } from "../types/enums.js";
 import { calculateTimeLeft } from "../utils/text.js";
 import * as AI from "../utils/integrations/openai.js";
-import { canTakeAssessment, getAssessmentRetryDate, processNextStage } from "./applicationStage.js";
+import {
+  canTakeAssessment,
+  getAssessmentRetryDate,
+  hasReachedStage,
+  processNextStage,
+  stageMoveColumns,
+} from "./applicationStage.js";
+import { assertStageReached } from "./question.js";
 import { mergeSubmittedAnswers } from "../utils/answerResponses.js";
 import { MAX_ANSWER_SCORE } from "../utils/gradedAnswers.js";
 import logger from "../utils/logger.js";
@@ -258,30 +260,41 @@ export const answerPersonalizedQuestions = async (
   const maxScore = MAX_SCORE * responseArray.length;
   const scorePercent = Number(((totalScore / maxScore) * 100).toFixed(2));
 
-  application.personalizedScore = scorePercent;
-  application.personalizedAttempts = (application.personalizedAttempts ?? 0) + 1;
-
-  const minScore = aiConfig.minPrescreeningScore ?? 0;
-  const MAX_ATTEMPTS = 2; // 1 initial + 1 retry
-  const passed = scorePercent >= minScore;
-  const attemptsExhausted = application.personalizedAttempts >= MAX_ATTEMPTS;
-
-  if (passed || attemptsExhausted) {
-    const user = await userRepo().findOne({ where: { id: userId } });
-    if (user) {
-      application = await processNextStage(
-        user,
-        application,
-        ScreeningStage.Personalized,
-        aiConfig
-      );
+  const user = await userRepo().findOne({ where: { id: userId } });
+  const applicationId = application.id;
+  application = await AppDataSource.transaction(async (manager) => {
+    const locked = await manager.findOne(Application, {
+      where: { id: applicationId },
+      lock: { mode: "pessimistic_write" },
+    });
+    if (!locked || locked.currentStage !== ScreeningStage.Personalized) {
+      throw new ConflictError("This stage is no longer active for this application");
     }
-  } else {
-    application.currentStage = ScreeningStage.Personalized;
-    application.status = ApplicationStatus.RetakeAssessment;
-  }
+    locked.personalizedScore = scorePercent;
+    locked.personalizedAttempts = (locked.personalizedAttempts ?? 0) + 1;
 
-  application = await applicationRepo().save(application);
+    const minScore = aiConfig.minPrescreeningScore ?? 0;
+    const MAX_ATTEMPTS = 2; // 1 initial + 1 retry
+    const passed = scorePercent >= minScore;
+    const attemptsExhausted = locked.personalizedAttempts >= MAX_ATTEMPTS;
+
+    const open =
+      locked.status === ApplicationStatus.Pending ||
+      locked.status === ApplicationStatus.RetakeAssessment;
+    let moved = locked;
+    if (open && (passed || attemptsExhausted) && user) {
+      moved = await processNextStage(user, locked, ScreeningStage.Personalized, aiConfig);
+    } else if (open && !passed && !attemptsExhausted) {
+      locked.status = ApplicationStatus.RetakeAssessment;
+    }
+
+    await manager.update(Application, applicationId, {
+      personalizedScore: moved.personalizedScore,
+      personalizedAttempts: moved.personalizedAttempts,
+      ...stageMoveColumns(moved),
+    });
+    return moved;
+  });
 
   await saveOrUpdateAnswer(
     { userId, jobId, questionType: QuestionType.Personalized },
@@ -295,35 +308,6 @@ export interface EvaluatePersonalityPayload {
   jobId: string;
   answers: Record<string, string>;
 }
-
-/** True when personality is the active stage, or was already passed without an MBTI result. */
-const canSubmitPersonalityStage = (
-  stages: Record<string, string>,
-  currentStage: string
-): boolean => {
-  if (currentStage === ScreeningStage.Personality) return true;
-
-  const values = new Set(Object.values(stages));
-  const entry = Object.keys(stages).find((key) => !values.has(key));
-  if (!entry) return false;
-
-  let cursor: string | undefined = entry;
-  let seenPersonality = false;
-  while (cursor && cursor !== ScreeningStage.Completed) {
-    if (cursor === ScreeningStage.Personality) {
-      seenPersonality = true;
-    }
-    if (cursor === currentStage) {
-      return seenPersonality;
-    }
-    cursor = stages[cursor];
-  }
-
-  return (
-    currentStage === ScreeningStage.Completed &&
-    Object.prototype.hasOwnProperty.call(stages, ScreeningStage.Personality)
-  );
-};
 
 export const evaluatePersonalityType = async (
   userId: string,
@@ -378,7 +362,7 @@ export const evaluatePersonalityType = async (
   // 2) personality was attached to the job after this application was created
   //    (present on AI config stages but missing from the application pipeline).
   const allowed =
-    canSubmitPersonalityStage(stages, application.currentStage) ||
+    hasReachedStage(stages, application.currentStage, ScreeningStage.Personality) ||
     (!appHasPersonalityStage && configHasPersonalityStage);
 
   if (!allowed) {
@@ -447,16 +431,7 @@ export const evaluatePersonalityType = async (
     application.mbtiType = mbtiType;
     if (user && application.currentStage === ScreeningStage.Personality) {
       const moved = await processNextStage(user, application, ScreeningStage.Personality, aiConfig);
-      await manager.update(Application, moved.id, {
-        currentStage: moved.currentStage,
-        status: moved.status,
-        averageScore: moved.averageScore,
-        rank: moved.rank,
-        matchVerdictStatus: moved.matchVerdictStatus,
-        matchVerdictAttempts: moved.matchVerdictAttempts,
-        matchVerdictNextRetryAt: moved.matchVerdictNextRetryAt,
-        matchVerdictLastError: moved.matchVerdictLastError,
-      });
+      await manager.update(Application, moved.id, stageMoveColumns(moved));
     }
     await saveOrUpdateAnswer(
       { userId, jobId, questionType: QuestionType.Personality },
@@ -591,12 +566,14 @@ const COMPANY_ASSESSMENT = {
     flag: "problemSolvingAssessment",
     assigned: "problemSolvingQuestions",
     score: "problemSolvingScore",
+    stage: ScreeningStage.ProblemSolving,
   },
   [QuestionType.CultureFit]: {
     label: "culture-fit",
     flag: "cultureFitAssessment",
     assigned: "cultureFitQuestions",
     score: "cultureFitScore",
+    stage: ScreeningStage.CultureFit,
   },
 } as const;
 
@@ -635,6 +612,7 @@ export const submitCompanyAssessmentAnswers = async (
     if (application[settings.score] !== null && application[settings.score] !== undefined) {
       throw new ConflictError(`You have already submitted your ${settings.label} answers`);
     }
+    assertStageReached(application, settings.stage, settings.label);
     const assignedIds = application[settings.assigned] ?? [];
     if (assignedIds.length === 0) {
       throw new ValidationError(`Load your ${settings.label} questions before answering them`);
@@ -695,6 +673,17 @@ export const submitCompanyAssessmentAnswers = async (
       Answer,
       manager.create(Answer, { userId, jobId, questionType: type, responses })
     );
+
+    if (
+      application.currentStage === settings.stage &&
+      application.status === ApplicationStatus.Pending
+    ) {
+      const talent = await manager.findOne(User, { where: { id: userId } });
+      if (talent) {
+        const moved = await processNextStage(talent, application, settings.stage, job.aiConfig);
+        await manager.update(Application, application.id, stageMoveColumns(moved));
+      }
+    }
 
     return { submitted: true as const, questionType: type, answered: responses.length };
   });

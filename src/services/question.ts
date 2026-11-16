@@ -17,7 +17,8 @@ import {
   AppError,
   ConflictError,
 } from "../utils/errors";
-import { QuestionType, JobStatus, UserRole } from "../types/enums.js";
+import { QuestionType, JobStatus, UserRole, ScreeningStage } from "../types/enums.js";
+import { hasReachedStage } from "./applicationStage.js";
 import { calculateTimeLeft, sortDirection } from "../utils/text.js";
 import * as AI from "../utils/integrations/openai.js";
 import { answerTextForQuestion, type StoredResponse } from "../utils/answerResponses.js";
@@ -795,6 +796,7 @@ export const ASSESSMENT_SETTINGS = {
     count: "noOfProblemSolvingQuestions",
     assigned: "problemSolvingQuestions",
     score: "problemSolvingScore",
+    stage: ScreeningStage.ProblemSolving,
   },
   [QuestionType.CultureFit]: {
     label: "culture-fit",
@@ -802,6 +804,7 @@ export const ASSESSMENT_SETTINGS = {
     count: "noOfCultureFitQuestions",
     assigned: "cultureFitQuestions",
     score: "cultureFitScore",
+    stage: ScreeningStage.CultureFit,
   },
 } as const;
 
@@ -811,6 +814,20 @@ export const toCandidateQuestion = (q: Question): CandidateQuestion => ({
   questionType: q.type,
   options: q.options ?? [],
 });
+
+export const assertStageReached = (
+  application: Pick<Application, "stages" | "currentStage">,
+  stage: ScreeningStage,
+  label: string
+): void => {
+  const stages = application.stages ?? {};
+  if (
+    Object.prototype.hasOwnProperty.call(stages, stage) &&
+    !hasReachedStage(stages, application.currentStage, stage)
+  ) {
+    throw new ValidationError(`Your ${label} test isn't open yet. Finish the earlier steps first.`);
+  }
+};
 
 const notReadyError = (label: string) =>
   new AppError(
@@ -859,6 +876,7 @@ const assignAssessmentQuestions = (
     if (!application) {
       throw new ValidationError("You must apply for this job before this stage is available");
     }
+    assertStageReached(application, settings.stage, settings.label);
 
     const alreadyAssigned = application[settings.assigned] ?? [];
     if (alreadyAssigned.length) {

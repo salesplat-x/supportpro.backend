@@ -66,6 +66,9 @@ export class Application {
   @Column({ type: "enum", enum: ScreeningStage, default: ScreeningStage.Personality })
   currentStage!: ScreeningStage;
 
+  @Column({ type: "jsonb", default: () => "'{}'", update: false })
+  stageReachedAt!: Record<string, string>;
+
   @Column({ type: "simple-array", nullable: true, default: null })
   personalizedQuestions!: string[] | null;
 

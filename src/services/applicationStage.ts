@@ -611,6 +611,48 @@ export const reconcileDueMatchVerdicts = async (): Promise<{
   return { scanned: ids.length, attempted };
 };
 
+/** The columns a stage move writes, so callers holding the row lock never write back stale data. */
+export const stageMoveColumns = (application: Application) => ({
+  currentStage: application.currentStage,
+  status: application.status,
+  assessmentRetryDate: application.assessmentRetryDate,
+  cvSimilarityScore: application.cvSimilarityScore,
+  cvSimilarityAttempts: application.cvSimilarityAttempts,
+  averageScore: application.averageScore,
+  rank: application.rank,
+  matchVerdictStatus: application.matchVerdictStatus,
+  matchVerdictAttempts: application.matchVerdictAttempts,
+  matchVerdictNextRetryAt: application.matchVerdictNextRetryAt,
+  matchVerdictLockedAt: application.matchVerdictLockedAt,
+  matchVerdictLastError: application.matchVerdictLastError,
+});
+
+/** True when the target stage is active, or was already passed in the application's own order. */
+export const hasReachedStage = (
+  stages: Record<string, string>,
+  currentStage: string,
+  target: ScreeningStage
+): boolean => {
+  if (currentStage === target) return true;
+
+  const values = new Set(Object.values(stages));
+  const entry = Object.keys(stages).find((key) => !values.has(key));
+  if (!entry) return false;
+
+  let cursor: string | undefined = entry;
+  let seenTarget = false;
+  while (cursor && cursor !== ScreeningStage.Completed) {
+    if (cursor === target) seenTarget = true;
+    if (cursor === currentStage) return seenTarget;
+    cursor = stages[cursor];
+  }
+
+  return (
+    currentStage === ScreeningStage.Completed &&
+    Object.prototype.hasOwnProperty.call(stages, target)
+  );
+};
+
 export const processNextStage = async (
   talent: User,
   application: Application,

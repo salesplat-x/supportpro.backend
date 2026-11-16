@@ -1,5 +1,9 @@
 import "reflect-metadata";
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from "@testcontainers/postgresql";
+import {
+  STAMP_STAGE_REACHED_FUNCTION,
+  STAMP_STAGE_REACHED_TRIGGER,
+} from "../../src/migrations/1789004400000-AddAssessmentScreeningStages.js";
 import { DataSource, DataSourceOptions } from "typeorm";
 import { User } from "../../src/entities/User.js";
 import { Organization } from "../../src/entities/Organization.js";
@@ -144,6 +148,8 @@ export async function startTestDatabase(): Promise<void> {
 
   // Install pgvector extension
   await testDataSource.query("CREATE EXTENSION IF NOT EXISTS vector;").catch(() => {});
+  await testDataSource.query(STAMP_STAGE_REACHED_FUNCTION);
+  await testDataSource.query(STAMP_STAGE_REACHED_TRIGGER);
 
   // Override the AppDataSource singleton used by services
   const { AppDataSource } = await import("../../src/database/dataSource.js");
