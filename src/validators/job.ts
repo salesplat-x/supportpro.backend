@@ -11,6 +11,7 @@ import {
   MatchVerdict,
 } from "../types/enums.js";
 import { workModeNeedsLocation } from "../utils/workMode.js";
+import { BOARD_COLUMNS, INTERVIEW_PROGRESS } from "../services/applicationProgress.js";
 
 export const generateJobContentValidator = [
   body("role").optional().isString().trim(),
@@ -262,6 +263,8 @@ export const singleFitReportValidator = [
   param("applicationId").isUUID().withMessage("Invalid applicationId"),
 ];
 
+export const jobSummaryValidator = [param("jobId").isUUID().withMessage("Invalid jobId")];
+
 export const retryCvScoreValidator = [
   param("jobId").notEmpty().withMessage("Job ID is required"),
   param("applicationId").isUUID().withMessage("Invalid applicationId"),
@@ -297,6 +300,9 @@ export const jobApplicationsQueryValidator = [
     .withMessage("Invalid applicationStatus"),
   query("maxSalary").optional().isFloat().toFloat(),
   query("source").optional().isString().isLength({ min: 1, max: 50 }),
+  query("q").optional().isString().trim().isLength({ max: 100 }),
+  query("boardColumn").optional().isIn(BOARD_COLUMNS).withMessage("Invalid boardColumn"),
+  query("interview").optional().isIn(INTERVIEW_PROGRESS).withMessage("Invalid interview"),
   query("offset").optional().isInt({ min: 0 }).toInt(),
   query("skip").optional().isInt({ min: 0 }).toInt(),
   query("limit").optional().isInt({ min: 1, max: 200 }).toInt(),

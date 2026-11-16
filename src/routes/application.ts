@@ -9,6 +9,7 @@ import {
   applicationIdParamValidator,
   updateApplicationStatusValidator,
   bulkUpdateApplicationStatusValidator,
+  advanceApplicationValidator,
 } from "../validators/application.js";
 
 const router = Router();
@@ -40,6 +41,13 @@ router.patch(
   requireVerifiedEmail,
   validate(updateApplicationStatusValidator),
   asyncHandler(application.updateStatus, "update application status")
+);
+router.post(
+  "/:_id/advance",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(advanceApplicationValidator),
+  asyncHandler(application.advance, "move candidate forward")
 );
 router.post(
   "/:_id/personality-fit",

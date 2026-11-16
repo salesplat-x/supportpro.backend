@@ -41,7 +41,7 @@ describe("generateProblemSolvingQuestions prompt", () => {
     const choice = await generateProblemSolvingQuestions({ count: 4 });
 
     expect(choice).toEqual(CHOICE);
-    expect(lastParams().model).toBe("gpt-4o");
+    expect(lastParams().model).toBe("gpt-5.6-luna");
     expect(lastParams().response_format).toEqual({ type: "json_object" });
     expect(systemPrompt()).toContain("exactly 4");
     expect(systemPrompt()).toContain('"question"');
@@ -86,7 +86,7 @@ describe("generateCultureFitQuestions prompt", () => {
     });
 
     expect(choice).toEqual(CHOICE);
-    expect(lastParams().model).toBe("gpt-4o");
+    expect(lastParams().model).toBe("gpt-5.6-luna");
     expect(lastParams().response_format).toEqual({ type: "json_object" });
     expect(systemPrompt()).toContain("exactly 3");
     expect(systemPrompt()).toContain('"criteria"');

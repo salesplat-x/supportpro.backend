@@ -1,5 +1,5 @@
 # Update this file from each provider's official models page, then run `npm run ai:smoke`.
-verifiedOn: "2026-11-04"
+verifiedOn: "2026-11-12"
 
 providers:
   - key: openai
@@ -73,6 +73,22 @@ models:
     tokenParam: max_completion_tokens
     supportsTemperature: true
     reasoningEffort: none
+  - id: gpt-5.6-terra
+    provider: openai
+    label: GPT-5.6 Terra
+    kind: chat
+    formats: [json_object, json_schema]
+    tokenParam: max_completion_tokens
+    supportsTemperature: true
+    reasoningEffort: none
+  - id: gpt-5.6-luna
+    provider: openai
+    label: GPT-5.6 Luna
+    kind: chat
+    formats: [json_object, json_schema]
+    tokenParam: max_completion_tokens
+    supportsTemperature: true
+    reasoningEffort: none
   - id: gpt-4o
     provider: openai
     label: GPT-4o
@@ -81,7 +97,7 @@ models:
     tokenParam: max_tokens
     supportsTemperature: true
     retiresOn: "2027-01-14"
-    replacement: gpt-6-luna
+    replacement: gpt-5.6-luna
   - id: gpt-4o-mini
     provider: openai
     label: GPT-4o mini
@@ -90,7 +106,7 @@ models:
     tokenParam: max_tokens
     supportsTemperature: true
     retiresOn: "2027-01-14"
-    replacement: gpt-6-luna
+    replacement: gpt-5.6-luna
   - id: text-embedding-3-small
     provider: openai
     label: Text Embedding 3 Small
@@ -234,35 +250,35 @@ features:
     group: Matching
     kind: chat
     format: json_object
-    default: { provider: openai, model: gpt-4o }
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: talent_fit_evidence
     name: Talent fit evidence AI
     description: Lists strengths and gaps for top talents and talent search results.
     group: Matching
     kind: chat
     format: json_object
-    default: { provider: openai, model: gpt-4o-mini }
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: talent_cv_reader
     name: Talent CV reader AI
     description: Reads a talent's uploaded CV for their years of experience and skills.
     group: Matching
     kind: chat
     format: json_schema
-    default: { provider: openai, model: gpt-4o-mini }
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: scout_cv_scoring
     name: Scout CV scoring AI
     description: Scores an uploaded CV against a scouting campaign and extracts the person's details.
     group: Matching
     kind: chat
     format: json_schema
-    default: { provider: openai, model: gpt-4o }
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: scout_shortlist_summary
     name: Scout shortlist summary AI
     description: Writes the paragraph summarising a scouting shortlist.
     group: Matching
     kind: chat
     format: json_object
-    default: { provider: openai, model: gpt-4o-mini }
+    default: { provider: openai, model: gpt-5.6-luna }
 
   - key: personalized_questions
     name: Personalized question AI
@@ -270,77 +286,98 @@ features:
     group: Assessments
     kind: chat
     format: json_object
-    default: { provider: openai, model: gpt-4o }
+    default: { provider: openai, model: gpt-5.6-luna }
+  - key: ai_interview_questions
+    name: AI interview question AI
+    description: Writes the spoken questions of an AI interview from the job description.
+    group: Assessments
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-5.6-luna }
+  - key: ai_interview_followup
+    name: AI interview follow-up AI
+    description: Writes at most one spoken follow-up question after a candidate's interview answer.
+    group: Assessments
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-5.6-luna }
+  - key: ai_interview_scoring
+    name: AI interview scoring AI
+    description: Scores a recorded interview's answers and writes a summary, as advice for the recruiter.
+    group: Assessments
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: personality_questions
     name: Personality question AI
     description: Writes the personality assessment questions.
     group: Assessments
     kind: chat
     format: json_object
-    default: { provider: openai, model: gpt-4o }
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: problem_solving_questions
     name: Problem-solving question AI
     description: Writes the problem-solving question pool for a company.
     group: Assessments
     kind: chat
     format: json_object
-    default: { provider: openai, model: gpt-4o }
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: culture_fit_questions
     name: Culture-fit question AI
     description: Writes the culture-fit question pool from the company's values.
     group: Assessments
     kind: chat
     format: json_object
-    default: { provider: openai, model: gpt-4o }
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: prescreening_questions
     name: Pre-screening question AI
     description: Writes multiple-choice pre-screening questions from a talent's CV.
     group: Assessments
     kind: chat
     format: json_object
-    default: { provider: openai, model: gpt-4o }
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: prescreening_scoring
     name: Pre-screening scoring AI
     description: Scores a talent's pre-screening test from 0 to 100.
     group: Assessments
     kind: chat
     format: json_object
-    default: { provider: openai, model: gpt-4o-mini }
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: role_answer_grading
     name: Role answer grading AI
     description: Grades answers to role questions from 1 to 5.
     group: Assessments
     kind: chat
     format: json_object
-    default: { provider: openai, model: gpt-4o }
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: personalized_answer_grading
     name: Personalized answer grading AI
     description: Grades answers to personalized questions.
     group: Assessments
     kind: chat
     format: json_object
-    default: { provider: openai, model: gpt-4o }
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: company_answer_grading
     name: Company answer grading AI
     description: Grades problem-solving and culture-fit answers from 0 to 5.
     group: Assessments
     kind: chat
     format: json_object
-    default: { provider: openai, model: gpt-4o }
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: personality_type
     name: Personality type AI
     description: Works out a talent's personality type from their answers.
     group: Assessments
     kind: chat
     format: json_object
-    default: { provider: openai, model: gpt-4o }
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: personality_fit
     name: Personality fit AI
     description: Scores how well a personality type fits the job, from 0 to 100.
     group: Assessments
     kind: chat
     format: json_object
-    default: { provider: openai, model: gpt-4o }
+    default: { provider: openai, model: gpt-5.6-luna }
 
   - key: job_post_writer
     name: Job post writer AI
@@ -348,14 +385,14 @@ features:
     group: Job posts
     kind: chat
     format: json_object
-    default: { provider: openai, model: gpt-4o }
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: job_field_writer
     name: Job field writer AI
     description: Writes or rewrites one field of a job post.
     group: Job posts
     kind: chat
     format: json_object
-    default: { provider: openai, model: gpt-4o }
+    default: { provider: openai, model: gpt-5.6-luna }
 
   - key: employee_job_description
     name: Employee job description AI
@@ -363,42 +400,42 @@ features:
     group: People
     kind: chat
     format: json_object
-    default: { provider: openai, model: gpt-4o }
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: company_profile_reader
     name: Company profile reader AI
     description: Pulls the mission, vision and goals out of a company document.
     group: People
     kind: chat
     format: json_schema
-    default: { provider: openai, model: gpt-4o }
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: goal_suggestions
     name: Goal suggestion AI
     description: Suggests goals for an employee.
     group: People
     kind: chat
     format: json_schema
-    default: { provider: openai, model: gpt-4o }
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: development_plan
     name: Development plan AI
     description: Proposes development plan items for an employee.
     group: People
     kind: chat
     format: json_schema
-    default: { provider: openai, model: gpt-4o }
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: weekly_coaching
     name: Weekly coaching AI
     description: Gives an employee coaching tips on their weekly report.
     group: People
     kind: chat
     format: json_schema
-    default: { provider: openai, model: gpt-4o }
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: efficiency_tip
     name: Efficiency tip AI
     description: Gives a tip on how to improve an employee's efficiency score.
     group: People
     kind: chat
     format: json_schema
-    default: { provider: openai, model: gpt-4o }
+    default: { provider: openai, model: gpt-5.6-luna }
 
   - key: applicant_message
     name: Applicant message AI
@@ -406,21 +443,21 @@ features:
     group: Messages
     kind: chat
     format: json_object
-    default: { provider: openai, model: gpt-4o }
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: onboarding_email
     name: Onboarding email AI
     description: Drafts an admin's email to a user stuck in onboarding.
     group: Messages
     kind: chat
     format: json_object
-    default: { provider: openai, model: gpt-4o }
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: application_follow_up_email
     name: Application follow-up email AI
     description: Drafts an admin's email to a talent stuck in a job application.
     group: Messages
     kind: chat
     format: json_object
-    default: { provider: openai, model: gpt-4o }
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: support_reply
     name: Support reply AI
     description: Drafts the admin's reply to each support request and leaves complex ones for the admin.

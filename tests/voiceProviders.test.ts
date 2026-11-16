@@ -64,7 +64,11 @@ describe("generateVoiceReply", () => {
     const { signal } = new AbortController();
     await expect(generateVoiceReply("hello", { signal })).resolves.toBe("Hi!");
     expect(createCompletion).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "gpt-4o", max_tokens: 300 }),
+      expect.objectContaining({
+        model: "gpt-5.6-luna",
+        max_completion_tokens: 300,
+        reasoning_effort: "none",
+      }),
       { timeout: 20_000, maxRetries: 0, signal }
     );
   });

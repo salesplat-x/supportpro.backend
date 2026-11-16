@@ -28,6 +28,14 @@ export const updateStatus = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Application status updated", { application: result });
 };
 
+export const advance = async (req: Request, res: Response) => {
+  const result = await applicationService.advanceApplication(req.user.id, {
+    id: req.params["_id"]!,
+    sendInterviewInvite: req.body.sendInterviewInvite === true,
+  });
+  sendSuccessResponse(res, "Candidate moved forward", result);
+};
+
 export const bulkUpdateStatus = async (req: Request, res: Response) => {
   const result = await applicationService.bulkUpdateStatus(req.user.id, req.body);
   sendSuccessResponse(res, "Application statuses updated", result);

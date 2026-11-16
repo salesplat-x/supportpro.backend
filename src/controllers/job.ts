@@ -7,6 +7,7 @@ import { generateSingleFitReport, generateBulkFitReport } from "../services/fitR
 import { JobStatus, UserRole } from "../types/enums.js";
 import { sendSuccessResponse } from "../utils/response.js";
 import { hideAssessmentResultsFromCandidate } from "../services/application.js";
+import { getJobSummary } from "../services/jobSummary.js";
 
 export const create = async (req: Request, res: Response) => {
   const result = await jobService.createJob(req.user.id, req.body);
@@ -87,6 +88,11 @@ export const applications = async (req: Request, res: Response) => {
     ...(req.query as Record<string, string | number>),
   });
   sendSuccessResponse(res, "Applications fetched", result);
+};
+
+export const summary = async (req: Request, res: Response) => {
+  const result = await getJobSummary(req.user.id, req.user.userRole, req.params["jobId"]!);
+  sendSuccessResponse(res, "Job summary fetched", result);
 };
 
 export const draftApplicantMessagesController = async (req: Request, res: Response) => {

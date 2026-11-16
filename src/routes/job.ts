@@ -18,6 +18,7 @@ import {
   singleFitReportValidator,
   retryCvScoreValidator,
   bulkFitReportValidator,
+  jobSummaryValidator,
   generateJobContentValidator,
   generateJobFieldValidator,
 } from "../validators/job.js";
@@ -121,6 +122,13 @@ router.get(
   requireVerifiedEmail,
   validate(jobApplicationsQueryValidator),
   asyncHandler(job.applications, "load job applications")
+);
+router.get(
+  "/:jobId/summary",
+  validateAccess([UserRole.Recruiter, UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(jobSummaryValidator),
+  asyncHandler(job.summary, "load job summary")
 );
 router.post(
   "/:jobId/retry-verdicts",

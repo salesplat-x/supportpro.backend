@@ -1,6 +1,7 @@
 import OpenAI, { toFile } from "openai";
 import env from "../../config/env.js";
-import { complete, completeWhileWaiting, embed } from "./ai/gateway.js";
+import { buildChatRequest, complete, completeWhileWaiting, embed } from "./ai/gateway.js";
+import { findModel, loadAiCatalog } from "./ai/catalog.js";
 import { renderPrompt } from "./ai/prompts.js";
 import {
   CULTURE_FIT_GENERAL_CATEGORIES,
@@ -306,7 +307,7 @@ export interface ScoutShortlistSummaryContext {
 
 /**
  * One comparative paragraph over the (at most 10) shortlisted candidates. Cheap
- * enough for gpt-4o-mini and runs once per run, not once per CV.
+ * enough for a small model and runs once per run, not once per CV.
  */
 export const scoutShortlistSummary = async (
   context: ScoutShortlistSummaryContext
@@ -772,6 +773,70 @@ export const scorePreScreeningAssessment = async (
   return completion.choices[0];
 };
 
+export interface AiInterviewFollowUpContext {
+  roleName: string;
+  jobBrief: string;
+  requirements: string | null;
+  question: string;
+  answer: string;
+}
+
+export const generateAiInterviewFollowUp = async (
+  context: AiInterviewFollowUpContext
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const system = await renderPrompt("ai_interview_followup", "system");
+  const prompt = await renderPrompt("ai_interview_followup", "user", {
+    roleName: context.roleName,
+    jobDescription: context.jobBrief,
+    requirements: context.requirements ?? "None given.",
+    question: context.question,
+    answer: context.answer,
+  });
+  const completion = await complete("ai_interview_followup", {
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: prompt },
+    ],
+    temperature: 0,
+    response_format: { type: "json_object" },
+  });
+  return completion.choices[0];
+};
+
+export interface AiInterviewScoringAnswer {
+  position: number;
+  question: string;
+  transcript: string;
+}
+
+export interface AiInterviewScoringContext {
+  roleName: string;
+  jobBrief: string;
+  requirements: string | null;
+  answers: AiInterviewScoringAnswer[];
+}
+
+export const scoreAiInterviewAnswers = async (
+  context: AiInterviewScoringContext
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const system = await renderPrompt("ai_interview_scoring", "system");
+  const prompt = await renderPrompt("ai_interview_scoring", "user", {
+    roleName: context.roleName,
+    jobDescription: context.jobBrief,
+    requirements: context.requirements ?? "None given.",
+    answers: JSON.stringify(context.answers),
+  });
+  const completion = await complete("ai_interview_scoring", {
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: prompt },
+    ],
+    temperature: 0,
+    response_format: { type: "json_object" },
+  });
+  return completion.choices[0];
+};
+
 const VOICE_SYSTEM_PROMPT =
   "You are Grace, a friendly and helpful voice assistant. Your reply will be read aloud, so " +
   "respond conversationally in short, plain sentences with no markdown, lists or emoji.";
@@ -794,6 +859,9 @@ export const transcribeAudio = async (
   return transcription.text.trim();
 };
 
+const voiceReplyModel = () =>
+  findModel(loadAiCatalog(), { provider: "openai", model: "gpt-5.6-luna" })!;
+
 /** Short conversational reply for the voice assistant. Capped because TTS bills per character. */
 export const generateVoiceReply = async (
   userText: string,
@@ -801,14 +869,13 @@ export const generateVoiceReply = async (
 ): Promise<string> => {
   const completion = await runVoiceCall("OpenAI voice reply", options.signal, () =>
     voiceOpenAI().chat.completions.create(
-      {
-        model: "gpt-4o",
+      buildChatRequest(voiceReplyModel(), {
         max_tokens: 300,
         messages: [
           { role: "system", content: VOICE_SYSTEM_PROMPT },
           { role: "user", content: userText },
         ],
-      },
+      }),
       voiceRequestOptions(options)
     )
   );
@@ -1112,6 +1179,32 @@ export const efficiencyTip = async (input: {
       type: "json_schema",
       json_schema: { name: "efficiency_tip", strict: true, schema: EFFICIENCY_TIP_SCHEMA },
     },
+  });
+  return completion.choices[0];
+};
+
+export interface AiInterviewQuestionsContext {
+  count: number;
+  roleName: string;
+  jobBrief: string;
+  requirements: string | null;
+}
+
+export const generateAiInterviewQuestions = async (
+  context: AiInterviewQuestionsContext
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const system = await renderPrompt("ai_interview_questions", "system", { count: context.count });
+  const prompt = await renderPrompt("ai_interview_questions", "user", {
+    roleName: context.roleName,
+    jobDescription: context.jobBrief,
+    requirements: context.requirements ?? "None given.",
+  });
+  const completion = await complete("ai_interview_questions", {
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: prompt },
+    ],
+    response_format: { type: "json_object" },
   });
   return completion.choices[0];
 };
