@@ -1723,14 +1723,3 @@ export const addScoutToJobPipeline = async (
 // job-agnostic) Prescreening stage — mirrors the CV-similarity auto-trigger pattern.
 // Idempotent no-op if the application isn't at that stage yet, or the talent hasn't
 // completed the global Pre-Assessment yet.
-export const checkPrescreeningAdvance = async (
-  userId: string,
-  jobId: string
-): Promise<Application> => {
-  const application = await applicationRepo().findOne({ where: { jobId, talentId: userId } });
-  if (!application) {
-    throw new NotFoundError("Job application not found");
-  }
-  await syncCandidateStage(application.id);
-  return applicationRepo().findOneByOrFail({ id: application.id });
-};

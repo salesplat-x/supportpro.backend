@@ -96,13 +96,6 @@ router.get(
   validate(topTalentsValidator),
   asyncHandler(job.topTalents, "load top talents")
 );
-router.patch(
-  "/prescreening-check/:jobId",
-  validateAccess([UserRole.Talent]),
-  requireVerifiedEmail,
-  validate(applyValidator),
-  asyncHandler(job.checkPrescreening, "check pre-screening result")
-);
 router.get(
   "/match/:_id",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),

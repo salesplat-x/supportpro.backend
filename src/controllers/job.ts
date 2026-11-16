@@ -171,13 +171,6 @@ export const activatePayment = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Payment link generated", result);
 };
 
-export const checkPrescreening = async (req: Request, res: Response) => {
-  const result = hideAssessmentResultsFromCandidate(
-    await jobService.checkPrescreeningAdvance(req.user.id, req.params["jobId"]!)
-  );
-  sendSuccessResponse(res, "Prescreening stage checked", { application: result });
-};
-
 export const salaryComparison = async (req: Request, res: Response) => {
   const result = await compareSalaries(req.query as unknown as SalaryComparisonQuery);
   sendSuccessResponse(res, "Salary comparison fetched", result);

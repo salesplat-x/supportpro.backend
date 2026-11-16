@@ -449,7 +449,6 @@ paths:
       summary: Talent — my dashboard
       description: >-
         What the talent has applied to, the tests and interviews waiting for them, and what to do next, earliest due first.
-        Also carries the CV job matches.
       tags:
         - user
       responses:
@@ -516,14 +515,6 @@ paths:
                                   nullable: true
                             step:
                               type: object
-                      cvReady:
-                        type: boolean
-                      matches:
-                        type: array
-                        items:
-                          type: object
-                      newMatchesToday:
-                        type: integer
         "401":
           description: Not logged in
         "403":

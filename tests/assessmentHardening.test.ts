@@ -174,16 +174,6 @@ describe("scores never reach candidates through other endpoints", () => {
     expectNoScores(res);
   });
 
-  it("PATCH /jobs/prescreening-check/:jobId", async () => {
-    const { job, talent, token } = await jobWithPool();
-    const application = await createApplication(talent, job);
-    await setScores(application.id);
-    const res = await request(app)
-      .patch(`/v1/jobs/prescreening-check/${job.id}`)
-      .set("Authorization", `Bearer ${token}`);
-    expectNoScores(res);
-  });
-
   it("GET /user/applications", async () => {
     const { job, talent, token } = await jobWithPool();
     const application = await createApplication(talent, job);
