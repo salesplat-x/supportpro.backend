@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import * as departmentService from "../services/departments.js";
+import * as jobFeedService from "../services/jobFeed.js";
 import * as organizationService from "../services/organization.js";
 import { sendSuccessResponse } from "../utils/response.js";
 
@@ -175,4 +176,19 @@ export const removeDepartment = async (req: Request, res: Response) => {
     req.params["name"]!
   );
   sendSuccessResponse(res, "Department removed", { departments });
+};
+
+export const getFeedStatus = async (req: Request, res: Response) => {
+  const feed = await jobFeedService.getFeedStatus(req.user.id, req.params["_id"]!);
+  sendSuccessResponse(res, "Feed fetched", { feed });
+};
+
+export const getFeedXml = async (req: Request, res: Response) => {
+  const slug = req.params["file"]!.replace(/\.xml$/, "");
+  const xml = await jobFeedService.getFeedXml(slug);
+  res
+    .status(200)
+    .type("application/xml; charset=utf-8")
+    .set("Cache-Control", "public, max-age=900")
+    .send(xml);
 };

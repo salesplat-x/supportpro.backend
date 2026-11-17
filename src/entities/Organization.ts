@@ -103,6 +103,15 @@ export class Organization {
   @Column({ type: "jsonb", default: "[]" })
   departments!: string[];
 
+  /** Open jobs are published in a public Indeed XML feed while this is on. */
+  @Column({ type: "boolean", default: false, name: "indeed_feed_enabled" })
+  indeedFeedEnabled!: boolean;
+
+  /** Set the first time the feed is turned on and never changed, so the link pasted into job sites keeps working. */
+  @Index("IDX_organizations_feed_slug", { unique: true })
+  @Column({ type: "varchar", length: 80, nullable: true, name: "feed_slug" })
+  feedSlug!: string | null;
+
   @Column({ type: "jsonb", default: "[]", name: "yearly_goals" })
   yearlyGoals!: string[];
 
