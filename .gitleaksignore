@@ -16,3 +16,6 @@ bfcabd7a036a697b999340e92c94e9a08c73e324:tests/setup.ts:stripe-access-token:17
 cbfc978fe641d92e0f8117eb0878863790021a4d:tests/salaryComparison.test.ts:generic-api-key:299
 9b32b31f2b58b7ac1e562a0b4d6ba978fd6a971d:tests/savedJobs.test.ts:generic-api-key:92
 993ab7e28f6af1716cc5bcb222b7b1c343373d69:tests/candidatePipeline.test.ts:generic-api-key:129
+10496c3435262d83f5e5e680b0666590c9de67e2:tests/salaryComparison.test.ts:generic-api-key:299
+10496c3435262d83f5e5e680b0666590c9de67e2:tests/savedJobs.test.ts:generic-api-key:92
+10496c3435262d83f5e5e680b0666590c9de67e2:tests/candidatePipeline.test.ts:generic-api-key:129
