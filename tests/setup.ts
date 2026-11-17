@@ -6,7 +6,7 @@ import http from "node:http";
 http.globalAgent = new http.Agent({ keepAlive: false });
 
 // Provides dummy env vars so env.ts can be imported without a real .env.
-// PG_* vars are overridden at runtime by the Testcontainer in tests/helpers/db.ts.
+// PG_* vars are overridden at runtime by the per-suite database in tests/helpers/db.ts.
 process.env.PG_HOST ||= "localhost";
 process.env.PG_PORT ||= "5432";
 process.env.PG_DB ||= "supportpro-test";
