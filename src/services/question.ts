@@ -596,7 +596,7 @@ const collectGeneratedQuestions = async (
     remaining: number,
     avoid: string[]
   ) => Promise<{ message?: { content?: string | null } } | undefined>,
-  categories: readonly string[]
+  categories: readonly string[] | undefined
 ): Promise<GeneratedQuestion[]> => {
   const parseOptions = {
     categories,
@@ -722,7 +722,7 @@ const generateAssessmentPool = async (
   requested: number
 ): Promise<{ questions: Question[]; basedOnCompanyValues: boolean }> => {
   const { count, existing } = await remainingPoolSpace(job, type, requested);
-  const companyValues = job.organization?.companyValues ?? [];
+  const companyValues = job.organization?.companyValues?.trim() ?? "";
   const basedOnCompanyValues = type === QuestionType.CultureFit && companyValues.length > 0;
 
   const generated =
@@ -746,7 +746,7 @@ const generateAssessmentPool = async (
               jobBrief: job.jobBrief,
               avoid,
             }),
-          basedOnCompanyValues ? companyValues : CULTURE_FIT_GENERAL_CATEGORIES
+          basedOnCompanyValues ? undefined : CULTURE_FIT_GENERAL_CATEGORIES
         );
 
   return { questions: await saveGeneratedQuestions(job, type, generated), basedOnCompanyValues };

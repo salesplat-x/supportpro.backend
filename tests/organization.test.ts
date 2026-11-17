@@ -43,8 +43,7 @@ import * as organizationService from "../src/services/organization.js";
 import { uploadToSpaces, deleteFromSpaces } from "../src/utils/integrations/spaces.js";
 import { apiData } from "./helpers/http.js";
 import { signToken } from "../src/utils/crypto.js";
-import { AddOrganizationCompanyValues1789000800000 } from "../src/migrations/1789000800000-AddOrganizationCompanyValues.js";
-import type { QueryRunner } from "typeorm";
+import { AddCompanyAboutFields1789004700000 } from "../src/migrations/1789004700000-AddCompanyAboutFields.js";
 
 const mockUploadToSpaces = uploadToSpaces as jest.Mock;
 const mockDeleteFromSpaces = deleteFromSpaces as jest.Mock;
@@ -135,6 +134,7 @@ describe("POST /v1/organizations/ — create organization (Recruiter only)", () 
     expect(res.status).toBe(201);
     expect(res.body.data.organization.name).toBe("TechCorp Ltd");
     expect(res.body.data.organization.status).toBe("pending");
+    expect(res.body.data.organization).not.toHaveProperty("legacyCompanyValues");
   });
 
   it("Create ignores plan, billing, verification and ownership fields in the body → defaults", async () => {
@@ -1628,140 +1628,192 @@ describe("Organization domain field", () => {
   });
 });
 
-describe("Organization companyValues field", () => {
+describe("Organization company details", () => {
   const orgFrom = (res: Parameters<typeof apiData>[0]) =>
     apiData<{ organization: Organization }>(res).organization;
 
-  const patchValues = (orgId: string, token: string, companyValues: unknown) =>
+  const patchOrg = (orgId: string, token: string, body: Record<string, unknown>) =>
     request(app)
       .patch(`/v1/organizations/${orgId}`)
       .set("Authorization", `Bearer ${token}`)
-      .send({ companyValues });
+      .send(body);
 
-  it("defaults to an empty list for a new company", async () => {
+  const storedOrg = (id: string) =>
+    testDataSource
+      .getRepository(Organization)
+      .createQueryBuilder("o")
+      .addSelect("o.legacyCompanyValues")
+      .where("o.id = :id", { id })
+      .getOneOrFail();
+
+  it("starts with no values, size, about or founded year", async () => {
     const { user: recruiter } = await createRecruiter();
     const org = await createOrganization(recruiter);
 
-    const stored = await testDataSource.getRepository(Organization).findOneByOrFail({ id: org.id });
-    expect(stored.companyValues).toEqual([]);
+    const stored = await storedOrg(org.id);
+    expect(stored).toMatchObject({
+      companyValues: null,
+      size: null,
+      about: null,
+      foundedYear: null,
+    });
   });
 
-  it("Owner sets company values → 200, trimmed and returned", async () => {
+  it("Owner saves values as one trimmed paragraph and the old list column mirrors it", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+    const paragraph = "We share work early. We fix the problem, not the blame.";
+
+    const res = await patchOrg(org.id, token, { companyValues: `  ${paragraph}  ` });
+
+    expect(res.status).toBe(200);
+    expect(orgFrom(res).companyValues).toBe(paragraph);
+    expect(orgFrom(res)).not.toHaveProperty("legacyCompanyValues");
+    const stored = await storedOrg(org.id);
+    expect(stored.companyValues).toBe(paragraph);
+    expect(stored.legacyCompanyValues).toEqual([paragraph]);
+  });
+
+  it.each([
+    ["an empty string", ""],
+    ["only spaces", "   "],
+    ["null", null],
+  ])("%s clears the values", async (_label, companyValues) => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter, { companyValues: "Integrity." });
+
+    const res = await patchOrg(org.id, token, { companyValues });
+
+    expect(res.status).toBe(200);
+    expect(orgFrom(res).companyValues).toBeNull();
+    const stored = await storedOrg(org.id);
+    expect(stored.companyValues).toBeNull();
+    expect(stored.legacyCompanyValues).toEqual([]);
+  });
+
+  it("saves size, about and founded year", async () => {
     const { user: recruiter, token } = await createRecruiter();
     const org = await createOrganization(recruiter);
 
-    const res = await patchValues(org.id, token, [
-      "  Ownership  ",
-      "Customer obsession",
-      "Bias for action",
+    const res = await patchOrg(org.id, token, {
+      size: "51–200",
+      about: "We build payment tools.",
+      foundedYear: 2019,
+    });
+
+    expect(res.status).toBe(200);
+    expect(orgFrom(res)).toMatchObject({
+      size: "51–200",
+      about: "We build payment tools.",
+      foundedYear: 2019,
+    });
+  });
+
+  it("accepts the current year and 1800 as founded years", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+
+    expect((await patchOrg(org.id, token, { foundedYear: 1800 })).status).toBe(200);
+    const thisYear = new Date().getUTCFullYear();
+    const res = await patchOrg(org.id, token, { foundedYear: thisYear });
+    expect(res.status).toBe(200);
+    expect(orgFrom(res).foundedYear).toBe(thisYear);
+  });
+
+  it("only changes the fields sent, so two edits at once don't undo each other", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+
+    const [a, b] = await Promise.all([
+      patchOrg(org.id, token, { about: "About text" }),
+      patchOrg(org.id, token, { companyValues: "Values text" }),
     ]);
 
-    expect(res.status).toBe(200);
-    expect(orgFrom(res).companyValues).toEqual([
-      "Ownership",
-      "Customer obsession",
-      "Bias for action",
-    ]);
-    const stored = await testDataSource.getRepository(Organization).findOneByOrFail({ id: org.id });
-    expect(stored.companyValues).toEqual(["Ownership", "Customer obsession", "Bias for action"]);
-  });
-
-  it("keeps values that contain commas intact", async () => {
-    const { user: recruiter, token } = await createRecruiter();
-    const org = await createOrganization(recruiter);
-
-    const res = await patchValues(org.id, token, ["Be kind, be direct", "Learn fast"]);
-
-    expect(res.status).toBe(200);
-    expect(orgFrom(res).companyValues).toEqual(["Be kind, be direct", "Learn fast"]);
-  });
-
-  it("drops duplicate values (case-insensitive), keeping the first spelling", async () => {
-    const { user: recruiter, token } = await createRecruiter();
-    const org = await createOrganization(recruiter);
-
-    const res = await patchValues(org.id, token, ["Integrity", "integrity ", "Teamwork"]);
-
-    expect(res.status).toBe(200);
-    expect(orgFrom(res).companyValues).toEqual(["Integrity", "Teamwork"]);
-  });
-
-  it("an empty list clears the values", async () => {
-    const { user: recruiter, token } = await createRecruiter();
-    const org = await createOrganization(recruiter, { companyValues: ["Integrity"] });
-
-    const res = await patchValues(org.id, token, []);
-
-    expect(res.status).toBe(200);
-    expect(orgFrom(res).companyValues).toEqual([]);
+    expect([a.status, b.status]).toEqual([200, 200]);
+    const stored = await storedOrg(org.id);
+    expect(stored.about).toBe("About text");
+    expect(stored.companyValues).toBe("Values text");
   });
 
   it("is listed with the company in GET /organizations/me", async () => {
     const { user: recruiter, token } = await createRecruiter();
-    await createOrganization(recruiter, { companyValues: ["Integrity", "Teamwork"] });
+    await createOrganization(recruiter, { companyValues: "Integrity first." });
 
     const res = await request(app)
       .get("/v1/organizations/me")
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(JSON.stringify(apiData(res))).toContain('"companyValues":["Integrity","Teamwork"]');
+    expect(JSON.stringify(apiData(res))).toContain('"companyValues":"Integrity first."');
+    expect(JSON.stringify(apiData(res))).not.toContain("legacyCompanyValues");
   });
 
   it.each([
-    ["not a list", "Integrity"],
-    ["more than 10 values", Array.from({ length: 11 }, (_, i) => `Value ${i + 1}`)],
-    ["an empty value", ["Integrity", "   "]],
-    ["a value over 200 characters", ["x".repeat(201)]],
-    ["a value that is not text", ["Integrity", 42]],
-  ])("rejects %s → 400 and leaves the values unchanged", async (_label, companyValues) => {
+    ["values that are not text", { companyValues: ["Integrity"] }],
+    ["values over 1000 characters", { companyValues: "x".repeat(1001) }],
+    ["about over 2000 characters", { about: "x".repeat(2001) }],
+    ["an unknown size", { size: "lots" }],
+    ["a founded year before 1800", { foundedYear: 1799 }],
+    ["a founded year in the future", { foundedYear: new Date().getUTCFullYear() + 1 }],
+    ["a fractional founded year", { foundedYear: 2019.5 }],
+    ["a founded year sent as text", { foundedYear: "2019" }],
+  ])("rejects %s → 400 and changes nothing", async (_label, body) => {
     const { user: recruiter, token } = await createRecruiter();
-    const org = await createOrganization(recruiter, { companyValues: ["Integrity"] });
+    const org = await createOrganization(recruiter, { companyValues: "Integrity." });
 
-    const res = await patchValues(org.id, token, companyValues);
+    const res = await patchOrg(org.id, token, body);
 
     expect(res.status).toBe(400);
-    const stored = await testDataSource.getRepository(Organization).findOneByOrFail({ id: org.id });
-    expect(stored.companyValues).toEqual(["Integrity"]);
+    const stored = await storedOrg(org.id);
+    expect(stored).toMatchObject({ companyValues: "Integrity.", size: null, foundedYear: null });
   });
 
-  it("accepts exactly 10 values of 200 characters", async () => {
+  it("accepts values of exactly 1000 characters", async () => {
     const { user: recruiter, token } = await createRecruiter();
     const org = await createOrganization(recruiter);
-    const values = Array.from({ length: 10 }, (_, i) => `${i}`.padEnd(200, "v"));
+    const values = "v".repeat(1000);
 
-    const res = await patchValues(org.id, token, values);
+    const res = await patchOrg(org.id, token, { companyValues: values });
 
     expect(res.status).toBe(200);
-    expect(orgFrom(res).companyValues).toEqual(values);
+    expect(orgFrom(res).companyValues).toBe(values);
   });
 
-  it("Non-owner recruiter cannot change company values → 403", async () => {
+  it("Non-owner recruiter cannot change company details → 403", async () => {
     const { user: owner } = await createRecruiter();
     const { token: otherToken } = await createRecruiter();
-    const org = await createOrganization(owner, { companyValues: ["Integrity"] });
+    const org = await createOrganization(owner, { companyValues: "Integrity." });
 
-    const res = await patchValues(org.id, otherToken, ["Hijacked"]);
+    const res = await patchOrg(org.id, otherToken, { companyValues: "Hijacked", size: "500+" });
 
     expect(res.status).toBe(403);
-    const stored = await testDataSource.getRepository(Organization).findOneByOrFail({ id: org.id });
-    expect(stored.companyValues).toEqual(["Integrity"]);
+    const stored = await storedOrg(org.id);
+    expect(stored).toMatchObject({ companyValues: "Integrity.", size: null });
   });
 
-  it("AddOrganizationCompanyValues migration adds a non-null jsonb column defaulting to []", async () => {
-    const Migration = AddOrganizationCompanyValues1789000800000;
-    const queries: string[] = [];
-    const runner = {
-      query: (sql: string) => Promise.resolve(void queries.push(sql)),
-    } as unknown as QueryRunner;
+  it("AddCompanyAboutFields migration turns existing value lists into one paragraph", async () => {
+    const { user: recruiter } = await createRecruiter();
+    const org = await createOrganization(recruiter);
+    const empty = await createOrganization((await createRecruiter()).user);
+    await testDataSource.query(
+      `UPDATE "organizations" SET "company_values" = $2::jsonb, "company_values_text" = NULL WHERE id = $1`,
+      [org.id, JSON.stringify(["Ownership.", " Customer obsession ", "", "Ship it!"])]
+    );
+    await testDataSource.query(
+      `UPDATE "organizations" SET "company_values" = '[]', "company_values_text" = NULL WHERE id = $1`,
+      [empty.id]
+    );
+    const runner = testDataSource.createQueryRunner();
+    const migration = new AddCompanyAboutFields1789004700000();
 
-    await new Migration().up(runner);
-    expect(queries).toEqual([
-      `ALTER TABLE "organizations" ADD "company_values" jsonb NOT NULL DEFAULT '[]'`,
-    ]);
+    try {
+      await migration.down(runner);
+      await migration.up(runner);
+    } finally {
+      await runner.release();
+    }
 
-    queries.length = 0;
-    await new Migration().down(runner);
-    expect(queries).toEqual([`ALTER TABLE "organizations" DROP COLUMN "company_values"`]);
+    expect((await storedOrg(org.id)).companyValues).toBe("Ownership. Customer obsession. Ship it.");
+    expect((await storedOrg(empty.id)).companyValues).toBeNull();
   });
 });

@@ -78,8 +78,21 @@ export class Organization {
   @Column({ type: "varchar", nullable: true, default: null, name: "logo_key" })
   logoKey!: string | null;
 
-  @Column({ type: "jsonb", default: "[]", name: "company_values" })
-  companyValues!: string[];
+  /** Superseded by company_values_text; still written so a rollback keeps the values. */
+  @Column({ type: "jsonb", default: "[]", name: "company_values", select: false })
+  legacyCompanyValues!: string[];
+
+  @Column({ type: "text", nullable: true, default: null, name: "company_values_text" })
+  companyValues!: string | null;
+
+  @Column({ type: "varchar", length: 16, nullable: true })
+  size!: string | null;
+
+  @Column({ type: "text", nullable: true, default: null })
+  about!: string | null;
+
+  @Column({ type: "int", nullable: true, default: null, name: "founded_year" })
+  foundedYear!: number | null;
 
   @Column({ type: "text", nullable: true })
   mission!: string | null;

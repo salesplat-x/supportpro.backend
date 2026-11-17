@@ -70,12 +70,14 @@ describe("swagger.yaml — problem-solving and culture-fit generation", () => {
 });
 
 describe("swagger.yaml — companyValues on the company", () => {
-  it("documents PATCH /organizations/{_id} with companyValues and its limits", () => {
+  it("documents PATCH /organizations/{_id} with the company detail fields and their limits", () => {
     const op = operation("/organizations/{_id}", "patch");
-    const values = bodySchema(op).properties?.companyValues;
+    const props = bodySchema(op).properties;
 
-    expect(values).toMatchObject({ type: "array", maxItems: 10 });
-    expect(values?.items).toMatchObject({ type: "string", maxLength: 200 });
+    expect(props?.companyValues).toMatchObject({ type: "string", maxLength: 1000 });
+    expect(props?.about).toMatchObject({ type: "string", maxLength: 2000 });
+    expect(props?.size?.enum).toEqual(["1–10", "11–50", "51–200", "201–500", "500+"]);
+    expect(props?.foundedYear).toMatchObject({ type: "integer", minimum: 1800 });
     expect(Object.keys(op.responses)).toEqual(expect.arrayContaining(["200", "400", "403"]));
   });
 });

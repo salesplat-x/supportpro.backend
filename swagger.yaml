@@ -2093,16 +2093,26 @@ paths:
                 facebook:
                   type: string
                 companyValues:
-                  type: array
-                  maxItems: 10
+                  type: string
+                  nullable: true
+                  maxLength: 1000
                   description: >-
-                    The company's values, used to write culture-fit questions.
-                    Values are trimmed and duplicates (ignoring case) dropped;
-                    an empty list clears them.
-                  items:
-                    type: string
-                    minLength: 1
-                    maxLength: 200
+                    One paragraph on how the team works, used to write culture-fit
+                    questions. Trimmed; an empty string or null clears it.
+                size:
+                  type: string
+                  nullable: true
+                  enum: ["1–10", "11–50", "51–200", "201–500", "500+"]
+                about:
+                  type: string
+                  nullable: true
+                  maxLength: 2000
+                  description: Shown on every job post. An empty string or null clears it.
+                foundedYear:
+                  type: integer
+                  nullable: true
+                  minimum: 1800
+                  description: Whole year, no later than the current year.
       responses:
         "200":
           description: Company updated
