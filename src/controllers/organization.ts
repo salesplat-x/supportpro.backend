@@ -93,12 +93,12 @@ export const listOrganizationMembers = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Members fetched", { members: result });
 };
 
-export const setMemberCanManagePeople = async (req: Request, res: Response) => {
-  const result = await organizationService.setMemberCanManagePeople(
+export const updateMember = async (req: Request, res: Response) => {
+  const result = await organizationService.updateMember(
     req.user.id,
     req.params["_id"]!,
     req.params["memberId"]!,
-    req.body.canManagePeople
+    { canManagePeople: req.body.canManagePeople, title: req.body.title }
   );
   sendSuccessResponse(res, "Member updated", { member: result });
 };

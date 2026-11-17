@@ -53,14 +53,24 @@ export const updateOrganizationValidator = [
     }),
 ];
 
-export const setMemberCanManagePeopleValidator = [
+export const MAX_MEMBER_TITLE_LENGTH = 60;
+
+export const updateMemberValidator = [
   param("_id").isUUID().withMessage("Invalid company id"),
   param("memberId").isUUID().withMessage("Invalid member id"),
+  body().custom((value: Record<string, unknown>) => {
+    if (value?.["canManagePeople"] === undefined && value?.["title"] === undefined) {
+      throw new Error("Send canManagePeople or title");
+    }
+    return true;
+  }),
   body("canManagePeople")
+    .optional()
     .isBoolean({ strict: true })
     .withMessage("canManagePeople must be true or false")
     .bail()
     .toBoolean(),
+  optionalText("title", MAX_MEMBER_TITLE_LENGTH),
 ];
 
 export const deleteOrganizationValidator = [idParam("_id")];

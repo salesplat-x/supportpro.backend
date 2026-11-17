@@ -219,6 +219,7 @@ export interface OrganizationMemberView {
   workEmail: string;
   role: string;
   canManagePeople: boolean;
+  title: string | null;
   createdAt: Date;
   user: OrganizationMemberUserView;
 }
@@ -247,6 +248,7 @@ const toMemberView = (member: OrganizationMember): OrganizationMemberView => ({
   workEmail: member.workEmail,
   role: member.role,
   canManagePeople: member.canManagePeople,
+  title: member.title,
   createdAt: member.createdAt,
   user: toMemberUserView(member.user),
 });
@@ -683,11 +685,11 @@ export const listOrganizationMembers = async (
   return loadOrganizationMembers(organizationId);
 };
 
-export const setMemberCanManagePeople = async (
+export const updateMember = async (
   ownerId: string,
   organizationId: string,
   memberId: string,
-  canManagePeople: boolean
+  changes: { canManagePeople?: boolean; title?: string | null }
 ): Promise<OrganizationMemberView> => {
   const org = await assertOwnership(ownerId, organizationId);
 
@@ -698,13 +700,20 @@ export const setMemberCanManagePeople = async (
   if (!member) {
     throw new NotFoundError("Member not found");
   }
-  if (member.role === "owner" || member.userId === org.ownerId) {
-    throw new ValidationError("The company owner always has access to People");
+
+  const updates: Partial<Pick<OrganizationMember, "canManagePeople" | "title">> = {};
+  if (changes.canManagePeople !== undefined) {
+    if (member.role === "owner" || member.userId === org.ownerId) {
+      throw new ValidationError("The company owner always has access to People");
+    }
+    updates.canManagePeople = changes.canManagePeople;
+  }
+  if (changes.title !== undefined) {
+    updates.title = changes.title;
   }
 
-  member.canManagePeople = canManagePeople;
-  await memberRepo().save(member);
-  return toMemberView(member);
+  await memberRepo().update(member.id, updates);
+  return toMemberView({ ...member, ...updates } as OrganizationMember);
 };
 
 export const updateOrganization = async (

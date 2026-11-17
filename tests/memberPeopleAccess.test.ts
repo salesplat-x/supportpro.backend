@@ -95,3 +95,95 @@ describe("can manage people setting", () => {
     expect(members.some((m) => m.canManagePeople === true)).toBe(true);
   });
 });
+
+describe("member job title", () => {
+  const patchMember = (orgId: string, memberId: string, token: string, body: unknown) =>
+    request(app)
+      .patch(`/v1/organizations/${orgId}/members/${memberId}`)
+      .set(authHeader(token))
+      .send(body as object);
+
+  const storedTitle = async (memberId: string) =>
+    (await testDataSource.getRepository(OrganizationMember).findOneByOrFail({ id: memberId }))
+      .title;
+
+  it("the owner sets a trimmed title, it shows on the list, and clearing it saves null", async () => {
+    const { owner, org } = await setupCompany();
+    const member = await addMember(org);
+
+    const res = await patchMember(org.id, member.memberId, owner.token, { title: "  HR lead " });
+    expect(res.status).toBe(200);
+    expect(apiData<{ member: { title: string } }>(res).member.title).toBe("HR lead");
+
+    const list = await request(app)
+      .get(`/v1/organizations/${org.id}/members`)
+      .set(authHeader(owner.token));
+    const { members } = apiData<{ members: { id: string; title: string | null }[] }>(list);
+    expect(members.find((m) => m.id === member.memberId)?.title).toBe("HR lead");
+
+    await patchMember(org.id, member.memberId, owner.token, { title: "   " }).expect(200);
+    expect(await storedTitle(member.memberId)).toBeNull();
+  });
+
+  it("changing the title leaves Can manage people alone, and the other way round", async () => {
+    const { owner, org } = await setupCompany();
+    const member = await addMember(org, { canManagePeople: true });
+
+    await patchMember(org.id, member.memberId, owner.token, { title: "Recruiter" }).expect(200);
+    await patchMember(org.id, member.memberId, owner.token, { canManagePeople: false }).expect(200);
+
+    const row = await testDataSource
+      .getRepository(OrganizationMember)
+      .findOneByOrFail({ id: member.memberId });
+    expect(row).toMatchObject({ title: "Recruiter", canManagePeople: false });
+  });
+
+  it("the owner can title their own row", async () => {
+    const { owner, org } = await setupCompany();
+    const ownerRow = await testDataSource.getRepository(OrganizationMember).save({
+      userId: owner.user.id,
+      organizationId: org.id,
+      workEmail: owner.user.email,
+      role: "owner",
+    });
+
+    await patchMember(org.id, ownerRow.id, owner.token, { title: "Founder" }).expect(200);
+    expect(await storedTitle(ownerRow.id)).toBe("Founder");
+  });
+
+  it("a member who isn't the owner → 403, even with Can manage people", async () => {
+    const { org } = await setupCompany();
+    const hr = await addMember(org, { canManagePeople: true });
+    const other = await addMember(org, { firstName: "Bola" });
+
+    await patchMember(org.id, other.memberId, hr.token, { title: "Boss" }).expect(403);
+    expect(await storedTitle(other.memberId)).toBeNull();
+  });
+
+  it("a member of another company → 404", async () => {
+    const { owner, org } = await setupCompany();
+    const other = await setupCompany("Globex Ltd");
+    const foreign = await addMember(other.org);
+
+    await patchMember(org.id, foreign.memberId, owner.token, { title: "HR lead" }).expect(404);
+    expect(await storedTitle(foreign.memberId)).toBeNull();
+  });
+
+  it.each([
+    ["a title over 60 characters", { title: "x".repeat(61) }],
+    ["a title that is not text", { title: 42 }],
+    ["an empty body", {}],
+  ])("rejects %s → 400", async (_label, body) => {
+    const { owner, org } = await setupCompany();
+    const member = await addMember(org);
+
+    await patchMember(org.id, member.memberId, owner.token, body).expect(400);
+  });
+
+  it("accepts a title of exactly 60 characters", async () => {
+    const { owner, org } = await setupCompany();
+    const member = await addMember(org);
+
+    await patchMember(org.id, member.memberId, owner.token, { title: "x".repeat(60) }).expect(200);
+  });
+});
