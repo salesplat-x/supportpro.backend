@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import * as departmentService from "../services/departments.js";
 import * as organizationService from "../services/organization.js";
 import { sendSuccessResponse } from "../utils/response.js";
 
@@ -156,4 +157,22 @@ export const joinOrganizationWithAccessCode = async (req: Request, res: Response
     req.body.code
   );
   sendSuccessResponse(res, `You joined ${result.organizationName}`, result);
+};
+
+export const addDepartment = async (req: Request, res: Response) => {
+  const departments = await departmentService.addDepartment(
+    req.user.id,
+    req.params["_id"]!,
+    req.body.name
+  );
+  sendSuccessResponse(res, "Department added", { departments }, 201);
+};
+
+export const removeDepartment = async (req: Request, res: Response) => {
+  const departments = await departmentService.removeDepartment(
+    req.user.id,
+    req.params["_id"]!,
+    req.params["name"]!
+  );
+  sendSuccessResponse(res, "Department removed", { departments });
 };

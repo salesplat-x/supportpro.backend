@@ -8,6 +8,7 @@ import { avatarUpload } from "../middleware/multer.js";
 import { accessCodeIpLimiter, accessCodeLimiter } from "../middleware/rateLimiter.js";
 import { UserRole } from "../types/enums.js";
 import {
+  addDepartmentValidator,
   createOrganizationValidator,
   deleteOrganizationValidator,
   inviteTokenValidator,
@@ -15,6 +16,7 @@ import {
   joinWithAccessCodeValidator,
   joinRequestOrganizationValidator,
   organizationLogoValidator,
+  removeDepartmentValidator,
   revokeOrganizationInviteValidator,
   sendOrganizationInviteValidator,
   setMemberCanManagePeopleValidator,
@@ -116,6 +118,22 @@ router.patch(
   requireVerifiedEmail,
   validate(setMemberCanManagePeopleValidator),
   asyncHandler(organization.setMemberCanManagePeople, "update team member")
+);
+
+router.post(
+  "/:_id/departments",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(addDepartmentValidator),
+  asyncHandler(organization.addDepartment, "add department")
+);
+
+router.delete(
+  "/:_id/departments/:name",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(removeDepartmentValidator),
+  asyncHandler(organization.removeDepartment, "remove department")
 );
 
 router.get(
