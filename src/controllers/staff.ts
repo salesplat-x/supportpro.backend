@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import type { EndReason } from "../entities/StaffMember.js";
 import * as hrAssignmentsService from "../services/hrAssignments.js";
 import * as checklist from "../services/checklist.js";
 import { getOrgChart } from "../services/orgChart.js";
@@ -96,9 +97,10 @@ export const end = async (req: Request, res: Response) => {
     req.user,
     orgId(req),
     staffId(req),
-    req.body.endDate as string | undefined
+    req.body.endDate as string | undefined,
+    req.body.reason as EndReason | null | undefined
   );
-  sendSuccessResponse(res, "Employment ended", { staff });
+  sendSuccessResponse(res, staff.endingOn ? "End date saved" : "Employment ended", { staff });
 };
 
 export const invite = async (req: Request, res: Response) => {

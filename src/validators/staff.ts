@@ -2,7 +2,7 @@ import { body, param, query, type ValidationChain } from "express-validator";
 import { PayPeriod } from "../entities/PayPackage.js";
 import { DocumentTemplate } from "../entities/StaffDocument.js";
 import type { CommissionTier } from "../entities/CommissionPlan.js";
-import { StaffStatus } from "../entities/StaffMember.js";
+import { EndReason, StaffStatus } from "../entities/StaffMember.js";
 import { Currency } from "../types/enums.js";
 
 const NO_LINE_BREAKS = /^[^\r\n]*$/;
@@ -183,6 +183,10 @@ export const endStaffValidator = [
   orgParam,
   staffParam,
   dateOnly(body("endDate").optional(), "End date"),
+  body("reason")
+    .optional({ values: "null" })
+    .isIn(Object.values(EndReason))
+    .withMessage(`reason must be one of ${Object.values(EndReason).join(", ")}`),
 ];
 
 export const accessLogValidator = [

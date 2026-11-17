@@ -9,6 +9,7 @@ import { clearOldAiClaims } from "./peopleAi.js";
 import { runStuckEmailSweep } from "./stuckEmails.js";
 import { reconcileDueSupportDrafts } from "./supportAi.js";
 import { closeExpiredJobs } from "./job.js";
+import { finalizeScheduledEndings } from "./staff.js";
 import { reconcileDueInterviewTranscripts } from "./aiInterviewTranscript.js";
 import { reconcileDueInterviewScoring } from "./aiInterviewScoring.js";
 
@@ -89,6 +90,14 @@ export const reconcileDurableJobs = async (): Promise<void> => {
     await clearOldAiClaims();
   } catch (err) {
     logger.error(`AI claim cleanup failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  try {
+    await finalizeScheduledEndings();
+  } catch (err) {
+    logger.error(
+      `Scheduled employment end sweep failed: ${err instanceof Error ? err.message : String(err)}`
+    );
   }
 
   try {

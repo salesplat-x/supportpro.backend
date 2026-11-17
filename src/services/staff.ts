@@ -4,7 +4,8 @@ import { Application } from "../entities/Application.js";
 import { StaffAccessResource } from "../entities/StaffAccessLog.js";
 import { StaffActivityType } from "../entities/StaffActivity.js";
 import { StaffHrAssignment } from "../entities/StaffHrAssignment.js";
-import { StaffMember, StaffStatus } from "../entities/StaffMember.js";
+import { EndReason, StaffMember, StaffStatus } from "../entities/StaffMember.js";
+import { resultRows } from "../utils/durableJobs.js";
 import type { User } from "../entities/User.js";
 import { ConflictError, NotFoundError, ValidationError } from "../utils/errors";
 import { ApplicationStatus } from "../types/enums.js";
@@ -27,7 +28,6 @@ import {
   viewOf,
 } from "./staffRecord.js";
 
-const DAY_MS = 86_400_000;
 const MAX_MANAGER_CHAIN = 100;
 const MAX_OPTIONS = 500;
 
@@ -70,8 +70,6 @@ export interface StaffOption {
 type TrackedField = "fullName" | "jobTitle" | "department" | "startDate" | "isExecutive";
 
 const todayUtc = (): string => new Date().toISOString().slice(0, 10);
-
-const tomorrowUtc = (): string => new Date(Date.now() + DAY_MS).toISOString().slice(0, 10);
 
 const escapeLike = (value: string): string => value.replace(/[\\%_]/g, "\\$&");
 
@@ -365,11 +363,19 @@ export const updateStaff = async (
   return viewOf(staff);
 };
 
+const oneYearFromTodayUtc = (): string => {
+  const date = new Date();
+  date.setUTCFullYear(date.getUTCFullYear() + 1);
+  return date.toISOString().slice(0, 10);
+};
+
+/** A date up to today ends the employment now; a later one keeps the person active until that day has passed. */
 export const endStaff = async (
   actor: User,
   organizationId: string,
   staffId: string,
-  endDate?: string
+  endDate?: string,
+  reason?: EndReason | null
 ): Promise<StaffView> => {
   await assertCanManagePeople(actor.id, organizationId);
 
@@ -382,21 +388,89 @@ export const endStaff = async (
     if (effective < current.startDate) {
       throw new ValidationError("The end date can't be before the start date");
     }
-    if (effective > tomorrowUtc()) {
-      throw new ValidationError("The end date can't be in the future");
+    if (effective > oneYearFromTodayUtc()) {
+      throw new ValidationError("The end date can't be more than a year away");
+    }
+
+    current.endReason = reason ?? null;
+    const repo = em.getRepository(StaffMember);
+
+    if (effective > todayUtc()) {
+      const previous = current.endingOn;
+      current.endingOn = effective;
+      const saved = await repo.save(current);
+      await recordActivities(em, saved, [
+        activityEntry(StaffActivityType.EndScheduled, actor, {
+          endDate: effective,
+          ...(previous ? { previousEndDate: previous } : {}),
+          ...(reason ? { reason } : {}),
+        }),
+      ]);
+      return saved;
     }
 
     current.status = StaffStatus.Ended;
     current.endDate = effective;
+    current.endingOn = null;
     await withdrawPendingForStaff(em, current.id);
     current.inviteTokenHash = null;
     current.inviteExpiresAt = null;
-    const saved = await em.getRepository(StaffMember).save(current);
+    const saved = await repo.save(current);
     await recordActivities(em, saved, [
-      activityEntry(StaffActivityType.Ended, actor, { endDate: effective }),
+      activityEntry(StaffActivityType.Ended, actor, {
+        endDate: effective,
+        ...(reason ? { reason } : {}),
+      }),
     ]);
     return saved;
   });
 
   return viewOf(staff);
+};
+
+const FINALIZE_ENDINGS_SQL = `
+  UPDATE "staff_members"
+  SET "status" = 'ended',
+      "end_date" = "ending_on",
+      "ending_on" = NULL,
+      "invite_token_hash" = NULL,
+      "invite_expires_at" = NULL
+  WHERE "id" IN (
+    SELECT "id" FROM "staff_members"
+    WHERE "status" <> 'ended' AND "ending_on" < CURRENT_DATE
+    ORDER BY "ending_on"
+    LIMIT $1
+    FOR UPDATE SKIP LOCKED
+  )
+  RETURNING "id", "organization_id", "end_date"
+`;
+
+const FINALIZE_BATCH = 200;
+
+/** Ends every employment whose last working day has passed. Safe to run from two containers at once. */
+export const finalizeScheduledEndings = async (): Promise<number> => {
+  let total = 0;
+  for (;;) {
+    const ended = await AppDataSource.transaction(async (em) => {
+      const rows = resultRows(await em.query(FINALIZE_ENDINGS_SQL, [FINALIZE_BATCH])) as {
+        id: string;
+        organization_id: string;
+        end_date: string;
+      }[];
+      for (const row of rows) {
+        await withdrawPendingForStaff(em, row.id);
+        await recordActivities(em, { id: row.id, organizationId: row.organization_id }, [
+          {
+            type: StaffActivityType.Ended,
+            actorId: null,
+            actorName: "AuxHR",
+            meta: { endDate: row.end_date, scheduled: true },
+          },
+        ]);
+      }
+      return rows.length;
+    });
+    total += ended;
+    if (ended < FINALIZE_BATCH) return total;
+  }
 };
