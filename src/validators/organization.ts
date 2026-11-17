@@ -1,6 +1,7 @@
 import { body, param } from "express-validator";
 import { idParam, phoneRule } from "./shared.js";
 import { isValidLinkedinUrl } from "../utils/emailDomain.js";
+import { MAX_DEPARTMENT_LENGTH } from "../services/departments.js";
 
 export const COMPANY_SIZES = ["1–10", "11–50", "51–200", "201–500", "500+"];
 export const MAX_COMPANY_VALUES_LENGTH = 1000;
@@ -115,4 +116,23 @@ export const joinWithAccessCodeValidator = [
     .trim()
     .isLength({ min: 8, max: 20 })
     .withMessage("Enter your company's access code"),
+];
+
+export const addDepartmentValidator = [
+  idParam("_id"),
+  body("name")
+    .isString()
+    .withMessage("Department name must be text")
+    .bail()
+    .trim()
+    .isLength({ min: 1, max: MAX_DEPARTMENT_LENGTH })
+    .withMessage(`Department name must be 1-${MAX_DEPARTMENT_LENGTH} characters`),
+];
+
+export const removeDepartmentValidator = [
+  idParam("_id"),
+  param("name")
+    .trim()
+    .isLength({ min: 1, max: MAX_DEPARTMENT_LENGTH })
+    .withMessage("Invalid department name"),
 ];

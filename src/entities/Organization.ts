@@ -100,6 +100,9 @@ export class Organization {
   @Column({ type: "text", nullable: true })
   vision!: string | null;
 
+  @Column({ type: "jsonb", default: "[]" })
+  departments!: string[];
+
   @Column({ type: "jsonb", default: "[]", name: "yearly_goals" })
   yearlyGoals!: string[];
 
