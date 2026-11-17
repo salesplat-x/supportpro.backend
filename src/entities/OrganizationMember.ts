@@ -40,6 +40,10 @@ export class OrganizationMember {
   @Column({ type: "boolean", name: "can_manage_people", default: false })
   canManagePeople!: boolean;
 
+  /** Job title the owner gives this member, e.g. "HR lead". */
+  @Column({ type: "varchar", length: 60, nullable: true })
+  title!: string | null;
+
   @Column({ type: "timestamp", default: () => "CURRENT_TIMESTAMP", name: "verified_at" })
   verifiedAt!: Date;
 

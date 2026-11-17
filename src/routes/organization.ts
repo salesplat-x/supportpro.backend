@@ -19,8 +19,8 @@ import {
   removeDepartmentValidator,
   revokeOrganizationInviteValidator,
   sendOrganizationInviteValidator,
-  setMemberCanManagePeopleValidator,
   switchOrganizationValidator,
+  updateMemberValidator,
   updateOrganizationValidator,
 } from "../validators/organization.js";
 
@@ -116,8 +116,8 @@ router.patch(
   "/:_id/members/:memberId",
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
-  validate(setMemberCanManagePeopleValidator),
-  asyncHandler(organization.setMemberCanManagePeople, "update team member")
+  validate(updateMemberValidator),
+  asyncHandler(organization.updateMember, "update team member")
 );
 
 router.post(
