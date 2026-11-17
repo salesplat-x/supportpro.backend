@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { EntityManager, In } from "typeorm";
+import { clearFeedCache, ensureFeedSlug } from "./jobFeed.js";
 import { AppDataSource } from "../database/dataSource.js";
 import { Organization } from "../entities/Organization.js";
 import { User } from "../entities/User.js";
@@ -203,6 +204,7 @@ export interface UpdateOrganizationPayload {
   size?: string | null;
   about?: string | null;
   foundedYear?: number | null;
+  indeedFeedEnabled?: boolean;
 }
 
 export interface OrganizationMemberUserView {
@@ -735,6 +737,7 @@ export const updateOrganization = async (
     size,
     about,
     foundedYear,
+    indeedFeedEnabled,
   } = payload;
   const updates = Object.fromEntries(
     Object.entries({
@@ -749,6 +752,7 @@ export const updateOrganization = async (
       size,
       about,
       foundedYear,
+      indeedFeedEnabled,
     }).filter(([, value]) => value !== undefined)
   ) as UpdateOrganizationPayload & { legacyCompanyValues?: string[] };
 
@@ -767,8 +771,16 @@ export const updateOrganization = async (
     }
   }
 
+  if (updates.indeedFeedEnabled) {
+    await ensureFeedSlug(org);
+  }
+
   await orgRepo().update(org.id, updates);
-  return orgRepo().findOneByOrFail({ id: org.id });
+  const updated = await orgRepo().findOneByOrFail({ id: org.id });
+  if (updates.indeedFeedEnabled !== undefined) {
+    clearFeedCache(updated.feedSlug);
+  }
+  return updated;
 };
 
 export const deleteOrganization = async (

@@ -38,6 +38,10 @@ export const updateOrganizationValidator = [
   body("facebook").optional().isString(),
   optionalText("companyValues", MAX_COMPANY_VALUES_LENGTH),
   optionalText("about", MAX_COMPANY_ABOUT_LENGTH),
+  body("indeedFeedEnabled")
+    .optional()
+    .isBoolean({ strict: true })
+    .withMessage("indeedFeedEnabled must be true or false"),
   body("size")
     .optional({ values: "null" })
     .isIn(COMPANY_SIZES)
@@ -145,4 +149,10 @@ export const removeDepartmentValidator = [
     .trim()
     .isLength({ min: 1, max: MAX_DEPARTMENT_LENGTH })
     .withMessage("Invalid department name"),
+];
+
+export const feedFileValidator = [
+  param("file")
+    .matches(/^[a-z0-9-]{1,80}\.xml$/)
+    .withMessage("Feed not found"),
 ];

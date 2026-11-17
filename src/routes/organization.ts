@@ -137,6 +137,14 @@ router.delete(
 );
 
 router.get(
+  "/:_id/feed",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(switchOrganizationValidator),
+  asyncHandler(organization.getFeedStatus, "load job feed")
+);
+
+router.get(
   "/:_id/usage",
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
