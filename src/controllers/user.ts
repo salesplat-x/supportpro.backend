@@ -41,9 +41,12 @@ export const myOnboarding = async (req: Request, res: Response) => {
 export const me = async (req: Request, res: Response) => {
   const result = await userService.me(req.user.id);
   const profileCompletion = userService.getProfileCompletion(result);
-  const cvReading = await userService.loadCvReading(req.user.id);
+  const [cvReading, hasJoinedStaff] = await Promise.all([
+    userService.loadCvReading(req.user.id),
+    userService.hasJoinedStaff(req.user.id),
+  ]);
   sendSuccessResponse(res, "User fetched", {
-    user: { ...withoutCvText(result), ...cvReading, profileCompletion },
+    user: { ...withoutCvText(result), ...cvReading, profileCompletion, hasJoinedStaff },
   });
 };
 

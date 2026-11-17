@@ -1,5 +1,5 @@
 /**
- * Staff invites — HR-only sending, the join gate (register, verify, complete profile, then join),
+ * Staff invites — HR-only sending, joining by logging in or setting a password,
  * and the guarantee that staff never receive HR rights.
  */
 
@@ -353,14 +353,25 @@ describe("previewing an invite", () => {
     expect(apiData<{ invite: { inviteeExists: boolean } }>(res).invite.inviteeExists).toBe(true);
   });
 
-  it("gives only the status for an expired or used invite and 404 for an unknown one", async () => {
-    const { staff, inviteToken } = await invitedStaff();
+  it("tells an expired invite who sent it and when, and gives only the status once used", async () => {
+    const { staff, inviteToken, hr } = await invitedStaff();
+    const expiresAt = new Date(Date.now() - 60_000);
     await testDataSource
       .getRepository(StaffMember)
-      .update(staff.id, { inviteExpiresAt: new Date(Date.now() - 60_000) });
+      .update(staff.id, { inviteExpiresAt: expiresAt });
 
     const expired = await request(app).get(`/v1/staff-invites/${inviteToken}`);
-    expect(apiData<{ invite: unknown }>(expired).invite).toEqual({ status: "expired" });
+    expect(apiData<{ invite: Record<string, unknown> }>(expired).invite).toMatchObject({
+      status: "expired",
+      organizationName: "Acme Ltd",
+      invitedEmail: "invitee@example.com",
+      expiresAt: expiresAt.toISOString(),
+      contactEmail: hr.user.email,
+    });
+    expect(
+      apiData<{ invite: { invitedAt: string | null } }>(expired).invite.invitedAt
+    ).not.toBeNull();
+    expect(await activityTypes(staff.id)).not.toContain("invite_opened");
 
     const { user } = await createTalent();
     await testDataSource.getRepository(StaffMember).update(staff.id, {
@@ -413,14 +424,56 @@ describe("joining", () => {
     );
   });
 
-  it("refuses to attach a person whose profile is not complete", async () => {
+  it("attaches a person whose talent profile is not filled in yet", async () => {
     const { staff, inviteToken } = await invitedStaff("half@example.com");
     const talent = await createTalent({ email: "half@example.com" });
 
     const res = await accept(talent.token, inviteToken);
-    expect(res.status).toBe(422);
-    expect((res.body as { error: { code: string } }).error.code).toBe("PROFILE_INCOMPLETE");
-    expect(await staffRow(staff.id)).toMatchObject({ userId: null, status: "invited" });
+    expect(res.status).toBe(200);
+    expect(await staffRow(staff.id)).toMatchObject({ userId: talent.user.id, status: "active" });
+  });
+
+  it("verifies an unverified account through the emailed link, but not from My work", async () => {
+    const { staff, inviteToken } = await invitedStaff("fresh@example.com");
+    const talent = await createTalent({ email: "fresh@example.com", emailVerifiedAt: null });
+
+    const fromMyWork = await request(app)
+      .post(`/v1/staff-invites/mine/${staff.id}/accept`)
+      .set(authHeader(talent.token));
+    expect(fromMyWork.status).toBe(403);
+
+    expect((await accept(talent.token, inviteToken)).status).toBe(200);
+    const user = await testDataSource.getRepository(User).findOneByOrFail({ id: talent.user.id });
+    expect(user.emailVerifiedAt).not.toBeNull();
+    expect((await staffRow(staff.id)).userId).toBe(talent.user.id);
+  });
+
+  it("returns the same join on a retry and reports what is waiting in My work", async () => {
+    const { org, staff, inviteToken } = await invitedStaff("again@example.com");
+    const talent = await createTalent({ email: "again@example.com" });
+    await testDataSource
+      .getRepository(StaffMember)
+      .query(
+        `INSERT INTO "staff_checklist_tasks" ("staff_id", "title") VALUES ($1, 'Read handbook'), ($1, 'Set up laptop')`,
+        [staff.id]
+      );
+
+    const first = apiData<{ joined: Record<string, unknown> }>(
+      await accept(talent.token, inviteToken)
+    ).joined;
+    const retry = apiData<{ joined: Record<string, unknown> }>(
+      await accept(talent.token, inviteToken)
+    ).joined;
+    expect(retry).toEqual(first);
+    expect(first).toMatchObject({
+      organizationName: "Acme Ltd",
+      documentsToSign: 0,
+      openTasks: expect.any(Number),
+      hasPay: false,
+      hasShareOptions: false,
+    });
+    expect(first["openTasks"]).toBeGreaterThanOrEqual(2);
+    expect(org.id).toBeTruthy();
   });
 
   it("attaches a registered, verified person with a complete profile and records it", async () => {
@@ -461,7 +514,7 @@ describe("joining", () => {
     expect((await accept(stranger.token, inviteToken)).status).toBe(403);
   });
 
-  it("refuses the wrong email, a recruiter account, an unverified account and an unknown link", async () => {
+  it("refuses the wrong email, a recruiter account, an unverified wrong account and an unknown link", async () => {
     const { inviteToken } = await invitedStaff("full@example.com");
     const role = await createRole();
     const wrongEmail = await createCompleteTalent(role, { email: "other@example.com" });
@@ -499,6 +552,138 @@ describe("joining", () => {
     const talent = await createCompleteTalent(await createRole(), { email: "janedoe@gmail.com" });
 
     expect((await accept(talent.token, inviteToken)).status).toBe(200);
+  });
+});
+
+describe("joining by setting a password", () => {
+  const setPassword = (inviteToken: string, password = PLAIN_PASSWORD) =>
+    request(app).post(`/v1/staff-invites/${inviteToken}/password`).send({ password });
+
+  it("creates a verified talent account, joins, and signs the person in", async () => {
+    const { staff, inviteToken } = await invitedStaff("kelechi@example.com");
+
+    const res = await setPassword(inviteToken);
+    expect(res.status).toBe(201);
+    const body = apiData<{ user: { id: string; email: string }; token: string; joined: unknown }>(
+      res
+    );
+    expect(body.token).toEqual(expect.any(String));
+    expect(body.joined).toMatchObject({
+      organizationName: "Acme Ltd",
+      jobTitle: "Product Designer",
+    });
+    expect(JSON.stringify(body.user)).not.toContain("password");
+
+    const user = await testDataSource.getRepository(User).findOneByOrFail({ id: body.user.id });
+    expect(user).toMatchObject({
+      email: "kelechi@example.com",
+      userRole: "talent",
+      firstName: "Ada",
+      lastName: "Obi",
+      activeOrganizationId: null,
+    });
+    expect(user.emailVerifiedAt).not.toBeNull();
+    expect(
+      await testDataSource.getRepository(OrganizationMember).countBy({ userId: user.id })
+    ).toBe(0);
+    expect(await staffRow(staff.id)).toMatchObject({ userId: user.id, status: "active" });
+    expect(emailMocks().sendVerificationEmail).not.toHaveBeenCalled();
+
+    const login = await request(app)
+      .post("/v1/auth/login")
+      .send({ email: "kelechi@example.com", password: PLAIN_PASSWORD });
+    expect(login.status).toBe(200);
+    const me = await request(app).get("/v1/user/me").set(authHeader(body.token));
+    expect(apiData<{ user: { hasJoinedStaff: boolean } }>(me).user.hasJoinedStaff).toBe(true);
+  });
+
+  it("uses a one-word name for both first and last name", async () => {
+    const company = await setupCompany();
+    await createStaff(app, company.owner.token, company.org.id, {
+      fullName: "Madonna",
+      email: "madonna@example.com",
+      sendInvite: true,
+    });
+    const res = await setPassword(tokenFromLastEmail());
+    expect(res.status).toBe(201);
+    const user = await testDataSource
+      .getRepository(User)
+      .findOneByOrFail({ email: "madonna@example.com" });
+    expect(user).toMatchObject({ firstName: "Madonna", lastName: "Madonna" });
+  });
+
+  it("sends anyone who already has an account to log in instead", async () => {
+    const { staff, inviteToken } = await invitedStaff("taken@example.com");
+    await createRecruiter({ email: "taken@example.com" });
+
+    const res = await setPassword(inviteToken);
+    expect(res.status).toBe(409);
+    expect((res.body as { error: { code: string } }).error.code).toBe("ACCOUNT_EXISTS");
+    expect((await staffRow(staff.id)).userId).toBeNull();
+  });
+
+  it("refuses a weak password, an expired, used, ended or unknown invite", async () => {
+    const { org, owner, staff, inviteToken } = await invitedStaff("ref@example.com");
+    expect((await setPassword(inviteToken, "short")).status).toBe(400);
+    expect((await setPassword("0".repeat(64))).status).toBe(404);
+
+    await testDataSource
+      .getRepository(StaffMember)
+      .update(staff.id, { inviteExpiresAt: new Date(Date.now() - 60_000) });
+    expect((await setPassword(inviteToken)).status).toBe(400);
+
+    await testDataSource
+      .getRepository(StaffMember)
+      .update(staff.id, { inviteExpiresAt: new Date(Date.now() + 60_000) });
+    const ended = await request(app)
+      .post(staffPath(org.id, `/${staff.id}/end`))
+      .set(authHeader(owner.token))
+      .send({});
+    expect(ended.status).toBe(200);
+    expect((await setPassword(inviteToken)).status).toBe(404);
+    expect(await testDataSource.getRepository(User).countBy({ email: "ref@example.com" })).toBe(0);
+  });
+
+  it("lets only one of two simultaneous attempts create the account", async () => {
+    const { staff, inviteToken } = await invitedStaff("race@example.com");
+
+    const results = await Promise.all([setPassword(inviteToken), setPassword(inviteToken)]);
+    expect(results.map((r) => r.status).sort()).toEqual([201, 409]);
+    expect(await testDataSource.getRepository(User).countBy({ email: "race@example.com" })).toBe(1);
+    expect(await activityTypes(staff.id)).toEqual(["created", "invited", "joined"]);
+  });
+
+  it("keeps no account behind when joining fails after the account is made", async () => {
+    const { staff, inviteToken } = await invitedStaff("rollback@example.com");
+    await testDataSource.query(
+      `CREATE OR REPLACE FUNCTION fail_join() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'boom'; END $$ LANGUAGE plpgsql`
+    );
+    await testDataSource.query(
+      `CREATE TRIGGER fail_join BEFORE UPDATE OF "user_id" ON "staff_members" FOR EACH ROW EXECUTE FUNCTION fail_join()`
+    );
+    try {
+      expect((await setPassword(inviteToken)).status).toBe(500);
+    } finally {
+      await testDataSource.query(`DROP TRIGGER fail_join ON "staff_members"`);
+      await testDataSource.query(`DROP FUNCTION fail_join()`);
+    }
+    expect(
+      await testDataSource.getRepository(User).countBy({ email: "rollback@example.com" })
+    ).toBe(0);
+    expect((await staffRow(staff.id)).userId).toBeNull();
+    expect((await setPassword(inviteToken)).status).toBe(201);
+  });
+
+  it("lets a person whose reply was lost log in with the new password and join again", async () => {
+    const { inviteToken } = await invitedStaff("lost@example.com");
+    expect((await setPassword(inviteToken)).status).toBe(201);
+    expect((await setPassword(inviteToken)).status).toBe(409);
+
+    const login = await request(app)
+      .post("/v1/auth/login")
+      .send({ email: "lost@example.com", password: PLAIN_PASSWORD });
+    const token = apiData<{ token: string }>(login).token;
+    expect((await accept(token, inviteToken)).status).toBe(200);
   });
 });
 

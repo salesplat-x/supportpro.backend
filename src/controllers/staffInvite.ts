@@ -21,3 +21,11 @@ export const accept = async (req: Request, res: Response) => {
   const joined = await staffInvites.acceptStaffInvite(req.user.id, req.params["token"]!);
   sendSuccessResponse(res, "You've joined the company", { joined });
 };
+
+export const joinWithPassword = async (req: Request, res: Response) => {
+  const { user, token, joined } = await staffInvites.joinWithPassword(
+    req.params["token"]!,
+    req.body.password
+  );
+  sendSuccessResponse(res, "You've joined the company", { user, token, joined }, 201);
+};

@@ -28,6 +28,7 @@ import {
   selectDueIds,
 } from "../utils/durableJobs.js";
 import { Organization } from "../entities/Organization.js";
+import { StaffMember, StaffStatus } from "../entities/StaffMember.js";
 import { assertWithinLimit, recordUsage } from "./entitlements.js";
 import { getActiveOrganizationId } from "./organizationScope.js";
 import {
@@ -383,6 +384,12 @@ export const parseTalentCv = async (userId: string, cvKey: string): Promise<void
       .catch(() => undefined);
   }
 };
+
+/** Joined staff may use My work before finishing their talent profile. */
+export const hasJoinedStaff = (userId: string): Promise<boolean> =>
+  AppDataSource.getRepository(StaffMember).exists({
+    where: { userId, status: StaffStatus.Active },
+  });
 
 export const loadCvReading = async (
   userId: string
