@@ -7,6 +7,7 @@ type Schema = {
   minimum?: number;
   maximum?: number;
   items?: Schema;
+  additionalProperties?: Schema;
   properties?: Record<string, Schema>;
   required?: string[];
 };
@@ -45,7 +46,7 @@ describe("swagger.yaml — Day 4 switches on the AI setup", () => {
 
 describe("swagger.yaml — candidate questions", () => {
   it.each(["/questions/candidate/problem-solving", "/questions/candidate/culture-fit"])(
-    "documents GET %s with jobId, auth, errors and no criteria in the reply",
+    "documents GET %s with jobId, auth, errors, options and no criteria or correct option",
     (route) => {
       const op = operation(route, "get");
       const jobId = op.parameters?.find((p) => p.name === "jobId");
@@ -55,7 +56,12 @@ describe("swagger.yaml — candidate questions", () => {
         expect.arrayContaining(["200", "400", "401", "403", "404", "409"])
       );
       const item = okData(op).properties!.questions!.items!;
-      expect(Object.keys(item.properties!).sort()).toEqual(["id", "question", "questionType"]);
+      expect(Object.keys(item.properties!).sort()).toEqual([
+        "id",
+        "options",
+        "question",
+        "questionType",
+      ]);
     }
   );
 });
@@ -68,10 +74,16 @@ describe("swagger.yaml — candidate answers", () => {
       const body = bodySchema(op);
       expect(body.required).toEqual(["jobId", "answers"]);
       expect(body.properties?.answers?.type).toBe("object");
+      expect(body.properties?.answers?.additionalProperties).toMatchObject({
+        type: "integer",
+        minimum: 0,
+        maximum: 3,
+      });
       expect(op.security).toEqual([{ bearerAuth: [] }]);
       expect(Object.keys(op.responses)).toEqual(
-        expect.arrayContaining(["200", "400", "401", "403", "404", "409", "502"])
+        expect.arrayContaining(["200", "400", "401", "403", "404", "409"])
       );
+      expect(op.responses["502"]).toBeUndefined();
       expect(Object.keys(okData(op).properties!).sort()).toEqual([
         "answered",
         "questionType",

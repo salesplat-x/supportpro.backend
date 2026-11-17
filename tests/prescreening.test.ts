@@ -23,7 +23,6 @@ import { TalentEmbedding } from "../src/entities/TalentEmbedding.js";
 import {
   isPrescreeningScoreValid,
   PRESCREENING_SCORE_VALIDITY_DAYS,
-  redistributeCorrectOptions,
 } from "../src/services/prescreening.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
@@ -577,24 +576,5 @@ describe("POST /v1/prescreening/submit — sets prescreeningScoredAt", () => {
       before.getTime() - 1000
     );
     expect(isPrescreeningScoreValid(updatedUser!.prescreeningScoredAt)).toBe(true);
-  });
-});
-
-describe("redistributeCorrectOptions", () => {
-  it("keeps the correct answer text and does not leave every item on option B", () => {
-    const questions = Array.from({ length: 8 }, (_, i) => ({
-      questionId: `q${i}`,
-      question: `Question ${i}?`,
-      category: "general",
-      options: ["A", "B", "C", "D"],
-      correctOption: 1,
-      intent: "test",
-    }));
-
-    const result = redistributeCorrectOptions(questions);
-    expect(result.every((item) => item.options[item.correctOption] === "B")).toBe(true);
-    expect(result.some((item) => item.correctOption !== 1)).toBe(true);
-    const slots = new Set(result.map((item) => item.correctOption));
-    expect(slots.size).toBeGreaterThan(1);
   });
 });

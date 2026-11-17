@@ -357,13 +357,6 @@ features:
     kind: chat
     format: json_object
     default: { provider: openai, model: gpt-5.6-luna }
-  - key: company_answer_grading
-    name: Company answer grading AI
-    description: Grades problem-solving and culture-fit answers from 0 to 5.
-    group: Assessments
-    kind: chat
-    format: json_object
-    default: { provider: openai, model: gpt-5.6-luna }
   - key: personality_type
     name: Personality type AI
     description: Works out a talent's personality type from their answers.

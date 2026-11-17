@@ -90,7 +90,7 @@ const setup = async (): Promise<{
   recruiterToken: string;
 }> => {
   const { user: recruiter, token: recruiterToken } = await createRecruiter();
-  const { user: talent } = await createTalent();
+  const { user: talent } = await createTalent({ cvFileName: "cv.pdf" });
   const role = await createRole();
   const aiConfig = await createAIConfig(recruiter);
   const job = await createJob(recruiter, role, { aiConfigId: aiConfig.id });

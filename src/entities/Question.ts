@@ -42,6 +42,12 @@ export class Question {
   @Column({ type: "varchar", nullable: true, default: null })
   category!: string | null;
 
+  @Column({ type: "jsonb", nullable: true, default: null })
+  options!: string[] | null;
+
+  @Column({ type: "integer", nullable: true, default: null })
+  correctOption!: number | null;
+
   @CreateDateColumn()
   createdAt!: Date;
 

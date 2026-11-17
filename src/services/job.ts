@@ -21,6 +21,7 @@ import {
   ApplicationStatus,
   ScreeningStage,
   CompensationPeriod,
+  Currency,
   EmploymentType,
   ExperienceLevel,
   MatchVerdict,
@@ -47,9 +48,8 @@ import { resultRows } from "../utils/durableJobs.js";
 import { createStages } from "./aiConfig.js";
 import {
   computeCvSimilarityScore,
-  getAssessmentRetryDate,
-  processNextStage,
   rescoreCvSimilarity,
+  syncCandidateStage,
   loadRecommendationsByApplicationIds,
   overlayVerdictFromRecommendation,
   triggerMatchVerdict,
@@ -66,8 +66,12 @@ import {
   NO_PROGRESS,
 } from "./applicationProgress.js";
 import { AiInterview } from "../entities/AiInterview.js";
-import { isPrescreeningScoreValid } from "./prescreening.js";
-import { regenerateCvEmbedding } from "./user.js";
+import { hasUploadedCv, regenerateCvEmbedding } from "./user.js";
+import { isUniqueViolation } from "./staffRecord.js";
+import { screeningPlan, type ScreeningPlanStep } from "./screeningPlan.js";
+import { savedJobIds } from "./savedJobs.js";
+import { StaffMember, StaffStatus } from "../entities/StaffMember.js";
+import { notifyApplicationReceived, notifyStageReached } from "./talentNotifications.js";
 
 const jobRepo = () => AppDataSource.getRepository(Job);
 
@@ -288,6 +292,9 @@ export interface FetchJobsParams {
   country?: string;
   workMode?: string;
   q?: string;
+  minMonthlySalary?: number | string;
+  currency?: string;
+  postedWithin?: string;
   limit?: number | string;
   offset?: number | string;
   sort?: string;
@@ -720,6 +727,22 @@ const buildJobsQuery = async (payload: FetchJobsParams) => {
     qb.andWhere("job.experienceLevel = :exp", { exp: payload.experienceLevel });
   }
 
+  if (payload.minMonthlySalary !== undefined && payload.minMonthlySalary !== "") {
+    qb.andWhere("job.currency = :salaryCurrency", {
+      salaryCurrency: payload.currency ?? Currency.NGN,
+    });
+    qb.andWhere(
+      `(CASE WHEN job."compensationPeriod" = :yearly
+          THEN COALESCE(job."maxSalary", job."minSalary") / 12
+          ELSE COALESCE(job."maxSalary", job."minSalary") END) >= :minMonthlySalary`,
+      { yearly: CompensationPeriod.Yearly, minMonthlySalary: Number(payload.minMonthlySalary) }
+    );
+  }
+
+  if (payload.postedWithin === "week") {
+    qb.andWhere(`job."createdAt" >= NOW() - INTERVAL '7 days'`);
+  }
+
   if (payload.postedBy) {
     qb.andWhere("job.posted_by_id = :postedBy", { postedBy: payload.postedBy });
   }
@@ -777,37 +800,51 @@ const pageOf = (payload: FetchJobsParams) => ({
 export const fetchAllJobs = async (
   payload: FetchJobsParams,
   options: PublicJobOptions = {}
-): Promise<
-  (PublicJob & {
+): Promise<{
+  jobs: (PublicJob & {
     hasApplied?: boolean;
     applicationStage?: string | null;
     applicationStages?: Record<string, string> | null;
-  })[]
-> => {
+    isSaved?: boolean;
+  })[];
+  total: number;
+}> => {
   const qb = await buildJobsQuery(payload);
   const { limit, offset, order } = pageOf(payload);
-  const jobs = await qb.orderBy("job.createdAt", order).skip(offset).take(limit).getMany();
+  const [jobs, total] = await qb
+    .orderBy("job.createdAt", order)
+    .skip(offset)
+    .take(limit)
+    .getManyAndCount();
 
   if (!payload.talentId || jobs.length === 0) {
-    return jobs.map((job) => toPublicJob(job, options));
+    return { jobs: jobs.map((job) => toPublicJob(job, options)), total };
   }
 
-  const applied = await applicationRepo().find({
-    where: { talentId: payload.talentId, jobId: In(jobs.map((job) => job.id)) },
-    select: { jobId: true, currentStage: true, stages: true },
-  });
+  const jobIds = jobs.map((job) => job.id);
+  const [applied, saved] = await Promise.all([
+    applicationRepo().find({
+      where: { talentId: payload.talentId, jobId: In(jobIds) },
+      select: { jobId: true, currentStage: true, stages: true },
+    }),
+    savedJobIds(payload.talentId, jobIds),
+  ]);
   const applicationByJobId = new Map(
     applied.map((application) => [application.jobId, application])
   );
 
-  return jobs.map((job) => {
-    const application = applicationByJobId.get(job.id);
-    return Object.assign(toPublicJob(job, options), {
-      hasApplied: !!application,
-      applicationStage: application?.currentStage ?? null,
-      applicationStages: application?.stages ?? null,
-    });
-  });
+  return {
+    jobs: jobs.map((job) => {
+      const application = applicationByJobId.get(job.id);
+      return Object.assign(toPublicJob(job, options), {
+        hasApplied: !!application,
+        applicationStage: application?.currentStage ?? null,
+        applicationStages: application?.stages ?? null,
+        isSaved: saved.has(job.id),
+      });
+    }),
+    total,
+  };
 };
 
 export interface RecruiterJobCounts {
@@ -896,6 +933,23 @@ export const fetchRecruiterJobs = async (
   };
 };
 
+const STAFF_SIZE_RANGES: Array<[number, string]> = [
+  [10, "1–10"],
+  [50, "11–50"],
+  [200, "51–200"],
+  [500, "201–500"],
+];
+
+export const staffSizeRange = (count: number): string | null => {
+  if (count <= 0) return null;
+  return STAFF_SIZE_RANGES.find(([max]) => count <= max)?.[1] ?? "500+";
+};
+
+const countCompanyStaff = (organizationId: string) =>
+  AppDataSource.getRepository(StaffMember).count({
+    where: { organizationId, status: Not(StaffStatus.Ended) },
+  });
+
 export const fetchJob = async (
   jobId: string,
   viewer?: JobViewer
@@ -906,6 +960,9 @@ export const fetchJob = async (
     applicationId?: string | null;
     applicationStages?: Record<string, string> | null;
     interviewId?: string | null;
+    isSaved?: boolean;
+    screening: ScreeningPlanStep[];
+    company: { mission: string | null; staffSize: string | null } | null;
   }
 > => {
   const job = await jobRepo().findOne({
@@ -918,17 +975,29 @@ export const fetchJob = async (
   if (!viewer && job.status !== JobStatus.Active) {
     throw new NotFoundError("Job not found");
   }
-  const publicJob = toPublicJob(job, {
-    includeApplicantCount: await canSeeApplicantCount(job, viewer),
-  });
+  const publicJob = Object.assign(
+    toPublicJob(job, { includeApplicantCount: await canSeeApplicantCount(job, viewer) }),
+    {
+      screening: screeningPlan(job.aiConfig),
+      company: job.organization
+        ? {
+            mission: job.organization.mission ?? null,
+            staffSize: staffSizeRange(await countCompanyStaff(job.organization.id)),
+          }
+        : null,
+    }
+  );
   if (viewer?.role !== UserRole.Talent) {
     return publicJob;
   }
 
-  const existingApplication = await applicationRepo().findOne({
-    where: { talentId: viewer.id, jobId },
-    select: { id: true, currentStage: true, stages: true },
-  });
+  const [existingApplication, saved] = await Promise.all([
+    applicationRepo().findOne({
+      where: { talentId: viewer.id, jobId },
+      select: { id: true, currentStage: true, stages: true },
+    }),
+    savedJobIds(viewer.id, [jobId]),
+  ]);
   const interview = existingApplication
     ? await AppDataSource.getRepository(AiInterview).findOne({
         where: { applicationId: existingApplication.id, status: In(["ready", "invited"]) },
@@ -941,6 +1010,7 @@ export const fetchJob = async (
     applicationId: existingApplication?.id ?? null,
     applicationStages: existingApplication?.stages ?? null,
     interviewId: interview?.id ?? null,
+    isSaved: saved.has(jobId),
   });
 };
 
@@ -1462,10 +1532,11 @@ export const retryMissingVerdicts = async (
 export interface ApplyPayload {
   jobId: string;
   source?: string;
+  note?: string | null;
 }
 
 export const apply = async (user: User, payload: ApplyPayload): Promise<Application> => {
-  const { jobId, source } = payload;
+  const { jobId, source, note } = payload;
 
   const job = await jobRepo().findOne({
     where: { id: jobId },
@@ -1490,6 +1561,14 @@ export const apply = async (user: User, payload: ApplyPayload): Promise<Applicat
     return existingApp;
   }
 
+  const cv = await userRepo().findOne({
+    where: { id: user.id },
+    select: { id: true, cvUploadedAt: true, cvFileName: true, cvText: true },
+  });
+  if (!cv || !hasUploadedCv(cv)) {
+    throw new ValidationError("Add your CV to your profile before applying");
+  }
+
   // Application is created immediately on apply, regardless of assessment completion —
   // every stage (including Pre-Assessment) is completed progressively afterward.
   const { stages, entryStage } = createStages(aiConfig);
@@ -1499,6 +1578,7 @@ export const apply = async (user: User, payload: ApplyPayload): Promise<Applicat
     jobId,
     applicationType: ApplicationType.Application,
     source: source?.trim().toLowerCase() || null,
+    applicantNote: note?.trim() || null,
     stages,
     recruiterId: job.postedById,
     currentStage: entryStage as Application["currentStage"],
@@ -1508,8 +1588,15 @@ export const apply = async (user: User, payload: ApplyPayload): Promise<Applicat
       : null,
   });
 
-  const saved = await applicationRepo().save(application);
+  let saved: Application;
+  try {
+    saved = await applicationRepo().save(application);
+  } catch (error) {
+    if (!isUniqueViolation(error)) throw error;
+    return applicationRepo().findOneByOrFail({ jobId, talentId: user.id });
+  }
   startAiInterviewIfReached(saved, entryStage);
+  await notifyApplicationReceived(saved.id);
 
   // Increment noOfApplicants
   await jobRepo()
@@ -1519,7 +1606,14 @@ export const apply = async (user: User, payload: ApplyPayload): Promise<Applicat
     .where("id = :id", { id: jobId })
     .execute();
 
-  return saved;
+  try {
+    await syncCandidateStage(saved.id);
+    await notifyStageReached(saved.id);
+  } catch (error) {
+    logger.warn(`Stage sync after applying failed for application ${saved.id}: ${String(error)}`);
+    return saved;
+  }
+  return applicationRepo().findOneByOrFail({ id: saved.id });
 };
 
 export interface AddScoutToJobPipelinePayload {
@@ -1629,45 +1723,3 @@ export const addScoutToJobPipeline = async (
 // job-agnostic) Prescreening stage — mirrors the CV-similarity auto-trigger pattern.
 // Idempotent no-op if the application isn't at that stage yet, or the talent hasn't
 // completed the global Pre-Assessment yet.
-export const checkPrescreeningAdvance = async (
-  userId: string,
-  jobId: string
-): Promise<Application> => {
-  const application = await applicationRepo().findOne({ where: { jobId, talentId: userId } });
-  if (!application) {
-    throw new NotFoundError("Job application not found");
-  }
-
-  if (application.currentStage !== ScreeningStage.Prescreening) {
-    return application;
-  }
-
-  const user = await userRepo().findOne({ where: { id: userId } });
-  if (
-    !user ||
-    user.prescreeningScore === null ||
-    user.prescreeningScore === undefined ||
-    !isPrescreeningScoreValid(user.prescreeningScoredAt)
-  ) {
-    return application;
-  }
-
-  const job = await jobRepo().findOne({ where: { id: jobId }, relations: { aiConfig: true } });
-  const minScore = job?.aiConfig?.minPrescreeningScore ?? 0;
-
-  let updated: Application;
-  if (user.prescreeningScore < minScore) {
-    application.status = ApplicationStatus.RetakeAssessment;
-    application.assessmentRetryDate = getAssessmentRetryDate();
-    updated = application;
-  } else {
-    updated = await processNextStage(
-      user,
-      application,
-      ScreeningStage.Prescreening,
-      job?.aiConfig ?? null
-    );
-  }
-
-  return applicationRepo().save(updated);
-};

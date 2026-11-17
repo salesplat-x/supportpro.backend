@@ -20,7 +20,6 @@ export const AI_FEATURE_KEYS = [
   "prescreening_scoring",
   "role_answer_grading",
   "personalized_answer_grading",
-  "company_answer_grading",
   "personality_type",
   "personality_fit",
   "job_post_writer",

@@ -1,6 +1,6 @@
 import { In } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
-import { Application, Role, TalentEmbedding, User } from "../entities";
+import { Application, Job, Role, TalentEmbedding, User } from "../entities";
 import { NotFoundError, ValidationError, AuthorizationError } from "../utils/errors";
 import logger from "../utils/logger.js";
 import {
@@ -30,6 +30,14 @@ import {
 import { Organization } from "../entities/Organization.js";
 import { assertWithinLimit, recordUsage } from "./entitlements.js";
 import { getActiveOrganizationId } from "./organizationScope.js";
+import {
+  buildCandidatePipelines,
+  loadTalentApplications,
+  type ApplicationGroup,
+  type CandidatePipeline,
+} from "./candidatePipeline.js";
+import { syncCandidateStage } from "./applicationStage.js";
+import { notifyTalent, profileViewKey, TALENT_NOTIFICATION } from "./talentNotifications.js";
 
 // mammoth (used by extractText) only supports .docx, not legacy binary .doc —
 // keep this in sync with what extractText can actually parse.
@@ -607,8 +615,34 @@ export const me = async (userId: string): Promise<User> => {
   return user;
 };
 
+const notifyProfileViewed = async (talentId: string, viewer: Pick<User, "id" | "userRole">) => {
+  if (viewer.userRole !== UserRole.Recruiter) return;
+  const organizationId = await getActiveOrganizationId(viewer.id);
+  if (!organizationId) return;
+  const [organization, latest] = await Promise.all([
+    AppDataSource.getRepository(Organization).findOne({
+      where: { id: organizationId },
+      select: { id: true, name: true },
+    }),
+    applicationRepo().findOne({
+      where: { talentId, job: { organizationId } },
+      relations: { job: { role: true } },
+      order: { createdAt: "DESC" },
+    }),
+  ]);
+  if (!organization) return;
+  await notifyTalent({
+    userId: talentId,
+    type: TALENT_NOTIFICATION.ProfileViewed,
+    title: `${organization.name} viewed your profile`,
+    message: latest?.job?.role?.name ?? "Your profile",
+    dedupeKey: profileViewKey(organization.id, new Date()),
+  });
+};
+
 export const viewProfile = async (
-  targetUserId: string
+  targetUserId: string,
+  viewer?: Pick<User, "id" | "userRole">
 ): Promise<User & { hasEmbedding: boolean }> => {
   const user = await userRepo().findOne({
     where: { id: targetUserId },
@@ -623,6 +657,7 @@ export const viewProfile = async (
   const hasEmbedding = await AppDataSource.getRepository(TalentEmbedding).exists({
     where: { userId: targetUserId },
   });
+  if (viewer) await notifyProfileViewed(targetUserId, viewer).catch(() => undefined);
   return { ...user, hasEmbedding };
 };
 
@@ -774,21 +809,33 @@ export const viewProfilesForRole = async (payload: FetchProfilesParams): Promise
 export interface FetchApplicationsParams {
   applicationType?: ApplicationType;
   applicationStatus?: ApplicationStatus;
+  group?: ApplicationGroup;
   limit?: number | string;
   offset?: number | string;
   sort?: string;
 }
 
+export type TalentApplicationRow = Application &
+  Pick<CandidatePipeline, "currentStep" | "totalSteps" | "nextStep"> &
+  Pick<CandidatePipeline["application"], "candidateStatus" | "group">;
+
+export interface TalentApplications {
+  applications: TalentApplicationRow[];
+  total: number;
+  counts: Record<"all" | ApplicationGroup, number>;
+}
+
 export const userApplications = async (
   userId: string,
   payload: FetchApplicationsParams
-): Promise<Application[]> => {
+): Promise<TalentApplications> => {
   const qb = applicationRepo()
     .createQueryBuilder("application")
     .leftJoinAndSelect("application.job", "job")
     .leftJoinAndSelect("job.postedBy", "postedBy")
     .leftJoinAndSelect("job.role", "role")
     .leftJoinAndSelect("job.organization", "organization")
+    .leftJoinAndSelect("job.aiConfig", "aiConfig")
     .where("application.talent_id = :userId", { userId });
 
   if (payload.applicationType) {
@@ -801,9 +848,45 @@ export const userApplications = async (
     qb.andWhere("application.status = :status", { status: payload.applicationStatus });
   }
 
+  const applications = await qb
+    .orderBy("application.createdAt", sortDirection(payload.sort ?? "desc"))
+    .getMany();
+  const pipelines = await buildCandidatePipelines(userId, applications);
+
+  const rows: TalentApplicationRow[] = applications.map((application, index) => {
+    const pipeline = pipelines[index]!;
+    delete (application.job as Partial<Job> | undefined)?.aiConfig;
+    return Object.assign(application, {
+      candidateStatus: pipeline.application.candidateStatus,
+      group: pipeline.application.group,
+      currentStep: pipeline.currentStep,
+      totalSteps: pipeline.totalSteps,
+      nextStep: pipeline.nextStep,
+    });
+  });
+
+  const counts = { all: rows.length, needs_you: 0, in_progress: 0, closed: 0 };
+  for (const row of rows) counts[row.group] += 1;
+
+  const filtered = payload.group ? rows.filter((row) => row.group === payload.group) : rows;
   const limit = Number(payload.limit) || 50;
   const offset = Number(payload.offset) || 0;
-  const order = sortDirection(payload.sort ?? "desc");
+  return { applications: filtered.slice(offset, offset + limit), total: filtered.length, counts };
+};
 
-  return qb.orderBy("application.createdAt", order).skip(offset).take(limit).getMany();
+export const talentApplicationPipeline = async (
+  userId: string,
+  applicationId: string
+): Promise<CandidatePipeline> => {
+  const owned = await applicationRepo().findOne({
+    where: { id: applicationId, talentId: userId },
+    select: { id: true },
+  });
+  if (!owned) {
+    throw new NotFoundError("Application not found");
+  }
+  await syncCandidateStage(applicationId);
+  const [application] = await loadTalentApplications(userId, [applicationId]);
+  const [pipeline] = await buildCandidatePipelines(userId, [application!]);
+  return pipeline!;
 };

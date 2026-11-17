@@ -58,6 +58,7 @@ import { StuckEmailTimer } from "../entities/StuckEmailTimer.js";
 import { ApplicationReference } from "../entities/ApplicationReference.js";
 import { AiInterview } from "../entities/AiInterview.js";
 import { AiInterviewQuestion } from "../entities/AiInterviewQuestion.js";
+import { SavedJob } from "../entities/SavedJob.js";
 
 const databaseConfig: DataSourceOptions = {
   type: "postgres",
@@ -124,6 +125,7 @@ const databaseConfig: DataSourceOptions = {
     ApplicationReference,
     AiInterview,
     AiInterviewQuestion,
+    SavedJob,
   ],
   migrations: [path.join(__dirname, "../migrations/*.{js,ts}")],
   synchronize: false,

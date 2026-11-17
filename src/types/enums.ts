@@ -118,6 +118,8 @@ export enum ScreeningStage {
   CvSimilarity = "cv_similarity",
   Personalized = "personalized",
   Personality = "personality",
+  ProblemSolving = "problem_solving",
+  CultureFit = "culture_fit",
   AiInterview = "ai_interview",
   Completed = "completed",
 }

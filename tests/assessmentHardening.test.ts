@@ -34,7 +34,6 @@ jest.mock("../src/utils/integrations/email/emailService.js", () => ({
 
 jest.mock("../src/utils/integrations/openai.js", () => ({
   createEmbedding: jest.fn().mockResolvedValue([{ embedding: new Array(512).fill(0.1) }]),
-  gradeCompanyAssessmentAnswers: jest.fn(),
   generateProblemSolvingQuestions: jest.fn(),
   gradePersonalizedAnswers: jest.fn(),
   evaluatePersonalityType: jest.fn(),
@@ -76,6 +75,8 @@ async function jobWithPool(poolSize = 4, configOverrides: Partial<AIConfig> = {}
           question: `Reasoning scenario ${i}: how would you work it out?`,
           category: "logical",
           criteria: `Secret criteria PS-${i}`,
+          options: ["Secret-free A", "Secret-free B", "Secret-free C", "Secret-free D"],
+          correctOption: i % 4,
         }
       )
     );
@@ -97,6 +98,8 @@ describe("scoring criteria never reach candidates", () => {
     expect(question["question"]).toBe(pool[0]!.question);
     expect(question).not.toHaveProperty("criteria");
     expect(question).not.toHaveProperty("category");
+    expect(question).not.toHaveProperty("correctOption");
+    expect(question["options"]).toEqual(pool[0]!.options);
     expect(JSON.stringify(res.body)).not.toContain("Secret criteria");
   });
 
@@ -105,7 +108,12 @@ describe("scoring criteria never reach candidates", () => {
     const cf = await createQuestion(
       QuestionType.CultureFit,
       { jobId: job.id },
-      { criteria: "Secret criteria CF", category: "Ownership" }
+      {
+        criteria: "Secret criteria CF",
+        category: "Ownership",
+        options: ["A", "B", "C", "D"],
+        correctOption: 2,
+      }
     );
     await createApplication(talent, job, { cultureFitQuestions: [cf.id] });
     const res = await request(app)
@@ -113,6 +121,22 @@ describe("scoring criteria never reach candidates", () => {
       .set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(JSON.stringify(res.body)).not.toContain("Secret criteria");
+    expect(JSON.stringify(res.body)).not.toContain("correctOption");
+  });
+
+  it("GET /questions/candidate/problem-solving sends options but never the correct one or the criteria", async () => {
+    const { job, talent, token } = await jobWithPool(4);
+    await createApplication(talent, job);
+    const res = await loadProblemSolving(token, job.id);
+    expect(res.status).toBe(200);
+    const body = JSON.stringify(res.body);
+    expect(body).not.toContain("correctOption");
+    expect(body).not.toContain("Secret criteria");
+    const { questions } = apiData<{ questions: Array<Record<string, unknown>> }>(res);
+    expect(questions).toHaveLength(3);
+    for (const q of questions) {
+      expect(Object.keys(q).sort()).toEqual(["id", "options", "question", "questionType"]);
+    }
   });
 
   it("GET /questions without a questionType is refused, so the pool can't be listed", async () => {
@@ -146,16 +170,6 @@ describe("scores never reach candidates through other endpoints", () => {
     await setScores(application.id);
     const res = await request(app)
       .patch(`/v1/jobs/applications/${job.id}`)
-      .set("Authorization", `Bearer ${token}`);
-    expectNoScores(res);
-  });
-
-  it("PATCH /jobs/prescreening-check/:jobId", async () => {
-    const { job, talent, token } = await jobWithPool();
-    const application = await createApplication(talent, job);
-    await setScores(application.id);
-    const res = await request(app)
-      .patch(`/v1/jobs/prescreening-check/${job.id}`)
       .set("Authorization", `Bearer ${token}`);
     expectNoScores(res);
   });
@@ -231,16 +245,8 @@ describe("scores never reach candidates through other endpoints", () => {
   });
 });
 
-const gradesFor = (questions: Question[], score = 4) => ({
-  message: {
-    content: JSON.stringify({
-      grades: questions.map((q) => ({ questionId: q.id, score, feedback: "ok" })),
-    }),
-  },
-});
-
 const answersFor = (questions: Question[]) =>
-  Object.fromEntries(questions.map((q, i) => [q.id, `My answer number ${i + 1}, step by step.`]));
+  Object.fromEntries(questions.map((q) => [q.id, q.correctOption!]));
 
 const submitProblemSolving = (token: string, jobId: string, questions: Question[]) =>
   request(app)
@@ -264,7 +270,6 @@ describe("a stale save from another flow can't wipe test results", () => {
     });
     const stale = await reload(application.id);
 
-    (AI.gradeCompanyAssessmentAnswers as jest.Mock).mockResolvedValueOnce(gradesFor(pool, 5));
     expect((await submitProblemSolving(token, job.id, pool)).status).toBe(200);
 
     stale.status = ApplicationStatus.Shortlisted;
@@ -289,38 +294,14 @@ describe("a stale save from another flow can't wipe test results", () => {
 
     expect((await reload(application.id)).problemSolvingQuestions).toEqual(served);
   });
-
-  it("submitting doesn't undo a status change made while the answers were being graded", async () => {
-    const { job, pool, talent, token } = await jobWithPool(3);
-    const application = await createApplication(talent, job, {
-      problemSolvingQuestions: pool.map((q) => q.id),
-    });
-    (AI.gradeCompanyAssessmentAnswers as jest.Mock).mockImplementationOnce(async () => {
-      await testDataSource.query(`UPDATE "applications" SET "status" = $1 WHERE id = $2`, [
-        ApplicationStatus.Shortlisted,
-        application.id,
-      ]);
-      return gradesFor(pool, 5);
-    });
-    expect((await submitProblemSolving(token, job.id, pool)).status).toBe(200);
-    expect((await reload(application.id)).status).toBe(ApplicationStatus.Shortlisted);
-  });
 });
 
-describe("a double submit is graded and saved once", () => {
+describe("a double submit is scored and saved once", () => {
   it("two parallel submits → one 200, one 409, one stored answer", async () => {
     const { job, pool, talent, token } = await jobWithPool(3);
     const application = await createApplication(talent, job, {
       problemSolvingQuestions: pool.map((q) => q.id),
     });
-    let call = 0;
-    (AI.gradeCompanyAssessmentAnswers as jest.Mock).mockImplementation(async () => {
-      call += 1;
-      const score = call === 1 ? 5 : 1;
-      await new Promise((resolve) => setTimeout(resolve, 150));
-      return gradesFor(pool, score);
-    });
-
     const results = await Promise.all([
       submitProblemSolving(token, job.id, pool),
       submitProblemSolving(token, job.id, pool),
@@ -331,9 +312,7 @@ describe("a double submit is graded and saved once", () => {
       where: { userId: talent.id, jobId: job.id, questionType: QuestionType.ProblemSolving },
     });
     expect(answers).toHaveLength(1);
-    const saved = await reload(application.id);
-    const storedScores = answers[0]!.responses.map((r) => r.score);
-    expect(saved.problemSolvingScore).toBe(storedScores[0] === 5 ? 100 : 20);
+    expect((await reload(application.id)).problemSolvingScore).toBe(100);
   });
 });
 
@@ -374,6 +353,8 @@ describe("parallel generate requests respect the pool cap", () => {
           question: `A brand new reasoning puzzle number ${i + 1}?`,
           category: "logical",
           criteria: "Shows clear steps.",
+          options: ["One", "Two", "Three", "Four"],
+          correctOption: 1,
         }));
         return { message: { content: JSON.stringify({ questions }) } };
       }

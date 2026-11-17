@@ -317,6 +317,13 @@ paths:
             enum:
               - asc
               - desc
+        - name: group
+          in: query
+          required: false
+          description: Only applications that need the candidate, are in progress, or are closed. Paging applies after this filter.
+          schema:
+            type: string
+            enum: [needs_you, in_progress, closed]
       responses:
         "200":
           description: Successful response
@@ -324,6 +331,454 @@ paths:
             application/json:
               schema:
                 type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      applications:
+                        type: array
+                        description: Each application also carries candidateStatus (interview_to_do, test_to_take, screening, shortlisted, applied, not_proceeding), group, currentStep, totalSteps and nextStep. Pass marks and hidden scores are never sent.
+                        items:
+                          type: object
+                      total:
+                        type: integer
+                        description: Applications matching the filters, across all pages.
+                      counts:
+                        type: object
+                        description: Applications in each group, ignoring the group filter.
+                        properties:
+                          all:
+                            type: integer
+                          needs_you:
+                            type: integer
+                          in_progress:
+                            type: integer
+                          closed:
+                            type: integer
+        "400":
+          description: Bad query
+        "401":
+          description: Not logged in
+        "403":
+          description: Only talents can list their applications
+      security:
+        - bearerAuth: []
+  /staff-invites/mine:
+    get:
+      summary: Talent — staff invites waiting for me
+      description: Pending invites sent to the talent's own verified email, newest first. Expired and used invites are left out.
+      tags:
+        - staff
+      responses:
+        "200":
+          description: The invites
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      invites:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            organizationName:
+                              type: string
+                            organizationLogoUrl:
+                              type: string
+                              nullable: true
+                            jobTitle:
+                              type: string
+                              nullable: true
+                            invitedByName:
+                              type: string
+                              nullable: true
+                            expiresAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+        "401":
+          description: Not logged in
+        "403":
+          description: Only talents
+      security:
+        - bearerAuth: []
+  /staff-invites/mine/{staffId}/accept:
+    post:
+      summary: Talent — accept a staff invite from My work
+      description: Joins the company as staff. Same checks as the emailed link; only invites sent to the talent's own email are found.
+      tags:
+        - staff
+      parameters:
+        - name: staffId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Joined
+        "400":
+          description: Bad staffId, or the invite has expired or been used
+        "401":
+          description: Not logged in
+        "403":
+          description: Only talents, with a verified email
+        "404":
+          description: No pending invite for this talent
+        "422":
+          description: The talent's profile isn't complete yet
+      security:
+        - bearerAuth: []
+  /user/dashboard:
+    get:
+      summary: Talent — my dashboard
+      description: >-
+        What the talent has applied to, the tests and interviews waiting for them, and what to do next, earliest due first.
+      tags:
+        - user
+      responses:
+        "200":
+          description: The dashboard
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      applications:
+                        type: object
+                        properties:
+                          sent:
+                            type: integer
+                          sentThisWeek:
+                            type: integer
+                            description: Applied in the last 7 days.
+                      tests:
+                        type: object
+                        properties:
+                          toTake:
+                            type: integer
+                          nextDueAt:
+                            type: string
+                            format: date-time
+                            nullable: true
+                      interviews:
+                        type: object
+                        properties:
+                          toRecord:
+                            type: integer
+                          nextDueAt:
+                            type: string
+                            format: date-time
+                            nullable: true
+                      todo:
+                        type: array
+                        description: The current step of each application that needs the talent, earliest due first. Each step has the same shape as a pipeline step.
+                        items:
+                          type: object
+                          properties:
+                            applicationId:
+                              type: string
+                            jobId:
+                              type: string
+                            jobTitle:
+                              type: string
+                            company:
+                              type: object
+                              nullable: true
+                              properties:
+                                name:
+                                  type: string
+                                logoUrl:
+                                  type: string
+                                  nullable: true
+                            step:
+                              type: object
+        "401":
+          description: Not logged in
+        "403":
+          description: Only talents have this dashboard
+      security:
+        - bearerAuth: []
+  /user/applications/{applicationId}/pipeline:
+    get:
+      summary: Talent — where one of my applications stands
+      description: >-
+        Every step of the application in order, with what is done, the one current step and what comes next.
+        Settled stages are moved on first (a valid skills test score, a test already scored, a stage the recruiter switched off).
+        Only the candidate who applied can read it; anyone else gets 404.
+      tags:
+        - user
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The application's steps
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      application:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                          jobId:
+                            type: string
+                          status:
+                            type: string
+                          appliedAt:
+                            type: string
+                            format: date-time
+                          candidateStatus:
+                            type: string
+                            enum:
+                              [
+                                interview_to_do,
+                                test_to_take,
+                                screening,
+                                shortlisted,
+                                applied,
+                                not_proceeding,
+                              ]
+                          group:
+                            type: string
+                            enum: [needs_you, in_progress, closed]
+                          job:
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                              title:
+                                type: string
+                              status:
+                                type: string
+                              workMode:
+                                type: array
+                                items:
+                                  type: string
+                              locationCity:
+                                type: string
+                                nullable: true
+                              locationState:
+                                type: string
+                                nullable: true
+                              locationCountry:
+                                type: string
+                                nullable: true
+                              organization:
+                                type: object
+                                nullable: true
+                                properties:
+                                  id:
+                                    type: string
+                                  name:
+                                    type: string
+                                  logoUrl:
+                                    type: string
+                                    nullable: true
+                      steps:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                              enum:
+                                [
+                                  applied,
+                                  skills_test,
+                                  cv_match,
+                                  tailored,
+                                  problem_solving,
+                                  culture_fit,
+                                  personality,
+                                  ai_interview,
+                                  references,
+                                  company_review,
+                                ]
+                            state:
+                              type: string
+                              enum: [done, current, upcoming]
+                            sentAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            doneAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            dueAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                              description: Only on the current step. Shown to the candidate, not enforced.
+                            isNew:
+                              type: boolean
+                              description: A problem-solving or culture-fit test the candidate hasn't opened yet.
+                            questionCount:
+                              type: integer
+                              nullable: true
+                            minutes:
+                              type: integer
+                              nullable: true
+                            score:
+                              type: number
+                              nullable: true
+                              description: The candidate's own skills test score. Other test scores are never sent.
+                            passed:
+                              type: boolean
+                              nullable: true
+                            matchLabel:
+                              type: string
+                              enum: [strong, good, fair]
+                              nullable: true
+                            answersSent:
+                              type: integer
+                              nullable: true
+                            retryAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            interviewId:
+                              type: string
+                              nullable: true
+                              description: Set once the recorded interview can be started.
+                            refereeCount:
+                              type: integer
+                              nullable: true
+                            maxReferees:
+                              type: integer
+                              nullable: true
+                            outcome:
+                              type: string
+                              enum: [shortlisted, not_proceeding]
+                              nullable: true
+                      currentStep:
+                        type: integer
+                        nullable: true
+                        description: The current step's position, from 1. Null once a decision is made.
+                      totalSteps:
+                        type: integer
+                      nextStep:
+                        nullable: true
+                        description: The current step, the same shape as a step.
+                        type: object
+                        properties:
+                          key:
+                            type: string
+                            enum:
+                              [
+                                applied,
+                                skills_test,
+                                cv_match,
+                                tailored,
+                                problem_solving,
+                                culture_fit,
+                                personality,
+                                ai_interview,
+                                references,
+                                company_review,
+                              ]
+                          state:
+                            type: string
+                            enum: [done, current, upcoming]
+                          sentAt:
+                            type: string
+                            format: date-time
+                            nullable: true
+                          doneAt:
+                            type: string
+                            format: date-time
+                            nullable: true
+                          dueAt:
+                            type: string
+                            format: date-time
+                            nullable: true
+                            description: Only on the current step. Shown to the candidate, not enforced.
+                          isNew:
+                            type: boolean
+                            description: A problem-solving or culture-fit test the candidate hasn't opened yet.
+                          questionCount:
+                            type: integer
+                            nullable: true
+                          minutes:
+                            type: integer
+                            nullable: true
+                          score:
+                            type: number
+                            nullable: true
+                            description: The candidate's own skills test score. Other test scores are never sent.
+                          passed:
+                            type: boolean
+                            nullable: true
+                          matchLabel:
+                            type: string
+                            enum: [strong, good, fair]
+                            nullable: true
+                          answersSent:
+                            type: integer
+                            nullable: true
+                          retryAt:
+                            type: string
+                            format: date-time
+                            nullable: true
+                          interviewId:
+                            type: string
+                            nullable: true
+                            description: Set once the recorded interview can be started.
+                          refereeCount:
+                            type: integer
+                            nullable: true
+                          maxReferees:
+                            type: integer
+                            nullable: true
+                          outcome:
+                            type: string
+                            enum: [shortlisted, not_proceeding]
+                            nullable: true
+        "400":
+          description: Bad applicationId
+        "401":
+          description: Not logged in
+        "403":
+          description: Only talents can read their applications
+        "404":
+          description: No such application of yours
       security:
         - bearerAuth: []
   /subscriptions/enable/{id}:
@@ -2038,6 +2493,33 @@ paths:
             enum:
               - asc
               - desc
+        - name: employmentType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [full_time, part_time, contract, internship]
+        - name: minMonthlySalary
+          in: query
+          required: false
+          description: Only jobs whose top monthly pay (yearly pay divided by 12) is at least this, in the chosen currency. Jobs in other currencies or with no pay are left out.
+          schema:
+            type: integer
+            minimum: 0
+        - name: currency
+          in: query
+          required: false
+          description: Currency for minMonthlySalary. Defaults to NGN.
+          schema:
+            type: string
+            enum: [NGN, USD]
+        - name: postedWithin
+          in: query
+          required: false
+          description: Only jobs posted in the last 7 days.
+          schema:
+            type: string
+            enum: [week]
       responses:
         "200":
           description: Successful response
@@ -2045,6 +2527,22 @@ paths:
             application/json:
               schema:
                 type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      jobs:
+                        type: array
+                        description: For a talent, each job also carries hasApplied and isSaved.
+                        items:
+                          type: object
+                      total:
+                        type: integer
+                        description: How many jobs match the filters, across all pages.
   /jobs/{_id}:
     patch:
       summary: Recruiter
@@ -2154,6 +2652,208 @@ paths:
             application/json:
               schema:
                 type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      job:
+                        type: object
+                        properties:
+                          company:
+                            type: object
+                            nullable: true
+                            description: About the company behind the job.
+                            properties:
+                              mission:
+                                type: string
+                                nullable: true
+                              staffSize:
+                                type: string
+                                nullable: true
+                                description: Size range from the company's active staff records, such as 51–200.
+                          isSaved:
+                            type: boolean
+                            description: Talents only. Whether this talent saved the job.
+                          screening:
+                            type: array
+                            description: The timed steps a candidate goes through, in order. No pass marks.
+                            items:
+                              type: object
+                              properties:
+                                key:
+                                  type: string
+                                  enum:
+                                    [
+                                      skills_test,
+                                      tailored,
+                                      problem_solving,
+                                      culture_fit,
+                                      personality,
+                                      ai_interview,
+                                    ]
+                                questionCount:
+                                  type: integer
+                                  nullable: true
+                                minutes:
+                                  type: integer
+  /jobs/{jobId}/pay-comparison:
+    get:
+      summary: Talent — how an open job's pay compares
+      description: >-
+        Low, middle and high pay of similar jobs (same role and experience level) in the job's state, or its country when it has no state,
+        in the job's currency and pay period. Not available under 5 similar jobs. Always carries the job's own range.
+      tags:
+        - jobs
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The comparison
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      available:
+                        type: boolean
+                      count:
+                        type: integer
+                      low:
+                        type: number
+                      middle:
+                        type: number
+                      high:
+                        type: number
+                      currency:
+                        type: string
+                      compensationPeriod:
+                        type: string
+                        enum: [monthly, yearly]
+                      area:
+                        type: string
+                        nullable: true
+                        description: Where the similar jobs are, such as Lagos.
+                      job:
+                        type: object
+                        properties:
+                          minSalary:
+                            type: number
+                          maxSalary:
+                            type: number
+                            nullable: true
+                          currency:
+                            type: string
+                            nullable: true
+                          compensationPeriod:
+                            type: string
+                            enum: [monthly, yearly]
+        "400":
+          description: Bad jobId
+        "401":
+          description: Not logged in
+        "403":
+          description: Only talents
+        "404":
+          description: No such open job
+      security:
+        - bearerAuth: []
+  /jobs/{jobId}/save:
+    put:
+      summary: Talent — save a job
+      description: >-
+        Saves an open job to the talent's list. Saving the same job again changes nothing. Closed jobs can't be newly saved.
+      tags:
+        - jobs
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      saved:
+                        type: boolean
+                        example: true
+        "400":
+          description: Bad jobId, or the job is no longer taking applications
+        "401":
+          description: Not logged in
+        "403":
+          description: Only talents can save jobs
+        "404":
+          description: No such open job
+      security:
+        - bearerAuth: []
+    delete:
+      summary: Talent — remove a saved job
+      description: >-
+        Removes the job from the talent's saved list, whatever the job's state. Safe to repeat.
+      tags:
+        - jobs
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      saved:
+                        type: boolean
+                        example: false
+        "400":
+          description: Bad jobId
+        "401":
+          description: Not logged in
+        "403":
+          description: Only talents can save jobs
+      security:
+        - bearerAuth: []
   /jobs/me:
     get:
       summary: Recruiter
@@ -2441,13 +3141,20 @@ paths:
                   maxLength: 50
                   description: >-
                     Where the candidate's link came from: the job link's ?source= (or utm_source), e.g. whatsapp, linkedin, x, facebook, indeed. Saved trimmed and lower-cased on the application.
+                note:
+                  type: string
+                  maxLength: 1000
+                  nullable: true
+                  description: An optional short note to the company, saved trimmed on the application. Ignored when the candidate has already applied.
       responses:
-        "200":
-          description: Successful response
+        "201":
+          description: Applied, or the candidate's existing application when they had already applied
           content:
             application/json:
               schema:
                 type: object
+        "400":
+          description: Bad body, the job isn't taking applications, or the candidate has no CV on their profile
       security:
         - bearerAuth: []
     get:
@@ -3080,7 +3787,7 @@ paths:
                               its transcript. Each flag is {text, question}, where question is the answer's
                               position, or null when the flag is about the whole interview.
                           problemSolvingAnswers:
-                            description: Graded problem-solving answers, in the order asked. Company only.
+                            description: Scored problem-solving answers, in the order asked. Company only. Multiple-choice answers also carry the options, the chosen option and the correct option; older written answers carry the AI's feedback.
                             type: array
                             items:
                               type: object
@@ -3091,15 +3798,26 @@ paths:
                                   type: string
                                 score:
                                   type: number
-                                  description: The AI's grade for this answer, 0-5.
+                                  description: 5 for the correct option and 0 otherwise; older written answers have the AI's grade, 0-5.
                                 maxScore:
                                   type: number
                                   example: 5
                                 feedback:
                                   type: string
-                                  description: One line on why it got that grade.
+                                  nullable: true
+                                  description: One line on why an older written answer got its grade.
+                                options:
+                                  type: array
+                                  items:
+                                    type: string
+                                selectedOption:
+                                  type: integer
+                                  description: The option the candidate chose, from 0.
+                                correctOption:
+                                  type: integer
+                                  description: The correct option, from 0.
                           cultureFitAnswers:
-                            description: Graded culture-fit answers, in the order asked. Company only.
+                            description: Scored culture-fit answers, in the order asked. Company only. Multiple-choice answers also carry the options, the chosen option and the correct option; older written answers carry the AI's feedback.
                             type: array
                             items:
                               type: object
@@ -3110,13 +3828,24 @@ paths:
                                   type: string
                                 score:
                                   type: number
-                                  description: The AI's grade for this answer, 0-5.
+                                  description: 5 for the correct option and 0 otherwise; older written answers have the AI's grade, 0-5.
                                 maxScore:
                                   type: number
                                   example: 5
                                 feedback:
                                   type: string
-                                  description: One line on why it got that grade.
+                                  nullable: true
+                                  description: One line on why an older written answer got its grade.
+                                options:
+                                  type: array
+                                  items:
+                                    type: string
+                                selectedOption:
+                                  type: integer
+                                  description: The option the candidate chose, from 0.
+                                correctOption:
+                                  type: integer
+                                  description: The correct option, from 0.
       security:
         - bearerAuth: []
   /applications/{_id}/status:
@@ -3258,8 +3987,8 @@ paths:
     get:
       summary: Candidate — load my problem-solving questions for a job
       description: >-
-        For an applicant to a job whose problem-solving test is switched on. The first call picks the recruiter's chosen number of questions at random from the job's pool and keeps them on the application; later calls return the same set.
-        Scoring criteria are never sent.
+        For an applicant to a job whose problem-solving test is switched on. The first call picks the recruiter's chosen number of multiple-choice questions at random from the job's pool and keeps them on the application; later calls return the same set.
+        If the pool has no multiple-choice questions yet, they are generated first. The correct option and scoring criteria are never sent.
       tags:
         - questions
       parameters:
@@ -3295,6 +4024,11 @@ paths:
                               type: string
                             questionType:
                               type: string
+                            options:
+                              type: array
+                              description: The four answer options, A to D.
+                              items:
+                                type: string
         "400":
           description: Bad jobId, the test is not switched on for this job, or the candidate hasn't applied
         "401":
@@ -3304,15 +4038,15 @@ paths:
         "404":
           description: Job not found
         "409":
-          description: The job has no problem-solving questions yet (the recruiter hasn't generated them)
+          description: The problem-solving questions couldn't be prepared right now; try again later
       security:
         - bearerAuth: []
   /questions/candidate/culture-fit:
     get:
       summary: Candidate — load my culture-fit questions for a job
       description: >-
-        For an applicant to a job whose culture-fit test is switched on. The first call picks the recruiter's chosen number of questions at random from the job's pool and keeps them on the application; later calls return the same set.
-        Scoring criteria are never sent.
+        For an applicant to a job whose culture-fit test is switched on. The first call picks the recruiter's chosen number of multiple-choice questions at random from the job's pool and keeps them on the application; later calls return the same set.
+        If the pool has no multiple-choice questions yet, they are generated first. The correct option and scoring criteria are never sent.
       tags:
         - questions
       parameters:
@@ -3348,6 +4082,11 @@ paths:
                               type: string
                             questionType:
                               type: string
+                            options:
+                              type: array
+                              description: The four answer options, A to D.
+                              items:
+                                type: string
         "400":
           description: Bad jobId, the test is not switched on for this job, or the candidate hasn't applied
         "401":
@@ -3357,14 +4096,14 @@ paths:
         "404":
           description: Job not found
         "409":
-          description: The job has no culture-fit questions yet (the recruiter hasn't generated them)
+          description: The culture-fit questions couldn't be prepared right now; try again later
       security:
         - bearerAuth: []
   /questions/answer/problem-solving:
     post:
       summary: Candidate — submit my problem-solving answers
       description: >-
-        Answers to exactly the problem-solving questions the candidate was given. Each answer is graded 0-5 against its question's criteria; the score is total / (5 x answers) as a percentage, saved on the application as problemSolvingScore.
+        One chosen option for exactly the problem-solving questions the candidate was given. The score is the share of correct options as a whole percentage, saved on the application as problemSolvingScore.
         One submission per test. The candidate is not shown the score.
       tags:
         - questions
@@ -3381,9 +4120,11 @@ paths:
                   format: uuid
                 answers:
                   type: object
-                  description: Question id to answer text (1-5000 characters each).
+                  description: Question id to the chosen option, 0 to 3 (A to D).
                   additionalProperties:
-                    type: string
+                    type: integer
+                    minimum: 0
+                    maximum: 3
               required:
                 - jobId
                 - answers
@@ -3409,7 +4150,7 @@ paths:
                       answered:
                         type: integer
         "400":
-          description: Bad body, a missing or extra answer, questions not loaded yet, the test is off, the job is closed, or the candidate hasn't applied
+          description: Bad body, a missing or extra answer, an option out of range, questions not loaded yet or changed since, the test is off, the job is closed, or the candidate hasn't applied
         "401":
           description: Not logged in
         "403":
@@ -3418,15 +4159,13 @@ paths:
           description: Job not found
         "409":
           description: Already submitted
-        "502":
-          description: The answers couldn't be scored right now; nothing was saved, so the candidate can try again
       security:
         - bearerAuth: []
   /questions/answer/culture-fit:
     post:
       summary: Candidate — submit my culture-fit answers
       description: >-
-        Answers to exactly the culture-fit questions the candidate was given. Each answer is graded 0-5 against its question's criteria; the score is total / (5 x answers) as a percentage, saved on the application as cultureFitScore.
+        One chosen option for exactly the culture-fit questions the candidate was given. The score is the share of correct options as a whole percentage, saved on the application as cultureFitScore.
         One submission per test. The candidate is not shown the score.
       tags:
         - questions
@@ -3443,9 +4182,11 @@ paths:
                   format: uuid
                 answers:
                   type: object
-                  description: Question id to answer text (1-5000 characters each).
+                  description: Question id to the chosen option, 0 to 3 (A to D).
                   additionalProperties:
-                    type: string
+                    type: integer
+                    minimum: 0
+                    maximum: 3
               required:
                 - jobId
                 - answers
@@ -3471,7 +4212,7 @@ paths:
                       answered:
                         type: integer
         "400":
-          description: Bad body, a missing or extra answer, questions not loaded yet, the test is off, the job is closed, or the candidate hasn't applied
+          description: Bad body, a missing or extra answer, an option out of range, questions not loaded yet or changed since, the test is off, the job is closed, or the candidate hasn't applied
         "401":
           description: Not logged in
         "403":
@@ -3480,8 +4221,6 @@ paths:
           description: Job not found
         "409":
           description: Already submitted
-        "502":
-          description: The answers couldn't be scored right now; nothing was saved, so the candidate can try again
       security:
         - bearerAuth: []
   /ai-config/:

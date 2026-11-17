@@ -1,5 +1,9 @@
 import "reflect-metadata";
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from "@testcontainers/postgresql";
+import {
+  STAMP_STAGE_REACHED_FUNCTION,
+  STAMP_STAGE_REACHED_TRIGGER,
+} from "../../src/migrations/1789004400000-AddAssessmentScreeningStages.js";
 import { DataSource, DataSourceOptions } from "typeorm";
 import { User } from "../../src/entities/User.js";
 import { Organization } from "../../src/entities/Organization.js";
@@ -56,6 +60,7 @@ import { StaffCompletionRequest } from "../../src/entities/StaffCompletionReques
 import { OrganizationOwnershipTransfer } from "../../src/entities/OrganizationOwnershipTransfer.js";
 import { StuckEmailTimer } from "../../src/entities/StuckEmailTimer.js";
 import { ApplicationReference } from "../../src/entities/ApplicationReference.js";
+import { SavedJob } from "../../src/entities/SavedJob.js";
 import { AiInterview } from "../../src/entities/AiInterview.js";
 import { AiInterviewQuestion } from "../../src/entities/AiInterviewQuestion.js";
 
@@ -120,6 +125,7 @@ const ALL_ENTITIES = [
   ApplicationReference,
   AiInterview,
   AiInterviewQuestion,
+  SavedJob,
 ];
 
 export async function startTestDatabase(): Promise<void> {
@@ -144,6 +150,8 @@ export async function startTestDatabase(): Promise<void> {
 
   // Install pgvector extension
   await testDataSource.query("CREATE EXTENSION IF NOT EXISTS vector;").catch(() => {});
+  await testDataSource.query(STAMP_STAGE_REACHED_FUNCTION);
+  await testDataSource.query(STAMP_STAGE_REACHED_TRIGGER);
 
   // Override the AppDataSource singleton used by services
   const { AppDataSource } = await import("../../src/database/dataSource.js");

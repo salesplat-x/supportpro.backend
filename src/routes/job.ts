@@ -21,6 +21,7 @@ import {
   jobSummaryValidator,
   generateJobContentValidator,
   generateJobFieldValidator,
+  jobIdParamValidator,
 } from "../validators/job.js";
 import { jobDescriptionUpload } from "../middleware/multer.js";
 
@@ -95,13 +96,6 @@ router.get(
   validate(topTalentsValidator),
   asyncHandler(job.topTalents, "load top talents")
 );
-router.patch(
-  "/prescreening-check/:jobId",
-  validateAccess([UserRole.Talent]),
-  requireVerifiedEmail,
-  validate(applyValidator),
-  asyncHandler(job.checkPrescreening, "check pre-screening result")
-);
 router.get(
   "/match/:_id",
   validateAccess([UserRole.Recruiter, UserRole.Admin]),
@@ -170,6 +164,27 @@ router.post(
   validateAccess([UserRole.Recruiter]),
   requireVerifiedEmail,
   asyncHandler(job.activatePayment, "start job payment")
+);
+router.get(
+  "/:jobId/pay-comparison",
+  validateAccess([UserRole.Talent]),
+  requireVerifiedEmail,
+  validate(jobIdParamValidator),
+  asyncHandler(job.payComparison, "compare pay")
+);
+router.put(
+  "/:jobId/save",
+  validateAccess([UserRole.Talent]),
+  requireVerifiedEmail,
+  validate(jobIdParamValidator),
+  asyncHandler(job.saveJob, "save job")
+);
+router.delete(
+  "/:jobId/save",
+  validateAccess([UserRole.Talent]),
+  requireVerifiedEmail,
+  validate(jobIdParamValidator),
+  asyncHandler(job.unsaveJob, "remove saved job")
 );
 router.get("/:_id", optionalAuth, validate(matchJobValidator), asyncHandler(job.fetch, "load job"));
 

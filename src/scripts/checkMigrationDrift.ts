@@ -58,6 +58,7 @@ import { StaffHrAssignment } from "../entities/StaffHrAssignment.js";
 import { StaffCompletionRequest } from "../entities/StaffCompletionRequest.js";
 import { OrganizationOwnershipTransfer } from "../entities/OrganizationOwnershipTransfer.js";
 import { StuckEmailTimer } from "../entities/StuckEmailTimer.js";
+import { SavedJob } from "../entities/SavedJob.js";
 
 const ALL_ENTITIES = [
   User,
@@ -114,6 +115,7 @@ const ALL_ENTITIES = [
   StaffCompletionRequest,
   OrganizationOwnershipTransfer,
   StuckEmailTimer,
+  SavedJob,
 ];
 
 async function run(): Promise<void> {

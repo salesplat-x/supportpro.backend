@@ -1,3 +1,4 @@
+import { IsNull, Not } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import {
   AIConfig,
@@ -16,14 +17,18 @@ import {
   AppError,
   ConflictError,
 } from "../utils/errors";
-import { QuestionType, JobStatus, UserRole } from "../types/enums.js";
+import { QuestionType, JobStatus, UserRole, ScreeningStage } from "../types/enums.js";
+import { hasReachedStage } from "./applicationStage.js";
 import { calculateTimeLeft, sortDirection } from "../utils/text.js";
 import * as AI from "../utils/integrations/openai.js";
 import { answerTextForQuestion, type StoredResponse } from "../utils/answerResponses.js";
 import { assertCompanyResourceAccess } from "./organizationScope.js";
 import {
+  ASSESSMENT_OPTION_COUNT,
   CULTURE_FIT_GENERAL_CATEGORIES,
   DEFAULT_GENERATED_QUESTIONS,
+  MAX_ASSESSMENT_OPTION_LENGTH,
+  MAX_GENERATED_QUESTIONS_PER_REQUEST,
   MAX_GENERATION_ATTEMPTS,
   MAX_QUESTION_POOL_PER_TYPE,
   PROBLEM_SOLVING_CATEGORIES,
@@ -591,8 +596,13 @@ const collectGeneratedQuestions = async (
     remaining: number,
     avoid: string[]
   ) => Promise<{ message?: { content?: string | null } } | undefined>,
-  parseOptions: { categories: readonly string[] }
+  categories: readonly string[]
 ): Promise<GeneratedQuestion[]> => {
+  const parseOptions = {
+    categories,
+    optionCount: ASSESSMENT_OPTION_COUNT,
+    maxOptionLength: MAX_ASSESSMENT_OPTION_LENGTH,
+  };
   const collected: GeneratedQuestion[] = [];
   const seen = new Set(existing.map(questionKey));
 
@@ -643,6 +653,8 @@ const poolFullError = (type: CompanyAssessmentType) =>
     `This job already has the maximum of ${MAX_QUESTION_POOL_PER_TYPE} ${ASSESSMENT_LABEL[type]} questions. Delete some before generating more.`
   );
 
+const isChoiceQuestion = (q: Pick<Question, "options">): boolean => (q.options?.length ?? 0) > 0;
+
 const remainingPoolSpace = async (
   job: Job,
   type: CompanyAssessmentType,
@@ -650,10 +662,10 @@ const remainingPoolSpace = async (
 ): Promise<{ count: number; existing: string[] }> => {
   const existingRows = await questionRepo().find({
     where: { jobId: job.id, type },
-    select: { id: true, question: true },
+    select: { id: true, question: true, options: true },
     order: { createdAt: "ASC" },
   });
-  const space = MAX_QUESTION_POOL_PER_TYPE - existingRows.length;
+  const space = MAX_QUESTION_POOL_PER_TYPE - existingRows.filter(isChoiceQuestion).length;
   if (space <= 0) {
     throw poolFullError(type);
   }
@@ -674,9 +686,9 @@ const saveGeneratedQuestions = (
     const repo = manager.getRepository(Question);
     const pool = await repo.find({
       where: { jobId: job.id, type },
-      select: { id: true, question: true },
+      select: { id: true, question: true, options: true },
     });
-    const space = MAX_QUESTION_POOL_PER_TYPE - pool.length;
+    const space = MAX_QUESTION_POOL_PER_TYPE - pool.filter(isChoiceQuestion).length;
     if (space <= 0) {
       throw poolFullError(type);
     }
@@ -697,10 +709,48 @@ const saveGeneratedQuestions = (
           question: item.question,
           category: item.category,
           criteria: item.criteria,
+          options: item.options,
+          correctOption: item.correctOption,
         })
       )
     );
   });
+
+const generateAssessmentPool = async (
+  job: Job,
+  type: CompanyAssessmentType,
+  requested: number
+): Promise<{ questions: Question[]; basedOnCompanyValues: boolean }> => {
+  const { count, existing } = await remainingPoolSpace(job, type, requested);
+  const companyValues = job.organization?.companyValues ?? [];
+  const basedOnCompanyValues = type === QuestionType.CultureFit && companyValues.length > 0;
+
+  const generated =
+    type === QuestionType.ProblemSolving
+      ? await collectGeneratedQuestions(
+          ASSESSMENT_LABEL[type],
+          count,
+          existing,
+          (remaining, avoid) => AI.generateProblemSolvingQuestions({ count: remaining, avoid }),
+          PROBLEM_SOLVING_CATEGORIES
+        )
+      : await collectGeneratedQuestions(
+          ASSESSMENT_LABEL[type],
+          count,
+          existing,
+          (remaining, avoid) =>
+            AI.generateCultureFitQuestions({
+              count: remaining,
+              companyValues,
+              companyName: job.organization?.name ?? null,
+              jobBrief: job.jobBrief,
+              avoid,
+            }),
+          basedOnCompanyValues ? companyValues : CULTURE_FIT_GENERAL_CATEGORIES
+        );
+
+  return { questions: await saveGeneratedQuestions(job, type, generated), basedOnCompanyValues };
+};
 
 export interface GenerateAssessmentQuestionsPayload {
   jobId: string;
@@ -711,65 +761,32 @@ export const generateProblemSolvingQuestions = async (
   user: Pick<User, "id" | "userRole">,
   payload: GenerateAssessmentQuestionsPayload
 ): Promise<{ questions: Question[] }> => {
-  const type = QuestionType.ProblemSolving;
   const job = await loadJobForCompanyMember(user, payload.jobId);
-  const { count, existing } = await remainingPoolSpace(
+  const { questions } = await generateAssessmentPool(
     job,
-    type,
+    QuestionType.ProblemSolving,
     payload.count ?? DEFAULT_GENERATED_QUESTIONS
   );
-
-  const generated = await collectGeneratedQuestions(
-    ASSESSMENT_LABEL[type],
-    count,
-    existing,
-    (remaining, avoid) => AI.generateProblemSolvingQuestions({ count: remaining, avoid }),
-    { categories: PROBLEM_SOLVING_CATEGORIES }
-  );
-
-  return { questions: await saveGeneratedQuestions(job, type, generated) };
+  return { questions };
 };
 
 export const generateCultureFitQuestions = async (
   user: Pick<User, "id" | "userRole">,
   payload: GenerateAssessmentQuestionsPayload
 ): Promise<{ questions: Question[]; basedOnCompanyValues: boolean }> => {
-  const type = QuestionType.CultureFit;
   const job = await loadJobForCompanyMember(user, payload.jobId, true);
-  const { count, existing } = await remainingPoolSpace(
+  return generateAssessmentPool(
     job,
-    type,
+    QuestionType.CultureFit,
     payload.count ?? DEFAULT_GENERATED_QUESTIONS
   );
-
-  const companyValues = job.organization?.companyValues ?? [];
-  const basedOnCompanyValues = companyValues.length > 0;
-
-  const generated = await collectGeneratedQuestions(
-    ASSESSMENT_LABEL[type],
-    count,
-    existing,
-    (remaining, avoid) =>
-      AI.generateCultureFitQuestions({
-        count: remaining,
-        companyValues,
-        companyName: job.organization?.name ?? null,
-        jobBrief: job.jobBrief,
-        avoid,
-      }),
-    { categories: basedOnCompanyValues ? companyValues : CULTURE_FIT_GENERAL_CATEGORIES }
-  );
-
-  return {
-    questions: await saveGeneratedQuestions(job, type, generated),
-    basedOnCompanyValues,
-  };
 };
 
 export interface CandidateQuestion {
   id: string;
   question: string;
   questionType: QuestionType;
+  options: string[];
 }
 
 export const ASSESSMENT_SETTINGS = {
@@ -779,6 +796,7 @@ export const ASSESSMENT_SETTINGS = {
     count: "noOfProblemSolvingQuestions",
     assigned: "problemSolvingQuestions",
     score: "problemSolvingScore",
+    stage: ScreeningStage.ProblemSolving,
   },
   [QuestionType.CultureFit]: {
     label: "culture-fit",
@@ -786,6 +804,7 @@ export const ASSESSMENT_SETTINGS = {
     count: "noOfCultureFitQuestions",
     assigned: "cultureFitQuestions",
     score: "cultureFitScore",
+    stage: ScreeningStage.CultureFit,
   },
 } as const;
 
@@ -793,22 +812,62 @@ export const toCandidateQuestion = (q: Question): CandidateQuestion => ({
   id: q.id,
   question: q.question,
   questionType: q.type,
+  options: q.options ?? [],
 });
 
-export const getOrAssignAssessmentQuestionsForApplicant = async (
+export const assertStageReached = (
+  application: Pick<Application, "stages" | "currentStage">,
+  stage: ScreeningStage,
+  label: string
+): void => {
+  const stages = application.stages ?? {};
+  if (
+    Object.prototype.hasOwnProperty.call(stages, stage) &&
+    !hasReachedStage(stages, application.currentStage, stage)
+  ) {
+    throw new ValidationError(`Your ${label} test isn't open yet. Finish the earlier steps first.`);
+  }
+};
+
+const notReadyError = (label: string) =>
+  new AppError(
+    409,
+    "ASSESSMENT_NOT_READY",
+    `The ${label} test for this job isn't ready yet. Please try again later.`
+  );
+
+const poolsInFlight = new Map<string, Promise<void>>();
+
+const fillEmptyPool = (job: Job, type: CompanyAssessmentType, count: number): Promise<void> => {
+  const key = `${job.id}:${type}`;
+  const running = poolsInFlight.get(key);
+  if (running) return running;
+  const task = generateAssessmentPool(
+    job,
+    type,
+    Math.min(Math.max(count, DEFAULT_GENERATED_QUESTIONS), MAX_GENERATED_QUESTIONS_PER_REQUEST)
+  )
+    .then(() => undefined)
+    .catch((err: unknown) => {
+      if (err instanceof ConflictError) return;
+      logger.warn(
+        `Filling the ${ASSESSMENT_LABEL[type]} pool for job ${job.id} failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    })
+    .finally(() => poolsInFlight.delete(key));
+  poolsInFlight.set(key, task);
+  return task;
+};
+
+const assignAssessmentQuestions = (
   userId: string,
   type: CompanyAssessmentType,
-  jobId: string
-): Promise<{ questions: CandidateQuestion[] }> => {
+  jobId: string,
+  count: number | null | undefined
+): Promise<{ questions: CandidateQuestion[] } | null> => {
   const settings = ASSESSMENT_SETTINGS[type];
-  const job = await jobRepo().findOne({ where: { id: jobId }, relations: { aiConfig: true } });
-  if (!job) {
-    throw new NotFoundError("Job not found");
-  }
-  const config = job.aiConfig;
-  if (!config?.[settings.flag]) {
-    throw new ValidationError(`The ${settings.label} test is not switched on for this job`);
-  }
   return AppDataSource.transaction(async (manager) => {
     const application = await manager.findOne(Application, {
       where: { jobId, talentId: userId },
@@ -817,6 +876,7 @@ export const getOrAssignAssessmentQuestionsForApplicant = async (
     if (!application) {
       throw new ValidationError("You must apply for this job before this stage is available");
     }
+    assertStageReached(application, settings.stage, settings.label);
 
     const alreadyAssigned = application[settings.assigned] ?? [];
     if (alreadyAssigned.length) {
@@ -826,27 +886,51 @@ export const getOrAssignAssessmentQuestionsForApplicant = async (
         .whereInIds(alreadyAssigned)
         .getMany();
       const scored = application[settings.score] !== null;
-      if (assigned.length === alreadyAssigned.length || scored) {
+      const usable = assigned.length === alreadyAssigned.length && assigned.every(isChoiceQuestion);
+      if (usable || scored) {
         const order = new Map(alreadyAssigned.map((id, i) => [id, i]));
         assigned.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
         return { questions: assigned.map(toCandidateQuestion) };
       }
     }
 
-    const pool = await manager.find(Question, { where: { jobId, type } });
-    if (pool.length === 0) {
-      throw new AppError(
-        409,
-        "ASSESSMENT_NOT_READY",
-        `The ${settings.label} test for this job isn't ready yet. Please try again later.`
-      );
-    }
-    const count = config[settings.count] ?? pool.length;
-    const selected = shuffle(pool).slice(0, count);
+    const pool = await manager.find(Question, {
+      where: { jobId, type, options: Not(IsNull()) },
+    });
+    if (pool.length === 0) return null;
+    const selected = shuffle(pool).slice(0, count ?? pool.length);
     await manager.query(`UPDATE "applications" SET "${settings.assigned}" = $1 WHERE id = $2`, [
       selected.map((q) => q.id).join(","),
       application.id,
     ]);
     return { questions: selected.map(toCandidateQuestion) };
   });
+};
+
+export const getOrAssignAssessmentQuestionsForApplicant = async (
+  userId: string,
+  type: CompanyAssessmentType,
+  jobId: string
+): Promise<{ questions: CandidateQuestion[] }> => {
+  const settings = ASSESSMENT_SETTINGS[type];
+  const job = await jobRepo().findOne({
+    where: { id: jobId },
+    relations: { aiConfig: true, organization: true },
+  });
+  if (!job) {
+    throw new NotFoundError("Job not found");
+  }
+  const config = job.aiConfig;
+  if (!config?.[settings.flag]) {
+    throw new ValidationError(`The ${settings.label} test is not switched on for this job`);
+  }
+  const count = config[settings.count];
+
+  const assigned = await assignAssessmentQuestions(userId, type, jobId, count);
+  if (assigned) return assigned;
+
+  await fillEmptyPool(job, type, count ?? DEFAULT_GENERATED_QUESTIONS);
+  const retried = await assignAssessmentQuestions(userId, type, jobId, count);
+  if (retried) return retried;
+  throw notReadyError(settings.label);
 };

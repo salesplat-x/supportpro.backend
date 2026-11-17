@@ -42,6 +42,7 @@ import logger from "../utils/logger.js";
 import { convertSimilarityToPercentage } from "../utils/text.js";
 import { notifyTeamOfHighMatch } from "./matchAlerts.js";
 import { startAiInterviewIfReached } from "./aiInterview.js";
+import { notifyStageReached } from "./talentNotifications.js";
 
 const applicationRepo = () => AppDataSource.getRepository(Application);
 
@@ -107,11 +108,15 @@ export type GradedAnswerPair = {
   score: number | null;
   maxScore: number;
   feedback: string | null;
+  options?: string[];
+  selectedOption?: number;
+  correctOption?: number;
 };
 
 type StoredGradedResponse = {
   questionId?: string;
   answer?: string;
+  selectedOption?: number;
   score?: number;
   feedback?: string;
 };
@@ -127,15 +132,27 @@ export const buildGradedAnswerPairs = async (
   const responses = answer.responses as StoredGradedResponse[];
   const ids = responses.map((r) => r.questionId).filter((id): id is string => !!id);
   const questions = ids.length ? await questionRepo().find({ where: { id: In(ids) } }) : [];
-  const questionsById = new Map(questions.map((q) => [q.id, q.question]));
+  const questionsById = new Map(questions.map((q) => [q.id, q]));
 
-  return responses.map((r) => ({
-    question: (r.questionId && questionsById.get(r.questionId)) || "Unknown question",
-    answer: r.answer ?? "",
-    score: typeof r.score === "number" ? r.score : null,
-    maxScore: MAX_ANSWER_SCORE,
-    feedback: r.feedback ?? null,
-  }));
+  return responses.map((r) => {
+    const question = r.questionId ? questionsById.get(r.questionId) : undefined;
+    const choice =
+      typeof r.selectedOption === "number" && question?.options && question.correctOption !== null
+        ? {
+            options: question.options,
+            selectedOption: r.selectedOption,
+            correctOption: question.correctOption,
+          }
+        : {};
+    return {
+      question: question?.question || "Unknown question",
+      answer: r.answer ?? "",
+      score: typeof r.score === "number" ? r.score : null,
+      maxScore: MAX_ANSWER_SCORE,
+      feedback: r.feedback ?? null,
+      ...choice,
+    };
+  });
 };
 
 const persistRecommendation = async (
@@ -595,6 +612,48 @@ export const reconcileDueMatchVerdicts = async (): Promise<{
   return { scanned: ids.length, attempted };
 };
 
+/** The columns a stage move writes, so callers holding the row lock never write back stale data. */
+export const stageMoveColumns = (application: Application) => ({
+  currentStage: application.currentStage,
+  status: application.status,
+  assessmentRetryDate: application.assessmentRetryDate,
+  cvSimilarityScore: application.cvSimilarityScore,
+  cvSimilarityAttempts: application.cvSimilarityAttempts,
+  averageScore: application.averageScore,
+  rank: application.rank,
+  matchVerdictStatus: application.matchVerdictStatus,
+  matchVerdictAttempts: application.matchVerdictAttempts,
+  matchVerdictNextRetryAt: application.matchVerdictNextRetryAt,
+  matchVerdictLockedAt: application.matchVerdictLockedAt,
+  matchVerdictLastError: application.matchVerdictLastError,
+});
+
+/** True when the target stage is active, or was already passed in the application's own order. */
+export const hasReachedStage = (
+  stages: Record<string, string>,
+  currentStage: string,
+  target: ScreeningStage
+): boolean => {
+  if (currentStage === target) return true;
+
+  const values = new Set(Object.values(stages));
+  const entry = Object.keys(stages).find((key) => !values.has(key));
+  if (!entry) return false;
+
+  let cursor: string | undefined = entry;
+  let seenTarget = false;
+  while (cursor && cursor !== ScreeningStage.Completed) {
+    if (cursor === target) seenTarget = true;
+    if (cursor === currentStage) return seenTarget;
+    cursor = stages[cursor];
+  }
+
+  return (
+    currentStage === ScreeningStage.Completed &&
+    Object.prototype.hasOwnProperty.call(stages, target)
+  );
+};
+
 export const processNextStage = async (
   talent: User,
   application: Application,
@@ -709,43 +768,108 @@ export const rescoreCvSimilarity = async (
       application.status === ApplicationStatus.RetakeAssessment);
 
   if (awaitingGate) {
-    return applicationRepo().save(await runCvSimilarityGate(talent, application, aiConfig, score));
+    const saved = await applicationRepo().save(
+      await runCvSimilarityGate(talent, application, aiConfig, score)
+    );
+    await notifyStageReached(saved.id);
+    return saved;
   }
   application.cvSimilarityScore = score;
   return applicationRepo().save(application);
 };
 
-// Advances every one of the talent's applications currently parked at the (global,
-// job-agnostic) Prescreening stage, gated per-application by that job's own
-// minPrescreeningScore — never mutates the global PreScreening/User.prescreeningScore.
+export const STAGE_SWITCH: Partial<Record<ScreeningStage, keyof AIConfig>> = {
+  [ScreeningStage.CvSimilarity]: "cvSimilarity",
+  [ScreeningStage.Personalized]: "personalizedAssessment",
+  [ScreeningStage.ProblemSolving]: "problemSolvingAssessment",
+  [ScreeningStage.CultureFit]: "cultureFitAssessment",
+  [ScreeningStage.Personality]: "personalityEvaluation",
+  [ScreeningStage.AiInterview]: "aiInterview",
+};
+
+const MAX_SYNC_MOVES = 8;
+
+/**
+ * Moves an application past stages that are already settled: a valid skills test score,
+ * a problem-solving or culture-fit test already scored, or a stage the recruiter switched
+ * off. Holds the row lock and writes only stage columns, so parallel calls move it once.
+ */
+export const syncCandidateStage = async (applicationId: string): Promise<void> => {
+  let movedAny = false;
+  for (let move = 0; move < MAX_SYNC_MOVES; move++) {
+    const moved = await AppDataSource.transaction(async (manager) => {
+      const application = await manager.findOne(Application, {
+        where: { id: applicationId },
+        lock: { mode: "pessimistic_write" },
+      });
+      if (!application) return false;
+      const open =
+        application.status === ApplicationStatus.Pending ||
+        application.status === ApplicationStatus.RetakeAssessment;
+      if (!open) return false;
+
+      const [talent, job] = await Promise.all([
+        manager.findOne(User, { where: { id: application.talentId } }),
+        manager.findOne(Job, { where: { id: application.jobId }, relations: { aiConfig: true } }),
+      ]);
+      if (!talent) return false;
+      const config = job?.aiConfig ?? null;
+      const stage = application.currentStage;
+
+      if (stage === ScreeningStage.Prescreening) {
+        const score = talent.prescreeningScore;
+        if (score === null || score === undefined) return false;
+        if (!isPrescreeningScoreValid(talent.prescreeningScoredAt)) return false;
+        if (score < (config?.minPrescreeningScore ?? 0)) {
+          if (application.status === ApplicationStatus.RetakeAssessment) return false;
+          application.status = ApplicationStatus.RetakeAssessment;
+          application.assessmentRetryDate = getAssessmentRetryDate();
+          await manager.update(Application, application.id, stageMoveColumns(application));
+          return false;
+        }
+      } else {
+        if (application.status !== ApplicationStatus.Pending) return false;
+        const scored =
+          (stage === ScreeningStage.ProblemSolving && application.problemSolvingScore !== null) ||
+          (stage === ScreeningStage.CultureFit && application.cultureFitScore !== null);
+        const flag = STAGE_SWITCH[stage];
+        const switchedOff = !!config && !!flag && !config[flag];
+        if (!scored && !switchedOff) return false;
+      }
+
+      const next = await processNextStage(talent, application, stage, config);
+      await manager.update(Application, application.id, stageMoveColumns(next));
+      return next.currentStage !== stage;
+    });
+    if (!moved) break;
+    movedAny = true;
+  }
+  if (movedAny) await notifyStageReached(applicationId);
+};
+
+// Runs after a skills test submission: a failing fresh score starts the retake wait on
+// every application parked at the skills test; a passing one moves them on.
 export const advanceApplicationsAfterPrescreening = async (
   talent: User,
   prescreeningScore: number
 ): Promise<void> => {
   const apps = await applicationRepo().find({
     where: { talentId: talent.id, currentStage: ScreeningStage.Prescreening },
+    relations: { job: { aiConfig: true } },
   });
 
   for (const application of apps) {
-    const job = await jobRepo().findOne({
-      where: { id: application.jobId },
-      relations: { aiConfig: true },
-    });
-    const minScore = (job?.aiConfig as AIConfig | undefined)?.minPrescreeningScore ?? 0;
-
-    let updated: Application;
+    const minScore = application.job?.aiConfig?.minPrescreeningScore ?? 0;
     if (prescreeningScore < minScore) {
-      application.status = ApplicationStatus.RetakeAssessment;
-      application.assessmentRetryDate = getAssessmentRetryDate();
-      updated = application;
-    } else {
-      updated = await processNextStage(
-        talent,
-        application,
-        ScreeningStage.Prescreening,
-        job?.aiConfig ?? null
+      await applicationRepo().update(
+        { id: application.id, currentStage: ScreeningStage.Prescreening },
+        {
+          status: ApplicationStatus.RetakeAssessment,
+          assessmentRetryDate: getAssessmentRetryDate(),
+        }
       );
+    } else {
+      await syncCandidateStage(application.id);
     }
-    await applicationRepo().save(updated);
   }
 };

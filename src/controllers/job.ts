@@ -1,5 +1,10 @@
-import { compareSalaries, type SalaryComparisonQuery } from "../services/salaryComparison.js";
+import {
+  compareJobPay,
+  compareSalaries,
+  type SalaryComparisonQuery,
+} from "../services/salaryComparison.js";
 import { Request, Response } from "express";
+import * as savedJobsService from "../services/savedJobs.js";
 import * as jobService from "../services/job.js";
 import * as paymentService from "../services/payment.js";
 import { draftApplicantMessages } from "../services/applicantMessaging.js";
@@ -51,7 +56,7 @@ export const fetchAll = async (req: Request, res: Response) => {
     status: JobStatus.Active,
     talentId,
   });
-  sendSuccessResponse(res, "Jobs fetched", { jobs: result });
+  sendSuccessResponse(res, "Jobs fetched", result);
 };
 
 export const jobsPosted = async (req: Request, res: Response) => {
@@ -152,7 +157,11 @@ export const retryCvScore = async (req: Request, res: Response) => {
 
 export const apply = async (req: Request, res: Response) => {
   const result = hideAssessmentResultsFromCandidate(
-    await jobService.apply(req.user, { jobId: req.params["jobId"]!, source: req.body.source })
+    await jobService.apply(req.user, {
+      jobId: req.params["jobId"]!,
+      source: req.body.source,
+      note: req.body.note,
+    })
   );
   sendSuccessResponse(res, "Application submitted", { application: result }, 201);
 };
@@ -162,14 +171,22 @@ export const activatePayment = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Payment link generated", result);
 };
 
-export const checkPrescreening = async (req: Request, res: Response) => {
-  const result = hideAssessmentResultsFromCandidate(
-    await jobService.checkPrescreeningAdvance(req.user.id, req.params["jobId"]!)
-  );
-  sendSuccessResponse(res, "Prescreening stage checked", { application: result });
-};
-
 export const salaryComparison = async (req: Request, res: Response) => {
   const result = await compareSalaries(req.query as unknown as SalaryComparisonQuery);
   sendSuccessResponse(res, "Salary comparison fetched", result);
+};
+
+export const saveJob = async (req: Request, res: Response) => {
+  const result = await savedJobsService.saveJob(req.user.id, req.params["jobId"]!);
+  sendSuccessResponse(res, "Job saved", result);
+};
+
+export const unsaveJob = async (req: Request, res: Response) => {
+  const result = await savedJobsService.unsaveJob(req.user.id, req.params["jobId"]!);
+  sendSuccessResponse(res, "Job removed from saved", result);
+};
+
+export const payComparison = async (req: Request, res: Response) => {
+  const result = await compareJobPay(req.params["jobId"]!);
+  sendSuccessResponse(res, "Pay comparison fetched", result);
 };

@@ -14,6 +14,7 @@ import {
   createAIConfig,
   createApplication,
 } from "./helpers/fixtures.js";
+import { Notification } from "../src/entities/Notification.js";
 import { Application } from "../src/entities/Application.js";
 import { AIConfig } from "../src/entities/AIConfig.js";
 import { Job } from "../src/entities/Job.js";
@@ -162,7 +163,10 @@ describe("candidate reaching the AI interview stage", () => {
     });
     const aiConfig = await createAIConfig(recruiter, configOverrides);
     await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
-    const { user: talent, token } = await createTalent({ prescreeningScore: 75 });
+    const { user: talent, token } = await createTalent({
+      prescreeningScore: 75,
+      cvFileName: "cv.pdf",
+    });
     return { job, aiConfig, talent, token };
   }
 
@@ -198,6 +202,12 @@ describe("candidate reaching the AI interview stage", () => {
     const questions = await questionsFor(interview!.id);
     expect(questions.map((q) => q.question)).toEqual(FIVE);
     expect(questions.map((q) => q.position)).toEqual([1, 2, 3, 4, 5]);
+    const invites = await testDataSource
+      .getRepository(Notification)
+      .find({ where: { userId: talent.id, type: "interview_invite" } });
+    expect(invites).toHaveLength(1);
+    expect(invites[0]!.link).toBe(`/talentDashboard/interview/${interview!.id}`);
+    expect(invites[0]!.message).toMatch(/· do it by \d{1,2} \w{3}$/);
 
     const context = mockQuestions.mock.calls[0][0];
     expect(context.count).toBe(5);

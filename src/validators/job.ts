@@ -7,6 +7,7 @@ import {
   ApplicationType,
   ApplicationStatus,
   CompensationPeriod,
+  Currency,
   EmploymentType,
   MatchVerdict,
 } from "../types/enums.js";
@@ -227,6 +228,16 @@ export const allJobsQueryValidator = [
     .trim()
     .isLength({ max: 100 })
     .withMessage("q must be at most 100 characters"),
+  query("minMonthlySalary")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("minMonthlySalary must be a whole number of 0 or more")
+    .toInt(),
+  query("currency")
+    .optional()
+    .isIn(Object.values(Currency))
+    .withMessage(`currency must be one of: ${Object.values(Currency).join(", ")}`),
+  query("postedWithin").optional().isIn(["week"]).withMessage("postedWithin must be week"),
 ];
 
 export const topTalentsValidator = [
@@ -240,9 +251,18 @@ export const matchJobValidator = [
   query("incomplete").optional().isBoolean().toBoolean(),
 ];
 
+export const MAX_APPLICANT_NOTE_LENGTH = 1000;
+
 export const applyValidator = [
   param("jobId").notEmpty().withMessage("Job ID is required"),
   body("source").optional().isString().isLength({ min: 1, max: 50 }),
+  body("note")
+    .optional({ values: "null" })
+    .isString()
+    .withMessage("note must be text")
+    .trim()
+    .isLength({ max: MAX_APPLICANT_NOTE_LENGTH })
+    .withMessage(`note can be at most ${MAX_APPLICANT_NOTE_LENGTH} characters`),
 ];
 
 export const retryVerdictsValidator = [
@@ -324,4 +344,8 @@ export const salaryComparisonValidator = [
   query("locationState").optional().isString(),
   query("locationCountry").optional().isString(),
   query("excludeJobId").optional().isUUID(),
+];
+
+export const jobIdParamValidator = [
+  param("jobId").isUUID().withMessage("jobId must be a valid job id"),
 ];

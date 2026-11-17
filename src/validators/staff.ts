@@ -467,3 +467,7 @@ export const signMyDocumentValidator = [
   text(body("fullName"), "Full name"),
   body("agree").equals("true").withMessage("Tick the box to agree to sign electronically"),
 ];
+
+export const myStaffInviteValidator = [
+  param("staffId").isUUID().withMessage("staffId must be a valid invite id"),
+];

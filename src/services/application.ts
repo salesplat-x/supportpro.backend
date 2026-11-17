@@ -20,7 +20,7 @@ import {
   QuestionType,
   MatchVerdictStatus,
 } from "../types/enums.js";
-import { createNotification } from "./notification.js";
+import { applicationLink, notifyTalent, TALENT_NOTIFICATION } from "./talentNotifications.js";
 import { decisionNotificationTitle } from "./applicationNotifications.js";
 import {
   loadApplicationWithMatch,
@@ -299,7 +299,13 @@ export const updateStatus = async (
       const jobTitle = application.job.role?.name;
       const companyName = application.job.organization?.name;
       const title = decisionNotificationTitle(payload.status, jobTitle, companyName);
-      await createNotification(application.talentId, title, title);
+      await notifyTalent({
+        userId: application.talentId,
+        type: TALENT_NOTIFICATION.ApplicationUpdate,
+        title,
+        message: title,
+        link: applicationLink(application.id),
+      });
     } catch (err) {
       logger.error(
         `Decision notification failed for application ${application.id}: ${(err as Error).message}`
@@ -433,8 +439,10 @@ export const bulkUpdateStatus = async (
     const title = decisionNotificationTitle(payload.status, jobTitle, companyName);
     return notificationRepo().create({
       userId: application.talentId,
+      type: TALENT_NOTIFICATION.ApplicationUpdate,
       message: title,
       title,
+      link: applicationLink(application.id),
     });
   });
   const CHUNK = 500;

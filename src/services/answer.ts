@@ -5,25 +5,21 @@ import { Application } from "../entities/Application.js";
 import { User } from "../entities/User.js";
 import { Job } from "../entities/Job.js";
 import { IsNull, type EntityManager } from "typeorm";
-import {
-  NotFoundError,
-  ValidationError,
-  AuthorizationError,
-  AppError,
-  ConflictError,
-} from "../utils/errors";
+import { NotFoundError, ValidationError, AuthorizationError, ConflictError } from "../utils/errors";
 import { QuestionType, JobStatus, ApplicationStatus, ScreeningStage } from "../types/enums.js";
 import { calculateTimeLeft } from "../utils/text.js";
 import * as AI from "../utils/integrations/openai.js";
-import { canTakeAssessment, getAssessmentRetryDate, processNextStage } from "./applicationStage.js";
-import { mergeSubmittedAnswers } from "../utils/answerResponses.js";
 import {
-  parseGradedAnswers,
-  scorePercent,
-  GradedAnswersParseError,
-  type GradedAnswer,
-} from "../utils/gradedAnswers.js";
-import { MAX_GENERATION_ATTEMPTS } from "../config/assessmentQuestions.js";
+  canTakeAssessment,
+  getAssessmentRetryDate,
+  hasReachedStage,
+  processNextStage,
+  stageMoveColumns,
+} from "./applicationStage.js";
+import { assertStageReached } from "./question.js";
+import { notifyStageReached } from "./talentNotifications.js";
+import { mergeSubmittedAnswers } from "../utils/answerResponses.js";
+import { MAX_ANSWER_SCORE } from "../utils/gradedAnswers.js";
 import logger from "../utils/logger.js";
 import { claimRowById, STALE_LOCK_INTERVAL } from "../utils/durableJobs.js";
 import { hideAssessmentResultsFromCandidate } from "./application.js";
@@ -265,30 +261,42 @@ export const answerPersonalizedQuestions = async (
   const maxScore = MAX_SCORE * responseArray.length;
   const scorePercent = Number(((totalScore / maxScore) * 100).toFixed(2));
 
-  application.personalizedScore = scorePercent;
-  application.personalizedAttempts = (application.personalizedAttempts ?? 0) + 1;
-
-  const minScore = aiConfig.minPrescreeningScore ?? 0;
-  const MAX_ATTEMPTS = 2; // 1 initial + 1 retry
-  const passed = scorePercent >= minScore;
-  const attemptsExhausted = application.personalizedAttempts >= MAX_ATTEMPTS;
-
-  if (passed || attemptsExhausted) {
-    const user = await userRepo().findOne({ where: { id: userId } });
-    if (user) {
-      application = await processNextStage(
-        user,
-        application,
-        ScreeningStage.Personalized,
-        aiConfig
-      );
+  const user = await userRepo().findOne({ where: { id: userId } });
+  const applicationId = application.id;
+  application = await AppDataSource.transaction(async (manager) => {
+    const locked = await manager.findOne(Application, {
+      where: { id: applicationId },
+      lock: { mode: "pessimistic_write" },
+    });
+    if (!locked || locked.currentStage !== ScreeningStage.Personalized) {
+      throw new ConflictError("This stage is no longer active for this application");
     }
-  } else {
-    application.currentStage = ScreeningStage.Personalized;
-    application.status = ApplicationStatus.RetakeAssessment;
-  }
+    locked.personalizedScore = scorePercent;
+    locked.personalizedAttempts = (locked.personalizedAttempts ?? 0) + 1;
 
-  application = await applicationRepo().save(application);
+    const minScore = aiConfig.minPrescreeningScore ?? 0;
+    const MAX_ATTEMPTS = 2; // 1 initial + 1 retry
+    const passed = scorePercent >= minScore;
+    const attemptsExhausted = locked.personalizedAttempts >= MAX_ATTEMPTS;
+
+    const open =
+      locked.status === ApplicationStatus.Pending ||
+      locked.status === ApplicationStatus.RetakeAssessment;
+    let moved = locked;
+    if (open && (passed || attemptsExhausted) && user) {
+      moved = await processNextStage(user, locked, ScreeningStage.Personalized, aiConfig);
+    } else if (open && !passed && !attemptsExhausted) {
+      locked.status = ApplicationStatus.RetakeAssessment;
+    }
+
+    await manager.update(Application, applicationId, {
+      personalizedScore: moved.personalizedScore,
+      personalizedAttempts: moved.personalizedAttempts,
+      ...stageMoveColumns(moved),
+    });
+    return moved;
+  });
+  await notifyStageReached(applicationId);
 
   await saveOrUpdateAnswer(
     { userId, jobId, questionType: QuestionType.Personalized },
@@ -302,35 +310,6 @@ export interface EvaluatePersonalityPayload {
   jobId: string;
   answers: Record<string, string>;
 }
-
-/** True when personality is the active stage, or was already passed without an MBTI result. */
-const canSubmitPersonalityStage = (
-  stages: Record<string, string>,
-  currentStage: string
-): boolean => {
-  if (currentStage === ScreeningStage.Personality) return true;
-
-  const values = new Set(Object.values(stages));
-  const entry = Object.keys(stages).find((key) => !values.has(key));
-  if (!entry) return false;
-
-  let cursor: string | undefined = entry;
-  let seenPersonality = false;
-  while (cursor && cursor !== ScreeningStage.Completed) {
-    if (cursor === ScreeningStage.Personality) {
-      seenPersonality = true;
-    }
-    if (cursor === currentStage) {
-      return seenPersonality;
-    }
-    cursor = stages[cursor];
-  }
-
-  return (
-    currentStage === ScreeningStage.Completed &&
-    Object.prototype.hasOwnProperty.call(stages, ScreeningStage.Personality)
-  );
-};
 
 export const evaluatePersonalityType = async (
   userId: string,
@@ -385,7 +364,7 @@ export const evaluatePersonalityType = async (
   // 2) personality was attached to the job after this application was created
   //    (present on AI config stages but missing from the application pipeline).
   const allowed =
-    canSubmitPersonalityStage(stages, application.currentStage) ||
+    hasReachedStage(stages, application.currentStage, ScreeningStage.Personality) ||
     (!appHasPersonalityStage && configHasPersonalityStage);
 
   if (!allowed) {
@@ -454,16 +433,7 @@ export const evaluatePersonalityType = async (
     application.mbtiType = mbtiType;
     if (user && application.currentStage === ScreeningStage.Personality) {
       const moved = await processNextStage(user, application, ScreeningStage.Personality, aiConfig);
-      await manager.update(Application, moved.id, {
-        currentStage: moved.currentStage,
-        status: moved.status,
-        averageScore: moved.averageScore,
-        rank: moved.rank,
-        matchVerdictStatus: moved.matchVerdictStatus,
-        matchVerdictAttempts: moved.matchVerdictAttempts,
-        matchVerdictNextRetryAt: moved.matchVerdictNextRetryAt,
-        matchVerdictLastError: moved.matchVerdictLastError,
-      });
+      await manager.update(Application, moved.id, stageMoveColumns(moved));
     }
     await saveOrUpdateAnswer(
       { userId, jobId, questionType: QuestionType.Personality },
@@ -471,6 +441,7 @@ export const evaluatePersonalityType = async (
       manager
     );
   });
+  await notifyStageReached(application.id);
 
   // Day 6: the AI judges how the saved type fits the job. The candidate
   // doesn't wait for it; a failure leaves the fit empty for the recruiter to retry.
@@ -598,48 +569,21 @@ const COMPANY_ASSESSMENT = {
     flag: "problemSolvingAssessment",
     assigned: "problemSolvingQuestions",
     score: "problemSolvingScore",
+    stage: ScreeningStage.ProblemSolving,
   },
   [QuestionType.CultureFit]: {
     label: "culture-fit",
     flag: "cultureFitAssessment",
     assigned: "cultureFitQuestions",
     score: "cultureFitScore",
+    stage: ScreeningStage.CultureFit,
   },
 } as const;
 
 export interface CompanyAssessmentAnswersPayload {
   jobId: string;
-  answers: Record<string, string>;
+  answers: Record<string, number>;
 }
-
-const gradeAllAnswers = async (
-  type: CompanyAssessmentType,
-  items: AI.CompanyAssessmentAnswerItem[]
-): Promise<Map<string, GradedAnswer> | null> => {
-  const graded = new Map<string, GradedAnswer>();
-  const label = COMPANY_ASSESSMENT[type].label;
-  for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt++) {
-    const remaining = items.filter((item) => !graded.has(item.questionId));
-    if (remaining.length === 0) break;
-    try {
-      const reply = await AI.gradeCompanyAssessmentAnswers({ type, items: remaining });
-      const parsed = parseGradedAnswers(
-        reply?.message?.content,
-        remaining.map((item) => item.questionId)
-      );
-      for (const grade of parsed) graded.set(grade.questionId, grade);
-    } catch (err) {
-      const unusable = err instanceof GradedAnswersParseError;
-      logger.warn(
-        `AI ${label} grading ${unusable ? "reply unusable" : "call failed"} (attempt ${attempt}/${MAX_GENERATION_ATTEMPTS}): ${
-          err instanceof Error ? err.message : String(err)
-        }`
-      );
-      if (!unusable) break;
-    }
-  }
-  return graded.size === items.length ? graded : null;
-};
 
 export const submitCompanyAssessmentAnswers = async (
   userId: string,
@@ -660,97 +604,94 @@ export const submitCompanyAssessmentAnswers = async (
     throw new ValidationError(`The ${settings.label} test is not switched on for this job`);
   }
 
-  const application = await applicationRepo().findOne({ where: { jobId, talentId: userId } });
-  if (!application) {
-    throw new ValidationError("You must apply for this job before this stage is available");
-  }
-  if (application[settings.score] !== null && application[settings.score] !== undefined) {
-    throw new ConflictError(`You have already submitted your ${settings.label} answers`);
-  }
-  const assignedIds = application[settings.assigned] ?? [];
-  if (assignedIds.length === 0) {
-    throw new ValidationError(`Load your ${settings.label} questions before answering them`);
-  }
-
-  const questions = await questionRepo()
-    .createQueryBuilder("q")
-    .whereInIds(assignedIds)
-    .andWhere("q.job_id = :jobId", { jobId })
-    .andWhere("q.type = :type", { type })
-    .getMany();
-  if (questions.length !== assignedIds.length) {
-    throw new ValidationError(
-      `Some of your ${settings.label} questions are no longer available. Please reload them and answer again.`
-    );
-  }
-
-  const assigned = new Set(assignedIds);
-  const answeredIds = Object.keys(answers);
-  if (answeredIds.some((id) => !assigned.has(id))) {
-    throw new ValidationError(`Only answer the ${settings.label} questions you were given`);
-  }
-  const missing = assignedIds.filter((id) => !answeredIds.includes(id));
-  if (missing.length > 0) {
-    throw new ValidationError(
-      `Please answer all ${assignedIds.length} ${settings.label} questions (${missing.length} missing)`
-    );
-  }
-
-  const items: AI.CompanyAssessmentAnswerItem[] = questions.map((q) => ({
-    questionId: q.id,
-    question: q.question,
-    criteria: q.criteria ?? "",
-    answer: answers[q.id]!.trim(),
-    ...(type === QuestionType.CultureFit ? { companyValue: q.category ?? null } : {}),
-  }));
-
-  const graded = await gradeAllAnswers(type, items);
-  if (!graded) {
-    throw new AppError(
-      502,
-      "AI_GRADING_FAILED",
-      `We couldn't score your ${settings.label} answers right now. Please try again in a moment.`
-    );
-  }
-
-  const ordered = assignedIds.map((id) => graded.get(id)!);
-  const score = scorePercent(ordered.map((g) => g.score));
-
-  await AppDataSource.transaction(async (manager) => {
-    const locked = await manager.findOne(Application, {
-      where: { id: application.id },
+  let applicationId = "";
+  const result = await AppDataSource.transaction(async (manager) => {
+    const application = await manager.findOne(Application, {
+      where: { jobId, talentId: userId },
       lock: { mode: "pessimistic_write" },
     });
-    if (!locked) {
-      throw new NotFoundError("Application not found");
+    if (!application) {
+      throw new ValidationError("You must apply for this job before this stage is available");
     }
-    if (locked[settings.score] !== null) {
+    if (application[settings.score] !== null && application[settings.score] !== undefined) {
       throw new ConflictError(`You have already submitted your ${settings.label} answers`);
     }
-    if ((locked[settings.assigned] ?? []).join(",") !== assignedIds.join(",")) {
+    assertStageReached(application, settings.stage, settings.label);
+    applicationId = application.id;
+    const assignedIds = application[settings.assigned] ?? [];
+    if (assignedIds.length === 0) {
+      throw new ValidationError(`Load your ${settings.label} questions before answering them`);
+    }
+
+    const questions = await manager
+      .getRepository(Question)
+      .createQueryBuilder("q")
+      .whereInIds(assignedIds)
+      .andWhere("q.job_id = :jobId", { jobId })
+      .andWhere("q.type = :type", { type })
+      .getMany();
+    if (
+      questions.length !== assignedIds.length ||
+      questions.some((q) => !q.options?.length || q.correctOption === null)
+    ) {
       throw new ValidationError(
         `Your ${settings.label} questions have changed. Please reload them and answer again.`
       );
     }
+
+    const assigned = new Set(assignedIds);
+    const answeredIds = Object.keys(answers);
+    if (answeredIds.some((id) => !assigned.has(id))) {
+      throw new ValidationError(`Only answer the ${settings.label} questions you were given`);
+    }
+    const missing = assignedIds.filter((id) => !answeredIds.includes(id));
+    if (missing.length > 0) {
+      throw new ValidationError(
+        `Please answer all ${assignedIds.length} ${settings.label} questions (${missing.length} missing)`
+      );
+    }
+
+    const byId = new Map(questions.map((q) => [q.id, q]));
+    const responses = assignedIds.map((id) => {
+      const question = byId.get(id)!;
+      const options = question.options!;
+      const selectedOption = answers[id]!;
+      if (selectedOption >= options.length) {
+        throw new ValidationError(`Pick one of the ${options.length} options for every question`);
+      }
+      const correct = selectedOption === question.correctOption;
+      return {
+        questionId: id,
+        answer: options[selectedOption]!,
+        selectedOption,
+        score: correct ? MAX_ANSWER_SCORE : 0,
+      };
+    });
+    const correctCount = responses.filter((r) => r.score === MAX_ANSWER_SCORE).length;
+    const score = Math.round((100 * correctCount) / responses.length);
+
     await manager.query(`UPDATE "applications" SET "${settings.score}" = $1 WHERE id = $2`, [
       score,
       application.id,
     ]);
     await manager.save(
       Answer,
-      manager.create(Answer, {
-        userId,
-        jobId,
-        questionType: type,
-        responses: ordered.map((g) => ({
-          questionId: g.questionId,
-          answer: answers[g.questionId]!.trim(),
-          score: g.score,
-          feedback: g.feedback,
-        })),
-      })
+      manager.create(Answer, { userId, jobId, questionType: type, responses })
     );
-  });
 
-  return { submitted: true, questionType: type, answered: ordered.length };
+    if (
+      application.currentStage === settings.stage &&
+      application.status === ApplicationStatus.Pending
+    ) {
+      const talent = await manager.findOne(User, { where: { id: userId } });
+      if (talent) {
+        const moved = await processNextStage(talent, application, settings.stage, job.aiConfig);
+        await manager.update(Application, application.id, stageMoveColumns(moved));
+      }
+    }
+
+    return { submitted: true as const, questionType: type, answered: responses.length };
+  });
+  await notifyStageReached(applicationId);
+  return result;
 };

@@ -42,8 +42,17 @@ jest.mock("../src/utils/integrations/openai.js", () => ({
 const mockProblemSolving = AI.generateProblemSolvingQuestions as jest.Mock;
 const mockCultureFit = AI.generateCultureFitQuestions as jest.Mock;
 
+const OPTIONS = ["First choice", "Second choice", "Third choice", "Fourth choice"];
+const withOptions = (item: unknown) =>
+  item && typeof item === "object" && !("options" in item)
+    ? { ...item, options: OPTIONS, correctOption: 2 }
+    : item;
 const aiReply = (questions: unknown) => ({
-  message: { content: JSON.stringify({ questions }) },
+  message: {
+    content: JSON.stringify({
+      questions: Array.isArray(questions) ? questions.map(withOptions) : questions,
+    }),
+  },
 });
 const reasoningQuestions = (n: number, start = 1) =>
   Array.from({ length: n }, (_, i) => ({
@@ -126,6 +135,26 @@ describe("POST /v1/questions/problem-solving", () => {
       "prioritisation",
     ]);
     expect(stored.every((q) => q.criteria && q.jobId === job.id)).toBe(true);
+    for (const q of stored) {
+      expect([...q.options!].sort()).toEqual([...OPTIONS].sort());
+      expect(q.options![q.correctOption!]).toBe("Third choice");
+    }
+  });
+
+  it("drops AI questions that come back without four options", async () => {
+    const { token, job } = await companyWithJob();
+    mockProblemSolving.mockResolvedValueOnce(
+      aiReply([
+        { ...reasoningQuestions(1)[0], options: ["Only", "Three", "Options"], correctOption: 0 },
+        ...reasoningQuestions(1, 2),
+      ])
+    );
+
+    const res = await postProblemSolving(token, { jobId: job.id, count: 2 });
+
+    expect(res.status).toBe(200);
+    const stored = await storedQuestions(job.id, QuestionType.ProblemSolving);
+    expect(stored.map((q) => q.question)).toEqual([reasoningQuestions(1, 2)[0]!.question]);
   });
 
   it("asks the AI for the requested count and sends nothing about the job", async () => {
@@ -292,7 +321,13 @@ describe("POST /v1/questions/problem-solving", () => {
     const repo = testDataSource.getRepository(Question);
     await repo.save(
       Array.from({ length: 30 }, (_, i) =>
-        repo.create({ type: QuestionType.ProblemSolving, jobId: job.id, question: `Existing ${i}` })
+        repo.create({
+          type: QuestionType.ProblemSolving,
+          jobId: job.id,
+          question: `Existing ${i}`,
+          options: OPTIONS,
+          correctOption: 0,
+        })
       )
     );
 
@@ -307,7 +342,13 @@ describe("POST /v1/questions/problem-solving", () => {
     const repo = testDataSource.getRepository(Question);
     await repo.save(
       Array.from({ length: 28 }, (_, i) =>
-        repo.create({ type: QuestionType.ProblemSolving, jobId: job.id, question: `Existing ${i}` })
+        repo.create({
+          type: QuestionType.ProblemSolving,
+          jobId: job.id,
+          question: `Existing ${i}`,
+          options: OPTIONS,
+          correctOption: 0,
+        })
       )
     );
     mockProblemSolving.mockResolvedValueOnce(aiReply(reasoningQuestions(2)));
@@ -645,7 +686,13 @@ describe("generation under concurrency and failure", () => {
     const repo = testDataSource.getRepository(Question);
     await repo.save(
       Array.from({ length: n }, (_, i) =>
-        repo.create({ type: QuestionType.ProblemSolving, jobId, question: `Existing ${i}` })
+        repo.create({
+          type: QuestionType.ProblemSolving,
+          jobId,
+          question: `Existing ${i}`,
+          options: OPTIONS,
+          correctOption: 0,
+        })
       )
     );
   };

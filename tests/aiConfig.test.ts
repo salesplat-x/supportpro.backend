@@ -429,7 +429,44 @@ describe("PATCH /v1/ai-config/:_id — resync untouched applications", () => {
     const updatedApplication = await testDataSource
       .getRepository(Application)
       .findOne({ where: { talentId: talent.id, jobId: job.id } });
-    expect(updatedApplication!.currentStage).toBe(ScreeningStage.Personalized);
+    expect(updatedApplication!.currentStage).toBe(ScreeningStage.Prescreening);
+    expect(updatedApplication!.stages).toEqual({
+      [ScreeningStage.Prescreening]: ScreeningStage.Personalized,
+      [ScreeningStage.Personalized]: ScreeningStage.Completed,
+    });
+  });
+
+  it("Leaves an application alone once its candidate has loaded a problem-solving test", async () => {
+    const { user: recruiter, token: recruiterToken } = await createRecruiter();
+    const { user: talent } = await createTalent();
+    const job = await createJob(recruiter, await createRole(), { status: JobStatus.Active });
+    const config = await createAIConfig(recruiter, {
+      prescreeningAssessment: false,
+      cvSimilarity: false,
+      personalityEvaluation: false,
+      problemSolvingAssessment: true,
+      noOfProblemSolvingQuestions: 2,
+    });
+    await linkConfig(job, config.id);
+    const application = await createApplication(talent, job, {
+      currentStage: ScreeningStage.ProblemSolving,
+      stages: config.stages ?? {},
+    });
+    await testDataSource.query(
+      `UPDATE "applications" SET "problemSolvingQuestions" = 'a,b' WHERE id = $1`,
+      [application.id]
+    );
+
+    const res = await request(app)
+      .patch(`/v1/ai-config/${config.id}`)
+      .set("Authorization", `Bearer ${recruiterToken}`)
+      .send({ personalizedAssessment: true, noPersonalizedQuestions: 2 });
+    expect(res.status).toBe(200);
+
+    const saved = await testDataSource
+      .getRepository(Application)
+      .findOneByOrFail({ id: application.id });
+    expect(saved.currentStage).toBe(ScreeningStage.ProblemSolving);
   });
 
   it("Leaves an application alone if it has a Personality Answer row", async () => {

@@ -57,13 +57,14 @@ export interface StagesResult {
   entryStage: ScreeningStage;
 }
 
-// Fixed pipeline order: Personality -> Personalized -> Prescreening -> CvSimilarity -> Completed,
-// skipping any stage the recruiter didn't enable for this job.
+// Fixed pipeline order, skipping any stage the recruiter didn't enable for this job.
 const STAGE_ORDER: Array<{ flag: keyof AIConfigPayload; stage: ScreeningStage }> = [
-  { flag: "personalityEvaluation", stage: ScreeningStage.Personality },
-  { flag: "personalizedAssessment", stage: ScreeningStage.Personalized },
   { flag: "prescreeningAssessment", stage: ScreeningStage.Prescreening },
   { flag: "cvSimilarity", stage: ScreeningStage.CvSimilarity },
+  { flag: "personalizedAssessment", stage: ScreeningStage.Personalized },
+  { flag: "problemSolvingAssessment", stage: ScreeningStage.ProblemSolving },
+  { flag: "cultureFitAssessment", stage: ScreeningStage.CultureFit },
+  { flag: "personalityEvaluation", stage: ScreeningStage.Personality },
   { flag: "aiInterview", stage: ScreeningStage.AiInterview },
 ];
 
@@ -96,7 +97,12 @@ export const resyncUntouchedApplications = async (
 
   const applications = await manager.find(Application, { where: { jobId: In(jobIds) } });
   const candidates = applications.filter(
-    (app) => app.personalizedScore === null && !app.cvSimilarityAttempts && app.mbtiType === null
+    (app) =>
+      app.personalizedScore === null &&
+      !app.cvSimilarityAttempts &&
+      app.mbtiType === null &&
+      !app.problemSolvingQuestions?.length &&
+      !app.cultureFitQuestions?.length
   );
   if (candidates.length === 0) return;
 
