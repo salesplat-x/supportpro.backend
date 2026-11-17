@@ -8,17 +8,30 @@
   />
 </p>
 {{/if}}
-<h1>{{companyName}} has added you to their team</h1>
-<p>Hi {{firstName}},</p>
+<h1>{{companyName}} added you as staff on Auxhr</h1>
 <p>
-  <strong>{{companyName}}</strong> has added you as <strong>{{jobTitle}}</strong>. Accept to see
-  your contracts, pay and first-week tasks.
+  Hi {{firstName}}, <strong>{{companyName}}</strong> added you as <strong>{{jobTitle}}</strong>.
+  Accept to see your contracts, pay and first-week tasks.
 </p>
-<p>
-  {{inviterName}} sent this invite. Use <strong>{{email}}</strong> to create your Auxhr account or
-  sign in, then complete your profile to join.
-</p>
+<table class="rows" role="presentation" width="100%" cellpadding="0" cellspacing="0">
+  <tr>
+    <td class="label">Role</td>
+    <td class="value">{{jobTitle}}{{#if department}} · {{department}} team{{/if}}</td>
+  </tr>
+  {{#if managerName}}
+  <tr>
+    <td class="label">Your manager</td>
+    <td class="value">{{managerName}}</td>
+  </tr>
+  {{/if}} {{#if startDate}}
+  <tr>
+    <td class="label">Start date</td>
+    <td class="value">{{startDate}}</td>
+  </tr>
+  {{/if}}
+</table>
 <p><a class="button" href="{{inviteLink}}">Accept invite</a></p>
 <p class="signoff muted">
-  This link expires in 7 days. If you were not expecting this invitation, you can ignore this email.
+  {{inviterName}} sent this invite to {{email}}. It works for 7 days, until
+  <strong>{{expiresOn}}</strong>. Not expecting this? You can ignore this email.
 </p>

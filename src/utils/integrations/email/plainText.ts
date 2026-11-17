@@ -34,18 +34,26 @@ export const staffInvitePlainText = (details: {
   inviterName: string;
   companyName: string;
   jobTitle: string;
+  department?: string | null;
+  managerName?: string | null;
+  startDate?: string | null;
+  expiresOn: string;
   email: string;
   inviteLink: string;
 }): string =>
   [
     `Hi ${details.firstName},`,
     "",
-    `${details.companyName} has added you as ${details.jobTitle}. Accept to see your contracts, pay and first-week tasks.`,
+    `${details.companyName} added you as ${details.jobTitle}. Accept to see your contracts, pay and first-week tasks.`,
     "",
-    `${details.inviterName} sent this invite. Use ${details.email} to create your Auxhr account or sign in, then complete your profile to join:`,
+    `Role: ${details.jobTitle}${details.department ? ` · ${details.department} team` : ""}`,
+    ...(details.managerName ? [`Your manager: ${details.managerName}`] : []),
+    ...(details.startDate ? [`Start date: ${details.startDate}`] : []),
+    "",
+    "Accept invite:",
     details.inviteLink,
     "",
-    "This link expires in 7 days. If you were not expecting this invitation, you can ignore this email.",
+    `${details.inviterName} sent this invite to ${details.email}. It works for 7 days, until ${details.expiresOn}. Not expecting this? You can ignore this email.`,
   ].join("\n");
 
 export const documentToSignPlainText = (details: {

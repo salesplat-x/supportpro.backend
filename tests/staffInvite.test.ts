@@ -34,6 +34,8 @@ import { OrganizationStatus } from "../src/types/enums.js";
 import env from "../src/config/env.js";
 import { assertCanManagePeople } from "../src/services/peopleAccess.js";
 import { AuthorizationError } from "../src/utils/errors";
+import { renderTemplate } from "../src/utils/integrations/email/template.js";
+import { staffInvitePlainText } from "../src/utils/integrations/email/plainText.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => {
   const sendStaffInvite = jest.fn().mockResolvedValue(undefined);
@@ -144,6 +146,58 @@ describe("sending invites", () => {
     const row = await staffRow(staff.id);
     expect(row).toMatchObject({ invitedById: hr.user.id, invitedByName: "Hana Resources" });
     expect(row.organizationId).toBe(org.id);
+  });
+
+  it("tells the person their team, manager, start date and the day the invite runs out", async () => {
+    const company = await setupCompany();
+    const manager = await createStaff(app, company.owner.token, company.org.id, {
+      fullName: "Emeka Okafor",
+    });
+    await createStaff(app, company.owner.token, company.org.id, {
+      email: "kelechi@example.com",
+      jobTitle: "Data Analyst",
+      department: "Engineering",
+      managerId: manager.id,
+      startDate: "2026-12-01",
+      sendInvite: true,
+    });
+
+    const sent = emailMocks().sendStaffInvite.mock.calls.at(-1)?.[0] as unknown as Record<
+      string,
+      unknown
+    >;
+    expect(sent).toMatchObject({
+      department: "Engineering",
+      managerName: "Emeka Okafor",
+      startDate: "Tue 1 Dec 2026",
+      expiresOn: expect.stringMatching(/^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2} \d{4}$/),
+    });
+
+    const html = renderTemplate("staff-invite", sent);
+    expect(html).toContain("Data Analyst · Engineering team");
+    expect(html).toContain("Emeka Okafor");
+    expect(html).toContain("Tue 1 Dec 2026");
+    expect(staffInvitePlainText(sent as never)).toContain("Your manager: Emeka Okafor");
+  });
+
+  it("leaves out the manager and team rows when they are empty and escapes typed values", async () => {
+    const html = renderTemplate("staff-invite", {
+      email: "x@example.com",
+      firstName: "X",
+      companyName: "Acme",
+      inviterName: "Hana",
+      jobTitle: "<b>Boss</b>",
+      department: null,
+      managerName: null,
+      startDate: null,
+      expiresOn: "Tue 10 Nov 2026",
+      inviteLink: "https://example.com/join-staff/abc",
+    });
+    expect(html).not.toContain("Your manager");
+    expect(html).not.toContain("Start date");
+    expect(html).not.toContain(" team</td>");
+    expect(html).not.toContain("<b>Boss</b>");
+    expect(html).toContain("&lt;b&gt;Boss&lt;/b&gt;");
   });
 
   it("never exposes the token and stores only its hash", async () => {

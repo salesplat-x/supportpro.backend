@@ -162,6 +162,17 @@ export const notifyInvitedTalent = async (org: Organization, staff: StaffMember)
 };
 
 /** Never throws: a failed email is recorded on the timeline so HR can resend. */
+const inviteDay = (date: Date): string =>
+  new Intl.DateTimeFormat("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  })
+    .format(date)
+    .replace(",", "");
+
 export const sendInviteEmail = async (
   org: Organization,
   staff: StaffMember,
@@ -172,6 +183,12 @@ export const sendInviteEmail = async (
     if (!env.website) {
       throw new Error("FRONTEND_CALLBACK_URL is not configured");
     }
+    const manager = staff.managerId
+      ? await AppDataSource.getRepository(StaffMember).findOne({
+          where: { id: staff.managerId },
+          select: { id: true, fullName: true },
+        })
+      : null;
     await withTimeout(
       new EmailService().sendStaffInvite({
         email: staff.email,
@@ -180,6 +197,10 @@ export const sendInviteEmail = async (
         companyLogoUrl: org.logoUrl,
         inviterName: fullNameOf(actor),
         jobTitle: staff.jobTitle,
+        department: staff.department,
+        managerName: manager?.fullName ?? null,
+        startDate: staff.startDate ? inviteDay(new Date(`${staff.startDate}T00:00:00Z`)) : null,
+        expiresOn: inviteDay(staff.inviteExpiresAt ?? new Date()),
         inviteLink: `${env.website}/join-staff/${token}`,
       }),
       EMAIL_TIMEOUT_MS
