@@ -1,0 +1,8 @@
+{
+  "$schema": "https://github.com/IBM/audit-ci/raw/main/docs/schema.json",
+  "high": true,
+  "allowlist": [
+    // picomatch ReDoS: no patched release exists; in production only TypeORM's own entity and migration globs reach it
+    "GHSA-fc5q-39xc-vjpf"
+  ]
+}
