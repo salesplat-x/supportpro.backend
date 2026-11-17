@@ -141,6 +141,7 @@ export const createStaffValidator = [
   dateOnly(body("startDate"), "Start date"),
   flag("isExecutive", "isExecutive"),
   flag("sendInvite", "sendInvite"),
+  body("applicationId").optional().isUUID().withMessage("Invalid application"),
 ];
 
 export const staffIdValidator = [orgParam, staffParam];
