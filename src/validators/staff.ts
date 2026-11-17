@@ -4,6 +4,7 @@ import { DocumentTemplate } from "../entities/StaffDocument.js";
 import type { CommissionTier } from "../entities/CommissionPlan.js";
 import { EndReason, StaffStatus } from "../entities/StaffMember.js";
 import { Currency } from "../types/enums.js";
+import { passwordRules } from "./shared.js";
 
 const NO_LINE_BREAKS = /^[^\r\n]*$/;
 export const NO_NUL = /^[^\0]*$/;
@@ -202,6 +203,11 @@ export const staffInviteTokenValidator = [
   param("token")
     .matches(/^[a-f0-9]{64}$/)
     .withMessage("This invite link is not valid"),
+];
+
+export const staffInvitePasswordValidator = [
+  ...staffInviteTokenValidator,
+  passwordRules("password"),
 ];
 
 const amount = (field: string, label: string): ValidationChain =>
