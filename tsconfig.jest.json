@@ -4,7 +4,8 @@
     "rootDir": ".",
     "module": "CommonJS",
     "moduleResolution": "node",
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "isolatedModules": true
   },
   "include": ["src/**/*.ts", "tests/**/*.ts"]
 }

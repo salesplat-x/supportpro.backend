@@ -1,5 +1,6 @@
 import "reflect-metadata";
-import { PostgreSqlContainer, StartedPostgreSqlContainer } from "@testcontainers/postgresql";
+import { randomUUID } from "node:crypto";
+import { Client } from "pg";
 import {
   STAMP_STAGE_REACHED_FUNCTION,
   STAMP_STAGE_REACHED_TRIGGER,
@@ -64,8 +65,8 @@ import { SavedJob } from "../../src/entities/SavedJob.js";
 import { AiInterview } from "../../src/entities/AiInterview.js";
 import { AiInterviewQuestion } from "../../src/entities/AiInterviewQuestion.js";
 
-let container: StartedPostgreSqlContainer;
 export let testDataSource: DataSource;
+let databaseName: string | undefined;
 
 const ALL_ENTITIES = [
   User,
@@ -128,32 +129,88 @@ const ALL_ENTITIES = [
   SavedJob,
 ];
 
-export async function startTestDatabase(): Promise<void> {
-  container = await new PostgreSqlContainer("pgvector/pgvector:pg16")
-    .withStartupTimeout(120_000)
-    .start();
+const TEMPLATE_DATABASE = "test_template";
+const TEMPLATE_LOCK = 4_200_042;
 
-  const options: DataSourceOptions = {
-    type: "postgres",
-    host: container.getHost(),
-    port: container.getPort(),
-    username: container.getUsername(),
-    password: container.getPassword(),
-    database: container.getDatabase(),
-    entities: ALL_ENTITIES,
-    synchronize: true,
-    logging: false,
+function connectionOptions() {
+  return {
+    host: process.env.TEST_PG_HOST,
+    port: Number(process.env.TEST_PG_PORT),
+    user: process.env.TEST_PG_USER,
+    password: process.env.TEST_PG_PASSWORD,
   };
+}
 
-  testDataSource = new DataSource(options);
+async function withAdminClient<T>(work: (client: Client) => Promise<T>): Promise<T> {
+  const client = new Client({ ...connectionOptions(), database: "postgres" });
+  await client.connect();
+  try {
+    return await work(client);
+  } finally {
+    await client.end();
+  }
+}
+
+function dataSourceFor(database: string, synchronize: boolean): DataSource {
+  const { host, port, user, password } = connectionOptions();
+  return new DataSource({
+    type: "postgres",
+    host,
+    port,
+    username: user,
+    password,
+    database,
+    entities: ALL_ENTITIES,
+    synchronize,
+    logging: false,
+  } satisfies DataSourceOptions);
+}
+
+async function buildTemplate(): Promise<void> {
+  const template = dataSourceFor(TEMPLATE_DATABASE, false);
+  await template.initialize();
+  try {
+    await template.query("CREATE EXTENSION IF NOT EXISTS vector");
+    await template.synchronize();
+    await template.query(STAMP_STAGE_REACHED_FUNCTION);
+    await template.query(STAMP_STAGE_REACHED_TRIGGER);
+  } finally {
+    await template.destroy();
+  }
+}
+
+async function cloneTemplate(name: string): Promise<void> {
+  await withAdminClient(async (client) => {
+    await client.query("SELECT pg_advisory_lock($1)", [TEMPLATE_LOCK]);
+    try {
+      const { rowCount } = await client.query("SELECT 1 FROM pg_database WHERE datname = $1", [
+        TEMPLATE_DATABASE,
+      ]);
+      if (!rowCount) {
+        await client.query(`CREATE DATABASE "${TEMPLATE_DATABASE}"`);
+        try {
+          await buildTemplate();
+        } catch (error) {
+          await client.query(`DROP DATABASE "${TEMPLATE_DATABASE}" WITH (FORCE)`);
+          throw error;
+        }
+      }
+      await client.query(
+        `CREATE DATABASE "${name}" TEMPLATE "${TEMPLATE_DATABASE}" STRATEGY FILE_COPY`
+      );
+    } finally {
+      await client.query("SELECT pg_advisory_unlock($1)", [TEMPLATE_LOCK]);
+    }
+  });
+}
+
+export async function startTestDatabase(): Promise<void> {
+  databaseName = `test_${randomUUID().replace(/-/g, "")}`;
+  await cloneTemplate(databaseName);
+
+  testDataSource = dataSourceFor(databaseName, false);
   await testDataSource.initialize();
 
-  // Install pgvector extension
-  await testDataSource.query("CREATE EXTENSION IF NOT EXISTS vector;").catch(() => {});
-  await testDataSource.query(STAMP_STAGE_REACHED_FUNCTION);
-  await testDataSource.query(STAMP_STAGE_REACHED_TRIGGER);
-
-  // Override the AppDataSource singleton used by services
   const { AppDataSource } = await import("../../src/database/dataSource.js");
   Object.assign(AppDataSource, testDataSource);
 }
@@ -185,8 +242,10 @@ export async function stopTestDatabase(): Promise<void> {
   if (testDataSource?.isInitialized) {
     await testDataSource.destroy();
   }
-  if (container) {
-    await container.stop();
+  if (databaseName) {
+    const name = databaseName;
+    databaseName = undefined;
+    await withAdminClient((client) => client.query(`DROP DATABASE "${name}" WITH (FORCE)`));
   }
 }
 
