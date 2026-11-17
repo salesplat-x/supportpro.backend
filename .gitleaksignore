@@ -12,3 +12,7 @@ bfcabd7a036a697b999340e92c94e9a08c73e324:tests/setup.ts:stripe-access-token:17
 # Character set for company access codes, not a secret.
 8427749a215458096f0cd4ced9be6ba1a49caca7:src/services/organization.ts:generic-api-key:1081
 45dcd7c4c51e23c48a2e99a9f38dc5b2d30c29be:src/services/organization.ts:generic-api-key:1081
+# Made-up job and application ids in 404 tests, not secrets.
+cbfc978fe641d92e0f8117eb0878863790021a4d:tests/salaryComparison.test.ts:generic-api-key:299
+9b32b31f2b58b7ac1e562a0b4d6ba978fd6a971d:tests/savedJobs.test.ts:generic-api-key:92
+993ab7e28f6af1716cc5bcb222b7b1c343373d69:tests/candidatePipeline.test.ts:generic-api-key:129

@@ -566,7 +566,15 @@ paths:
                             format: date-time
                           candidateStatus:
                             type: string
-                            enum: [interview_to_do, test_to_take, screening, shortlisted, applied, not_proceeding]
+                            enum:
+                              [
+                                interview_to_do,
+                                test_to_take,
+                                screening,
+                                shortlisted,
+                                applied,
+                                not_proceeding,
+                              ]
                           group:
                             type: string
                             enum: [needs_you, in_progress, closed]
@@ -610,7 +618,19 @@ paths:
                           properties:
                             key:
                               type: string
-                              enum: [applied, skills_test, cv_match, tailored, problem_solving, culture_fit, personality, ai_interview, references, company_review]
+                              enum:
+                                [
+                                  applied,
+                                  skills_test,
+                                  cv_match,
+                                  tailored,
+                                  problem_solving,
+                                  culture_fit,
+                                  personality,
+                                  ai_interview,
+                                  references,
+                                  company_review,
+                                ]
                             state:
                               type: string
                               enum: [done, current, upcoming]
@@ -681,7 +701,19 @@ paths:
                         properties:
                           key:
                             type: string
-                            enum: [applied, skills_test, cv_match, tailored, problem_solving, culture_fit, personality, ai_interview, references, company_review]
+                            enum:
+                              [
+                                applied,
+                                skills_test,
+                                cv_match,
+                                tailored,
+                                problem_solving,
+                                culture_fit,
+                                personality,
+                                ai_interview,
+                                references,
+                                company_review,
+                              ]
                           state:
                             type: string
                             enum: [done, current, upcoming]
@@ -2654,7 +2686,15 @@ paths:
                               properties:
                                 key:
                                   type: string
-                                  enum: [skills_test, tailored, problem_solving, culture_fit, personality, ai_interview]
+                                  enum:
+                                    [
+                                      skills_test,
+                                      tailored,
+                                      problem_solving,
+                                      culture_fit,
+                                      personality,
+                                      ai_interview,
+                                    ]
                                 questionCount:
                                   type: integer
                                   nullable: true

@@ -578,4 +578,3 @@ describe("POST /v1/prescreening/submit — sets prescreeningScoredAt", () => {
     expect(isPrescreeningScoreValid(updatedUser!.prescreeningScoredAt)).toBe(true);
   });
 });
-
