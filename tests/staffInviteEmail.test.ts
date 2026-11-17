@@ -18,6 +18,10 @@ const invite = {
   companyLogoUrl: "https://example.com/logo.png",
   inviterName: "Hana Resources",
   jobTitle: "Product Designer",
+  department: "Design",
+  managerName: "Tunde Bakare",
+  startDate: "Tue 1 Dec 2026",
+  expiresOn: "Tue 10 Nov 2026",
   inviteLink: "https://auxhr.com/join-staff/abc123",
 };
 
@@ -29,8 +33,10 @@ describe("EmailService.sendStaffInvite", () => {
 
     expect(sent).toHaveLength(1);
     expect(sent[0]!.to).toBe("ada@example.com");
-    expect(sent[0]!.subject).toBe("Acme Ltd has added you to their team");
-    expect(sent[0]!.html).toContain("Product Designer");
+    expect(sent[0]!.subject).toBe("You've been added to Acme Ltd");
+    expect(sent[0]!.html).toContain("Product Designer · Design team");
+    expect(sent[0]!.html).toContain("Tunde Bakare");
+    expect(sent[0]!.html).toContain("<strong>Tue 10 Nov 2026</strong>");
     expect(sent[0]!.html).toContain("Hana Resources sent this invite");
     expect(sent[0]!.html).toContain('src="https://example.com/logo.png"');
     expect(sent[0]!.html).toContain('href="https://auxhr.com/join-staff/abc123"');

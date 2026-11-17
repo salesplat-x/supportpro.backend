@@ -320,12 +320,16 @@ class EmailService {
     companyLogoUrl?: string | null;
     inviterName: string;
     jobTitle: string;
+    department?: string | null;
+    managerName?: string | null;
+    startDate?: string | null;
+    expiresOn: string;
     inviteLink: string;
   }): Promise<void> {
     const html = renderTemplate("staff-invite", details);
     await this.provider.send({
       to: details.email,
-      subject: `${details.companyName} has added you to their team`,
+      subject: `You've been added to ${details.companyName}`,
       html,
       text: staffInvitePlainText(details),
       tags: [{ name: "category", value: "staff-invite" }],
