@@ -364,7 +364,7 @@ describe("POST /v1/questions/problem-solving", () => {
 describe("POST /v1/questions/culture-fit", () => {
   it("Day 3 proof: creates culture-fit questions from the company's values → 200", async () => {
     const { token, job } = await companyWithJob({
-      companyValues: ["Ownership", "Customer obsession"],
+      companyValues: "We take ownership. Customers first, always.",
     });
     mockCultureFit.mockResolvedValueOnce(
       aiReply([
@@ -386,12 +386,12 @@ describe("POST /v1/questions/culture-fit", () => {
     expect(res.status).toBe(200);
     expect(dataOf(res).basedOnCompanyValues).toBe(true);
     const stored = await storedQuestions(job.id, QuestionType.CultureFit);
-    expect(stored.map((q) => q.category).sort()).toEqual(["Customer obsession", "Ownership"]);
+    expect(stored.map((q) => q.category).sort()).toEqual(["Customer obsession", "ownership"]);
     expect(stored.every((q) => q.criteria)).toBe(true);
   });
 
   it("sends the company's values, name and job brief to the AI", async () => {
-    const { token, job } = await companyWithJob({ companyValues: ["Ownership"] });
+    const { token, job } = await companyWithJob({ companyValues: "We take ownership." });
     mockCultureFit.mockResolvedValueOnce(
       aiReply([{ question: "Tell me about a time you owned a mistake.", category: "Ownership" }])
     );
@@ -400,7 +400,7 @@ describe("POST /v1/questions/culture-fit", () => {
 
     expect(mockCultureFit).toHaveBeenCalledWith({
       count: 1,
-      companyValues: ["Ownership"],
+      companyValues: "We take ownership.",
       companyName: "Acme Ltd",
       jobBrief: "Customer support lead for a fast-growing fintech.",
       avoid: [],
@@ -422,13 +422,13 @@ describe("POST /v1/questions/culture-fit", () => {
 
     expect(res.status).toBe(200);
     expect(dataOf(res).basedOnCompanyValues).toBe(false);
-    expect(mockCultureFit).toHaveBeenCalledWith(expect.objectContaining({ companyValues: [] }));
+    expect(mockCultureFit).toHaveBeenCalledWith(expect.objectContaining({ companyValues: "" }));
     const stored = await storedQuestions(job.id, QuestionType.CultureFit);
     expect(stored[0]!.category).toBe("collaboration");
   });
 
   it("a recruiter from another company cannot generate → 403", async () => {
-    const { job } = await companyWithJob({ companyValues: ["Ownership"] });
+    const { job } = await companyWithJob({ companyValues: "We take ownership." });
     const { user: outsider, token: outsiderToken } = await createRecruiter();
     await createOrganization(outsider);
 
@@ -448,7 +448,7 @@ describe("POST /v1/questions/culture-fit", () => {
   });
 
   it("returns 502 when the AI reply is unusable twice, saving nothing", async () => {
-    const { token, job } = await companyWithJob({ companyValues: ["Ownership"] });
+    const { token, job } = await companyWithJob({ companyValues: "We take ownership." });
     mockCultureFit.mockResolvedValue({ message: { content: null } });
 
     const res = await postCultureFit(token, { jobId: job.id, count: 2 });

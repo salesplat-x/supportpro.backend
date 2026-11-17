@@ -918,7 +918,7 @@ export const generateProblemSolvingQuestions = async (
 
 export interface CultureFitQuestionsContext {
   count: number;
-  companyValues: string[];
+  companyValues: string;
   companyName?: string | null;
   jobBrief?: string | null;
   avoid?: string[];
@@ -928,7 +928,7 @@ export const generateCultureFitQuestions = async (
   context: CultureFitQuestionsContext
 ): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
   const { count, companyValues, companyName, jobBrief, avoid = [] } = context;
-  const hasValues = companyValues.length > 0;
+  const hasValues = companyValues.trim().length > 0;
 
   const job = "culture_fit_questions";
   const values = {
@@ -940,9 +940,7 @@ export const generateCultureFitQuestions = async (
           categories: CULTURE_FIT_GENERAL_CATEGORIES.join(", "),
         }),
     companyName: companyName?.trim() || "Not provided",
-    values: hasValues
-      ? companyValues.map((value) => `- ${value}`).join("\n")
-      : await renderPrompt(job, "no_values"),
+    values: hasValues ? companyValues.trim() : await renderPrompt(job, "no_values"),
     jobBrief: jobBrief?.trim().slice(0, MAX_CULTURE_FIT_JOB_BRIEF_CHARS) || "Not provided",
     optionCount: ASSESSMENT_OPTION_COUNT,
     avoidText: avoid.length

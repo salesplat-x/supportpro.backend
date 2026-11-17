@@ -45,7 +45,6 @@ import { createNotification } from "./notification.js";
 import { purgeOrganizationCascade } from "./cascadeDelete.js";
 import { disablePaystackSubscriptions } from "./payment.js";
 import logger from "../utils/logger.js";
-import { normalizeCompanyValues } from "../config/assessmentQuestions.js";
 import { deleteEvidenceQuietly, evidenceKeysFor } from "./completionRequests.js";
 
 const orgRepo = () => AppDataSource.getRepository(Organization);
@@ -200,7 +199,10 @@ export interface UpdateOrganizationPayload {
   facebook?: string | null;
   linkedin?: string | null;
   twitter?: string | null;
-  companyValues?: string[];
+  companyValues?: string | null;
+  size?: string | null;
+  about?: string | null;
+  foundedYear?: number | null;
 }
 
 export interface OrganizationMemberUserView {
@@ -433,7 +435,7 @@ export const createOrganization = async (
 
   await userRepo().update({ id: ownerId }, { activeOrganizationId: saved.id });
 
-  return saved;
+  return orgRepo().findOneByOrFail({ id: saved.id });
 };
 
 export const listMyOrganizations = async (userId: string): Promise<Organization[]> => {
@@ -712,7 +714,19 @@ export const updateOrganization = async (
 ): Promise<Organization> => {
   const org = await assertOwnership(ownerId, organizationId);
 
-  const { name, phone, address, industry, twitter, linkedin, facebook, companyValues } = payload;
+  const {
+    name,
+    phone,
+    address,
+    industry,
+    twitter,
+    linkedin,
+    facebook,
+    companyValues,
+    size,
+    about,
+    foundedYear,
+  } = payload;
   const updates = Object.fromEntries(
     Object.entries({
       name,
@@ -723,15 +737,18 @@ export const updateOrganization = async (
       linkedin,
       facebook,
       companyValues,
+      size,
+      about,
+      foundedYear,
     }).filter(([, value]) => value !== undefined)
-  ) as UpdateOrganizationPayload;
+  ) as UpdateOrganizationPayload & { legacyCompanyValues?: string[] };
 
   if (Object.keys(updates).length === 0) {
     return org;
   }
 
-  if (updates.companyValues) {
-    updates.companyValues = normalizeCompanyValues(updates.companyValues);
+  if (updates.companyValues !== undefined) {
+    updates.legacyCompanyValues = updates.companyValues ? [updates.companyValues] : [];
   }
 
   if (updates.phone) {
@@ -741,7 +758,8 @@ export const updateOrganization = async (
     }
   }
 
-  return orgRepo().save({ ...org, ...updates });
+  await orgRepo().update(org.id, updates);
+  return orgRepo().findOneByOrFail({ id: org.id });
 };
 
 export const deleteOrganization = async (

@@ -927,10 +927,10 @@ jobs:
           ]
         }
     - key: rules_with_values
-      label: Rules when the company has listed its values
+      label: Rules when the company has described its values
       text: |-
-        - Each question tests one of the company values listed by the user. Spread the questions across the values where the count allows.
-        - Each question's category must be exactly one of the company values, spelled as listed.
+        - Each question tests one of the values in the company's description of how its team works. Spread the questions across those values where the count allows.
+        - Each question's category is a short name (one to four words) for the value it tests, taken from the description.
     - key: rules_without_values
       label: Rules when the company has no values listed
       variables:

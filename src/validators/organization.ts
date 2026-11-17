@@ -1,7 +1,22 @@
 import { body, param } from "express-validator";
 import { idParam, phoneRule } from "./shared.js";
 import { isValidLinkedinUrl } from "../utils/emailDomain.js";
-import { MAX_COMPANY_VALUES, MAX_COMPANY_VALUE_LENGTH } from "../config/assessmentQuestions.js";
+
+export const COMPANY_SIZES = ["1–10", "11–50", "51–200", "201–500", "500+"];
+export const MAX_COMPANY_VALUES_LENGTH = 1000;
+export const MAX_COMPANY_ABOUT_LENGTH = 2000;
+export const MIN_FOUNDED_YEAR = 1800;
+
+const optionalText = (field: string, max: number) =>
+  body(field)
+    .optional({ values: "null" })
+    .isString()
+    .withMessage(`${field} must be text`)
+    .bail()
+    .trim()
+    .isLength({ max })
+    .withMessage(`${field} must be at most ${max} characters`)
+    .customSanitizer((value: string) => value || null);
 
 export const switchOrganizationValidator = [idParam("_id")];
 
@@ -20,17 +35,21 @@ export const updateOrganizationValidator = [
   body("twitter").optional().isString(),
   body("linkedin").optional().isString(),
   body("facebook").optional().isString(),
-  body("companyValues")
-    .optional()
-    .isArray({ max: MAX_COMPANY_VALUES })
-    .withMessage(`companyValues must be a list of at most ${MAX_COMPANY_VALUES} values`),
-  body("companyValues.*")
-    .isString()
-    .withMessage("Each company value must be text")
-    .bail()
-    .trim()
-    .isLength({ min: 1, max: MAX_COMPANY_VALUE_LENGTH })
-    .withMessage(`Each company value must be 1-${MAX_COMPANY_VALUE_LENGTH} characters`),
+  optionalText("companyValues", MAX_COMPANY_VALUES_LENGTH),
+  optionalText("about", MAX_COMPANY_ABOUT_LENGTH),
+  body("size")
+    .optional({ values: "null" })
+    .isIn(COMPANY_SIZES)
+    .withMessage(`size must be one of ${COMPANY_SIZES.join(", ")}`),
+  body("foundedYear")
+    .optional({ values: "null" })
+    .custom((value) => {
+      const latest = new Date().getUTCFullYear();
+      if (!Number.isInteger(value) || value < MIN_FOUNDED_YEAR || value > latest) {
+        throw new Error(`foundedYear must be a whole year from ${MIN_FOUNDED_YEAR} to ${latest}`);
+      }
+      return true;
+    }),
 ];
 
 export const setMemberCanManagePeopleValidator = [
