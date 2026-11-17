@@ -52,7 +52,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "type-check": "tsc --noEmit && tsc --noEmit -p tsconfig.jest.json",
-    "test": "jest"
+    "test": "jest",
+    "ci": "npm run format:check && npm run lint && npm run type-check && npm run build && npm run migration:check && docker run --rm -v \"$PWD:/repo\" ghcr.io/gitleaks/gitleaks:v8.24.3 git /repo --no-banner --redact --gitleaks-ignore-path /repo/.gitleaksignore && jest --maxWorkers=4"
   },
   "keywords": [],
   "author": "ojokukufolahanmi@gmail.com",
