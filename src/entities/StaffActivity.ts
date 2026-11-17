@@ -20,6 +20,7 @@ export enum StaffActivityType {
   Joined = "joined",
   Updated = "updated",
   Ended = "ended",
+  EndScheduled = "end_scheduled",
   PaySet = "pay_set",
   ShareGrantAdded = "share_grant_added",
   ShareGrantRemoved = "share_grant_removed",

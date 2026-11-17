@@ -1,6 +1,6 @@
 import { EntityManager, In } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
-import { StaffMember, StaffStatus } from "../entities/StaffMember.js";
+import { EndReason, StaffMember, StaffStatus } from "../entities/StaffMember.js";
 import type { User } from "../entities/User.js";
 import { NotFoundError } from "../utils/errors";
 
@@ -18,6 +18,8 @@ export interface StaffView {
   managerName: string | null;
   startDate: string;
   endDate: string | null;
+  endingOn: string | null;
+  endReason: EndReason | null;
   status: StaffStatus;
   hiredThroughAuxhr: boolean;
   isExecutive: boolean;
@@ -61,6 +63,8 @@ export const toStaffView = (staff: StaffMember, managerNames: Map<string, string
   managerName: staff.managerId ? (managerNames.get(staff.managerId) ?? null) : null,
   startDate: staff.startDate,
   endDate: staff.endDate,
+  endingOn: staff.endingOn,
+  endReason: staff.endReason,
   status: staff.status,
   hiredThroughAuxhr: staff.hiredThroughAuxhr,
   isExecutive: staff.isExecutive,

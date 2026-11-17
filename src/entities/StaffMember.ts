@@ -19,6 +19,16 @@ export enum StaffStatus {
   Ended = "ended",
 }
 
+export enum EndReason {
+  Resigned = "resigned",
+  Dismissed = "dismissed",
+  ContractEnded = "contract_ended",
+  Redundancy = "redundancy",
+  Retired = "retired",
+  MutualAgreement = "mutual_agreement",
+  Other = "other",
+}
+
 @Entity("staff_members")
 @Check(
   "CHK_staff_members_end_date_matches_status",
@@ -85,6 +95,13 @@ export class StaffMember {
 
   @Column({ type: "varchar", length: 16, default: StaffStatus.Active })
   status!: StaffStatus;
+
+  /** A last working day still ahead; the person stays active until the day has passed. */
+  @Column({ type: "date", name: "ending_on", nullable: true })
+  endingOn!: string | null;
+
+  @Column({ type: "varchar", length: 32, name: "end_reason", nullable: true })
+  endReason!: EndReason | null;
 
   @Column({ type: "boolean", name: "hired_through_auxhr", default: false })
   hiredThroughAuxhr!: boolean;

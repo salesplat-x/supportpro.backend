@@ -559,7 +559,7 @@ describe("ending staff", () => {
     expect([again.status, edit.status]).toEqual([409, 409]);
   });
 
-  it("accepts a past end date and refuses one before the start or in the future", async () => {
+  it("accepts a past end date and refuses one before the start or over a year away", async () => {
     const { owner, org } = await setupCompany();
     const end = (id: string, endDate: string) =>
       request(app)
@@ -569,11 +569,11 @@ describe("ending staff", () => {
     const a = await createStaff(app, owner.token, org.id, { startDate: "2026-01-05" });
     const b = await createStaff(app, owner.token, org.id, { startDate: "2026-01-05" });
     const c = await createStaff(app, owner.token, org.id, { startDate: "2026-01-05" });
-    const future = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+    const tooFar = new Date(Date.now() + 367 * 86_400_000).toISOString().slice(0, 10);
 
     expect((await end(a.id, "2026-03-01")).status).toBe(200);
     expect((await end(b.id, "2026-01-04")).status).toBe(400);
-    expect((await end(c.id, future)).status).toBe(400);
+    expect((await end(c.id, tooFar)).status).toBe(400);
     expect((await end(c.id, "2026-13-01")).status).toBe(400);
   });
 });
