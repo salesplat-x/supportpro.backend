@@ -48,8 +48,17 @@ export const options = async (req: Request, res: Response) => {
 };
 
 export const create = async (req: Request, res: Response) => {
-  const { fullName, email, jobTitle, department, managerId, startDate, isExecutive, sendInvite } =
-    req.body;
+  const {
+    fullName,
+    email,
+    jobTitle,
+    department,
+    managerId,
+    startDate,
+    isExecutive,
+    sendInvite,
+    applicationId,
+  } = req.body;
   const result = await staffService.createStaff(req.user, orgId(req), {
     fullName,
     email,
@@ -59,6 +68,7 @@ export const create = async (req: Request, res: Response) => {
     startDate,
     isExecutive,
     sendInvite,
+    applicationId,
   });
   sendSuccessResponse(res, "Staff member added", result, 201);
 };

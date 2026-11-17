@@ -1,11 +1,13 @@
 import { EntityManager, Not } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
+import { Application } from "../entities/Application.js";
 import { StaffAccessResource } from "../entities/StaffAccessLog.js";
 import { StaffActivityType } from "../entities/StaffActivity.js";
 import { StaffHrAssignment } from "../entities/StaffHrAssignment.js";
 import { StaffMember, StaffStatus } from "../entities/StaffMember.js";
 import type { User } from "../entities/User.js";
-import { ConflictError, ValidationError } from "../utils/errors";
+import { ConflictError, NotFoundError, ValidationError } from "../utils/errors";
+import { ApplicationStatus } from "../types/enums.js";
 import { copyDefaultChecklist } from "./checklist.js";
 import { withdrawPendingForStaff } from "./completionRequests.js";
 import { assertCanManagePeople, seesOnlyAssignedStaff } from "./peopleAccess.js";
@@ -38,6 +40,7 @@ export interface CreateStaffInput {
   startDate: string;
   isExecutive?: boolean;
   sendInvite?: boolean;
+  applicationId?: string;
 }
 
 export interface UpdateStaffInput {
@@ -116,13 +119,32 @@ const assertValidManager = async (
   }
 };
 
+const shortlistedHire = async (organizationId: string, applicationId: string) => {
+  const application = await AppDataSource.getRepository(Application).findOne({
+    where: { id: applicationId },
+    relations: { job: true, talent: true },
+  });
+  if (!application || application.job?.organizationId !== organizationId) {
+    throw new NotFoundError("Application not found");
+  }
+  if (application.status !== ApplicationStatus.Shortlisted) {
+    throw new ConflictError("Only shortlisted applicants can be added as employees");
+  }
+  const fullName = `${application.talent.firstName} ${application.talent.lastName}`.trim();
+  return { applicationId: application.id, fullName, email: application.talent.email };
+};
+
 export const createStaff = async (
   actor: User,
   organizationId: string,
   input: CreateStaffInput
 ): Promise<{ staff: StaffView; inviteEmailSent: boolean | null }> => {
   const org = await assertCanManagePeople(actor.id, organizationId);
-  const email = input.email.toLowerCase().trim();
+  const hire = input.applicationId
+    ? await shortlistedHire(organizationId, input.applicationId)
+    : null;
+  const fullName = hire?.fullName ?? input.fullName;
+  const email = (hire?.email ?? input.email).toLowerCase().trim();
   const sendInvite = input.sendInvite === true;
   if (sendInvite) {
     await assertCanInvite(org, email);
@@ -138,7 +160,7 @@ export const createStaff = async (
       const repo = em.getRepository(StaffMember);
       const record = repo.create({
         organizationId,
-        fullName: input.fullName,
+        fullName,
         email,
         jobTitle: input.jobTitle,
         department: input.department?.trim() || null,
@@ -146,7 +168,8 @@ export const createStaff = async (
         startDate: input.startDate,
         isExecutive: input.isExecutive ?? false,
         status: sendInvite ? StaffStatus.Invited : StaffStatus.Active,
-        hiredThroughAuxhr: false,
+        hiredThroughAuxhr: hire !== null,
+        sourceApplicationId: hire?.applicationId ?? null,
         createdById: actor.id,
       });
       if (sendInvite) {
@@ -162,7 +185,11 @@ export const createStaff = async (
     });
   } catch (err) {
     if (isUniqueViolation(err)) {
-      throw new ConflictError("Someone with this email is already on your staff");
+      throw new ConflictError(
+        hire
+          ? "This applicant is already on your staff"
+          : "Someone with this email is already on your staff"
+      );
     }
     throw err;
   }
@@ -176,7 +203,12 @@ export const listStaff = async (
   userId: string,
   organizationId: string,
   query: ListStaffQuery
-): Promise<{ items: StaffView[]; total: number; counts: Record<StaffStatus, number> }> => {
+): Promise<{
+  items: StaffView[];
+  total: number;
+  counts: Record<StaffStatus, number>;
+  hiredThroughAuxhr: number;
+}> => {
   const assignedOnly = await seesOnlyAssignedStaff(userId, organizationId);
   const repo = AppDataSource.getRepository(StaffMember);
 
@@ -229,8 +261,15 @@ export const listStaff = async (
     counts[row.status] = Number(row.count);
   }
 
+  const hiredThroughAuxhr = await scoped().andWhere("staff.hiredThroughAuxhr = true").getCount();
+
   const managerNames = await loadManagerNames(rows);
-  return { items: rows.map((row) => toStaffView(row, managerNames)), total, counts };
+  return {
+    items: rows.map((row) => toStaffView(row, managerNames)),
+    total,
+    counts,
+    hiredThroughAuxhr,
+  };
 };
 
 /** Light list for pickers: the manager dropdown (current staff) and the access-log filter (everyone). */

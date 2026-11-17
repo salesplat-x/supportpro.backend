@@ -11,6 +11,7 @@ import {
 } from "typeorm";
 import type { User } from "./User.js";
 import type { Organization } from "./Organization.js";
+import type { Application } from "./Application.js";
 
 export enum StaffStatus {
   Invited = "invited",
@@ -36,6 +37,7 @@ export enum StaffStatus {
   where: `"end_date" IS NULL`,
 })
 @Index("UQ_staff_members_invite_token_hash", ["inviteTokenHash"], { unique: true })
+@Index("UQ_staff_members_source_application", ["sourceApplicationId"], { unique: true })
 @Index("IDX_staff_members_org_status", ["organizationId", "status"])
 @Index("IDX_staff_members_manager", ["managerId"])
 export class StaffMember {
@@ -86,6 +88,17 @@ export class StaffMember {
 
   @Column({ type: "boolean", name: "hired_through_auxhr", default: false })
   hiredThroughAuxhr!: boolean;
+
+  /** The shortlisted application this person was hired from; one application gives at most one staff record. */
+  @Column({ type: "uuid", name: "source_application_id", nullable: true })
+  sourceApplicationId!: string | null;
+
+  @ManyToOne("Application", { eager: false, onDelete: "SET NULL", nullable: true })
+  @JoinColumn({
+    name: "source_application_id",
+    foreignKeyConstraintName: "FK_staff_members_source_application",
+  })
+  sourceApplication!: Application | null;
 
   @Column({ type: "boolean", name: "is_executive", default: false })
   isExecutive!: boolean;
