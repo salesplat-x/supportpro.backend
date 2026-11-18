@@ -67,6 +67,10 @@ export class PayPackage {
   })
   commissionTarget!: number;
 
+  /** False on rows saved before bonus and target were always yearly; see yearlyExtras. */
+  @Column({ type: "boolean", name: "extras_yearly", default: false })
+  extrasYearly!: boolean;
+
   @Column({ type: "date", name: "starts_on" })
   startsOn!: string;
 

@@ -13,8 +13,8 @@ const packageInput = (req: Request): payService.PayPackageInput => {
     currency,
     period,
     baseSalary,
-    bonus,
-    commissionTarget,
+    bonusPerYear,
+    commissionTargetPerYear,
     startsOn,
     benefitIds,
     commissionPlanId,
@@ -23,8 +23,8 @@ const packageInput = (req: Request): payService.PayPackageInput => {
     currency,
     period,
     baseSalary,
-    bonus: bonus ?? 0,
-    commissionTarget: commissionTarget ?? 0,
+    bonus: bonusPerYear,
+    commissionTarget: commissionTargetPerYear,
     startsOn,
     benefitIds: benefitIds ?? [],
     commissionPlanId: commissionPlanId ?? null,
@@ -39,11 +39,6 @@ export const getPay = async (req: Request, res: Response) => {
 export const setPay = async (req: Request, res: Response) => {
   const pay = await payService.setPayPackage(req.user, orgId(req), staffId(req), packageInput(req));
   sendSuccessResponse(res, "Pay saved", pay);
-};
-
-export const previewParagraph = async (req: Request, res: Response) => {
-  const paragraph = await payService.previewPayParagraph(req.user, orgId(req), packageInput(req));
-  sendSuccessResponse(res, "Pay paragraph ready", { paragraph });
 };
 
 export const addShareGrant = async (req: Request, res: Response) => {

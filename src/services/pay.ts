@@ -13,6 +13,7 @@ import { assertOwner } from "./peopleAccess.js";
 import { activityEntry, logStaffAccess, openStaff, recordActivities } from "./staffAudit.js";
 import { findStaff, isUniqueViolation } from "./staffRecord.js";
 
+/** Salary follows the period; bonus and commission target are always yearly. */
 export interface PayTerms {
   currency: string;
   period: PayPeriod;
@@ -43,6 +44,7 @@ export interface ShareGrantInput {
 
 export interface PayPackageView extends PayTerms {
   id: string;
+  totalYearly: number;
   commissionPlanId: string | null;
   benefits: { id: string; name: string }[];
   paragraph: string;
@@ -77,15 +79,32 @@ export const longDate = (dateOnly: string): string =>
     timeZone: "UTC",
   });
 
+const periodFactor = (period: PayPeriod): number => (period === PayPeriod.Monthly ? 12 : 1);
+
+const roundMoney = (amount: number): number => Math.round(amount * 100) / 100;
+
+/** Older monthly rows stored bonus and target per month; reads always see yearly amounts. */
+export const yearlyExtras = (
+  pkg: Pick<PayPackage, "period" | "bonus" | "commissionTarget" | "extrasYearly">
+): { bonus: number; commissionTarget: number } => {
+  const factor = pkg.extrasYearly ? 1 : periodFactor(pkg.period);
+  return {
+    bonus: roundMoney(pkg.bonus * factor),
+    commissionTarget: roundMoney(pkg.commissionTarget * factor),
+  };
+};
+
 export const payParagraph = (terms: PayTerms, benefitNames: string[]): string => {
   const per = PERIOD_WORDS[terms.period];
   const sentences = [`Your base salary is ${money(terms.currency, terms.baseSalary)} ${per}.`];
   if (terms.bonus > 0) {
-    sentences.push(`You are eligible for a bonus of ${money(terms.currency, terms.bonus)} ${per}.`);
+    sentences.push(
+      `You are eligible for a bonus of ${money(terms.currency, terms.bonus)} per year.`
+    );
   }
   if (terms.commissionTarget > 0) {
     sentences.push(
-      `Your commission target is ${money(terms.currency, terms.commissionTarget)} ${per}.`
+      `Your commission target is ${money(terms.currency, terms.commissionTarget)} per year.`
     );
   }
   sentences.push(`This package starts on ${longDate(terms.startsOn)}.`);
@@ -108,18 +127,23 @@ const toPackageView = (pkg: PayPackage): PayPackageView => {
   const benefits = [...pkg.benefits]
     .sort((a, b) => a.name.localeCompare(b.name))
     .map(({ id, name }) => ({ id, name }));
-  return {
-    id: pkg.id,
-    commissionPlanId: pkg.commissionPlanId,
+  const terms: PayTerms = {
     currency: pkg.currency,
     period: pkg.period,
     baseSalary: pkg.baseSalary,
-    bonus: pkg.bonus,
-    commissionTarget: pkg.commissionTarget,
+    ...yearlyExtras(pkg),
     startsOn: pkg.startsOn,
+  };
+  return {
+    id: pkg.id,
+    commissionPlanId: pkg.commissionPlanId,
+    ...terms,
+    totalYearly: roundMoney(
+      terms.baseSalary * periodFactor(terms.period) + terms.bonus + terms.commissionTarget
+    ),
     benefits,
     paragraph: payParagraph(
-      pkg,
+      terms,
       benefits.map((benefit) => benefit.name)
     ),
     createdAt: pkg.createdAt,
@@ -175,19 +199,6 @@ export const getPay = async (
   return loadPay(staffId);
 };
 
-export const previewPayParagraph = async (
-  actor: User,
-  organizationId: string,
-  input: PayPackageInput
-): Promise<string> => {
-  await assertOwner(actor.id, organizationId);
-  const benefits = await loadBenefits(AppDataSource.manager, organizationId, input.benefitIds);
-  return payParagraph(
-    input,
-    benefits.map((benefit) => benefit.name).sort((a, b) => a.localeCompare(b))
-  );
-};
-
 export const setPayPackage = async (
   actor: User,
   organizationId: string,
@@ -217,6 +228,7 @@ export const setPayPackage = async (
       baseSalary: input.baseSalary,
       bonus: input.bonus,
       commissionTarget: input.commissionTarget,
+      extrasYearly: true,
       commissionPlanId: input.commissionPlanId,
       benefits,
     });
@@ -394,11 +406,15 @@ export const getHeadcountCost = async (
          SELECT DISTINCT ON (p.staff_id)
            p.currency, s.department,
            p.base_salary * m.factor AS base_salary,
-           p.bonus * m.factor AS bonus,
-           p.commission_target * m.factor AS commission_target
+           p.bonus * m.extras_factor AS bonus,
+           p.commission_target * m.extras_factor AS commission_target
          FROM pay_packages p
          JOIN staff_members s ON s.id = p.staff_id
-         CROSS JOIN LATERAL (SELECT CASE p.period WHEN 'monthly' THEN 12 ELSE 1 END AS factor) m
+         CROSS JOIN LATERAL (
+           SELECT CASE p.period WHEN 'monthly' THEN 12 ELSE 1 END AS factor,
+             CASE WHEN p.period = 'monthly' AND NOT p.extras_yearly THEN 12 ELSE 1 END
+               AS extras_factor
+         ) m
          WHERE s.organization_id = $1 AND s.status <> 'ended' AND p.starts_on <= $2
          ORDER BY p.staff_id, p.starts_on DESC
        )

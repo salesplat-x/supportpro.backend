@@ -6,7 +6,7 @@ import {
   clearAllTables,
   testDataSource,
 } from "./helpers/db.js";
-import { PayPeriod, StaffAccessLog } from "../src/entities";
+import { PayPackage, PayPeriod, StaffAccessLog } from "../src/entities";
 import { payParagraph } from "../src/services/pay.js";
 import { apiData } from "./helpers/http.js";
 import { addMember, authHeader, setupCompany } from "./helpers/company.js";
@@ -42,6 +42,9 @@ interface PayView {
     id: string;
     startsOn: string;
     baseSalary: number;
+    bonus: number;
+    commissionTarget: number;
+    totalYearly: number;
     paragraph: string;
     benefits: { name: string }[];
   }[];
@@ -52,8 +55,8 @@ const packageBody = (overrides: Record<string, unknown> = {}) => ({
   currency: "NGN",
   period: "monthly",
   baseSalary: 400000,
-  bonus: 0,
-  commissionTarget: 0,
+  bonusPerYear: 0,
+  commissionTargetPerYear: 0,
   startsOn: "2026-01-05",
   benefitIds: [],
   ...overrides,
@@ -96,7 +99,7 @@ describe("pay paragraph", () => {
         ["Health cover", "Transport"]
       )
     ).toBe(
-      "Your base salary is NGN 400,000 per month. You are eligible for a bonus of NGN 50,000 per month. This package starts on 1 March 2027. You also receive: Health cover, Transport."
+      "Your base salary is NGN 400,000 per month. You are eligible for a bonus of NGN 50,000 per year. This package starts on 1 March 2027. You also receive: Health cover, Transport."
     );
   });
 
@@ -132,8 +135,82 @@ describe("pay paragraph", () => {
         []
       )
     ).toBe(
-      "Your base salary is USD 3,000 per month. Your commission target is USD 10,000 per month. This package starts on 1 February 2026."
+      "Your base salary is USD 3,000 per month. Your commission target is USD 10,000 per year. This package starts on 1 February 2026."
     );
+  });
+});
+
+describe("bonus and commission target are yearly", () => {
+  it("stores yearly amounts and totals a year of pay", async () => {
+    const { owner, org, staff } = await companyWithStaff();
+    const res = await putPay(
+      owner.token,
+      org.id,
+      staff.id,
+      packageBody({ baseSalary: 350000, bonusPerYear: 600000, commissionTargetPerYear: 600000 })
+    );
+    expect(res.status).toBe(200);
+    const pkg = apiData<PayView>(res).packages[0]!;
+    expect(pkg).toMatchObject({ bonus: 600000, commissionTarget: 600000, totalYearly: 5400000 });
+    expect(pkg.paragraph).toContain("a bonus of NGN 600,000 per year");
+
+    const row = await testDataSource.getRepository(PayPackage).findOneByOrFail({ id: pkg.id });
+    expect(row).toMatchObject({ bonus: 600000, extrasYearly: true });
+  });
+
+  it("reads a package saved before the change as twelve months of bonus and target", async () => {
+    const { owner, org, staff } = await companyWithStaff();
+    const saved = apiData<PayView>(
+      await putPay(owner.token, org.id, staff.id, packageBody({ baseSalary: 300000 }))
+    ).packages[0]!;
+    await testDataSource
+      .getRepository(PayPackage)
+      .update(saved.id, { bonus: 50000, commissionTarget: 10000.5, extrasYearly: false });
+
+    const pkg = apiData<PayView>(await getPay(owner.token, org.id, staff.id)).packages[0]!;
+    expect(pkg).toMatchObject({ bonus: 600000, commissionTarget: 120006, totalYearly: 4320006 });
+
+    const yearly = apiData<PayView>(
+      await putPay(
+        owner.token,
+        org.id,
+        staff.id,
+        packageBody({ baseSalary: 300000, bonusPerYear: 600000 })
+      )
+    ).packages;
+    expect(yearly).toHaveLength(1);
+    const row = await testDataSource.getRepository(PayPackage).findOneByOrFail({ id: saved.id });
+    expect(row).toMatchObject({ bonus: 600000, commissionTarget: 0, extrasYearly: true });
+  });
+
+  it("does not multiply an old yearly package", async () => {
+    const { owner, org, staff } = await companyWithStaff();
+    const saved = apiData<PayView>(
+      await putPay(owner.token, org.id, staff.id, packageBody({ period: "yearly", baseSalary: 1 }))
+    ).packages[0]!;
+    await testDataSource
+      .getRepository(PayPackage)
+      .update(saved.id, { bonus: 50000, extrasYearly: false });
+    const pkg = apiData<PayView>(await getPay(owner.token, org.id, staff.id)).packages[0]!;
+    expect(pkg.bonus).toBe(50000);
+  });
+
+  it("refuses a save that sends the old field names or leaves the yearly amounts out", async () => {
+    const { owner, org, staff } = await companyWithStaff();
+    const { bonusPerYear: _b, commissionTargetPerYear: _c, ...old } = packageBody();
+    expect(
+      (
+        await putPay(owner.token, org.id, staff.id, {
+          ...old,
+          bonus: 1,
+          commissionTarget: 1,
+        } as never)
+      ).status
+    ).toBe(400);
+    expect(
+      (await putPay(owner.token, org.id, staff.id, packageBody({ bonusPerYear: -1 }))).status
+    ).toBe(400);
+    expect(apiData<PayView>(await getPay(owner.token, org.id, staff.id)).packages).toHaveLength(0);
   });
 });
 
