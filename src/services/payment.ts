@@ -425,10 +425,96 @@ export const verify = async (
 
   if (status === "failed" || status === "abandoned") {
     await markFailed(payment, "Payment failed");
-    throw new ValidationError("Payment failed");
+    const jobId = paidJobId(payment);
+    throw new ValidationError("Payment failed", jobId ? { jobId } : undefined);
   }
 
   throw new ValidationError("Payment is not yet complete");
+};
+
+type JobPaymentOutcome = "completed" | "failed" | "processing" | "unknown";
+
+const PAYSTACK_FAILED_STATUSES = new Set(["failed", "abandoned", "reversed"]);
+
+const openJobPayments = (jobId: string): Promise<Payment[]> =>
+  paymentRepo()
+    .createQueryBuilder("payment")
+    .where("payment.status = :status", { status: PaymentStatus.Pending })
+    .andWhere(`payment."initialConfig"->'metadata'->>'jobId' = :jobId`, { jobId })
+    .getMany();
+
+const settleJobPayment = async (payment: Payment): Promise<JobPaymentOutcome> => {
+  let response: Awaited<ReturnType<typeof verifyTransaction>>;
+  try {
+    response = await verifyTransaction(payment.paystackRef ?? payment.reference ?? "");
+  } catch (error) {
+    logger.warn("Could not verify job payment with Paystack", {
+      paymentId: payment.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return "unknown";
+  }
+  if (!response?.status) return "unknown";
+
+  const { status, currency } = response.data;
+  if (status === "success") {
+    if (currency !== payment.currency || requestedKobo(response.data) !== payment.amountKobo) {
+      logger.warn("Job payment amount or currency does not match", { paymentId: payment.id });
+      return "unknown";
+    }
+    const newlyCompleted = await fulfillPayment(
+      payment,
+      response.data.authorization?.authorization_code
+    );
+    if (newlyCompleted) {
+      const completed = await paymentRepo().findOne({ where: { id: payment.id } });
+      if (completed) await sendPaymentReceipt(completed);
+    }
+    return "completed";
+  }
+  if (PAYSTACK_FAILED_STATUSES.has(status)) {
+    await markFailed(payment, `Paystack ${status}`);
+    return "failed";
+  }
+  return "processing";
+};
+
+/**
+ * Checks every pending Paystack charge for a job before it is paid for again or deleted, so a
+ * checkout the customer finished but whose webhook has not landed is never charged twice or
+ * orphaned. Dummy mode reports every reference as paid, so it has nothing real to settle.
+ */
+export const settleOpenJobPayments = async (
+  jobId: string
+): Promise<{ paid: boolean; processing: boolean }> => {
+  if (isDummyPaystack()) return { paid: false, processing: false };
+  const outcomes = await Promise.all((await openJobPayments(jobId)).map(settleJobPayment));
+  return {
+    paid: outcomes.includes("completed"),
+    processing: outcomes.includes("processing"),
+  };
+};
+
+export type JobPaymentStatus = "pending" | "failed";
+
+export const latestJobPaymentStatuses = async (
+  jobIds: string[]
+): Promise<Map<string, JobPaymentStatus>> => {
+  if (jobIds.length === 0) return new Map();
+  const rows: Array<{ jobId: string; status: PaymentStatus }> = await paymentRepo()
+    .createQueryBuilder("payment")
+    .select(`DISTINCT ON (payment."initialConfig"->'metadata'->>'jobId') payment.status`, "status")
+    .addSelect(`payment."initialConfig"->'metadata'->>'jobId'`, "jobId")
+    .where(`payment."initialConfig"->'metadata'->>'jobId' IN (:...jobIds)`, { jobIds })
+    .orderBy(`payment."initialConfig"->'metadata'->>'jobId'`)
+    .addOrderBy(`payment."createdAt"`, "DESC")
+    .getRawMany();
+  const statuses = new Map<string, JobPaymentStatus>();
+  for (const row of rows) {
+    if (row.status === PaymentStatus.Failed) statuses.set(row.jobId, "failed");
+    if (row.status === PaymentStatus.Pending) statuses.set(row.jobId, "pending");
+  }
+  return statuses;
 };
 
 const recordWebhookEvent = async (
@@ -785,28 +871,41 @@ export const initiateTransaction = async (
 export const initiateJobPayment = async (
   user: User,
   jobId: string
-): Promise<{ link: string; reference: string; mode: string }> => {
-  const job = await jobRepo().findOne({ where: { id: jobId } });
-  if (!job) {
+): Promise<
+  { link: string; reference: string; mode: string; alreadyPaid?: false } | { alreadyPaid: true }
+> => {
+  const found = await jobRepo().findOne({ where: { id: jobId } });
+  if (!found) {
     throw new NotFoundError("Job not found");
   }
-  if (!job.organizationId) {
+  if (!found.organizationId) {
     throw new ValidationError("Job has no organization");
   }
+  if (user.activeOrganizationId !== found.organizationId) {
+    throw new AuthorizationError("You are not authorized to pay for this job");
+  }
+
+  const settled = await settleOpenJobPayments(jobId);
+  if (settled.paid) {
+    return { alreadyPaid: true };
+  }
+  if (settled.processing) {
+    throw new ConflictError(
+      "A payment for this job is still processing. Check back in a few minutes."
+    );
+  }
+  const job = (await jobRepo().findOne({ where: { id: jobId } })) ?? found;
   if (job.status === JobStatus.Active) {
     throw new ConflictError("This job is already active");
   }
   if (job.status !== JobStatus.Draft && job.status !== JobStatus.PendingPayment) {
     throw new ValidationError("Only draft jobs can be paid for");
   }
-  if (user.activeOrganizationId !== job.organizationId) {
-    throw new AuthorizationError("You are not authorized to pay for this job");
-  }
   if (!job.aiConfigId) {
     throw new ValidationError("This job cannot be activated until an AI configuration is added");
   }
 
-  const stored = await organizationRepo().findOne({ where: { id: job.organizationId } });
+  const stored = await organizationRepo().findOne({ where: { id: found.organizationId } });
   if (!stored) {
     throw new NotFoundError("Organization not found");
   }

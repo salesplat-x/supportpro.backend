@@ -9,8 +9,9 @@ import { User } from "../entities/User.js";
 import { Organization } from "../entities/Organization.js";
 import { Notification } from "../entities/Notification.js";
 import { Scout } from "../entities/Scout.js";
-import { NotFoundError, AuthorizationError, ValidationError } from "../utils/errors";
+import { NotFoundError, AuthorizationError, ValidationError, ConflictError } from "../utils/errors";
 import { purgeJobCascade } from "./cascadeDelete.js";
+import { JobPaymentStatus, latestJobPaymentStatuses, settleOpenJobPayments } from "./payment.js";
 import { assertCompanyResourceAccess, getActiveOrganizationId } from "./organizationScope.js";
 import { countActiveJobs, ensureOrganizationBillingCurrent, isAtLimit } from "./entitlements.js";
 import {
@@ -682,6 +683,16 @@ export const deleteJob = async (userId: string, jobId: string): Promise<void> =>
   }
   await assertRecruiterJobAccess(userId, UserRole.Recruiter, job);
 
+  const settled = await settleOpenJobPayments(jobId);
+  if (settled.paid) {
+    throw new ConflictError("This job has just been paid for and is now live. Close it instead.");
+  }
+  if (settled.processing) {
+    throw new ConflictError(
+      "A payment for this job is still processing. Try again once it completes."
+    );
+  }
+
   // Full cascade (messages → applications → answers/questions → job + unused AI config).
   await AppDataSource.transaction(async (manager) => {
     await purgeJobCascade(manager, jobId);
@@ -855,7 +866,7 @@ export interface RecruiterJobCounts {
 }
 
 export interface RecruiterJobsResult {
-  jobs: PublicJob[];
+  jobs: Array<PublicJob & { paymentStatus: JobPaymentStatus | null }>;
   total: number;
   counts: RecruiterJobCounts;
   states: string[];
@@ -925,8 +936,16 @@ export const fetchRecruiterJobs = async (
     companyJobStates(activeOrgId),
   ]);
 
+  const paymentStatuses = await latestJobPaymentStatuses(
+    jobs.filter((job) => job.status === JobStatus.PendingPayment).map((job) => job.id)
+  );
+
   return {
-    jobs: jobs.map((job) => toPublicJob(job, { includeApplicantCount: true })),
+    jobs: jobs.map((job) =>
+      Object.assign(toPublicJob(job, { includeApplicantCount: true }), {
+        paymentStatus: paymentStatuses.get(job.id) ?? null,
+      })
+    ),
     total,
     counts,
     states,
@@ -963,6 +982,7 @@ export const fetchJob = async (
     isSaved?: boolean;
     screening: ScreeningPlanStep[];
     company: { mission: string | null; staffSize: string | null } | null;
+    paymentStatus?: JobPaymentStatus | null;
   }
 > => {
   const job = await jobRepo().findOne({
@@ -988,7 +1008,11 @@ export const fetchJob = async (
     }
   );
   if (viewer?.role !== UserRole.Talent) {
-    return publicJob;
+    const statuses =
+      job.status === JobStatus.PendingPayment
+        ? await latestJobPaymentStatuses([job.id])
+        : new Map<string, JobPaymentStatus>();
+    return Object.assign(publicJob, { paymentStatus: statuses.get(job.id) ?? null });
   }
 
   const [existingApplication, saved] = await Promise.all([
