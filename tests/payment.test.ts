@@ -22,6 +22,7 @@ import {
   createJob,
   createAIConfig,
 } from "./helpers/fixtures.js";
+import { addMember } from "./helpers/company.js";
 import {
   computeBillingPeriodEnd,
   currentPeriodStart,
@@ -1919,5 +1920,171 @@ describe("GET /v1/organizations/:id/plan-history", () => {
   it("unauthenticated → 401", async () => {
     const { orgId } = await createBillableRecruiter();
     await request(app).get(`/v1/organizations/${orgId}/plan-history`).expect(401);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Retrying a pay-per-use job payment, and deleting a job with a payment open.
+// ---------------------------------------------------------------------------
+
+describe("retrying a failed job payment", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  const paystackReports = (status: string, amountKobo: number) => {
+    jest.spyOn(paystack, "isDummyPaystack").mockReturnValue(false);
+    jest.spyOn(paystack, "verifyTransaction").mockImplementation(async (reference) => ({
+      status: true,
+      data: { amount: amountKobo, status, currency: "NGN", reference },
+    }));
+  };
+
+  const pendingPaymentFor = async (jobId: string): Promise<Payment> => {
+    const [payment] = await testDataSource
+      .getRepository(Payment)
+      .createQueryBuilder("payment")
+      .where(`payment."initialConfig"->'metadata'->>'jobId' = :jobId`, { jobId })
+      .andWhere("payment.status = :status", { status: PaymentStatus.Pending })
+      .getMany();
+    return payment!;
+  };
+
+  it("a failed payment shows on the job and paying again gives a new checkout", async () => {
+    const { user, token, orgId } = await createBillableRecruiter();
+    const draft = await payableDraft(user, orgId);
+    await jobRepo().update(draft.id, { status: JobStatus.PendingPayment });
+    const first = await payForJob(token, draft.id);
+
+    await sendWebhook({
+      event: "charge.failed",
+      data: { id: 4401, reference: first, status: "failed" },
+    });
+
+    const listed = await request(app)
+      .get("/v1/jobs/me")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+    const row = listed.body.data.jobs.find((job: { id: string }) => job.id === draft.id);
+    expect(row.paymentStatus).toBe("failed");
+
+    const detail = await request(app)
+      .get(`/v1/jobs/${draft.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+    expect(detail.body.data.job.paymentStatus).toBe("failed");
+
+    const second = await payForJob(token, draft.id);
+    expect(second).not.toBe(first);
+  });
+
+  it("a checkout that actually went through activates the job instead of charging again", async () => {
+    const { user, token, orgId } = await createBillableRecruiter();
+    const draft = await payableDraft(user, orgId);
+    await jobRepo().update(draft.id, { status: JobStatus.PendingPayment });
+    await payForJob(token, draft.id);
+    const payment = await pendingPaymentFor(draft.id);
+    paystackReports("success", payment.amountKobo);
+
+    const retried = await request(app)
+      .post(`/v1/jobs/${draft.id}/activate-payment`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+
+    expect(retried.body.data.alreadyPaid).toBe(true);
+    expect((await jobRepo().findOne({ where: { id: draft.id } }))!.status).toBe(JobStatus.Active);
+    const payments = await testDataSource.getRepository(Payment).find({
+      where: { organizationId: orgId },
+    });
+    expect(payments).toHaveLength(1);
+  });
+
+  it("a checkout Paystack is still processing blocks a second charge → 409", async () => {
+    const { user, token, orgId } = await createBillableRecruiter();
+    const draft = await payableDraft(user, orgId);
+    await payForJob(token, draft.id);
+    const payment = await pendingPaymentFor(draft.id);
+    paystackReports("ongoing", payment.amountKobo);
+
+    await request(app)
+      .post(`/v1/jobs/${draft.id}/activate-payment`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(409);
+  });
+
+  it("an abandoned checkout is marked failed and a fresh one is started", async () => {
+    const { user, token, orgId } = await createBillableRecruiter();
+    const draft = await payableDraft(user, orgId);
+    await payForJob(token, draft.id);
+    const payment = await pendingPaymentFor(draft.id);
+    paystackReports("abandoned", payment.amountKobo);
+    jest.spyOn(paystack, "initializePayment").mockImplementation(async (config) => ({
+      status: true,
+      message: "ok",
+      data: {
+        authorization_url: "https://checkout.example/retry",
+        access_code: "ACCESS",
+        reference: (config as { reference: string }).reference,
+      },
+    }));
+    jest.spyOn(paystack, "createCustomer").mockResolvedValue(undefined as never);
+
+    const retried = await request(app)
+      .post(`/v1/jobs/${draft.id}/activate-payment`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+
+    expect(retried.body.data.link).toBe("https://checkout.example/retry");
+    const old = await testDataSource.getRepository(Payment).findOne({ where: { id: payment.id } });
+    expect(old!.status).toBe(PaymentStatus.Failed);
+  });
+});
+
+describe("DELETE /v1/jobs/:id", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it("any recruiter in the company can delete a job another member posted", async () => {
+    const { user, orgId } = await createBillableRecruiter();
+    const org = await reloadOrg(orgId);
+    const member = await addMember(org);
+    const draft = await payableDraft(user, orgId);
+
+    await request(app)
+      .delete(`/v1/jobs/${draft.id}`)
+      .set("Authorization", `Bearer ${member.token}`)
+      .expect(200);
+
+    expect(await jobRepo().findOne({ where: { id: draft.id } })).toBeNull();
+  });
+
+  it("a recruiter from another company cannot delete the job → 403", async () => {
+    const { user, orgId } = await createBillableRecruiter();
+    const { token: outsiderToken } = await createBillableRecruiter();
+    const draft = await payableDraft(user, orgId);
+
+    await request(app)
+      .delete(`/v1/jobs/${draft.id}`)
+      .set("Authorization", `Bearer ${outsiderToken}`)
+      .expect(403);
+  });
+
+  it("a job whose payment is still processing cannot be deleted → 409", async () => {
+    const { user, token, orgId } = await createBillableRecruiter();
+    const draft = await payableDraft(user, orgId);
+    await payForJob(token, draft.id);
+    jest.spyOn(paystack, "isDummyPaystack").mockReturnValue(false);
+    jest.spyOn(paystack, "verifyTransaction").mockImplementation(async (reference) => ({
+      status: true,
+      data: { amount: 0, status: "ongoing", currency: "NGN", reference },
+    }));
+
+    await request(app)
+      .delete(`/v1/jobs/${draft.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(409);
+
+    expect(await jobRepo().findOne({ where: { id: draft.id } })).not.toBeNull();
   });
 });
