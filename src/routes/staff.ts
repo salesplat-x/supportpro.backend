@@ -35,7 +35,6 @@ import {
   staffDocumentValidator,
   updateCommissionPlanValidator,
   createBenefitValidator,
-  payPreviewValidator,
   setPayValidator,
   shareGrantIdValidator,
   updateBenefitValidator,
@@ -224,13 +223,6 @@ router.get(
   ...recruiter,
   validate(companyParamValidator),
   asyncHandler(pay.headcountCost, "load headcount cost")
-);
-
-router.post(
-  "/pay/preview",
-  ...recruiter,
-  validate(payPreviewValidator),
-  asyncHandler(pay.previewParagraph, "preview the pay paragraph")
 );
 
 router.post(

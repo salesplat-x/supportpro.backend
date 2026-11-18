@@ -6,7 +6,7 @@ import {
   clearAllTables,
   testDataSource,
 } from "./helpers/db.js";
-import { Organization, StaffAccessLog } from "../src/entities";
+import { Organization, PayPackage, StaffAccessLog } from "../src/entities";
 import { apiData } from "./helpers/http.js";
 import { addMember, authHeader, setupCompany } from "./helpers/company.js";
 import { createStaff, setPay, staffPath, today } from "./helpers/staff.js";
@@ -92,6 +92,51 @@ describe("commission plans", () => {
   });
 });
 
+describe("people on a plan", () => {
+  it("counts current staff whose current package uses the plan", async () => {
+    const { owner, org } = await setupCompany();
+    const plan = (name: string) =>
+      request(app)
+        .post(staffPath(org.id, "/commission-plans"))
+        .set(authHeader(owner.token))
+        .send({ name, tiers: EXAMPLE_TIERS });
+    const sales = apiData<{ plan: { id: string } }>(await plan("Sales 2026")).plan;
+    const product = apiData<{ plan: { id: string } }>(await plan("Product 2026")).plan;
+    const [ada, bayo, chi, dayo] = await Promise.all(
+      [1, 2, 3, 4].map(() => createStaff(app, owner.token, org.id))
+    );
+
+    await setPay(app, owner.token, org.id, ada!.id, { commissionPlanId: sales.id });
+    await setPay(app, owner.token, org.id, bayo!.id, {
+      commissionPlanId: sales.id,
+      startsOn: "2025-01-01",
+    });
+    await setPay(app, owner.token, org.id, bayo!.id, { commissionPlanId: product.id });
+    await setPay(app, owner.token, org.id, chi!.id, {
+      commissionPlanId: product.id,
+      startsOn: "2099-01-01",
+    });
+    await setPay(app, owner.token, org.id, chi!.id, {
+      commissionPlanId: sales.id,
+      startsOn: "2099-06-01",
+    });
+    await setPay(app, owner.token, org.id, dayo!.id, { commissionPlanId: sales.id });
+    await request(app)
+      .post(staffPath(org.id, `/${dayo!.id}/end`))
+      .set(authHeader(owner.token))
+      .send({ endDate: today() })
+      .expect(200);
+
+    const plans = apiData<{ plans: { name: string; peopleCount: number }[] }>(
+      await request(app).get(staffPath(org.id, "/commission-plans")).set(authHeader(owner.token))
+    ).plans;
+    expect(plans.map((p) => [p.name, p.peopleCount])).toEqual([
+      ["Product 2026", 2],
+      ["Sales 2026", 1],
+    ]);
+  });
+});
+
 describe("headcount cost", () => {
   it("adds up each person's current yearly pay by department and currency", async () => {
     const { owner, org } = await setupCompany();
@@ -105,12 +150,15 @@ describe("headcount cost", () => {
     ]);
 
     await setPay(app, owner.token, org.id, ada!.id, { baseSalary: 50000, startsOn: "2025-01-01" });
-    await setPay(app, owner.token, org.id, ada!.id, { baseSalary: 100000, bonus: 10000 });
+    await setPay(app, owner.token, org.id, ada!.id, {
+      baseSalary: 100000,
+      bonusPerYear: 120000,
+    });
     await setPay(app, owner.token, org.id, bayo!.id, { period: "yearly", baseSalary: 2000000 });
     await setPay(app, owner.token, org.id, chi!.id, {
       currency: "USD",
       baseSalary: 1000,
-      commissionTarget: 500,
+      commissionTargetPerYear: 6000,
     });
     await setPay(app, owner.token, org.id, dayo!.id);
     await setPay(app, owner.token, org.id, ese!.id, { startsOn: "2099-01-01" });
@@ -148,6 +196,20 @@ describe("headcount cost", () => {
       expect.objectContaining({ currency: "NGN", department: null, staffCount: 2, total: 3320000 }),
       expect.objectContaining({ currency: "USD", department: null, staffCount: 1, total: 18000 }),
     ]);
+  });
+
+  it("counts a package saved before bonus became yearly as twelve months of it", async () => {
+    const { owner, org } = await setupCompany();
+    const ada = await createStaff(app, owner.token, org.id, { department: "Design" });
+    await setPay(app, owner.token, org.id, ada.id, { baseSalary: 100000 });
+    await testDataSource
+      .getRepository(PayPackage)
+      .update({ staffId: ada.id }, { bonus: 10000, commissionTarget: 500, extrasYearly: false });
+
+    const cost = apiData<{ totals: { bonus: number; commissionTarget: number; total: number }[] }>(
+      await request(app).get(staffPath(org.id, "/headcount-cost")).set(authHeader(owner.token))
+    );
+    expect(cost.totals[0]).toMatchObject({ bonus: 120000, commissionTarget: 6000, total: 1326000 });
   });
 
   it("refuses people without access and writes one log line per view", async () => {

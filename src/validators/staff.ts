@@ -227,9 +227,6 @@ const amount = (field: string, label: string): ValidationChain =>
     .bail()
     .toFloat();
 
-const optionalAmount = (field: string, label: string): ValidationChain =>
-  amount(field, label).optional({ values: "null" });
-
 const currency = (field: string): ValidationChain =>
   body(field)
     .isIn(Object.values(Currency))
@@ -246,8 +243,8 @@ const payTerms = [
   currency("currency"),
   body("period").isIn(Object.values(PayPeriod)).withMessage("Choose monthly or yearly"),
   amount("baseSalary", "Base salary"),
-  optionalAmount("bonus", "Bonus"),
-  optionalAmount("commissionTarget", "Commission target"),
+  amount("bonusPerYear", "Bonus per year"),
+  amount("commissionTargetPerYear", "Commission target per year"),
   dateOnly(body("startsOn"), "Start date"),
   body("benefitIds")
     .optional()
@@ -259,8 +256,6 @@ const payTerms = [
     .isUUID()
     .withMessage("Invalid commission plan"),
 ];
-
-export const payPreviewValidator = [orgParam, ...payTerms];
 
 export const setPayValidator = [orgParam, staffParam, ...payTerms];
 

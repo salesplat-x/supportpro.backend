@@ -80,6 +80,8 @@ export function setPay(
       currency: "NGN",
       period: "monthly",
       baseSalary: 400000,
+      bonusPerYear: 0,
+      commissionTargetPerYear: 0,
       startsOn: "2026-01-05",
       ...overrides,
     });
