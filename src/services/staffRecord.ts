@@ -23,6 +23,8 @@ export interface StaffView {
   status: StaffStatus;
   hiredThroughAuxhr: boolean;
   isExecutive: boolean;
+  phone: string | null;
+  homeAddress: string | null;
   hasAccount: boolean;
   invite: {
     state: StaffInviteState;
@@ -68,6 +70,8 @@ export const toStaffView = (staff: StaffMember, managerNames: Map<string, string
   status: staff.status,
   hiredThroughAuxhr: staff.hiredThroughAuxhr,
   isExecutive: staff.isExecutive,
+  phone: staff.phone,
+  homeAddress: staff.homeAddress,
   hasAccount: !!staff.userId,
   invite: {
     state: inviteStateOf(staff),

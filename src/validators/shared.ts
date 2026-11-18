@@ -10,6 +10,27 @@ export const passwordRules = (field: string): ValidationChain =>
     .matches(/^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#.?&])[A-Za-z\d@$!%*#?.&]{8,}$/)
     .withMessage("Password must contain at least one number, one letter and one special character");
 
+const isValidPhone = (value: string): true => {
+  try {
+    const number = phoneUtil.parseAndKeepRawInput(value, "");
+    if (!phoneUtil.isValidNumber(number)) {
+      throw new Error();
+    }
+    return true;
+  } catch {
+    throw new Error("must be a valid international phone number e.g., +2348058272524");
+  }
+};
+
+/** An empty value clears the number, so it can be removed again. */
+export const clearablePhoneRule = (field: string): ValidationChain =>
+  body(field)
+    .optional({ values: "falsy" })
+    .isString()
+    .trim()
+    .isLength({ max: 40 })
+    .custom(isValidPhone);
+
 export const phoneRule = (field: string): ValidationChain =>
   body(field)
     .optional()

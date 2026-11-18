@@ -4,7 +4,7 @@ import { DocumentTemplate } from "../entities/StaffDocument.js";
 import type { CommissionTier } from "../entities/CommissionPlan.js";
 import { EndReason, StaffStatus } from "../entities/StaffMember.js";
 import { Currency } from "../types/enums.js";
-import { passwordRules } from "./shared.js";
+import { clearablePhoneRule, passwordRules } from "./shared.js";
 
 const NO_LINE_BREAKS = /^[^\r\n]*$/;
 export const NO_NUL = /^[^\0]*$/;
@@ -13,6 +13,7 @@ const MIN_YEAR = 1900;
 const MAX_YEAR = 2100;
 const MAX_TEXT = 120;
 const MAX_EMAIL = 254;
+const MAX_ADDRESS = 300;
 const MAX_OFFSET = 1_000_000;
 
 export const orgParam = param("_id").isUUID().withMessage("Invalid company id");
@@ -39,15 +40,19 @@ const text = (chain: ValidationChain, label: string): ValidationChain =>
     .matches(NO_NUL)
     .withMessage(`${label} can't contain control characters`);
 
-const nullableText = (chain: ValidationChain, label: string): ValidationChain =>
+const nullableText = (
+  chain: ValidationChain,
+  label: string,
+  max: number = MAX_TEXT
+): ValidationChain =>
   chain
     .optional({ values: "null" })
     .isString()
     .withMessage(`${label} must be text`)
     .bail()
     .trim()
-    .isLength({ max: MAX_TEXT })
-    .withMessage(`${label} must be at most ${MAX_TEXT} characters`)
+    .isLength({ max })
+    .withMessage(`${label} must be at most ${max} characters`)
     .bail()
     .matches(NO_LINE_BREAKS)
     .withMessage(`${label} can't contain line breaks`)
@@ -141,6 +146,8 @@ export const createStaffValidator = [
   body("managerId").optional({ values: "null" }).isUUID().withMessage("Invalid manager"),
   dateOnly(body("startDate"), "Start date"),
   flag("isExecutive", "isExecutive"),
+  clearablePhoneRule("phone"),
+  nullableText(body("homeAddress"), "Home address", MAX_ADDRESS),
   flag("sendInvite", "sendInvite"),
   body("applicationId").optional().isUUID().withMessage("Invalid application"),
 ];
@@ -173,11 +180,14 @@ export const updateStaffValidator = [
   orgParam,
   staffParam,
   text(body("fullName").optional(), "Full name"),
+  staffEmail(body("email").optional()),
   text(body("jobTitle").optional(), "Job title"),
   nullableText(body("department"), "Department"),
   body("managerId").optional({ values: "null" }).isUUID().withMessage("Invalid manager"),
   dateOnly(body("startDate").optional(), "Start date"),
   flag("isExecutive", "isExecutive"),
+  clearablePhoneRule("phone"),
+  nullableText(body("homeAddress"), "Home address", MAX_ADDRESS),
 ];
 
 export const endStaffValidator = [
