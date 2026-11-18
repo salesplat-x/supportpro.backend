@@ -39,12 +39,17 @@ export interface CreateStaffInput {
   managerId?: string | null;
   startDate: string;
   isExecutive?: boolean;
+  phone?: string | null;
+  homeAddress?: string | null;
   sendInvite?: boolean;
   applicationId?: string;
 }
 
 export interface UpdateStaffInput {
   fullName?: string;
+  email?: string;
+  phone?: string | null;
+  homeAddress?: string | null;
   jobTitle?: string;
   department?: string | null;
   managerId?: string | null;
@@ -67,7 +72,18 @@ export interface StaffOption {
   status: StaffStatus;
 }
 
-type TrackedField = "fullName" | "jobTitle" | "department" | "startDate" | "isExecutive";
+type TrackedField =
+  | "fullName"
+  | "email"
+  | "jobTitle"
+  | "department"
+  | "startDate"
+  | "isExecutive"
+  | "phone"
+  | "homeAddress";
+
+const clearable = (value: string | null | undefined): string | null | undefined =>
+  value === undefined ? undefined : value?.trim() || null;
 
 const todayUtc = (): string => new Date().toISOString().slice(0, 10);
 
@@ -165,6 +181,8 @@ export const createStaff = async (
         managerId: input.managerId ?? null,
         startDate: input.startDate,
         isExecutive: input.isExecutive ?? false,
+        phone: clearable(input.phone) ?? null,
+        homeAddress: clearable(input.homeAddress) ?? null,
         status: sendInvite ? StaffStatus.Invited : StaffStatus.Active,
         hiredThroughAuxhr: hire !== null,
         sourceApplicationId: hire?.applicationId ?? null,
@@ -303,6 +321,17 @@ export const getStaff = async (
 ): Promise<StaffView> =>
   viewOf(await openStaff(actor, organizationId, staffId, StaffAccessResource.StaffRecord, ip));
 
+const saveOrConflict = async <T>(save: () => Promise<T>): Promise<T> => {
+  try {
+    return await save();
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      throw new ConflictError("Someone with this email is already on your staff");
+    }
+    throw err;
+  }
+};
+
 export const updateStaff = async (
   actor: User,
   organizationId: string,
@@ -311,54 +340,72 @@ export const updateStaff = async (
 ): Promise<StaffView> => {
   await assertCanManagePeople(actor.id, organizationId);
 
-  const staff = await AppDataSource.transaction(async (em) => {
-    if (input.managerId !== undefined) {
-      await lockHierarchy(em, organizationId);
-    }
-    const current = await findStaff(organizationId, staffId, { em, lock: true });
-    if (current.status === StaffStatus.Ended) {
-      throw new ConflictError("This employment has ended and can no longer be changed");
-    }
-
-    const changes: Record<string, [unknown, unknown]> = {};
-    const change = <K extends TrackedField>(field: K, next: StaffMember[K] | undefined) => {
-      if (next === undefined || next === current[field]) return;
-      changes[field] = [current[field], next];
-      current[field] = next;
-    };
-    change("fullName", input.fullName);
-    change("jobTitle", input.jobTitle);
-    change(
-      "department",
-      input.department === undefined ? undefined : input.department?.trim() || null
-    );
-    change("startDate", input.startDate);
-    change("isExecutive", input.isExecutive);
-
-    if (input.managerId !== undefined && input.managerId !== current.managerId) {
-      if (input.managerId) {
-        await assertValidManager(em, organizationId, input.managerId, current.id);
+  const staff = await saveOrConflict(() =>
+    AppDataSource.transaction(async (em) => {
+      if (input.managerId !== undefined) {
+        await lockHierarchy(em, organizationId);
       }
-      const names = await loadManagerNames(
-        [{ managerId: current.managerId }, { managerId: input.managerId }],
-        em
-      );
-      changes["manager"] = [
-        current.managerId ? (names.get(current.managerId) ?? null) : null,
-        input.managerId ? (names.get(input.managerId) ?? null) : null,
-      ];
-      current.managerId = input.managerId;
-    }
+      const current = await findStaff(organizationId, staffId, { em, lock: true });
+      if (current.status === StaffStatus.Ended) {
+        throw new ConflictError("This employment has ended and can no longer be changed");
+      }
 
-    if (Object.keys(changes).length === 0) {
-      return current;
-    }
-    const saved = await em.getRepository(StaffMember).save(current);
-    await recordActivities(em, saved, [
-      activityEntry(StaffActivityType.Updated, actor, { changes }),
-    ]);
-    return saved;
-  });
+      const changes: Record<string, [unknown, unknown]> = {};
+      const change = <K extends TrackedField>(field: K, next: StaffMember[K] | undefined) => {
+        if (next === undefined || next === current[field]) return;
+        changes[field] = [current[field], next];
+        current[field] = next;
+      };
+      change("fullName", input.fullName);
+      change("jobTitle", input.jobTitle);
+      change(
+        "department",
+        input.department === undefined ? undefined : input.department?.trim() || null
+      );
+      change("startDate", input.startDate);
+      change("isExecutive", input.isExecutive);
+      change("phone", clearable(input.phone));
+      change("homeAddress", clearable(input.homeAddress));
+
+      const email = input.email?.toLowerCase().trim();
+      if (email !== undefined && email !== current.email) {
+        if (current.userId) {
+          throw new ConflictError(
+            "This person has joined with their own account, so their email can't be changed"
+          );
+        }
+        change("email", email);
+        current.inviteTokenHash = null;
+        current.inviteExpiresAt = null;
+        current.inviteOpenedAt = null;
+        current.invitedAt = null;
+      }
+
+      if (input.managerId !== undefined && input.managerId !== current.managerId) {
+        if (input.managerId) {
+          await assertValidManager(em, organizationId, input.managerId, current.id);
+        }
+        const names = await loadManagerNames(
+          [{ managerId: current.managerId }, { managerId: input.managerId }],
+          em
+        );
+        changes["manager"] = [
+          current.managerId ? (names.get(current.managerId) ?? null) : null,
+          input.managerId ? (names.get(input.managerId) ?? null) : null,
+        ];
+        current.managerId = input.managerId;
+      }
+
+      if (Object.keys(changes).length === 0) {
+        return current;
+      }
+      const saved = await em.getRepository(StaffMember).save(current);
+      await recordActivities(em, saved, [
+        activityEntry(StaffActivityType.Updated, actor, { changes }),
+      ]);
+      return saved;
+    })
+  );
 
   return viewOf(staff);
 };

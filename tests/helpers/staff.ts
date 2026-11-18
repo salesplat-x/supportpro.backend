@@ -18,6 +18,8 @@ export interface StaffViewShape {
   status: "invited" | "active" | "ended";
   hiredThroughAuxhr: boolean;
   isExecutive: boolean;
+  phone: string | null;
+  homeAddress: string | null;
   hasAccount: boolean;
   invite: {
     state: "none" | "pending" | "expired" | "accepted";

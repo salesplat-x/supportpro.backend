@@ -57,6 +57,8 @@ export const create = async (req: Request, res: Response) => {
     managerId,
     startDate,
     isExecutive,
+    phone,
+    homeAddress,
     sendInvite,
     applicationId,
   } = req.body;
@@ -68,6 +70,8 @@ export const create = async (req: Request, res: Response) => {
     managerId,
     startDate,
     isExecutive,
+    phone,
+    homeAddress,
     sendInvite,
     applicationId,
   });
@@ -80,9 +84,22 @@ export const get = async (req: Request, res: Response) => {
 };
 
 export const update = async (req: Request, res: Response) => {
-  const { fullName, jobTitle, department, managerId, startDate, isExecutive } = req.body;
+  const {
+    fullName,
+    email,
+    jobTitle,
+    department,
+    managerId,
+    startDate,
+    isExecutive,
+    phone,
+    homeAddress,
+  } = req.body;
   const staff = await staffService.updateStaff(req.user, orgId(req), staffId(req), {
     fullName,
+    email,
+    phone,
+    homeAddress,
     jobTitle,
     department,
     managerId,

@@ -120,6 +120,12 @@ export class StaffMember {
   @Column({ type: "boolean", name: "is_executive", default: false })
   isExecutive!: boolean;
 
+  @Column({ type: "varchar", length: 40, nullable: true })
+  phone!: string | null;
+
+  @Column({ type: "varchar", length: 300, name: "home_address", nullable: true })
+  homeAddress!: string | null;
+
   @Column({ type: "uuid", name: "invited_by_id", nullable: true })
   invitedById!: string | null;
 

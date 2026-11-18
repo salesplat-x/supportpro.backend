@@ -11,7 +11,7 @@ import {
   testDataSource,
 } from "./helpers/db.js";
 import { OrganizationMember, StaffAccessLog, StaffActivity, StaffMember } from "../src/entities";
-import { createOrganization, createRecruiter } from "./helpers/fixtures.js";
+import { createOrganization, createRecruiter, createTalent } from "./helpers/fixtures.js";
 import { apiData } from "./helpers/http.js";
 import { addMember, authHeader, setupCompany } from "./helpers/company.js";
 import {
@@ -495,7 +495,7 @@ describe("changing staff", () => {
     });
   });
 
-  it("ignores status, account, email and hired-through in the body", async () => {
+  it("ignores status, account and hired-through in the body", async () => {
     const { owner, org } = await setupCompany();
     const staff = await createStaff(app, owner.token, org.id, { email: "fixed@example.com" });
     await request(app)
@@ -504,7 +504,6 @@ describe("changing staff", () => {
       .send({
         status: "ended",
         userId: owner.user.id,
-        email: "changed@example.com",
         hiredThroughAuxhr: true,
         organizationId: "00000000-0000-4000-8000-000000000000",
       });
@@ -518,6 +517,89 @@ describe("changing staff", () => {
       organizationId: org.id,
     });
     expect((await activitiesFor(staff.id)).map((a) => a.type)).toEqual(["created"]);
+  });
+
+  it("saves a phone and home address, and clears them again", async () => {
+    const { owner, org } = await setupCompany();
+    const staff = await createStaff(app, owner.token, org.id, { phone: "+2348035550198" });
+    expect(staff).toMatchObject({ phone: "+2348035550198", homeAddress: null });
+
+    const patch = (body: Record<string, unknown>) =>
+      request(app)
+        .patch(staffPath(org.id, `/${staff.id}`))
+        .set(authHeader(owner.token))
+        .send(body);
+
+    const saved = await patch({ homeAddress: " 12 Akin Adesola St, Lagos " });
+    expect(apiData<{ staff: StaffViewShape }>(saved).staff).toMatchObject({
+      homeAddress: "12 Akin Adesola St, Lagos",
+    });
+    expect((await patch({ phone: "not a phone" })).status).toBe(400);
+    expect((await patch({ homeAddress: "x".repeat(301) })).status).toBe(400);
+
+    const cleared = await patch({ phone: "", homeAddress: null });
+    expect(apiData<{ staff: StaffViewShape }>(cleared).staff).toMatchObject({
+      phone: null,
+      homeAddress: null,
+    });
+    const updates = (await activitiesFor(staff.id)).filter((a) => a.type === "updated");
+    expect(updates.at(-1)?.meta).toEqual({
+      changes: {
+        phone: ["+2348035550198", null],
+        homeAddress: ["12 Akin Adesola St, Lagos", null],
+      },
+    });
+  });
+
+  it("changes the email of someone who has not joined and kills the link sent to the old one", async () => {
+    const { owner, org } = await setupCompany();
+    const staff = await createStaff(app, owner.token, org.id, {
+      email: "old@example.com",
+      sendInvite: true,
+    });
+    const oldLink = (sendStaffInvite().mock.calls.at(-1)?.[0] as { inviteLink: string }).inviteLink;
+    const oldToken = oldLink.split("/").pop()!;
+
+    const res = await request(app)
+      .patch(staffPath(org.id, `/${staff.id}`))
+      .set(authHeader(owner.token))
+      .send({ email: "New.Person@Example.com" });
+    expect(res.status).toBe(200);
+    expect(apiData<{ staff: StaffViewShape }>(res).staff.email).toBe("new.person@example.com");
+
+    const row = await testDataSource.getRepository(StaffMember).findOneByOrFail({ id: staff.id });
+    expect(row).toMatchObject({ inviteTokenHash: null, inviteExpiresAt: null, invitedAt: null });
+    expect((await request(app).get(`/v1/staff-invites/${oldToken}`)).status).toBe(404);
+
+    const resend = await request(app)
+      .post(staffPath(org.id, `/${staff.id}/invite`))
+      .set(authHeader(owner.token));
+    expect(resend.status).toBe(200);
+    expect(sendStaffInvite().mock.calls.at(-1)?.[0]).toMatchObject({
+      email: "new.person@example.com",
+    });
+  });
+
+  it("refuses an email another open record uses, and any email change after joining", async () => {
+    const { owner, org } = await setupCompany();
+    await createStaff(app, owner.token, org.id, { email: "taken@example.com" });
+    const staff = await createStaff(app, owner.token, org.id, { email: "mine@example.com" });
+    const patch = (email: string) =>
+      request(app)
+        .patch(staffPath(org.id, `/${staff.id}`))
+        .set(authHeader(owner.token))
+        .send({ email });
+
+    expect((await patch("taken@example.com")).status).toBe(409);
+    expect((await patch("not-an-email")).status).toBe(400);
+
+    const talent = await createTalent({ email: "mine@example.com" });
+    await testDataSource
+      .getRepository(StaffMember)
+      .update(staff.id, { userId: talent.user.id, joinedAt: new Date() });
+    expect((await patch("other@example.com")).status).toBe(409);
+    const row = await testDataSource.getRepository(StaffMember).findOneByOrFail({ id: staff.id });
+    expect(row.email).toBe("mine@example.com");
   });
 
   it("writes no activity when nothing changed", async () => {
