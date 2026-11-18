@@ -11,7 +11,7 @@ import { ConflictError, NotFoundError, ValidationError } from "../utils/errors";
 import { findPlan } from "./commission.js";
 import { assertOwner } from "./peopleAccess.js";
 import { activityEntry, logStaffAccess, openStaff, recordActivities } from "./staffAudit.js";
-import { findStaff, isUniqueViolation } from "./staffRecord.js";
+import { findStaff, fullNameOf, isUniqueViolation } from "./staffRecord.js";
 
 /** Salary follows the period; bonus and commission target are always yearly. */
 export interface PayTerms {
@@ -250,9 +250,14 @@ export const addShareGrant = async (
   return AppDataSource.transaction(async (em) => {
     const staff = await findStaff(organizationId, staffId, { em, lock: true });
     assertNotEnded(staff);
-    const grant = await em
-      .getRepository(ShareGrant)
-      .save(em.getRepository(ShareGrant).create({ staffId, ...input }));
+    const grant = await em.getRepository(ShareGrant).save(
+      em.getRepository(ShareGrant).create({
+        staffId,
+        ...input,
+        createdById: actor.id,
+        createdByName: fullNameOf(actor),
+      })
+    );
     await recordActivities(em, staff, [
       activityEntry(StaffActivityType.ShareGrantAdded, actor, { shares: input.shares }),
     ]);

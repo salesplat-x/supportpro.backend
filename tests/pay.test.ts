@@ -6,7 +6,7 @@ import {
   clearAllTables,
   testDataSource,
 } from "./helpers/db.js";
-import { PayPackage, PayPeriod, StaffAccessLog } from "../src/entities";
+import { PayPackage, PayPeriod, ShareGrant, StaffAccessLog } from "../src/entities";
 import { payParagraph } from "../src/services/pay.js";
 import { apiData } from "./helpers/http.js";
 import { addMember, authHeader, setupCompany } from "./helpers/company.js";
@@ -360,7 +360,10 @@ describe("share grants", () => {
     ).toBe(400);
     const created = await request(app).post(grants).set(authHeader(owner.token)).send(grantBody());
     expect(created.status).toBe(201);
-    const { grant } = apiData<{ grant: { id: string } }>(created);
+    const { grant } = apiData<{ grant: { id: string; createdByName: string | null } }>(created);
+    expect(grant.createdByName).toBe("Olu Owner");
+    const row = await testDataSource.getRepository(ShareGrant).findOneByOrFail({ id: grant.id });
+    expect(row.createdById).toBe(owner.user.id);
 
     await request(app).delete(`${grants}/${grant.id}`).set(authHeader(owner.token)).expect(200);
     expect(apiData<PayView>(await getPay(owner.token, org.id, staff.id)).grants).toEqual([]);

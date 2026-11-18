@@ -53,6 +53,13 @@ export class ShareGrant {
   @Column({ type: "varchar", length: 3 })
   currency!: string;
 
+  /** Null on grants added before this was recorded. */
+  @Column({ type: "uuid", name: "created_by_id", nullable: true })
+  createdById!: string | null;
+
+  @Column({ type: "varchar", length: 241, name: "created_by_name", nullable: true })
+  createdByName!: string | null;
+
   @CreateDateColumn({ name: "created_at" })
   createdAt!: Date;
 }
