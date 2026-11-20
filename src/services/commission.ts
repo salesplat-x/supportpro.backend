@@ -1,12 +1,19 @@
 import { AppDataSource } from "../database/dataSource.js";
-import { CommissionPlan, type CommissionTier } from "../entities/CommissionPlan.js";
+import {
+  CommissionPlan,
+  type CommissionBand,
+  type CommissionFrequency,
+  type CommissionPaidOn,
+} from "../entities/CommissionPlan.js";
 import { ConflictError, NotFoundError } from "../utils/errors";
 import { assertOwner } from "./peopleAccess.js";
 import { isUniqueViolation } from "./staffRecord.js";
 
 export interface CommissionPlanInput {
   name: string;
-  tiers: CommissionTier[];
+  paidOn: CommissionPaidOn;
+  frequency: CommissionFrequency;
+  bands: CommissionBand[];
 }
 
 const FOREIGN_KEY_VIOLATION = "23503";
@@ -40,12 +47,23 @@ export const findPlan = async (organizationId: string, planId: string): Promise<
   return plan;
 };
 
-export type CommissionPlanView = CommissionPlan & { peopleCount: number };
+export interface CommissionPlanView {
+  id: string;
+  name: string;
+  paidOn: CommissionPaidOn | null;
+  frequency: CommissionFrequency | null;
+  bands: CommissionBand[] | null;
+  needsBands: boolean;
+  peopleCount: number;
+  people: string[];
+}
+
+const PEOPLE_SHOWN = 2;
 
 /** Current package per person: the latest one already started, else the earliest upcoming one. */
 const PLAN_PEOPLE_SQL = `
   WITH current_pay AS (
-    SELECT DISTINCT ON (p.staff_id) p.commission_plan_id
+    SELECT DISTINCT ON (p.staff_id) p.commission_plan_id, s.full_name
     FROM pay_packages p
     JOIN staff_members s ON s.id = p.staff_id
     WHERE s.organization_id = $1 AND s.status <> 'ended'
@@ -54,7 +72,8 @@ const PLAN_PEOPLE_SQL = `
       CASE WHEN p.starts_on <= $2 THEN p.starts_on END DESC,
       p.starts_on ASC
   )
-  SELECT commission_plan_id, COUNT(*) AS people
+  SELECT commission_plan_id, COUNT(*) AS people,
+    (ARRAY_AGG(full_name ORDER BY full_name))[1:${PEOPLE_SHOWN}] AS names
   FROM current_pay
   WHERE commission_plan_id IS NOT NULL
   GROUP BY commission_plan_id
@@ -70,10 +89,22 @@ export const listPlans = async (
     AppDataSource.query(PLAN_PEOPLE_SQL, [
       organizationId,
       new Date().toISOString().slice(0, 10),
-    ]) as Promise<{ commission_plan_id: string; people: string }[]>,
+    ]) as Promise<{ commission_plan_id: string; people: string; names: string[] }[]>,
   ]);
-  const people = new Map(counts.map((row) => [row.commission_plan_id, Number(row.people)]));
-  return plans.map((plan) => ({ ...plan, peopleCount: people.get(plan.id) ?? 0 }));
+  const people = new Map(counts.map((row) => [row.commission_plan_id, row]));
+  return plans.map((plan) => {
+    const row = people.get(plan.id);
+    return {
+      id: plan.id,
+      name: plan.name,
+      paidOn: plan.paidOn,
+      frequency: plan.frequency,
+      bands: plan.bands,
+      needsBands: plan.bands === null,
+      peopleCount: row ? Number(row.people) : 0,
+      people: row?.names ?? [],
+    };
+  });
 };
 
 export const createPlan = async (

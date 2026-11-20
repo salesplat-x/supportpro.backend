@@ -93,16 +93,13 @@ export const deleteBenefit = async (req: Request, res: Response) => {
 };
 
 const planInput = (req: Request): commission.CommissionPlanInput => {
-  const { name, tiers } = req.body;
+  const { name, paidOn, frequency, bands } = req.body;
   return {
     name,
-    tiers: (tiers as commission.CommissionPlanInput["tiers"]).map(
-      ({ fromPercent, toPercent, ratePercent, boost }) => ({
-        fromPercent,
-        toPercent,
-        ratePercent,
-        boost,
-      })
+    paidOn,
+    frequency,
+    bands: (bands as commission.CommissionPlanInput["bands"]).map(
+      ({ fromAmount, toAmount, ratePercent }) => ({ fromAmount, toAmount, ratePercent })
     ),
   };
 };
