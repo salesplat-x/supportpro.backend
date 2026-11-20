@@ -4,7 +4,7 @@ import * as hrAssignmentsService from "../services/hrAssignments.js";
 import * as checklist from "../services/checklist.js";
 import { getOrgChart } from "../services/orgChart.js";
 import * as companyProfile from "../services/companyProfile.js";
-import { getPeopleAccess } from "../services/peopleAccess.js";
+import { getPeopleAccess, requestPeopleAccess } from "../services/peopleAccess.js";
 import * as staffService from "../services/staff.js";
 import * as staffAudit from "../services/staffAudit.js";
 import * as staffImport from "../services/staffImport.js";
@@ -27,6 +27,11 @@ const paging = (req: Request) => ({
 export const access = async (req: Request, res: Response) => {
   const result = await getPeopleAccess(req.user.id, orgId(req));
   sendSuccessResponse(res, "Access fetched", { access: result });
+};
+
+export const requestAccess = async (req: Request, res: Response) => {
+  await requestPeopleAccess(req.user, orgId(req));
+  sendSuccessResponse(res, "Access requested", undefined, 201);
 };
 
 export const list = async (req: Request, res: Response) => {

@@ -10,9 +10,10 @@ import {
   clearAllTables,
   testDataSource,
 } from "./helpers/db.js";
-import { OrganizationMember } from "../src/entities";
+import { Notification, OrganizationMember } from "../src/entities";
 import { addMember, authHeader, setupCompany } from "./helpers/company.js";
 import { apiData } from "./helpers/http.js";
+import { staffPath } from "./helpers/staff.js";
 
 let app: ReturnType<typeof createApp>;
 
@@ -185,5 +186,56 @@ describe("member job title", () => {
     const member = await addMember(org);
 
     await patchMember(org.id, member.memberId, owner.token, { title: "x".repeat(60) }).expect(200);
+  });
+});
+
+describe("asking the owner for access", () => {
+  const ask = (token: string, orgId: string) =>
+    request(app).post(staffPath(orgId, "/access-request")).set(authHeader(token));
+  const access = async (token: string, orgId: string) =>
+    apiData<{ access: { ownerFirstName: string | null; accessRequested: boolean } }>(
+      await request(app).get(staffPath(orgId, "/access")).set(authHeader(token))
+    ).access;
+
+  it("notifies the owner once a day and says so on the access check", async () => {
+    const { owner, org } = await setupCompany();
+    const member = await addMember(org);
+    const notifications = () =>
+      testDataSource.getRepository(Notification).find({ where: { userId: owner.user.id } });
+
+    expect(await access(member.token, org.id)).toMatchObject({
+      ownerFirstName: owner.user.firstName,
+      accessRequested: false,
+    });
+    expect((await ask(member.token, org.id)).status).toBe(201);
+    expect(await notifications()).toEqual([
+      expect.objectContaining({
+        title: "Access request",
+        message: expect.stringContaining(org.name),
+      }),
+    ]);
+    expect((await access(member.token, org.id)).accessRequested).toBe(true);
+    expect((await ask(member.token, org.id)).status).toBe(429);
+    expect(await notifications()).toHaveLength(1);
+
+    await testDataSource
+      .getRepository(OrganizationMember)
+      .update(
+        { id: member.memberId },
+        { peopleAccessRequestedAt: new Date(Date.now() - 25 * 3_600_000) }
+      );
+    expect((await access(member.token, org.id)).accessRequested).toBe(false);
+    expect((await ask(member.token, org.id)).status).toBe(201);
+  });
+
+  it("is refused for people who already have access and for outsiders", async () => {
+    const { owner, org } = await setupCompany();
+    const hr = await addMember(org, { canManagePeople: true });
+    const other = await setupCompany("Other Ltd");
+
+    expect((await ask(owner.token, org.id)).status).toBe(409);
+    expect((await ask(hr.token, org.id)).status).toBe(409);
+    expect((await ask(other.owner.token, org.id)).status).toBe(403);
+    expect(await testDataSource.getRepository(Notification).count()).toBe(0);
   });
 });

@@ -92,6 +92,8 @@ describe("the access endpoint", () => {
       isOwner: false,
       canManagePeople: false,
       assignedCount: 1,
+      ownerFirstName: "Olu",
+      accessRequested: false,
     });
 
     await request(app)

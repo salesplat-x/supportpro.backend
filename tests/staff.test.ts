@@ -77,6 +77,8 @@ describe("people access", () => {
       isOwner: true,
       canManagePeople: true,
       assignedCount: 0,
+      ownerFirstName: "Olu",
+      accessRequested: false,
     });
   });
 
@@ -89,6 +91,8 @@ describe("people access", () => {
       isOwner: false,
       canManagePeople: true,
       assignedCount: 0,
+      ownerFirstName: "Olu",
+      accessRequested: false,
     });
     const list = await request(app).get(staffPath(org.id)).set(authHeader(hr.token));
     expect(list.status).toBe(200);
@@ -105,6 +109,8 @@ describe("people access", () => {
       isOwner: false,
       canManagePeople: false,
       assignedCount: 0,
+      ownerFirstName: "Olu",
+      accessRequested: false,
     });
 
     const responses = await Promise.all([

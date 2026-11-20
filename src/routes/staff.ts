@@ -59,6 +59,13 @@ router.get(
   asyncHandler(staff.access, "load your access to People")
 );
 
+router.post(
+  "/access-request",
+  ...recruiter,
+  validate(companyParamValidator),
+  asyncHandler(staff.requestAccess, "send your access request")
+);
+
 router.get("/", ...recruiter, validate(listStaffValidator), asyncHandler(staff.list, "load staff"));
 
 router.get(
