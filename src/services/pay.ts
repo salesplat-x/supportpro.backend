@@ -195,8 +195,18 @@ export const getPay = async (
   staffId: string,
   ip: string
 ): Promise<PayView> => {
-  await openStaff(actor, organizationId, staffId, StaffAccessResource.Pay, ip);
-  return loadPay(staffId);
+  const staff = await openStaff(actor, organizationId, staffId, StaffAccessResource.Pay, ip);
+  const pay = await loadPay(staffId);
+  if (pay.grants.length > 0) {
+    await logStaffAccess({
+      organizationId,
+      actor,
+      staff,
+      resource: StaffAccessResource.ShareOptions,
+      ip,
+    });
+  }
+  return pay;
 };
 
 export const setPayPackage = async (

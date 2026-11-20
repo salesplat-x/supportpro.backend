@@ -373,4 +373,42 @@ describe("share grants", () => {
     await request(app).delete(`${grants}/${grant.id}`).set(authHeader(owner.token)).expect(200);
     expect(apiData<PayView>(await getPay(owner.token, org.id, staff.id)).grants).toEqual([]);
   });
+
+  it("logs share options as their own access line, and only when some are shown", async () => {
+    const { owner, org, staff } = await companyWithStaff();
+    const log = async (resource?: string) =>
+      apiData<{ items: { resource: string }[] }>(
+        await request(app)
+          .get(staffPath(org.id, "/access-log"))
+          .query(resource ? { resource } : {})
+          .set(authHeader(owner.token))
+      ).items.map((item) => item.resource);
+
+    await getPay(owner.token, org.id, staff.id);
+    expect(await log("share_options")).toEqual([]);
+
+    await request(app)
+      .post(staffPath(org.id, `/${staff.id}/share-grants`))
+      .set(authHeader(owner.token))
+      .send(grantBody())
+      .expect(201);
+    await getPay(owner.token, org.id, staff.id);
+    await request(app)
+      .get(staffPath(org.id, `/${staff.id}`))
+      .set(authHeader(owner.token))
+      .expect(200);
+
+    expect(await log("share_options")).toEqual(["share_options"]);
+    expect(await log("pay")).toEqual(["pay", "pay"]);
+    expect(await log("details")).toEqual(["staff_record"]);
+    expect(await log()).toHaveLength(4);
+    expect(
+      (
+        await request(app)
+          .get(staffPath(org.id, "/access-log"))
+          .query({ resource: "payslips" })
+          .set(authHeader(owner.token))
+      ).status
+    ).toBe(400);
+  });
 });

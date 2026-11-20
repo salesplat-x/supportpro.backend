@@ -1,6 +1,10 @@
 import { EntityManager, FindOptionsWhere, In } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
-import { StaffAccessLog, StaffAccessResource } from "../entities/StaffAccessLog.js";
+import {
+  ACCESS_LOG_DETAILS,
+  StaffAccessLog,
+  StaffAccessResource,
+} from "../entities/StaffAccessLog.js";
 import { StaffActivity, StaffActivityType } from "../entities/StaffActivity.js";
 import type { StaffMember } from "../entities/StaffMember.js";
 import type { User } from "../entities/User.js";
@@ -60,6 +64,7 @@ const ACCESS_LABELS: Record<StaffAccessResource, string> = {
   [StaffAccessResource.StaffRecord]: "Staff record",
   [StaffAccessResource.StaffActivity]: "Activity",
   [StaffAccessResource.Pay]: "Pay",
+  [StaffAccessResource.ShareOptions]: "Share options",
   [StaffAccessResource.Contract]: "Contracts",
   [StaffAccessResource.HeadcountCost]: "Headcount cost",
   [StaffAccessResource.Performance]: "Performance",
@@ -96,9 +101,14 @@ export interface AccessLogView {
   ip: string | null;
 }
 
+const FILTER_RESOURCES: Record<string, StaffAccessResource[]> = {
+  [ACCESS_LOG_DETAILS]: [StaffAccessResource.StaffRecord, StaffAccessResource.StaffActivity],
+};
+
 export interface AccessLogQuery {
   staffId?: string;
   actorId?: string;
+  resource?: string;
   from?: string;
   to?: string;
   limit: number;
@@ -232,6 +242,11 @@ export const listAccessLog = async (
   }
   if (query.actorId) {
     qb.andWhere("log.actorId = :actorId", { actorId: query.actorId });
+  }
+  if (query.resource) {
+    qb.andWhere("log.resource IN (:...resources)", {
+      resources: FILTER_RESOURCES[query.resource] ?? [query.resource],
+    });
   }
   if (query.from) {
     qb.andWhere("log.createdAt >= CAST(:from AS date)", { from: query.from });

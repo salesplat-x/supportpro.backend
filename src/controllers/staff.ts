@@ -139,6 +139,7 @@ export const accessLog = async (req: Request, res: Response) => {
   const result = await staffAudit.listAccessLog(req.user.id, orgId(req), {
     staffId: queryText(req, "staffId"),
     actorId: queryText(req, "actorId"),
+    resource: queryText(req, "resource"),
     from: queryText(req, "from"),
     to: queryText(req, "to"),
     ...paging(req),
