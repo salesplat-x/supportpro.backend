@@ -1,7 +1,11 @@
 import { body, param, query, type ValidationChain } from "express-validator";
 import { PayPeriod } from "../entities/PayPackage.js";
 import { DocumentTemplate } from "../entities/StaffDocument.js";
-import type { CommissionTier } from "../entities/CommissionPlan.js";
+import {
+  CommissionFrequency,
+  CommissionPaidOn,
+  type CommissionBand,
+} from "../entities/CommissionPlan.js";
 import { EndReason, StaffStatus } from "../entities/StaffMember.js";
 import { Currency } from "../types/enums.js";
 import { clearablePhoneRule, passwordRules } from "./shared.js";
@@ -298,36 +302,36 @@ export const addShareGrantValidator = [
 
 export const shareGrantIdValidator = [orgParam, staffParam, grantParam];
 
-const MAX_TIERS = 10;
-const MAX_PERCENT = 1000;
+const MAX_BANDS = 10;
+const MAX_BAND_AMOUNT = 1_000_000_000_000;
 
-const isPercent = (value: unknown, max: number): value is number =>
-  typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= max;
+const isAmount = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= MAX_BAND_AMOUNT;
 
-const tiersProblem = (tiers: unknown): string | null => {
-  if (!Array.isArray(tiers) || tiers.length < 1 || tiers.length > MAX_TIERS) {
-    return `Add between 1 and ${MAX_TIERS} tiers`;
+const bandsProblem = (bands: unknown): string | null => {
+  if (!Array.isArray(bands) || bands.length < 1 || bands.length > MAX_BANDS) {
+    return `Add between 1 and ${MAX_BANDS} tiers`;
   }
-  for (const [index, tier] of (tiers as CommissionTier[]).entries()) {
-    const isLast = index === tiers.length - 1;
-    const expectedFrom = index === 0 ? 0 : (tiers[index - 1] as CommissionTier).toPercent;
-    if (typeof tier !== "object" || tier === null) return "Each tier needs its values";
-    if (!isPercent(tier.fromPercent, MAX_PERCENT) || tier.fromPercent !== expectedFrom) {
+  for (const [index, band] of (bands as CommissionBand[]).entries()) {
+    const isLast = index === bands.length - 1;
+    const expectedFrom = index === 0 ? 0 : (bands[index - 1] as CommissionBand).toAmount;
+    if (typeof band !== "object" || band === null) return "Each tier needs its values";
+    if (!isAmount(band.fromAmount) || band.fromAmount !== expectedFrom) {
       return index === 0
-        ? "The first tier must start at 0% of target"
+        ? "The first tier must start at 0"
         : `Tier ${index + 1} must start where tier ${index} ends`;
     }
-    if (isLast ? tier.toPercent !== null : !isPercent(tier.toPercent, MAX_PERCENT)) {
+    if (isLast ? band.toAmount !== null : !isAmount(band.toAmount)) {
       return isLast ? "The last tier has no upper limit" : `Tier ${index + 1} needs an upper limit`;
     }
-    if (!isLast && (tier.toPercent as number) <= tier.fromPercent) {
+    if (!isLast && (band.toAmount as number) <= band.fromAmount) {
       return `Tier ${index + 1} must end above where it starts`;
     }
-    if (!isPercent(tier.ratePercent, 100)) {
-      return `Tier ${index + 1} needs a commission rate from 0% to 100%`;
-    }
-    if (tier.boost !== null && !(isPercent(tier.boost, 10) && tier.boost >= 1)) {
-      return `Tier ${index + 1} boost must be from 1x to 10x`;
+    if (
+      typeof band.ratePercent !== "number" ||
+      !(band.ratePercent >= 0 && band.ratePercent <= 100)
+    ) {
+      return `Tier ${index + 1} needs a rate from 0% to 100%`;
     }
   }
   return null;
@@ -335,8 +339,14 @@ const tiersProblem = (tiers: unknown): string | null => {
 
 const planBody = [
   text(body("name"), "Plan name"),
-  body("tiers").custom((tiers: unknown) => {
-    const problem = tiersProblem(tiers);
+  body("paidOn")
+    .isIn(Object.values(CommissionPaidOn))
+    .withMessage("Choose what the plan is paid on"),
+  body("frequency")
+    .isIn(Object.values(CommissionFrequency))
+    .withMessage("Choose how often the plan is paid"),
+  body("bands").custom((bands: unknown) => {
+    const problem = bandsProblem(bands);
     if (problem) throw new Error(problem);
     return true;
   }),

@@ -6,7 +6,7 @@ import {
   clearAllTables,
   testDataSource,
 } from "./helpers/db.js";
-import { Organization, PayPackage, StaffAccessLog } from "../src/entities";
+import { CommissionPlan, Organization, PayPackage, StaffAccessLog } from "../src/entities";
 import { apiData } from "./helpers/http.js";
 import { addMember, authHeader, setupCompany } from "./helpers/company.js";
 import { createStaff, setPay, staffPath, today } from "./helpers/staff.js";
@@ -34,28 +34,68 @@ afterEach(async () => {
   await clearAllTables();
 });
 
-const EXAMPLE_TIERS = [
-  { fromPercent: 0, toPercent: 80, ratePercent: 5, boost: null },
-  { fromPercent: 80, toPercent: 100, ratePercent: 8, boost: null },
-  { fromPercent: 100, toPercent: null, ratePercent: 12, boost: 1.5 },
+const EXAMPLE_BANDS = [
+  { fromAmount: 0, toAmount: 5_000_000, ratePercent: 5 },
+  { fromAmount: 5_000_000, toAmount: 10_000_000, ratePercent: 7.5 },
+  { fromAmount: 10_000_000, toAmount: null, ratePercent: 10 },
 ];
 
-const postPlan = (token: string, orgId: string, tiers: unknown, name = "Sales 2027") =>
+const planBody = (bands: unknown, name = "Sales 2027") => ({
+  name,
+  paidOn: "yearly_sales",
+  frequency: "quarterly",
+  bands,
+});
+
+const postPlan = (token: string, orgId: string, bands: unknown, name = "Sales 2027") =>
   request(app)
     .post(staffPath(orgId, "/commission-plans"))
     .set(authHeader(token))
-    .send({ name, tiers });
+    .send(planBody(bands, name));
 
 describe("commission plans", () => {
   it.each([
-    ["a gap", [EXAMPLE_TIERS[0], { ...EXAMPLE_TIERS[2], fromPercent: 85 }]],
-    ["an overlap", [EXAMPLE_TIERS[0], { ...EXAMPLE_TIERS[2], fromPercent: 70 }]],
-    ["an open tier before the last", [{ ...EXAMPLE_TIERS[0], toPercent: null }, EXAMPLE_TIERS[2]]],
-    ["a first tier above 0%", [{ ...EXAMPLE_TIERS[2], fromPercent: 10 }]],
-    ["a boost below 1x", [{ ...EXAMPLE_TIERS[2], fromPercent: 0, boost: 0.5 }]],
-  ])("refuses tiers with %s", async (_label, tiers) => {
+    ["a gap", [EXAMPLE_BANDS[0], { ...EXAMPLE_BANDS[2], fromAmount: 6_000_000 }]],
+    ["an overlap", [EXAMPLE_BANDS[0], { ...EXAMPLE_BANDS[2], fromAmount: 4_000_000 }]],
+    ["an open tier before the last", [{ ...EXAMPLE_BANDS[0], toAmount: null }, EXAMPLE_BANDS[2]]],
+    ["a first tier above 0", [{ ...EXAMPLE_BANDS[2], fromAmount: 10 }]],
+    ["a rate above 100%", [{ ...EXAMPLE_BANDS[2], fromAmount: 0, ratePercent: 150 }]],
+  ])("refuses tiers with %s", async (_label, bands) => {
     const { owner, org } = await setupCompany();
-    expect((await postPlan(owner.token, org.id, tiers)).status).toBe(400);
+    expect((await postPlan(owner.token, org.id, bands)).status).toBe(400);
+  });
+
+  it("refuses a plan without a valid paid on or frequency", async () => {
+    const { owner, org } = await setupCompany();
+    const send = (body: object) =>
+      request(app)
+        .post(staffPath(org.id, "/commission-plans"))
+        .set(authHeader(owner.token))
+        .send({ ...planBody(EXAMPLE_BANDS), ...body });
+    expect((await send({ paidOn: "bonuses" })).status).toBe(400);
+    expect((await send({ frequency: "weekly" })).status).toBe(400);
+  });
+
+  it("flags a plan from before bands as needing bands until it is edited", async () => {
+    const { owner, org } = await setupCompany();
+    await testDataSource.getRepository(CommissionPlan).save({
+      organizationId: org.id,
+      name: "Legacy",
+      tiers: [{ fromPercent: 0, toPercent: null, ratePercent: 5, boost: null }],
+    });
+    const list = async () =>
+      apiData<{ plans: { id: string; needsBands: boolean }[] }>(
+        await request(app).get(staffPath(org.id, "/commission-plans")).set(authHeader(owner.token))
+      ).plans;
+
+    const [legacy] = await list();
+    expect(legacy?.needsBands).toBe(true);
+    await request(app)
+      .put(staffPath(org.id, `/commission-plans/${legacy!.id}`))
+      .set(authHeader(owner.token))
+      .send(planBody(EXAMPLE_BANDS, "Legacy"))
+      .expect(200);
+    expect((await list())[0]?.needsBands).toBe(false);
   });
 
   it("saves a plan, gives it to an employee and refuses to delete it while in use", async () => {
@@ -63,10 +103,10 @@ describe("commission plans", () => {
     const other = await setupCompany("Other Ltd");
     const staff = await createStaff(app, owner.token, org.id);
     const { plan } = apiData<{ plan: { id: string } }>(
-      await postPlan(owner.token, org.id, EXAMPLE_TIERS)
+      await postPlan(owner.token, org.id, EXAMPLE_BANDS)
     );
     const foreign = apiData<{ plan: { id: string } }>(
-      await postPlan(other.owner.token, other.org.id, EXAMPLE_TIERS)
+      await postPlan(other.owner.token, other.org.id, EXAMPLE_BANDS)
     ).plan;
 
     expect(
@@ -99,7 +139,7 @@ describe("people on a plan", () => {
       request(app)
         .post(staffPath(org.id, "/commission-plans"))
         .set(authHeader(owner.token))
-        .send({ name, tiers: EXAMPLE_TIERS });
+        .send(planBody(EXAMPLE_BANDS, name));
     const sales = apiData<{ plan: { id: string } }>(await plan("Sales 2026")).plan;
     const product = apiData<{ plan: { id: string } }>(await plan("Product 2026")).plan;
     const [ada, bayo, chi, dayo] = await Promise.all(
@@ -127,13 +167,14 @@ describe("people on a plan", () => {
       .send({ endDate: today() })
       .expect(200);
 
-    const plans = apiData<{ plans: { name: string; peopleCount: number }[] }>(
+    const plans = apiData<{ plans: { name: string; peopleCount: number; people: string[] }[] }>(
       await request(app).get(staffPath(org.id, "/commission-plans")).set(authHeader(owner.token))
     ).plans;
     expect(plans.map((p) => [p.name, p.peopleCount])).toEqual([
       ["Product 2026", 2],
       ["Sales 2026", 1],
     ]);
+    expect(plans[0]?.people).toHaveLength(2);
   });
 });
 

@@ -17,6 +17,24 @@ export interface CommissionTier {
   boost: number | null;
 }
 
+export interface CommissionBand {
+  fromAmount: number;
+  toAmount: number | null;
+  ratePercent: number;
+}
+
+export enum CommissionPaidOn {
+  YearlySales = "yearly_sales",
+  ProductRevenue = "product_revenue",
+  Renewals = "renewals",
+}
+
+export enum CommissionFrequency {
+  Monthly = "monthly",
+  Quarterly = "quarterly",
+  Yearly = "yearly",
+}
+
 @Entity("commission_plans")
 @Index("UQ_commission_plans_org_name", ["organizationId", "name"], { unique: true })
 export class CommissionPlan {
@@ -33,8 +51,17 @@ export class CommissionPlan {
   @Column({ type: "varchar", length: 120 })
   name!: string;
 
-  @Column({ type: "jsonb" })
+  @Column({ type: "jsonb", default: () => "'[]'" })
   tiers!: CommissionTier[];
+
+  @Column({ type: "jsonb", nullable: true })
+  bands!: CommissionBand[] | null;
+
+  @Column({ type: "varchar", length: 32, name: "paid_on", nullable: true })
+  paidOn!: CommissionPaidOn | null;
+
+  @Column({ type: "varchar", length: 16, nullable: true })
+  frequency!: CommissionFrequency | null;
 
   @CreateDateColumn({ name: "created_at" })
   createdAt!: Date;
