@@ -4,7 +4,12 @@ import { StaffAccessLog, StaffAccessResource } from "../entities/StaffAccessLog.
 import { StaffActivity, StaffActivityType } from "../entities/StaffActivity.js";
 import type { StaffMember } from "../entities/StaffMember.js";
 import type { User } from "../entities/User.js";
-import { assertCanViewStaff, assertOwner, getPeopleAccess } from "./peopleAccess.js";
+import {
+  assertCanManagePeople,
+  assertCanViewStaff,
+  assertOwner,
+  getPeopleAccess,
+} from "./peopleAccess.js";
 import { Actor, findStaff, fullNameOf } from "./staffRecord.js";
 
 const MAX_ACTIVITY_ROWS = 200;
@@ -15,6 +20,8 @@ const VIEWABLE_WITHOUT_BEING_CREATOR = new Set<StaffAccessResource>([
   StaffAccessResource.StaffActivity,
   StaffAccessResource.Performance,
 ]);
+
+const READABLE_BY_PEOPLE_MANAGERS = new Set<StaffAccessResource>([StaffAccessResource.Pay]);
 
 /** Pay, share and contract events are left out, so a new event type starts out creator-only. */
 const PERFORMANCE_ACTIVITY = [
@@ -169,6 +176,8 @@ export const openStaff = async (
 ): Promise<StaffMember> => {
   if (VIEWABLE_WITHOUT_BEING_CREATOR.has(resource)) {
     await assertCanViewStaff(actor.id, organizationId, staffId);
+  } else if (READABLE_BY_PEOPLE_MANAGERS.has(resource)) {
+    await assertCanManagePeople(actor.id, organizationId);
   } else {
     await assertOwner(actor.id, organizationId);
   }

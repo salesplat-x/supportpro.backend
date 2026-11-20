@@ -105,11 +105,10 @@ describe("the access endpoint", () => {
   });
 });
 
-describe("pay, benefits and contracts are private to the creator", () => {
+describe("pay changes, benefits and contracts are private to the creator", () => {
   const creatorOnly = (orgId: string, staffId: string) => {
     const base = staffPath(orgId, `/${staffId}`);
     return [
-      ["get", `${base}/pay`],
       [
         "put",
         `${base}/pay`,
@@ -162,6 +161,24 @@ describe("pay, benefits and contracts are private to the creator", () => {
       expect(logs).toHaveLength(0);
     }
   );
+
+  it("lets a member with Can manage people read pay, logged, but not an assigned HR", async () => {
+    const { org, hr, manager, mine } = await company();
+    const path = staffPath(org.id, `/${mine.id}/pay`);
+
+    expect((await get(hr.token, path)).status).toBe(403);
+    expect(
+      await testDataSource
+        .getRepository(StaffAccessLog)
+        .count({ where: { resource: StaffAccessResource.Pay } })
+    ).toBe(0);
+    expect((await get(manager.token, path)).status).toBe(200);
+    expect(
+      await testDataSource
+        .getRepository(StaffAccessLog)
+        .count({ where: { resource: StaffAccessResource.Pay, actorId: manager.user.id } })
+    ).toBe(1);
+  });
 
   it("still lets the creator in", async () => {
     const { owner, org, mine } = await company();

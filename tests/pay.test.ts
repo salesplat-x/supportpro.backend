@@ -224,13 +224,13 @@ describe("pay access", () => {
     expect(await payLogs(staff.id)).toHaveLength(0);
   });
 
-  it("keeps pay from a member with Can manage people", async () => {
+  it("lets a member with Can manage people read pay, logged, but not change it", async () => {
     const { org, staff } = await companyWithStaff();
     const hr = await addMember(org, { canManagePeople: true });
 
-    expect((await getPay(hr.token, org.id, staff.id)).status).toBe(403);
+    expect((await getPay(hr.token, org.id, staff.id)).status).toBe(200);
+    expect(await payLogs(staff.id)).toHaveLength(1);
     expect((await putPay(hr.token, org.id, staff.id)).status).toBe(403);
-    expect(await payLogs(staff.id)).toHaveLength(0);
   });
 
   it("writes one pay line per read and hides other companies' staff", async () => {
