@@ -4,20 +4,32 @@ import { Organization } from "../entities/Organization.js";
 import { OrganizationMember } from "../entities/OrganizationMember.js";
 import { StaffHrAssignment } from "../entities/StaffHrAssignment.js";
 import { StaffMember } from "../entities/StaffMember.js";
-import { AuthorizationError, NotFoundError } from "../utils/errors";
+import { User } from "../entities/User.js";
+import { AppError, AuthorizationError, ConflictError, NotFoundError } from "../utils/errors";
+import { createNotification } from "./notification.js";
+
+const ACCESS_REQUEST_COOLDOWN_HOURS = 24;
 
 export interface PeopleAccess {
   isOwner: boolean;
   canManagePeople: boolean;
   /** How many current employees this person has been assigned to track. */
   assignedCount: number;
+  ownerFirstName: string | null;
+  /** True while this person's ask for access is still within its one-a-day limit. */
+  accessRequested: boolean;
 }
 
 const loadAccess = async (
   userId: string,
   organizationId: string,
   em: EntityManager = AppDataSource.manager
-): Promise<{ isOwner: boolean; canManagePeople: boolean; organization: Organization }> => {
+): Promise<{
+  isOwner: boolean;
+  canManagePeople: boolean;
+  organization: Organization;
+  member: OrganizationMember | null;
+}> => {
   const organization = await em.getRepository(Organization).findOne({
     where: { id: organizationId },
   });
@@ -25,7 +37,7 @@ const loadAccess = async (
     throw new NotFoundError("Company not found");
   }
   if (organization.ownerId === userId) {
-    return { organization, isOwner: true, canManagePeople: true };
+    return { organization, isOwner: true, canManagePeople: true, member: null };
   }
   const member = await em
     .getRepository(OrganizationMember)
@@ -33,7 +45,7 @@ const loadAccess = async (
   if (!member) {
     throw new AuthorizationError("You are not a member of this company");
   }
-  return { organization, isOwner: false, canManagePeople: member.canManagePeople };
+  return { organization, isOwner: false, canManagePeople: member.canManagePeople, member };
 };
 
 const assignmentsOf = (
@@ -53,9 +65,69 @@ export const getPeopleAccess = async (
   userId: string,
   organizationId: string
 ): Promise<PeopleAccess> => {
-  const { isOwner, canManagePeople } = await loadAccess(userId, organizationId);
-  const assignedCount = await assignmentsOf(userId, organizationId).getCount();
-  return { isOwner, canManagePeople, assignedCount };
+  const { isOwner, canManagePeople, organization, member } = await loadAccess(
+    userId,
+    organizationId
+  );
+  const [assignedCount, owner] = await Promise.all([
+    assignmentsOf(userId, organizationId).getCount(),
+    organization.ownerId
+      ? AppDataSource.getRepository(User).findOneBy({ id: organization.ownerId })
+      : null,
+  ]);
+  const requestedAt = member?.peopleAccessRequestedAt;
+  return {
+    isOwner,
+    canManagePeople,
+    assignedCount,
+    ownerFirstName: owner?.firstName ?? null,
+    accessRequested:
+      !!requestedAt &&
+      requestedAt.getTime() > Date.now() - ACCESS_REQUEST_COOLDOWN_HOURS * 3_600_000,
+  };
+};
+
+export const requestPeopleAccess = async (user: User, organizationId: string): Promise<void> => {
+  const { isOwner, canManagePeople, organization } = await loadAccess(user.id, organizationId);
+  const hasAssignments = await assignmentsOf(user.id, organizationId).getExists();
+  if (isOwner || canManagePeople || hasAssignments) {
+    throw new ConflictError("You already have access to People");
+  }
+  if (!organization.ownerId) {
+    throw new NotFoundError("This company has no creator to ask");
+  }
+
+  const claimed = await AppDataSource.getRepository(OrganizationMember)
+    .createQueryBuilder()
+    .update()
+    .set({ peopleAccessRequestedAt: () => "now()" })
+    .where("user_id = :userId AND organization_id = :organizationId", {
+      userId: user.id,
+      organizationId,
+    })
+    .andWhere(
+      `(people_access_requested_at IS NULL
+        OR people_access_requested_at < now() - make_interval(hours => :hours))`,
+      { hours: ACCESS_REQUEST_COOLDOWN_HOURS }
+    )
+    .execute();
+  if (!claimed.affected) {
+    throw new AppError(429, "TOO_MANY_REQUESTS", "You already asked. Try again tomorrow.");
+  }
+
+  try {
+    await createNotification(
+      organization.ownerId,
+      `${`${user.firstName} ${user.lastName}`.trim()} asked for access to People in ${organization.name}.`,
+      "Access request"
+    );
+  } catch (err) {
+    await AppDataSource.getRepository(OrganizationMember).update(
+      { userId: user.id, organizationId },
+      { peopleAccessRequestedAt: null }
+    );
+    throw err;
+  }
 };
 
 const noPeopleAccess = () =>

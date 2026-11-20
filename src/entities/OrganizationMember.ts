@@ -44,6 +44,10 @@ export class OrganizationMember {
   @Column({ type: "varchar", length: 60, nullable: true })
   title!: string | null;
 
+  /** When this member last asked the owner for access to People; at most one ask a day. */
+  @Column({ type: "timestamptz", name: "people_access_requested_at", nullable: true })
+  peopleAccessRequestedAt!: Date | null;
+
   @Column({ type: "timestamp", default: () => "CURRENT_TIMESTAMP", name: "verified_at" })
   verifiedAt!: Date;
 
