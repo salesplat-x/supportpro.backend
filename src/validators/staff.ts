@@ -1,5 +1,6 @@
 import { body, param, query, type ValidationChain } from "express-validator";
 import { PayPeriod } from "../entities/PayPackage.js";
+import { ACCESS_LOG_DETAILS, StaffAccessResource } from "../entities/StaffAccessLog.js";
 import { DocumentTemplate } from "../entities/StaffDocument.js";
 import {
   CommissionFrequency,
@@ -214,6 +215,9 @@ export const accessLogValidator = [
   ...pagination,
   once(query("staffId"), "staffId").isUUID().withMessage("Invalid staff id"),
   once(query("actorId"), "actorId").isUUID().withMessage("Invalid person id"),
+  once(query("resource"), "resource")
+    .isIn([...Object.values(StaffAccessResource), ACCESS_LOG_DETAILS])
+    .withMessage("Invalid resource"),
   dateOnly(query("from").optional(), "From date"),
   dateOnly(query("to").optional(), "To date"),
 ];

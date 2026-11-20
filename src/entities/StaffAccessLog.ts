@@ -15,10 +15,14 @@ export enum StaffAccessResource {
   StaffRecord = "staff_record",
   StaffActivity = "staff_activity",
   Pay = "pay",
+  ShareOptions = "share_options",
   Contract = "contract",
   HeadcountCost = "headcount_cost",
   Performance = "performance",
 }
+
+/** Filter value for the staff record and its activity, shown together as "Details". */
+export const ACCESS_LOG_DETAILS = "details";
 
 /** One row per time someone opens a staff member's data. Rows are never edited or deleted. */
 @Entity("staff_access_logs")

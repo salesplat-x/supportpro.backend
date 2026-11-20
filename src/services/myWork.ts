@@ -120,7 +120,17 @@ export const getMyPay = async (actor: User, staffId: string, ip: string): Promis
     resource: StaffAccessResource.Pay,
     ip,
   });
-  return loadPay(staff.id);
+  const pay = await loadPay(staff.id);
+  if (pay.grants.length > 0) {
+    await logStaffAccess({
+      organizationId: staff.organizationId,
+      actor,
+      staff,
+      resource: StaffAccessResource.ShareOptions,
+      ip,
+    });
+  }
+  return pay;
 };
 
 const findOwnDocument = async (
