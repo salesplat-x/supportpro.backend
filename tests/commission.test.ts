@@ -6,7 +6,14 @@ import {
   clearAllTables,
   testDataSource,
 } from "./helpers/db.js";
-import { CommissionPlan, Organization, PayPackage, StaffAccessLog } from "../src/entities";
+import {
+  CommissionPlan,
+  Organization,
+  PayPackage,
+  StaffAccessLog,
+  StaffMember,
+} from "../src/entities";
+import { StaffStatus } from "../src/entities/StaffMember.js";
 import { apiData } from "./helpers/http.js";
 import { addMember, authHeader, setupCompany } from "./helpers/company.js";
 import { createStaff, setPay, staffPath, today } from "./helpers/staff.js";
@@ -251,6 +258,52 @@ describe("headcount cost", () => {
       await request(app).get(staffPath(org.id, "/headcount-cost")).set(authHeader(owner.token))
     );
     expect(cost.totals[0]).toMatchObject({ bonus: 120000, commissionTarget: 6000, total: 1326000 });
+  });
+
+  it("counts headcount at each month end with who is invited and who left", async () => {
+    const { owner, org } = await setupCompany();
+    const monthStart = (back: number) => {
+      const now = new Date();
+      return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back, 1))
+        .toISOString()
+        .slice(0, 10);
+    };
+    const person = (fullName: string) => createStaff(app, owner.token, org.id, { fullName });
+    const [ada, bayo, chi, dayo] = [
+      await person("Ada Obi"),
+      await person("Bayo Ade"),
+      await person("Chi Eze"),
+      await person("Dayo Ola"),
+    ];
+    const staff = testDataSource.getRepository(StaffMember);
+    await staff.update({ id: ada.id }, { startDate: monthStart(14) });
+    await staff.update({ id: bayo.id }, { startDate: monthStart(3) });
+    await staff.update(
+      { id: chi.id },
+      { startDate: monthStart(8), endDate: monthStart(2), status: StaffStatus.Ended }
+    );
+    await staff.update({ id: dayo.id }, { startDate: monthStart(-1), status: StaffStatus.Invited });
+
+    const get = (query = "") =>
+      request(app)
+        .get(staffPath(org.id, `/headcount-cost${query}`))
+        .set(authHeader(owner.token));
+    const cost = apiData<{
+      headcount: number;
+      invited: { count: number; names: string[] };
+      left: { count: number; names: string[] };
+      byMonth: { month: string; headcount: number }[];
+    }>(await get());
+
+    expect(cost.byMonth.map((row) => row.headcount)).toEqual([1, 1, 1, 2, 2, 2, 2, 2, 3, 2, 2, 2]);
+    expect(cost.headcount).toBe(2);
+    expect(cost.invited).toEqual({ count: 1, names: ["Dayo Ola"] });
+    expect(cost.left).toEqual({ count: 1, names: ["Chi Eze"] });
+
+    const short = apiData<{ byMonth: unknown[]; left: { count: number } }>(await get("?months=3"));
+    expect(short.byMonth).toHaveLength(3);
+    expect(short.left.count).toBe(1);
+    expect((await get("?months=5")).status).toBe(400);
   });
 
   it("refuses people without access and writes one log line per view", async () => {

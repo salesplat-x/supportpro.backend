@@ -7,6 +7,7 @@ import { sendSuccessResponse } from "../utils/response.js";
 const orgId = (req: Request) => req.params["_id"]!;
 const staffId = (req: Request) => req.params["staffId"]!;
 const benefitId = (req: Request) => req.params["benefitId"]!;
+const DEFAULT_HEADCOUNT_MONTHS = 12;
 
 const packageInput = (req: Request): payService.PayPackageInput => {
   const {
@@ -60,7 +61,12 @@ export const deleteShareGrant = async (req: Request, res: Response) => {
 };
 
 export const headcountCost = async (req: Request, res: Response) => {
-  const cost = await payService.getHeadcountCost(req.user, orgId(req), getClientIp(req));
+  const cost = await payService.getHeadcountCost(
+    req.user,
+    orgId(req),
+    getClientIp(req),
+    Number(req.query["months"] ?? DEFAULT_HEADCOUNT_MONTHS)
+  );
   sendSuccessResponse(res, "Headcount cost fetched", cost);
 };
 

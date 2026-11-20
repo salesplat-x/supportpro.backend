@@ -316,7 +316,9 @@ export const listBenefits = async (
       ),
     ]);
   const givenTo = new Map(counts.map((row) => [row.benefit_id, Number(row.given_to)]));
-  return benefits.map((benefit) => Object.assign(benefit, { givenTo: givenTo.get(benefit.id) ?? 0 }));
+  return benefits.map((benefit) =>
+    Object.assign(benefit, { givenTo: givenTo.get(benefit.id) ?? 0 })
+  );
 };
 
 const assertBenefitNameFree = async (
@@ -410,17 +412,29 @@ export interface HeadcountCostRow {
   total: number;
 }
 
+export interface HeadcountPeople {
+  count: number;
+  names: string[];
+}
+
 export interface HeadcountCost {
   totals: HeadcountCostRow[];
   departments: HeadcountCostRow[];
+  headcount: number;
+  invited: HeadcountPeople;
+  left: HeadcountPeople;
+  byMonth: { month: string; headcount: number }[];
 }
+
+const HEADCOUNT_NAMES_SHOWN = 3;
 
 const HEADCOUNT_ALL_STAFF = "all staff";
 
 export const getHeadcountCost = async (
   actor: User,
   organizationId: string,
-  ip: string
+  ip: string,
+  months: number
 ): Promise<HeadcountCost> => {
   await assertOwner(actor.id, organizationId);
   await logStaffAccess({
@@ -475,8 +489,52 @@ export const getHeadcountCost = async (
     };
   };
 
+  const today = todayUtc();
+  const [byMonth, invited, left] = await Promise.all([
+    AppDataSource.query(
+      `WITH month_ends AS (
+         SELECT LEAST(
+           (date_trunc('month', $2::date) - (g * interval '1 month') + interval '1 month'
+             - interval '1 day')::date,
+           $2::date
+         ) AS cutoff
+         FROM generate_series($3::int - 1, 0, -1) AS g
+       )
+       SELECT to_char(m.cutoff, 'YYYY-MM') AS month, COUNT(s.id) AS headcount
+       FROM month_ends m
+       LEFT JOIN staff_members s ON s.organization_id = $1
+         AND s.status <> 'invited'
+         AND s.start_date <= m.cutoff
+         AND (s.end_date IS NULL OR s.end_date > m.cutoff)
+       GROUP BY m.cutoff
+       ORDER BY m.cutoff`,
+      [organizationId, today, months]
+    ) as Promise<{ month: string; headcount: string }[]>,
+    AppDataSource.query(
+      `SELECT full_name FROM staff_members
+       WHERE organization_id = $1 AND status = 'invited'
+       ORDER BY start_date, full_name`,
+      [organizationId]
+    ) as Promise<{ full_name: string }[]>,
+    AppDataSource.query(
+      `SELECT full_name FROM staff_members
+       WHERE organization_id = $1 AND status = 'ended'
+         AND end_date <= $2::date AND end_date > $2::date - ($3::int * interval '1 month')
+       ORDER BY end_date DESC, full_name`,
+      [organizationId, today, months]
+    ) as Promise<{ full_name: string }[]>,
+  ]);
+  const people = (list: { full_name: string }[]): HeadcountPeople => ({
+    count: list.length,
+    names: list.slice(0, HEADCOUNT_NAMES_SHOWN).map((row) => row.full_name),
+  });
+
   return {
     totals: rows.filter((row) => row.is_total).map(toRow),
     departments: rows.filter((row) => !row.is_total).map(toRow),
+    headcount: Number(byMonth[byMonth.length - 1]?.headcount ?? 0),
+    invited: people(invited),
+    left: people(left),
+    byMonth: byMonth.map((row) => ({ month: row.month, headcount: Number(row.headcount) })),
   };
 };
