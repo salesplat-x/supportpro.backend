@@ -115,6 +115,11 @@ const staffEmail = (chain: ValidationChain): ValidationChain =>
 
 export const companyParamValidator = [orgParam];
 
+export const headcountCostValidator = [
+  orgParam,
+  once(query("months"), "months").isIn(["3", "6", "12"]).withMessage("months must be 3, 6 or 12"),
+];
+
 export const staffOptionsValidator = [
   orgParam,
   once(query("includeEnded"), "includeEnded")

@@ -42,6 +42,7 @@ import {
   endStaffValidator,
   listStaffValidator,
   companyParamValidator,
+  headcountCostValidator,
   staffIdValidator,
   staffOptionsValidator,
   updateStaffValidator,
@@ -221,7 +222,7 @@ router.delete(
 router.get(
   "/headcount-cost",
   ...recruiter,
-  validate(companyParamValidator),
+  validate(headcountCostValidator),
   asyncHandler(pay.headcountCost, "load headcount cost")
 );
 
