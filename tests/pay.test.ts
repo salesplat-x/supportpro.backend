@@ -315,6 +315,11 @@ describe("pay packages", () => {
     let pay = apiData<PayView>(await getPay(owner.token, org.id, staff.id));
     expect(pay.packages[0]?.paragraph).toContain("You also receive: Health cover.");
 
+    const listed = apiData<{ benefits: { id: string; givenTo: number }[] }>(
+      await request(app).get(staffPath(org.id, "/benefits")).set(authHeader(owner.token))
+    ).benefits;
+    expect(listed.find((item) => item.id === health.id)?.givenTo).toBe(1);
+
     await request(app)
       .delete(staffPath(org.id, `/benefits/${health.id}`))
       .set(authHeader(owner.token))

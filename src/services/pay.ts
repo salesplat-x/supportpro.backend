@@ -285,12 +285,38 @@ export const deleteShareGrant = async (
   });
 };
 
-export const listBenefits = async (userId: string, organizationId: string): Promise<Benefit[]> => {
+export interface BenefitView extends Benefit {
+  givenTo: number;
+}
+
+export const listBenefits = async (
+  userId: string,
+  organizationId: string
+): Promise<BenefitView[]> => {
   await assertOwner(userId, organizationId);
-  return AppDataSource.getRepository(Benefit).find({
-    where: { organizationId },
-    order: { name: "ASC" },
-  });
+  const [benefits, counts]: [Benefit[], Array<{ benefit_id: string; given_to: string }>] =
+    await Promise.all([
+      AppDataSource.getRepository(Benefit).find({
+        where: { organizationId },
+        order: { name: "ASC" },
+      }),
+      AppDataSource.query(
+        `WITH current_pay AS (
+           SELECT DISTINCT ON (p.staff_id) p.id
+           FROM pay_packages p
+           JOIN staff_members s ON s.id = p.staff_id
+           WHERE s.organization_id = $1 AND s.status <> 'ended' AND p.starts_on <= $2
+           ORDER BY p.staff_id, p.starts_on DESC
+         )
+         SELECT pb.benefit_id, COUNT(*) AS given_to
+         FROM pay_package_benefits pb
+         JOIN current_pay cp ON cp.id = pb.pay_package_id
+         GROUP BY pb.benefit_id`,
+        [organizationId, todayUtc()]
+      ),
+    ]);
+  const givenTo = new Map(counts.map((row) => [row.benefit_id, Number(row.given_to)]));
+  return benefits.map((benefit) => Object.assign(benefit, { givenTo: givenTo.get(benefit.id) ?? 0 }));
 };
 
 const assertBenefitNameFree = async (
