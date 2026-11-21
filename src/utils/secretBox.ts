@@ -22,7 +22,7 @@ export const encryptSecret = (plain: string): string => {
 
 export const decryptSecret = (stored: string): string => {
   const [iv, tag, body] = stored.split(".").map((part) => Buffer.from(part, "base64"));
-  const decipher = createDecipheriv("aes-256-gcm", keyBytes(), iv!);
+  const decipher = createDecipheriv("aes-256-gcm", keyBytes(), iv!, { authTagLength: 16 });
   decipher.setAuthTag(tag!);
   return Buffer.concat([decipher.update(body!), decipher.final()]).toString("utf8");
 };
