@@ -414,7 +414,7 @@ export const signDocumentValidator = [
   body("agree").equals("true").withMessage("Tick the box to agree to sign electronically"),
 ];
 
-export const MAX_IMPORT_ROWS = 200;
+export const MAX_IMPORT_ROWS = 500;
 
 export const importRowValidator = [
   text(body("fullName"), "Full name"),
