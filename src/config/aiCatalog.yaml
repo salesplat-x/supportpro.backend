@@ -294,6 +294,13 @@ features:
     kind: chat
     format: json_object
     default: { provider: openai, model: gpt-5.6-luna }
+  - key: reference_questions
+    name: Reference question AI
+    description: Writes the questions a company sends to a candidate's referees.
+    group: Assessments
+    kind: chat
+    format: json_object
+    default: { provider: openai, model: gpt-5.6-luna }
   - key: ai_interview_followup
     name: AI interview follow-up AI
     description: Writes at most one spoken follow-up question after a candidate's interview answer.

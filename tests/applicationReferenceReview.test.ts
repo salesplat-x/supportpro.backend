@@ -14,6 +14,7 @@ import {
   createApplication,
   createOrganization,
 } from "./helpers/fixtures.js";
+import { sendCompanyQuestions, setCompanyQuestions } from "./helpers/references.js";
 import { ApplicationReference } from "../src/entities/ApplicationReference.js";
 import { User } from "../src/entities/User.js";
 import EmailService from "../src/utils/integrations/email/emailService.js";
@@ -65,6 +66,7 @@ const ANSWERS = {
 async function setup() {
   const { user: poster, token: posterToken } = await createRecruiter();
   const organization = await createOrganization(poster);
+  await setCompanyQuestions(organization.id);
   const job = await createJob(poster, await createRole(), { organizationId: organization.id });
   const { user: teammate, token: teammateToken } = await createRecruiter();
   await testDataSource
@@ -77,8 +79,10 @@ async function setup() {
       .post(`/v1/references/applications/${application.id}`)
       .set("Authorization", `Bearer ${talentToken}`)
       .send({ referees: [{ name, email, relationship: "manager" }] });
+  const send = () => sendCompanyQuestions(app, posterToken, organization.id, [job.id]);
   const added = await add("ada@example.com");
   const referenceId = added.body.data.references[0].id as string;
+  await send();
   const tokenOf = (call = 0) =>
     String(mockSendRequest.mock.calls[call]![0].ctaUrl).split("/reference/")[1]!;
   const answer = (token: string) =>
@@ -90,6 +94,7 @@ async function setup() {
   const resend = (token: string, id = referenceId) =>
     request(app).post(`/v1/references/${id}/resend`).set("Authorization", `Bearer ${token}`);
   return {
+    organization,
     poster,
     posterToken,
     teammateToken,
@@ -97,6 +102,7 @@ async function setup() {
     application,
     referenceId,
     add,
+    send,
     tokenOf,
     answer,
     read,
@@ -106,8 +112,9 @@ async function setup() {
 
 describe("company reads the references", () => {
   it("the posting company sees who was asked, who answered and the answers", async () => {
-    const { read, posterToken, answer, tokenOf, add } = await setup();
+    const { read, posterToken, answer, tokenOf, add, send } = await setup();
     await add("bola@example.com", "Bola Ade");
+    await send();
     await answer(tokenOf(0));
     const res = await read(posterToken);
     expect(res.status).toBe(200);
@@ -189,13 +196,30 @@ describe("resending a reference request", () => {
     expect(mockSendRequest).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps the new link unsent when the email fails, and an unknown referee is not found", async () => {
+  it("says so when the email fails, and an unknown referee is not found", async () => {
     const { resend, posterToken } = await setup();
     mockSendRequest.mockRejectedValueOnce(new Error("provider down"));
     const res = await resend(posterToken);
-    expect(res.status).toBe(200);
-    expect(res.body.data.status).toBe("not_sent");
+    expect(res.status).toBe(502);
+    expect(res.body.error.code).toBe("REFERENCE_EMAIL_FAILED");
     const missing = await resend(posterToken, "00000000-0000-4000-8000-000000000000");
     expect(missing.status).toBe(404);
+  });
+
+  it("refuses to resend to a referee who was never sent the questions", async () => {
+    const { resend, posterToken, add } = await setup();
+    const added = await add("bola@example.com", "Bola Ade");
+    const bola = (added.body.data.references as Array<{ id: string; name: string }>).find(
+      (r) => r.name === "Bola Ade"
+    )!;
+    expect((await resend(posterToken, bola.id)).status).toBe(409);
+  });
+
+  it("resends the questions the referee was first sent", async () => {
+    const { resend, posterToken, tokenOf, organization } = await setup();
+    await setCompanyQuestions(organization.id, []);
+    await resend(posterToken);
+    const opened = await request(app).get(`/v1/references/respond/${tokenOf(1)}`);
+    expect(opened.body.data.questions).toHaveLength(6);
   });
 });

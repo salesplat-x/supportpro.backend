@@ -11,6 +11,7 @@ export const AI_FEATURE_KEYS = [
   "scout_shortlist_summary",
   "personalized_questions",
   "ai_interview_questions",
+  "reference_questions",
   "ai_interview_followup",
   "ai_interview_scoring",
   "personality_questions",

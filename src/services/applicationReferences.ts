@@ -6,6 +6,7 @@ import { ApplicationReference } from "../entities/ApplicationReference.js";
 import EmailService from "../utils/integrations/email/emailService.js";
 import { AuthorizationError, ConflictError, NotFoundError, ValidationError } from "../utils/errors";
 import logger from "../utils/logger.js";
+import type { ReferenceQuestion } from "../types/referenceQuestion.js";
 
 export const MAX_REFEREES = 3;
 export const REFERENCE_LINK_DAYS = 14;
@@ -32,10 +33,32 @@ export const newToken = (): { token: string; tokenHash: string; expiresAt: Date 
   return { token, tokenHash: hashToken(token), expiresAt };
 };
 
+/** The six questions every referee got before companies wrote their own. */
+const ORIGINAL_QUESTIONS: ReferenceQuestion[] = [
+  { key: "worked_together", question: "How did you work together?", type: "text", required: true },
+  { key: "strengths", question: "What are their strengths?", type: "text", required: true },
+  { key: "improve", question: "What could they improve?", type: "text", required: true },
+  { key: "reliability", question: "How reliable are they?", type: "text", required: true },
+  { key: "hire_again", question: "Would you hire them again?", type: "yesno", required: true },
+  {
+    key: "anything_else",
+    question: "Anything else you want us to know?",
+    type: "text",
+    required: false,
+  },
+];
+
+/**
+ * The questions this referee was sent. A row emailed by the previous release while
+ * the migration ran has no saved copy, so it keeps the original six.
+ */
+export const questionsOf = (row: ApplicationReference): ReferenceQuestion[] | null =>
+  row.questions ?? (row.sentAt || row.answeredAt ? ORIGINAL_QUESTIONS : null);
+
 export const referenceStatus = (row: ApplicationReference): ReferenceStatus => {
   if (row.answeredAt) return "answered";
-  if (row.tokenExpiresAt.getTime() <= Date.now()) return "expired";
-  return row.sentAt ? "sent" : "not_sent";
+  if (!row.sentAt) return "not_sent";
+  return row.tokenExpiresAt.getTime() <= Date.now() ? "expired" : "sent";
 };
 
 export const toReferee = (row: ApplicationReference) => ({
@@ -102,10 +125,10 @@ export const addReferees = async (
     if (taken.has(email)) throw new ConflictError("This referee has already been added");
     taken.add(email);
   }
-  const issued = prepared.map((input) => ({ input, ...newToken() }));
-  const saved = await repo().save(
-    issued.map(({ input, tokenHash, expiresAt }) =>
-      repo().create({
+  await repo().save(
+    prepared.map((input) => {
+      const { tokenHash, expiresAt } = newToken();
+      return repo().create({
         applicationId,
         jobId: application.jobId,
         talentId: application.talentId,
@@ -114,10 +137,10 @@ export const addReferees = async (
         relationship: input.relationship,
         tokenHash,
         tokenExpiresAt: expiresAt,
-      })
-    )
+        questions: null,
+      });
+    })
   );
-  await Promise.all(saved.map((row, index) => sendReferenceEmail(row, issued[index]!.token)));
   const rows = await repo().find({ where: { applicationId }, order: { createdAt: "ASC" } });
   return { applicationId, references: rows.map(toReferee) };
 };

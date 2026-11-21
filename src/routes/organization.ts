@@ -1,11 +1,16 @@
 import { Router } from "express";
 import * as organization from "../controllers/organization.js";
+import * as referenceQuestions from "../controllers/referenceQuestions.js";
 import * as usage from "../controllers/usage.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { validateAccess, requireVerifiedEmail } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { avatarUpload } from "../middleware/multer.js";
-import { accessCodeIpLimiter, accessCodeLimiter } from "../middleware/rateLimiter.js";
+import {
+  accessCodeIpLimiter,
+  accessCodeLimiter,
+  peopleAiLimiter,
+} from "../middleware/rateLimiter.js";
 import { UserRole } from "../types/enums.js";
 import {
   addDepartmentValidator,
@@ -23,6 +28,12 @@ import {
   updateMemberValidator,
   updateOrganizationValidator,
 } from "../validators/organization.js";
+import {
+  generateReferenceQuestionsValidator,
+  organizationIdValidator,
+  sendReferenceQuestionsValidator,
+  setReferenceQuestionsValidator,
+} from "../validators/referenceQuestions.js";
 
 const router = Router();
 
@@ -134,6 +145,47 @@ router.delete(
   requireVerifiedEmail,
   validate(removeDepartmentValidator),
   asyncHandler(organization.removeDepartment, "remove department")
+);
+
+router.get(
+  "/:_id/reference-questions",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(organizationIdValidator),
+  asyncHandler(referenceQuestions.list, "load reference questions")
+);
+
+router.put(
+  "/:_id/reference-questions",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(setReferenceQuestionsValidator),
+  asyncHandler(referenceQuestions.save, "save reference questions")
+);
+
+router.post(
+  "/:_id/reference-questions/generate",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  peopleAiLimiter,
+  validate(generateReferenceQuestionsValidator),
+  asyncHandler(referenceQuestions.generate, "write reference questions")
+);
+
+router.get(
+  "/:_id/reference-questions/jobs",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(organizationIdValidator),
+  asyncHandler(referenceQuestions.jobs, "load jobs with waiting referees")
+);
+
+router.post(
+  "/:_id/reference-questions/send",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(sendReferenceQuestionsValidator),
+  asyncHandler(referenceQuestions.send, "send reference questions")
 );
 
 router.get(

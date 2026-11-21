@@ -13,9 +13,10 @@ import {
   createRole,
   createJob,
   createApplication,
+  createOrganization,
 } from "./helpers/fixtures.js";
+import { sendCompanyQuestions, setCompanyQuestions } from "./helpers/references.js";
 import { ApplicationReference } from "../src/entities/ApplicationReference.js";
-import { REFERENCE_QUESTIONS } from "../src/services/applicationReferenceAnswers.js";
 import EmailService from "../src/utils/integrations/email/emailService.js";
 
 const mockSendRequest = jest.fn();
@@ -64,9 +65,11 @@ const ANSWERS = {
 };
 
 async function setup() {
-  const { user: poster } = await createRecruiter();
+  const { user: poster, token: posterToken } = await createRecruiter();
+  const organization = await createOrganization(poster);
+  await setCompanyQuestions(organization.id);
   const role = await createRole("Support Agent");
-  const job = await createJob(poster, role);
+  const job = await createJob(poster, role, { organizationId: organization.id });
   const { user: talent, token: talentToken } = await createTalent({
     firstName: "Tobi",
     lastName: "Ade",
@@ -79,6 +82,9 @@ async function setup() {
       referees: [{ name: "Ada Obi", email: "ada@example.com", relationship: "manager" }],
     });
   expect(added.status).toBe(201);
+  expect(mockSendRequest).not.toHaveBeenCalled();
+  const sent = await sendCompanyQuestions(app, posterToken, organization.id, [job.id]);
+  expect(sent.body.data).toEqual({ sent: 1, failed: 0 });
   const token = String(mockSendRequest.mock.calls[0]![0].ctaUrl).split("/reference/")[1]!;
   const open = (t = token) => request(app).get(`/v1/references/respond/${t}`);
   const answer = (body: unknown, t = token) =>
@@ -89,7 +95,7 @@ async function setup() {
     testDataSource
       .getRepository(ApplicationReference)
       .findOneByOrFail({ applicationId: application.id });
-  return { talent, token, open, answer, row, talentToken, application };
+  return { talent, token, open, answer, row, talentToken, application, organization };
 }
 
 describe("referee opens the link", () => {
@@ -120,8 +126,31 @@ describe("referee opens the link", () => {
       "yesno",
       "text",
     ]);
-    expect(REFERENCE_QUESTIONS).toHaveLength(6);
     expect(JSON.stringify(res.body)).not.toMatch(/tokenHash|ada@example/);
+  });
+
+  it("shows the questions the referee was sent, even after the company edits its list", async () => {
+    const { open, organization } = await setup();
+    await setCompanyQuestions(organization.id, [
+      {
+        key: "only_one",
+        question: "Would you work with them again?",
+        type: "yesno",
+        required: true,
+      },
+    ]);
+    const res = await open();
+    expect(res.body.data.questions).toHaveLength(6);
+  });
+
+  it("a link emailed before saved questions existed keeps the original six", async () => {
+    const { open, row } = await setup();
+    await testDataSource.getRepository(ApplicationReference).update((await row()).id, {
+      questions: null,
+    });
+    const res = await open();
+    expect(res.status).toBe(200);
+    expect(res.body.data.questions).toHaveLength(6);
   });
 
   it("an unknown link is not found", async () => {
@@ -139,21 +168,55 @@ describe("referee opens the link", () => {
   });
 
   it("an expired or used link says which company to contact", async () => {
-    const { open, answer } = await setup();
+    const { open, answer, organization } = await setup();
     await answer({ answers: ANSWERS });
     const res = await open();
     expect(res.status).toBe(410);
     expect(res.body.error.code).toBe("REFERENCE_LINK_GONE");
     expect(res.body.error.details).toEqual({
       jobTitle: "Support Agent",
-      companyName: null,
-      companyEmail: null,
+      companyName: organization.name,
+      companyEmail: organization.email,
     });
     expect(JSON.stringify(res.body)).not.toMatch(/Tobi|Ada Obi|ada@example/);
   });
 });
 
 describe("referee answers", () => {
+  it("answers the company's own questions by their keys", async () => {
+    const { user: poster, token: posterToken } = await createRecruiter();
+    const organization = await createOrganization(poster);
+    const keys = ["5f4a8a2e-1c1b-4f0e-9a51-1f3e2a9c0b11", "6a1d2c3b-2e4f-4a5b-8c6d-7e8f9a0b1c22"];
+    await setCompanyQuestions(organization.id, [
+      { key: keys[0]!, question: "Did they lead the project?", type: "yesno", required: true },
+      { key: keys[1]!, question: "Describe their best work.", type: "text", required: false },
+    ]);
+    const job = await createJob(poster, await createRole(), { organizationId: organization.id });
+    const { user: talent, token: talentToken } = await createTalent();
+    const application = await createApplication(talent, job);
+    await request(app)
+      .post(`/v1/references/applications/${application.id}`)
+      .set("Authorization", `Bearer ${talentToken}`)
+      .send({ referees: [{ name: "Ada", email: "ada@example.com", relationship: "client" }] });
+    await sendCompanyQuestions(app, posterToken, organization.id, [job.id]);
+    const token = String(mockSendRequest.mock.calls[0]![0].ctaUrl).split("/reference/")[1]!;
+
+    const opened = await request(app).get(`/v1/references/respond/${token}`);
+    expect(opened.body.data.questions).toEqual([
+      { key: keys[0], question: "Did they lead the project?", type: "yesno", required: true },
+      { key: keys[1], question: "Describe their best work.", type: "text", required: false },
+    ]);
+    const missing = await request(app)
+      .post(`/v1/references/respond/${token}`)
+      .send({ answers: { [keys[1]!]: "Great work" } });
+    expect(missing.status).toBe(400);
+    const ok = await request(app)
+      .post(`/v1/references/respond/${token}`)
+      .send({ answers: { [keys[0]!]: "Yes" } });
+    expect(ok.status).toBe(200);
+    expect((await request(app).get(`/v1/references/respond/${token}`)).status).toBe(410);
+  });
+
   it("saves the answers and the link then stops working", async () => {
     const { answer, open, row } = await setup();
     const res = await answer({ answers: ANSWERS });
