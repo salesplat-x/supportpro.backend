@@ -63,3 +63,4 @@ export { AiInterviewQuestion } from "./AiInterviewQuestion.js";
 export { SavedJob } from "./SavedJob.js";
 export { ApplicationConsent } from "./ApplicationConsent.js";
 export { ApplicationCheck } from "./ApplicationCheck.js";
+export { ApplicationCheckEvent } from "./ApplicationCheckEvent.js";

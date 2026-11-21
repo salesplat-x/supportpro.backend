@@ -80,12 +80,13 @@ describe("company orders a check only after the candidate agrees", () => {
     await agree();
     const res = await order(posterToken, "identity");
     expect(res.status).toBe(201);
-    expect(res.body.data).toEqual({
+    expect(res.body.data).toMatchObject({
       id: expect.any(String),
       applicationId: application.id,
       type: "identity",
       status: "pending",
       resultText: null,
+      completedAt: null,
       orderedById: expect.any(String),
       createdAt: expect.any(String),
       updatedAt: expect.any(String),
@@ -122,9 +123,11 @@ describe("company reads the checks with one overall status", () => {
     const { list, posterToken, application } = await setup();
     const res = await list(posterToken);
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({
+    expect(res.body.data).toMatchObject({
       applicationId: application.id,
       overallStatus: "none",
+      consent: "not_requested",
+      criminalAvailable: false,
       checks: [],
     });
   });

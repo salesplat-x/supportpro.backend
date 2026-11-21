@@ -19,4 +19,10 @@ describe("swagger.yaml — background checks", () => {
     expect(route!.post!.responses).toHaveProperty("409");
     expect(route!.get!.responses).toHaveProperty("200");
   });
+
+  it("documents entering a result, the history and the ID number", () => {
+    expect(spec.paths["/checks/{checkId}/result"]!.patch!.responses).toHaveProperty("200");
+    expect(spec.paths["/checks/{checkId}/history"]!.get!.responses).toHaveProperty("403");
+    expect(spec.paths["/checks/{checkId}/id-number"]!.get!.responses).toHaveProperty("409");
+  });
 });

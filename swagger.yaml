@@ -12,6 +12,53 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    ApplicationCheck:
+      type: object
+      properties:
+        id:
+          type: string
+        applicationId:
+          type: string
+        type:
+          type: string
+          enum: [identity, employment, education, criminal]
+        restricted:
+          type: boolean
+          description: True when the caller may not read this check; only id and type are returned
+        status:
+          type: string
+          enum: [pending, passed, flagged, failed]
+        resultText:
+          type: string
+          nullable: true
+        confirmedBy:
+          type: string
+          nullable: true
+        confirmedOn:
+          type: string
+          format: date
+          nullable: true
+        note:
+          type: string
+          nullable: true
+        nameOnId:
+          type: string
+          nullable: true
+        nameGiven:
+          type: string
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        orderedById:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     ChecksConsent:
       type: object
       properties:
@@ -5595,9 +5642,11 @@ paths:
       summary: Company orders a background check for an application
       description: >-
         A recruiter of the company that posted the job orders one check on the candidate:
-        identity, employment, education or criminal. The check starts as pending. It is refused
-        with 409 until the candidate has agreed to background checks for this application. Other
-        users get 403.
+        identity, employment, education or criminal. The check starts as pending and the order is
+        written to its history. It is refused with 409 until the candidate has agreed to
+        background checks (and while a decline stands), when the same type was already ordered,
+        and for criminal with code NOT_AVAILABLE_IN_COUNTRY unless the candidate's country is on
+        the allowed list (empty by default). Other users get 403.
       tags:
         - checks
       parameters:
@@ -5644,6 +5693,10 @@ paths:
                       resultText:
                         type: string
                         nullable: true
+                      completedAt:
+                        type: string
+                        format: date-time
+                        nullable: true
                       orderedById:
                         type: string
                       createdAt:
@@ -5661,16 +5714,18 @@ paths:
         "404":
           description: Application not found
         "409":
-          description: The candidate has not agreed to background checks yet
+          description: Consent is missing or declined, the type was already ordered, or criminal checks are not available in the candidate's country
       security:
         - bearerAuth: []
     get:
       summary: Company reads the checks for an application with one overall status
       description: >-
-        Lists the checks ordered on the application and their overall status: failed if any
-        check failed, else flagged if any is flagged, else pending if any is pending, else
-        verified. An application with no checks is none. Only the company owner and the
-        recruiter who ordered a check can read them; other users get 403.
+        For members of the company that posted the job. Returns the consent state, the overall
+        status (failed if any check failed, else flagged, else pending, else verified; none with
+        no checks) and every check. A check is returned in full only to the member who ordered
+        it and the company owner; for any other member it is returned as restricted with only
+        its id and type. Every full read of a finished result is written to that check's
+        history before the response is sent. Other users get 403.
       tags:
         - checks
       parameters:
@@ -5695,40 +5750,194 @@ paths:
                     properties:
                       applicationId:
                         type: string
+                      candidateName:
+                        type: string
+                      consent:
+                        type: string
+                        enum: [not_requested, requested, agreed, declined]
                       overallStatus:
                         type: string
                         enum: [failed, flagged, pending, verified, none]
+                      criminalAvailable:
+                        type: boolean
+                      ownerName:
+                        type: string
                       checks:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ApplicationCheck"
+        "401":
+          description: Login required
+        "403":
+          description: Only members of the company that posted the job can read checks
+        "404":
+          description: Application not found
+      security:
+        - bearerAuth: []
+  /checks/{checkId}/result:
+    patch:
+      summary: Enter or change the result of a check by hand
+      description: >-
+        Only the member who ordered the check and the company owner. Employment, education and
+        criminal take confirmedBy, confirmedOn, result (verified, flagged or failed) and an
+        optional note. Identity takes nameOnId, confirmedOn and an optional note; the name is
+        compared with the name the candidate gave (case, spacing and word order ignored) and the
+        check becomes passed or failed. The change is written to the check's history.
+      tags:
+        - checks
+      parameters:
+        - name: checkId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirmedOn]
+              properties:
+                confirmedOn:
+                  type: string
+                  format: date
+                confirmedBy:
+                  type: string
+                  maxLength: 160
+                result:
+                  type: string
+                  enum: [verified, flagged, failed]
+                nameOnId:
+                  type: string
+                  maxLength: 200
+                note:
+                  type: string
+                  maxLength: 2000
+      responses:
+        "200":
+          description: The saved check
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/ApplicationCheck"
+        "400":
+          description: A field is missing or invalid, or the date is in the future
+        "401":
+          description: Login required
+        "403":
+          description: Only the orderer and the company owner can enter a result
+        "404":
+          description: Check not found
+      security:
+        - bearerAuth: []
+  /checks/{checkId}/history:
+    get:
+      summary: Every order, change and view of a check
+      description: >-
+        Lists the events on a check, oldest first, with who did each and when. Only the member
+        who ordered the check and the company owner can read it.
+      tags:
+        - checks
+      parameters:
+        - name: checkId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      checkId:
+                        type: string
+                      type:
+                        type: string
+                      events:
                         type: array
                         items:
                           type: object
                           properties:
                             id:
                               type: string
-                            applicationId:
+                            kind:
                               type: string
-                            type:
-                              type: string
-                              enum: [identity, employment, education, criminal]
-                            status:
-                              type: string
-                              enum: [pending, passed, flagged, failed]
-                            resultText:
+                              enum: [ordered, result_saved, viewed, id_number_viewed]
+                            detail:
                               type: string
                               nullable: true
-                            orderedById:
+                            actorName:
                               type: string
+                              nullable: true
                             createdAt:
-                              type: string
-                              format: date-time
-                            updatedAt:
                               type: string
                               format: date-time
         "401":
           description: Login required
         "403":
-          description: Only the company owner or the recruiter who ordered can read checks
+          description: Only the orderer and the company owner can read the history
         "404":
-          description: Application not found
+          description: Check not found
+      security:
+        - bearerAuth: []
+  /checks/{checkId}/id-number:
+    get:
+      summary: Read the NIN or BVN the candidate gave for an identity check
+      description: >-
+        Decrypts and returns the number. Only the member who ordered the identity check and the
+        company owner can read it, and every read is written to the check's history.
+      tags:
+        - checks
+      parameters:
+        - name: checkId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The ID number
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      checkId:
+                        type: string
+                      idKind:
+                        type: string
+                        enum: [nin, bvn]
+                      idNumber:
+                        type: string
+        "401":
+          description: Login required
+        "403":
+          description: Only the orderer and the company owner can read the number
+        "404":
+          description: Not an identity check, or not found
+        "409":
+          description: The candidate has not given an ID number
       security:
         - bearerAuth: []
