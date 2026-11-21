@@ -11,6 +11,7 @@ import * as staffAudit from "../services/staffAudit.js";
 import * as staffImport from "../services/staffImport.js";
 import * as staffInvites from "../services/staffInvite.js";
 import { getClientIp } from "../utils/clientIp.js";
+import { noteActivityTarget } from "../services/companyActivity.js";
 import { sendSuccessResponse } from "../utils/response.js";
 import type { StaffStatus } from "../entities/StaffMember.js";
 
@@ -81,6 +82,7 @@ export const create = async (req: Request, res: Response) => {
     sendInvite,
     applicationId,
   });
+  noteActivityTarget(res, "staff", result.staff.id, result.staff.fullName);
   sendSuccessResponse(res, "Staff member added", result, 201);
 };
 

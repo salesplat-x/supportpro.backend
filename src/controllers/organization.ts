@@ -1,11 +1,14 @@
 import { Request, Response } from "express";
 import * as departmentService from "../services/departments.js";
 import * as jobFeedService from "../services/jobFeed.js";
+import { noteActivityOrganization, noteActivityTarget } from "../services/companyActivity.js";
 import * as organizationService from "../services/organization.js";
 import { sendSuccessResponse } from "../utils/response.js";
 
 export const registerOrganization = async (req: Request, res: Response) => {
   const result = await organizationService.createOrganization(req.user.id, req.body);
+  noteActivityOrganization(res, result.id);
+  noteActivityTarget(res, "company", result.id, result.name);
   sendSuccessResponse(res, "Organization registered", { organization: result }, 201);
 };
 
@@ -86,6 +89,7 @@ export const sendOrganizationInvite = async (req: Request, res: Response) => {
     req.params["_id"]!,
     req.body.email
   );
+  noteActivityTarget(res, "invite", result.id, req.body.email);
   sendSuccessResponse(res, "Invite sent", { invite: result }, 201);
 };
 
@@ -128,6 +132,7 @@ export const acceptOrganizationInvite = async (req: Request, res: Response) => {
     req.user.id,
     req.params["token"]!
   );
+  noteActivityOrganization(res, result.id);
   sendSuccessResponse(res, "You have joined the company", { organization: result });
 };
 
@@ -157,6 +162,7 @@ export const joinOrganizationWithAccessCode = async (req: Request, res: Response
     req.user.id,
     req.body.code
   );
+  noteActivityOrganization(res, result.organizationId);
   sendSuccessResponse(res, `You joined ${result.organizationName}`, result);
 };
 

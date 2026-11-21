@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction, RequestHandler } from "express";
+import { lookupActivityTarget } from "../services/companyActivity.js";
 
 type AsyncRequestHandler = (req: Request, res: Response, next: NextFunction) => Promise<unknown>;
 
@@ -11,6 +12,19 @@ export const asyncHandler = (fn: AsyncRequestHandler, action?: string): RequestH
   return (req: Request, res: Response, next: NextFunction): void => {
     if (action) {
       res.locals["action"] = action;
+      res.locals["route"] =
+        `${req.baseUrl}${typeof req.route?.path === "string" ? req.route.path : ""}`;
+      res.locals["routeParams"] = { ...req.params };
+    }
+    if (action && req.method === "DELETE") {
+      lookupActivityTarget(res.locals["route"] as string, { ...req.params })
+        .catch(() => null)
+        .then((target) => {
+          if (target) res.locals["activityTarget"] = target;
+          return fn(req, res, next);
+        })
+        .catch(next);
+      return;
     }
     Promise.resolve(fn(req, res, next)).catch(next);
   };
