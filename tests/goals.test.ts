@@ -204,6 +204,63 @@ describe("goals", () => {
     expect(res.body.data.goal.approvedByName).toContain(owner.user.firstName);
   });
 
+  it("approves every goal the manager read in one call, or none of them", async () => {
+    const { report, manager, managerBase, addAsHr } = await team();
+    const first = await addAsHr();
+    const second = await addAsHr({ title: "Run user tests" });
+    const approveAll = (goals: { id: string; version: number }[]) =>
+      request(app)
+        .post(`${managerBase}/goals/approve`)
+        .set(authHeader(manager.token))
+        .send({ goals });
+
+    const stale = await approveAll([
+      { id: first.id, version: 1 },
+      { id: second.id, version: 7 },
+    ]);
+    expect(stale.status).toBe(409);
+    expect(
+      await testDataSource.getRepository(StaffGoal).countBy({ status: "approved" as never })
+    ).toBe(0);
+
+    const ok = await approveAll([
+      { id: first.id, version: 1 },
+      { id: second.id, version: 1 },
+    ]);
+    expect(ok.status).toBe(200);
+    expect(ok.body.data.goals.map((goal: Goal) => goal.status)).toEqual(["approved", "approved"]);
+    expect(
+      await testDataSource.getRepository(StaffActivity).countBy({ type: "goal_approved" as never })
+    ).toBe(2);
+    expect((await approveAll([{ id: first.id, version: 1 }])).status).toBe(200);
+    expect(
+      await testDataSource.getRepository(StaffActivity).countBy({ type: "goal_approved" as never })
+    ).toBe(2);
+
+    const mine = await request(app)
+      .get(`/v1/my-work/${report.staff.id}/performance`)
+      .set(authHeader(report.token));
+    expect(mine.body.data.performance.goals).toHaveLength(2);
+  });
+
+  it("refuses an empty list, too many goals and someone who is not the manager", async () => {
+    const { manager, managerBase, report, addAsHr } = await team();
+    const goal = await addAsHr();
+    const post = (token: string, goals: unknown[]) =>
+      request(app).post(`${managerBase}/goals/approve`).set(authHeader(token)).send({ goals });
+    expect((await post(manager.token, [])).status).toBe(400);
+    expect((await post(manager.token, [{ id: "nope", version: 1 }])).status).toBe(400);
+    expect(
+      (
+        await post(
+          manager.token,
+          Array.from({ length: 21 }, () => ({ id: goal.id, version: 1 }))
+        )
+      ).status
+    ).toBe(400);
+    expect((await post(report.token, [{ id: goal.id, version: 1 }])).status).toBe(404);
+  });
+
   it("treats a double approve as one approval", async () => {
     const { report, manager, managerBase, addAsHr } = await team();
     const goal = await addAsHr();

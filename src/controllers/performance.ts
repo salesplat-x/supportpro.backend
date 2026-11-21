@@ -184,6 +184,17 @@ export const approveGoal = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Goal approved", { goal });
 };
 
+export const approveGoals = async (req: Request, res: Response) => {
+  const approved = await goals.approveGoals(
+    scopeOf(req),
+    (req.body.goals as { id: string; version: number }[]).map(({ id, version }) => ({
+      goalId: id,
+      version,
+    }))
+  );
+  sendSuccessResponse(res, "Goals approved", { goals: approved });
+};
+
 export const removeGoal = async (req: Request, res: Response) => {
   await goals.removeGoal(scopeOf(req), req.params["goalId"]!);
   sendSuccessResponse(res, "Goal removed", {});

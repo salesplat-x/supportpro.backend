@@ -9,6 +9,7 @@ import {
   addGoalValidator,
   approveCompletionValidator,
   approveGoalValidator,
+  approveGoalsValidator,
   completeGoalValidator,
   evidenceValidator,
   reopenGoalValidator,
@@ -102,6 +103,12 @@ export const registerSharedPerformanceRoutes = (
     ...guard,
     validate([...params, ...editGoalValidator]),
     asyncHandler(performance.editGoal, "save goal")
+  );
+  router.post(
+    `${prefix}/goals/approve`,
+    ...guard,
+    validate([...params, ...approveGoalsValidator]),
+    asyncHandler(performance.approveGoals, "approve goals")
   );
   router.post(
     `${prefix}/goals/:goalId/approve`,
