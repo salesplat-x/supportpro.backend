@@ -35,6 +35,7 @@ import { ApplicationFollowUpEmail } from "../entities/ApplicationFollowUpEmail.j
 import { StaffMember } from "../entities/StaffMember.js";
 import { StaffActivity } from "../entities/StaffActivity.js";
 import { StaffAccessLog } from "../entities/StaffAccessLog.js";
+import { CompanyActivity } from "../entities/CompanyActivity.js";
 import { Benefit } from "../entities/Benefit.js";
 import { PayPackage } from "../entities/PayPackage.js";
 import { ShareGrant } from "../entities/ShareGrant.js";
@@ -105,6 +106,7 @@ const databaseConfig: DataSourceOptions = {
     StaffMember,
     StaffActivity,
     StaffAccessLog,
+    CompanyActivity,
     Benefit,
     PayPackage,
     ShareGrant,
