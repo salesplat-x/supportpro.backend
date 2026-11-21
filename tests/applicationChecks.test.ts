@@ -53,7 +53,7 @@ async function setup() {
     request(app)
       .post(`${base}/consent`)
       .set("Authorization", `Bearer ${talentToken}`)
-      .send({ version: CHECKS_CONSENT_VERSION });
+      .send({ version: CHECKS_CONSENT_VERSION, idKind: "nin", idNumber: "12345678901" });
   return {
     application,
     talentToken,
@@ -174,7 +174,7 @@ describe("company reads the checks with one overall status", () => {
     await request(app)
       .post(`${base}/consent`)
       .set("Authorization", `Bearer ${talentToken}`)
-      .send({ version: CHECKS_CONSENT_VERSION });
+      .send({ version: CHECKS_CONSENT_VERSION, idKind: "nin", idNumber: "12345678901" });
     const ordered = await request(app)
       .post(base)
       .set("Authorization", `Bearer ${memberToken}`)

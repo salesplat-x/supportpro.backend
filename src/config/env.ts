@@ -45,6 +45,7 @@ const optionalEnvVars = {
   // Voice calls get their own pool so they can't hold the shared OpenAI slots.
   voiceConcurrency: positiveNumberOr(process.env.VOICE_CONCURRENCY, 2),
   stuckEmailsEnabled: process.env.STUCK_EMAILS_ENABLED === "true",
+  checksEncryptionKey: process.env.CHECKS_ENCRYPTION_KEY,
   publicApiUrl: process.env.PUBLIC_API_URL?.replace(/\/$/, ""),
 } as const;
 

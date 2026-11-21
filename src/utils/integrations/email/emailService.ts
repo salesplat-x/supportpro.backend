@@ -203,6 +203,34 @@ class EmailService {
     });
   }
 
+  async sendChecksConsentRequest(details: {
+    to: string;
+    firstName: string;
+    companyName: string;
+    jobTitle: string;
+    ctaUrl: string;
+  }): Promise<void> {
+    const paragraphs = [
+      `Hi ${details.firstName}, ${details.companyName} would like to check a few details.`,
+      `To move your ${details.jobTitle} application forward, ${details.companyName} asks for your permission to check your identity, past jobs and education. Only the hiring team can see the results, you can say no, and it takes about 2 minutes.`,
+      "You can also answer from your application any time.",
+    ];
+    const html = renderTemplate("application-follow-up", {
+      jobTitle: details.jobTitle,
+      companyName: details.companyName,
+      paragraphs,
+      ctaLabel: "Review and answer",
+      ctaUrl: details.ctaUrl,
+    });
+    await this.provider.send({
+      to: details.to,
+      subject: `${details.companyName} wants to check your details`,
+      html,
+      text: [...paragraphs, `Review and answer: ${details.ctaUrl}`].join("\n\n"),
+      tags: [{ name: "category", value: "checks-consent-request" }],
+    });
+  }
+
   async sendAiInterviewInvite(details: {
     to: string;
     firstName?: string | null;

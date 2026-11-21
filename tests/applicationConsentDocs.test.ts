@@ -19,4 +19,11 @@ describe("swagger.yaml — background check consent", () => {
     expect(route!.post!.responses).toHaveProperty("403");
     expect(route!.get!.responses).toHaveProperty("200");
   });
+
+  it("documents declining, asking and the candidate's own read", () => {
+    const base = "/checks/applications/{applicationId}/consent";
+    expect(spec.paths[`${base}/decline`]!.post!.responses).toHaveProperty("409");
+    expect(spec.paths[`${base}/request`]!.post!.responses).toHaveProperty("201");
+    expect(spec.paths[`${base}/mine`]!.get!.responses).toHaveProperty("200");
+  });
 });

@@ -25,3 +25,4 @@ process.env.FRONTEND_CALLBACK_URL ||= "http://localhost:5173";
 process.env.RESEND_API_KEY ||= "test-resend-api-key";
 process.env.RESEND_SENDER_EMAIL ||= "test@example.com";
 process.env.RESEND_SENDER_NAME ||= "Test Sender";
+process.env.CHECKS_ENCRYPTION_KEY ||= "test-checks-encryption-key-for-automated-tests-only";

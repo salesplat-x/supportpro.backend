@@ -2,6 +2,7 @@ import { Router } from "express";
 import { body, param } from "express-validator";
 import * as applicationChecks from "../controllers/applicationChecks.js";
 import * as consent from "../controllers/applicationConsent.js";
+import { ID_KINDS } from "../services/checkConsent.js";
 import { CHECK_TYPES } from "../types/checks.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { loginRequired, requireVerifiedEmail } from "../middleware/auth.js";
@@ -17,8 +18,42 @@ router.post(
   "/applications/:applicationId/consent",
   loginRequired,
   requireVerifiedEmail,
-  validate([...applicationParams, body("version").isString().withMessage("version is required")]),
+  validate([
+    ...applicationParams,
+    body("version").isString().withMessage("version is required"),
+    body("idKind")
+      .isIn([...ID_KINDS])
+      .withMessage("idKind must be nin or bvn"),
+    body("idNumber")
+      .isString()
+      .matches(/^\d{11}$/)
+      .withMessage("The NIN or BVN must be exactly 11 digits"),
+  ]),
   asyncHandler(consent.agree, "agree to background checks")
+);
+
+router.post(
+  "/applications/:applicationId/consent/decline",
+  loginRequired,
+  requireVerifiedEmail,
+  validate(applicationParams),
+  asyncHandler(consent.decline, "decline background checks")
+);
+
+router.post(
+  "/applications/:applicationId/consent/request",
+  loginRequired,
+  requireVerifiedEmail,
+  validate(applicationParams),
+  asyncHandler(consent.requestConsent, "ask for background checks consent")
+);
+
+router.get(
+  "/applications/:applicationId/consent/mine",
+  loginRequired,
+  requireVerifiedEmail,
+  validate(applicationParams),
+  asyncHandler(consent.readMine, "read my background checks consent")
 );
 
 router.get(
