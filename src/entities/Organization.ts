@@ -15,6 +15,7 @@ import {
   OrganizationStatus,
 } from "../types/enums.js";
 import type { User } from "./User.js";
+import type { ReferenceQuestion } from "../types/referenceQuestion.js";
 
 @Entity("organizations")
 @Index("IDX_organizations_domain_unique", ["domain"], {
@@ -114,6 +115,9 @@ export class Organization {
 
   @Column({ type: "jsonb", default: "[]", name: "yearly_goals" })
   yearlyGoals!: string[];
+
+  @Column({ type: "jsonb", nullable: true, default: null, name: "reference_questions" })
+  referenceQuestions!: ReferenceQuestion[] | null;
 
   @Column({ type: "jsonb", nullable: true, name: "default_checklist" })
   defaultChecklist!:

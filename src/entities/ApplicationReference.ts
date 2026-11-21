@@ -10,6 +10,7 @@ import {
 } from "typeorm";
 import type { Application } from "./Application.js";
 import type { Job } from "./Job.js";
+import type { ReferenceQuestion } from "../types/referenceQuestion.js";
 import type { User } from "./User.js";
 
 @Entity("application_references")
@@ -63,6 +64,9 @@ export class ApplicationReference {
 
   @Column({ type: "timestamptz", name: "answered_at", nullable: true, default: null })
   answeredAt!: Date | null;
+
+  @Column({ type: "jsonb", nullable: true, default: null })
+  questions!: ReferenceQuestion[] | null;
 
   @Column({ type: "jsonb", nullable: true, default: null })
   answers!: Record<string, string> | null;
