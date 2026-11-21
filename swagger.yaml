@@ -4696,16 +4696,200 @@ paths:
           description: Unexpected server error. Provider failures and timeouts are answered with the fallback clip (X-Voice-Fallback true), not an error.
       security:
         - bearerAuth: []
+  /organizations/{_id}/reference-questions:
+    get:
+      summary: Company's reference questions
+      description: >-
+        The questions every referee of this company's candidates is sent. Any member of the
+        company can read them. An empty list means none have been set yet.
+      tags:
+        - references
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The questions
+        "401":
+          description: Login required
+        "403":
+          description: Not a member of this company
+      security:
+        - bearerAuth: []
+    put:
+      summary: Save the company's reference questions
+      description: >-
+        Replaces the whole list. Any member of the company can save. Each question is either
+        written (text) or Yes/No (yesno), and can be required or optional. Blank questions are
+        dropped and at most 15 are kept. Referees who were already sent questions keep the
+        version they were sent.
+      tags:
+        - references
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [questions]
+              properties:
+                questions:
+                  type: array
+                  maxItems: 15
+                  items:
+                    type: object
+                    required: [question, type, required]
+                    properties:
+                      key:
+                        type: string
+                        format: uuid
+                      question:
+                        type: string
+                        maxLength: 300
+                      type:
+                        type: string
+                        enum: [text, yesno]
+                      required:
+                        type: boolean
+      responses:
+        "200":
+          description: The saved questions, each with a key
+        "400":
+          description: A question is too long, or a type is not text or yesno
+        "401":
+          description: Login required
+        "403":
+          description: Not a member of this company
+      security:
+        - bearerAuth: []
+  /organizations/{_id}/reference-questions/generate:
+    post:
+      summary: Ask AI to write reference questions
+      description: >-
+        Writes the given number of questions (1 to 10) and returns them without saving, so the
+        company can edit them before saving with PUT.
+      tags:
+        - references
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [count]
+              properties:
+                count:
+                  type: integer
+                  minimum: 1
+                  maximum: 10
+      responses:
+        "200":
+          description: The drafted questions
+        "400":
+          description: count is outside 1 to 10
+        "401":
+          description: Login required
+        "403":
+          description: Not a member of this company
+        "502":
+          description: The AI could not write questions; try again
+      security:
+        - bearerAuth: []
+  /organizations/{_id}/reference-questions/jobs:
+    get:
+      summary: Jobs with referees waiting for questions
+      description: >-
+        The company's jobs that have referees who were not yet sent questions, with how many
+        are waiting on each, newest job first.
+      tags:
+        - references
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The jobs, each with jobId, title, status, createdAt and waiting
+        "401":
+          description: Login required
+        "403":
+          description: Not a member of this company
+      security:
+        - bearerAuth: []
+  /organizations/{_id}/reference-questions/send:
+    post:
+      summary: Send the company's questions to waiting referees
+      description: >-
+        Emails every waiting referee of the candidates who applied to the chosen jobs. Each
+        referee gets a link that works once and expires after 14 days, with a copy of the
+        company's current questions. Sending again never emails anyone twice. A referee whose
+        email fails stays waiting.
+      tags:
+        - references
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [jobIds]
+              properties:
+                jobIds:
+                  type: array
+                  minItems: 1
+                  maxItems: 50
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        "200":
+          description: How many referees were emailed (sent) and how many emails failed (failed)
+        "400":
+          description: The company has no questions yet, or jobIds is invalid
+        "401":
+          description: Login required
+        "403":
+          description: Not a member of this company, or a job belongs to another company
+      security:
+        - bearerAuth: []
   /references/applications/{applicationId}:
     post:
       summary: Candidate names referees for an application
       description: >-
         The candidate who applied sends 1 to 3 referees (name, email, relationship) in one
         request. Relationship is manager, colleague, client or other. At most 3 referees can
-        be named per application in total, and the same email cannot be added twice. Each
-        referee is emailed a link that works once and expires after 14 days. If an email
-        cannot be sent the referee is still saved with status not_sent. Nothing is saved if
-        any referee is invalid. Other users get 403.
+        be named per application in total, and the same email cannot be added twice. Nothing
+        is emailed yet: referees are saved with status not_sent until the company sends its
+        reference questions (POST /organizations/{_id}/reference-questions/send). Nothing is
+        saved if any referee is invalid. Other users get 403.
       tags:
         - references
       parameters:
@@ -4742,7 +4926,7 @@ paths:
                         enum: [manager, colleague, client, other]
       responses:
         "201":
-          description: The referees were saved and emailed
+          description: The referees were saved, waiting for the company's questions
           content:
             application/json:
               schema:
@@ -4862,8 +5046,8 @@ paths:
     get:
       summary: Referee opens the link from the reference email
       description: >-
-        Public, no account. Returns who is asking and the six questions, each with a type
-        (text or yesno). A link that does not exist is 404; a link that has expired or already
+        Public, no account. Returns who is asking and the questions the company sent this
+        referee, each with a key, a type (text or yesno) and whether it is required. A link that does not exist is 404; a link that has expired or already
         been answered is 410 and carries the job title, company name and company email in
         error.details so the page can say who to contact.
       tags:
@@ -4922,9 +5106,10 @@ paths:
     post:
       summary: Referee sends the answers
       description: >-
-        Public, no account. The first five answers are required and the last is optional;
-        each is at most 2000 characters. The link works once: a second use or an expired link
-        is 410.
+        Public, no account. Answers are keyed by the question keys from GET. Every required
+        question needs an answer, a yesno answer must be Yes or No, and each answer is at most
+        2000 characters. The link works once: after a submit, opening or submitting it again
+        is 410, as is an expired link.
       tags:
         - references
       parameters:
@@ -4943,21 +5128,10 @@ paths:
               properties:
                 answers:
                   type: object
-                  required: [worked_together, strengths, improve, reliability, hire_again]
-                  properties:
-                    worked_together:
-                      type: string
-                    strengths:
-                      type: string
-                    improve:
-                      type: string
-                    reliability:
-                      type: string
-                    hire_again:
-                      type: string
-                      enum: ["Yes", "No"]
-                    anything_else:
-                      type: string
+                  description: One answer per question key
+                  additionalProperties:
+                    type: string
+                    maxLength: 2000
       responses:
         "200":
           description: The answers were saved
@@ -5040,8 +5214,10 @@ paths:
       summary: Posting company sends a referee a new link
       description: >-
         Replaces the referee's link with a new one that works once and expires after 14 days,
-        and emails it. The old link stops working. A referee who already answered cannot be
-        sent another request (409). Only members of the company that posted the job can resend.
+        and emails it with the same questions the referee was first sent. The old link stops
+        working. A referee who already answered, or who was never sent the company's
+        questions, cannot be resent (409). Only members of the company that posted the job
+        can resend.
       tags:
         - references
       parameters:
@@ -5053,7 +5229,7 @@ paths:
             format: uuid
       responses:
         "200":
-          description: The new link was issued; status is not_sent if the email failed
+          description: The new link was issued and emailed
         "401":
           description: Login required
         "403":
@@ -5061,7 +5237,9 @@ paths:
         "404":
           description: Reference not found
         "409":
-          description: This referee has already answered
+          description: This referee has already answered, or was never sent the questions
+        "502":
+          description: The email could not be sent; try again
       security:
         - bearerAuth: []
   /interviews/{interviewId}/questions/{questionId}/recording:

@@ -151,6 +151,29 @@ jobs:
 
         Job description:
         {{jobDescription}}
+  reference_questions:
+    - key: system
+      label: Instructions
+      variables:
+        - count
+      text: |-
+        You write the questions a company sends to a job candidate's referees. A referee is someone who worked with the candidate before, such as a former manager, colleague or client.
+
+        Rules:
+        - Write exactly {{count}} distinct questions a referee can answer from having worked with the candidate.
+        - Mix the two types: "yesno" for a question answered Yes or No, and "text" for a question answered in a short paragraph. Most questions should be "text".
+        - Cover how they worked together, strengths, areas to improve, reliability, teamwork and whether the referee would work with them again.
+        - Keep each question to one plain sentence, under 300 characters.
+        - Do not ask about the candidate's age, gender, ethnicity, religion, health, family, pay or anything else illegal or discriminatory to ask in hiring.
+
+        Output JSON only:
+        { "questions": [{ "question": "<question 1>", "type": "text" }, { "question": "<question 2>", "type": "yesno" }] }
+    - key: user
+      label: Message sent with the data
+      variables:
+        - count
+      text: |-
+        Write {{count}} reference questions.
   ai_interview_followup:
     - key: system
       label: Instructions

@@ -2,9 +2,8 @@ import { AppDataSource } from "../database/dataSource.js";
 import { Application } from "../entities/Application.js";
 import { ApplicationReference } from "../entities/ApplicationReference.js";
 import { Job } from "../entities/Job.js";
-import { AuthorizationError, ConflictError, NotFoundError } from "../utils/errors";
-import { REFERENCE_QUESTIONS } from "./applicationReferenceAnswers.js";
-import { newToken, sendReferenceEmail, toReferee } from "./applicationReferences.js";
+import { AppError, AuthorizationError, ConflictError, NotFoundError } from "../utils/errors";
+import { newToken, questionsOf, sendReferenceEmail, toReferee } from "./applicationReferences.js";
 import { getActiveOrganizationId } from "./organizationScope.js";
 
 const repo = () => AppDataSource.getRepository(ApplicationReference);
@@ -22,12 +21,11 @@ const isPostingCompanyMember = async (userId: string, jobId: string): Promise<bo
 };
 
 const answerList = (row: ApplicationReference) => {
-  if (!row.answers) return null;
-  return REFERENCE_QUESTIONS.filter(({ key }) => row.answers![key]).map(({ key, question }) => ({
-    key,
-    question,
-    answer: row.answers![key]!,
-  }));
+  const answers = row.answers;
+  if (!answers) return null;
+  return (questionsOf(row) ?? [])
+    .filter(({ key }) => answers[key])
+    .map(({ key, question }) => ({ key, question, answer: answers[key]! }));
 };
 
 export const getReferencesForCompany = async (userId: string, applicationId: string) => {
@@ -52,8 +50,21 @@ export const resendReference = async (userId: string, referenceId: string) => {
     throw new AuthorizationError("Only the company that posted this job can resend a request");
   }
   if (row.answeredAt) throw new ConflictError("This referee has already answered");
+  if (!row.sentAt) {
+    throw new ConflictError("Send your reference questions from the company page first");
+  }
   const { token, tokenHash, expiresAt } = newToken();
-  await repo().update(row.id, { tokenHash, tokenExpiresAt: expiresAt, sentAt: null });
-  await sendReferenceEmail({ ...row, tokenHash, tokenExpiresAt: expiresAt, sentAt: null }, token);
+  const questions = questionsOf(row);
+  await repo().update(row.id, { tokenHash, tokenExpiresAt: expiresAt, questions });
+  if (
+    !(await sendReferenceEmail({ ...row, tokenHash, tokenExpiresAt: expiresAt, questions }, token))
+  ) {
+    throw new AppError(
+      502,
+      "REFERENCE_EMAIL_FAILED",
+      "We couldn't email this referee. Try again in a moment",
+      true
+    );
+  }
   return toReferee(await repo().findOneByOrFail({ id: row.id }));
 };

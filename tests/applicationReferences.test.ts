@@ -1,5 +1,4 @@
 import request from "supertest";
-import { createHash } from "crypto";
 import { createApp } from "../src/app.js";
 import {
   startTestDatabase,
@@ -82,7 +81,7 @@ async function setup() {
 }
 
 describe("candidate names a referee", () => {
-  it("saves the referee and emails a one-time link that expires in 14 days", async () => {
+  it("saves the referee without emailing anyone until the company sends questions", async () => {
     const { add, talentToken, application, job, talent } = await setup();
     const res = await add(talentToken);
     expect(res.status).toBe(201);
@@ -92,37 +91,23 @@ describe("candidate names a referee", () => {
       name: "Ada Obi",
       email: "ada.obi@example.com",
       relationship: "manager",
-      status: "sent",
+      status: "not_sent",
+      sentAt: null,
     });
     expect(JSON.stringify(res.body)).not.toMatch(/token/i);
-    const expiresInDays =
-      (new Date(res.body.data.references[0].expiresAt).getTime() - Date.now()) /
-      (24 * 60 * 60 * 1000);
-    expect(expiresInDays).toBeGreaterThan(13.9);
-    expect(expiresInDays).toBeLessThanOrEqual(14);
-
-    expect(mockSendRequest).toHaveBeenCalledTimes(1);
-    const mail = mockSendRequest.mock.calls[0]![0];
-    expect(mail).toMatchObject({
-      to: "ada.obi@example.com",
-      refereeName: "Ada Obi",
-      candidateName: `${talent.firstName} ${talent.lastName}`,
-    });
-    const token = String(mail.ctaUrl).split("/reference/")[1];
-    expect(token).toMatch(/^[0-9a-f]{64}$/);
+    expect(mockSendRequest).not.toHaveBeenCalled();
 
     const stored = await testDataSource.getRepository(ApplicationReference).findOneByOrFail({
       applicationId: application.id,
     });
     expect(stored.jobId).toBe(job.id);
     expect(stored.talentId).toBe(talent.id);
-    expect(stored.tokenHash).toBe(createHash("sha256").update(token!).digest("hex"));
-    expect(JSON.stringify(stored)).not.toContain(token!);
-    expect(stored.sentAt).not.toBeNull();
+    expect(stored.sentAt).toBeNull();
+    expect(stored.questions).toBeNull();
     expect(stored.answeredAt).toBeNull();
   });
 
-  it("sends up to 3 referees in one request and emails each", async () => {
+  it("saves up to 3 referees in one request", async () => {
     const { addMany, talentToken } = await setup();
     const ok = await addMany(
       talentToken,
@@ -134,7 +119,17 @@ describe("candidate names a referee", () => {
     );
     expect(ok.status).toBe(201);
     expect(ok.body.data.references).toHaveLength(3);
-    expect(mockSendRequest).toHaveBeenCalledTimes(3);
+    expect(mockSendRequest).not.toHaveBeenCalled();
+  });
+
+  it("a referee who was never sent questions stays waiting, not expired, after 14 days", async () => {
+    const { add, list, talentToken, application } = await setup();
+    await add(talentToken);
+    await testDataSource
+      .getRepository(ApplicationReference)
+      .update({ applicationId: application.id }, { tokenExpiresAt: new Date(Date.now() - 1000) });
+    const res = await list(talentToken);
+    expect(res.body.data.references[0].status).toBe("not_sent");
   });
 
   it("refuses more than 3 referees in total and saves none of them", async () => {
@@ -188,18 +183,6 @@ describe("candidate names a referee", () => {
     expect(mockSendRequest).not.toHaveBeenCalled();
   });
 
-  it("keeps the referee, unsent, when the email provider fails", async () => {
-    mockSendRequest.mockRejectedValueOnce(new Error("provider down"));
-    const { add, talentToken, application } = await setup();
-    const res = await add(talentToken);
-    expect(res.status).toBe(201);
-    expect(res.body.data.references[0].status).toBe("not_sent");
-    const stored = await testDataSource
-      .getRepository(ApplicationReference)
-      .findOneByOrFail({ applicationId: application.id });
-    expect(stored.sentAt).toBeNull();
-  });
-
   it("only the candidate who applied can add referees", async () => {
     const { add } = await setup();
     const { token: otherTalent } = await createTalent();
@@ -230,9 +213,9 @@ describe("candidate sees who was asked", () => {
       name: "Ada Obi",
       email: "ada.obi@example.com",
       relationship: "manager",
-      status: "sent",
+      status: "not_sent",
     });
-    expect(JSON.stringify(res.body)).not.toMatch(/token|answers/i);
+    expect(JSON.stringify(res.body)).not.toMatch(/token|answers|questions/i);
   });
 
   it("another candidate cannot list them", async () => {

@@ -1137,6 +1137,21 @@ export const efficiencyTip = async (input: {
   return completion.choices[0];
 };
 
+export const generateReferenceQuestions = async (
+  count: number
+): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
+  const system = await renderPrompt("reference_questions", "system", { count });
+  const prompt = await renderPrompt("reference_questions", "user", { count });
+  const completion = await complete("reference_questions", {
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: prompt },
+    ],
+    response_format: { type: "json_object" },
+  });
+  return completion.choices[0];
+};
+
 export interface AiInterviewQuestionsContext {
   count: number;
   roleName: string;
