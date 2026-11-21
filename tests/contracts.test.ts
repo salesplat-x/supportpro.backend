@@ -12,7 +12,7 @@ import { StaffAccessResource } from "../src/entities/StaffAccessLog.js";
 import { checkCodeOf, reconcileDueDocumentFinalization } from "../src/services/contracts.js";
 import { apiData } from "./helpers/http.js";
 import { addMember, authHeader, setupCompany } from "./helpers/company.js";
-import { createStaff, setPay, staffPath, today } from "./helpers/staff.js";
+import { createStaff, sendDocumentFor, setPay, staffPath, today } from "./helpers/staff.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => {
   const sendDocumentToSign = jest.fn().mockResolvedValue(undefined);
@@ -75,10 +75,7 @@ async function companyWithStaff() {
 }
 
 const send = (token: string, orgId: string, staffId: string, template = "nda") =>
-  request(app)
-    .post(staffPath(orgId, `/${staffId}/documents`))
-    .set(authHeader(token))
-    .send({ template });
+  sendDocumentFor(app, token, orgId, staffId, template);
 
 const lastSigningToken = (): string => {
   const calls = emailMocks().sendDocumentToSign.mock.calls as Array<[{ signLink: string }]>;
@@ -145,12 +142,12 @@ describe("contract templates", () => {
 describe("signing", () => {
   it("signs once from the email link, stamps the record and emails both sides", async () => {
     const { owner, org, staff } = await companyWithStaff();
-    expect((await send(owner.token, org.id, staff.id)).status).toBe(201);
+    expect((await send(owner.token, org.id, staff.id)).status).toBe(200);
     expect((await send(owner.token, org.id, staff.id)).status).toBe(409);
     const token = lastSigningToken();
 
     const opened = apiData<{ document: { title: string; body: string } }>(await openLink(token));
-    expect(opened.document.title).toBe("Confidentiality agreement");
+    expect(opened.document.title).toBe("Non-disclosure agreement");
     await openLink(token).expect(200);
 
     const signed = await signLink(token);
@@ -182,7 +179,7 @@ describe("signing", () => {
 
   it("writes one access log line for every view of the email link", async () => {
     const { owner, org, staff } = await companyWithStaff();
-    await send(owner.token, org.id, staff.id).expect(201);
+    expect((await send(owner.token, org.id, staff.id)).status).toBe(200);
     const token = lastSigningToken();
 
     await openLink(token).set("CF-Connecting-IP", IP).expect(200);
@@ -200,7 +197,7 @@ describe("signing", () => {
 
   it("returns no document when the view cannot be logged", async () => {
     const { owner, org, staff } = await companyWithStaff();
-    await send(owner.token, org.id, staff.id).expect(201);
+    expect((await send(owner.token, org.id, staff.id)).status).toBe(200);
     const token = lastSigningToken();
     await testDataSource.query(`ALTER TABLE staff_access_logs RENAME TO staff_access_logs_gone`);
     try {
@@ -218,7 +215,7 @@ describe("signing", () => {
 
   it("refuses an expired link and kills the old link when sent again", async () => {
     const { owner, org, staff } = await companyWithStaff();
-    await send(owner.token, org.id, staff.id).expect(201);
+    expect((await send(owner.token, org.id, staff.id)).status).toBe(200);
     const firstToken = lastSigningToken();
     const repo = testDataSource.getRepository(StaffDocument);
     const doc = await repo.findOneOrFail({ where: { staffId: staff.id } });
@@ -238,7 +235,7 @@ describe("signing", () => {
 
   it("lets only one of two simultaneous signatures through", async () => {
     const { owner, org, staff } = await companyWithStaff();
-    await send(owner.token, org.id, staff.id).expect(201);
+    expect((await send(owner.token, org.id, staff.id)).status).toBe(200);
     const token = lastSigningToken();
 
     const statuses = (await Promise.all([signLink(token), signLink(token)])).map(
@@ -249,7 +246,7 @@ describe("signing", () => {
 
   it("keeps the signature when the copy email fails", async () => {
     const { owner, org, staff } = await companyWithStaff();
-    await send(owner.token, org.id, staff.id).expect(201);
+    expect((await send(owner.token, org.id, staff.id)).status).toBe(200);
     emailMocks()
       .sendSignedDocument.mockRejectedValueOnce(new Error("provider down"))
       .mockRejectedValueOnce(new Error("provider down"));
@@ -269,7 +266,7 @@ describe("signing", () => {
 
   it("refuses to sign once employment has ended", async () => {
     const { owner, org, staff } = await companyWithStaff();
-    await send(owner.token, org.id, staff.id).expect(201);
+    expect((await send(owner.token, org.id, staff.id)).status).toBe(200);
     const token = lastSigningToken();
     await request(app)
       .post(staffPath(org.id, `/${staff.id}/end`))
@@ -287,7 +284,7 @@ describe("finishing a signed document", () => {
 
   const sentAndSigned = async () => {
     const company = await companyWithStaff();
-    await send(company.owner.token, company.org.id, company.staff.id).expect(201);
+    expect((await send(company.owner.token, company.org.id, company.staff.id)).status).toBe(200);
     const res = await signLink(lastSigningToken());
     return { ...company, res };
   };
@@ -348,7 +345,7 @@ describe("finishing a signed document", () => {
 
   it("keeps the signature when storage is down, then the sweep recovers it", async () => {
     const company = await companyWithStaff();
-    await send(company.owner.token, company.org.id, company.staff.id).expect(201);
+    expect((await send(company.owner.token, company.org.id, company.staff.id)).status).toBe(200);
     spacesMocks().uploadPrivateToSpaces.mockRejectedValueOnce(new Error("storage down"));
 
     const res = await signLink(lastSigningToken());
@@ -374,7 +371,7 @@ describe("finishing a signed document", () => {
 
   it("does not wait for the sweep's delay before retrying", async () => {
     const company = await companyWithStaff();
-    await send(company.owner.token, company.org.id, company.staff.id).expect(201);
+    expect((await send(company.owner.token, company.org.id, company.staff.id)).status).toBe(200);
     spacesMocks().uploadPrivateToSpaces.mockRejectedValueOnce(new Error("storage down"));
     await signLink(lastSigningToken()).expect(200);
 
@@ -384,7 +381,7 @@ describe("finishing a signed document", () => {
 
   it("resends only the copy that failed", async () => {
     const company = await companyWithStaff();
-    await send(company.owner.token, company.org.id, company.staff.id).expect(201);
+    expect((await send(company.owner.token, company.org.id, company.staff.id)).status).toBe(200);
     emailMocks().sendSignedDocument.mockImplementation(({ email }: { email: string }) =>
       email === company.staff.email ? Promise.resolve() : Promise.reject(new Error("bounced"))
     );
@@ -420,7 +417,7 @@ describe("finishing a signed document", () => {
 
   it("lets only one of the request and the sweep finish the document", async () => {
     const company = await companyWithStaff();
-    await send(company.owner.token, company.org.id, company.staff.id).expect(201);
+    expect((await send(company.owner.token, company.org.id, company.staff.id)).status).toBe(200);
     spacesMocks().uploadPrivateToSpaces.mockRejectedValueOnce(new Error("storage down"));
     await signLink(lastSigningToken()).expect(200);
     const doc = await signedDoc(company.staff.id);
@@ -437,7 +434,7 @@ describe("finishing a signed document", () => {
 
   it("keeps the first hash when a second upload races it, and deletes the loser", async () => {
     const company = await companyWithStaff();
-    await send(company.owner.token, company.org.id, company.staff.id).expect(201);
+    expect((await send(company.owner.token, company.org.id, company.staff.id)).status).toBe(200);
     const repo = testDataSource.getRepository(StaffDocument);
     spacesMocks().uploadPrivateToSpaces.mockImplementationOnce(async () => {
       const raced = await repo.findOneOrFail({ where: { staffId: company.staff.id } });
@@ -462,7 +459,7 @@ describe("finishing a signed document", () => {
 
   it("retakes a stale claim left by a crash, but not a fresh one", async () => {
     const company = await companyWithStaff();
-    await send(company.owner.token, company.org.id, company.staff.id).expect(201);
+    expect((await send(company.owner.token, company.org.id, company.staff.id)).status).toBe(200);
     spacesMocks().uploadPrivateToSpaces.mockRejectedValueOnce(new Error("storage down"));
     await signLink(lastSigningToken()).expect(200);
     const doc = await signedDoc(company.staff.id);
@@ -485,7 +482,7 @@ describe("finishing a signed document", () => {
 
   it("stops after five attempts, records it, and Try again recovers it", async () => {
     const company = await companyWithStaff();
-    await send(company.owner.token, company.org.id, company.staff.id).expect(201);
+    expect((await send(company.owner.token, company.org.id, company.staff.id)).status).toBe(200);
     spacesMocks().uploadPrivateToSpaces.mockRejectedValue(new Error("storage down"));
     await signLink(lastSigningToken()).expect(200);
     const doc = await signedDoc(company.staff.id);
@@ -535,7 +532,7 @@ describe("finishing a signed document", () => {
 
   it("still finishes when employment ended after signing", async () => {
     const company = await companyWithStaff();
-    await send(company.owner.token, company.org.id, company.staff.id).expect(201);
+    expect((await send(company.owner.token, company.org.id, company.staff.id)).status).toBe(200);
     spacesMocks().uploadPrivateToSpaces.mockRejectedValueOnce(new Error("storage down"));
     await signLink(lastSigningToken()).expect(200);
     await request(app)
@@ -554,7 +551,7 @@ describe("finishing a signed document", () => {
     const { owner, org } = await setupCompany();
     const hr = await addMember(org, { canManagePeople: true });
     const staff = await createStaff(app, owner.token, org.id, { fullName: "Ada Obi" });
-    await send(owner.token, org.id, staff.id).expect(201);
+    expect((await send(owner.token, org.id, staff.id)).status).toBe(200);
     const token = lastSigningToken();
     await testDataSource.query(`UPDATE staff_documents SET sent_by_id = $1 WHERE staff_id = $2`, [
       hr.user.id,
@@ -614,7 +611,7 @@ describe("finishing a signed document", () => {
 describe("checking a signed document", () => {
   const signedPdfAndDoc = async () => {
     const company = await companyWithStaff();
-    await send(company.owner.token, company.org.id, company.staff.id).expect(201);
+    expect((await send(company.owner.token, company.org.id, company.staff.id)).status).toBe(200);
     await signLink(lastSigningToken()).expect(200);
     const doc = await testDataSource
       .getRepository(StaffDocument)
@@ -639,7 +636,7 @@ describe("checking a signed document", () => {
     expect(res.body.data.check).toMatchObject({
       result: "verified",
       companyName: expect.any(String),
-      title: "Confidentiality agreement",
+      title: "Non-disclosure agreement",
       signerName: "Ada N. Obi",
     });
     expect(JSON.stringify(res.body)).not.toContain(IP);
@@ -695,7 +692,7 @@ describe("checking a signed document", () => {
 
   it("never matches a document that is not signed yet", async () => {
     const company = await companyWithStaff();
-    await send(company.owner.token, company.org.id, company.staff.id).expect(201);
+    expect((await send(company.owner.token, company.org.id, company.staff.id)).status).toBe(200);
     const doc = await testDataSource
       .getRepository(StaffDocument)
       .findOneOrFail({ where: { staffId: company.staff.id } });
@@ -728,7 +725,7 @@ describe("notarization", () => {
   it("attaches a notarized scan to a signed document and replaces it cleanly", async () => {
     const { owner, org, staff } = await companyWithStaff();
     const other = await setupCompany("Other Ltd");
-    await send(owner.token, org.id, staff.id).expect(201);
+    expect((await send(owner.token, org.id, staff.id)).status).toBe(200);
     const token = lastSigningToken();
     const doc = await testDataSource
       .getRepository(StaffDocument)
@@ -768,5 +765,196 @@ describe("notarization", () => {
       .set(authHeader(owner.token));
     expect(scan.status).toBe(200);
     expect(scan.headers["content-type"]).toBe("image/png");
+  });
+});
+
+describe("drafts, fields and statuses", () => {
+  const docsPath = (orgId: string, staffId: string, suffix = "") =>
+    staffPath(orgId, `/${staffId}/documents${suffix}`);
+  const draft = (
+    token: string,
+    orgId: string,
+    staffId: string,
+    body: Record<string, unknown> = { template: "nda" }
+  ) => request(app).post(docsPath(orgId, staffId)).set(authHeader(token)).send(body);
+
+  it("saves a draft without emailing anyone and replaces it when saved again", async () => {
+    const { owner, org, staff } = await companyWithStaff();
+    const first = await draft(owner.token, org.id, staff.id);
+    expect(first.status).toBe(201);
+    expect(first.body.data.document).toMatchObject({
+      status: "draft",
+      displayStatus: "draft",
+      sentAt: null,
+      title: "Non-disclosure agreement",
+    });
+    const second = await draft(owner.token, org.id, staff.id, {
+      template: "nda",
+      jobTitle: "Lead Designer",
+      startDate: "2027-02-03",
+      managerName: "Tunde Bakare",
+    });
+    expect(second.body.data.document.id).toBe(first.body.data.document.id);
+    expect(second.body.data.document.fields).toEqual({
+      jobTitle: "Lead Designer",
+      startDate: "2027-02-03",
+      managerName: "Tunde Bakare",
+    });
+    expect(second.body.data.preview.body).toContain("Lead Designer");
+    expect(second.body.data.preview.body).toContain("3 February 2027");
+    expect(await testDataSource.getRepository(StaffDocument).count()).toBe(1);
+    expect(emailMocks().sendDocumentToSign).not.toHaveBeenCalled();
+  });
+
+  it("uses the typed fields for that document only, not the staff record", async () => {
+    const { owner, org, staff } = await companyWithStaff();
+    const saved = await draft(owner.token, org.id, staff.id, {
+      template: "work_ownership",
+      jobTitle: "Lead Designer",
+    });
+    await request(app)
+      .post(docsPath(org.id, staff.id, `/${saved.body.data.document.id}/send`))
+      .set(authHeader(owner.token))
+      .expect(200);
+    const doc = await testDataSource
+      .getRepository(StaffDocument)
+      .findOneByOrFail({ staffId: staff.id });
+    expect(doc.bodyText).toContain("Lead Designer");
+    const record = await request(app)
+      .get(staffPath(org.id, `/${staff.id}`))
+      .set(authHeader(owner.token));
+    expect(JSON.stringify(record.body)).not.toContain("Lead Designer");
+  });
+
+  it("rejects a bad date and a template outside the four", async () => {
+    const { owner, org, staff } = await companyWithStaff();
+    expect(
+      (await draft(owner.token, org.id, staff.id, { template: "nda", startDate: "soon" })).status
+    ).toBe(400);
+    expect((await draft(owner.token, org.id, staff.id, { template: "lease" })).status).toBe(400);
+  });
+
+  it("sends a draft once, refuses to send it twice and blocks an offer letter without pay", async () => {
+    const { owner, org, staff } = await companyWithStaff();
+    const offer = await draft(owner.token, org.id, staff.id, { template: "offer_letter" });
+    const send = (id: string) =>
+      request(app)
+        .post(docsPath(org.id, staff.id, `/${id}/send`))
+        .set(authHeader(owner.token));
+    expect((await send(offer.body.data.document.id)).status).toBe(400);
+
+    const nda = await draft(owner.token, org.id, staff.id);
+    const id = nda.body.data.document.id as string;
+    const sent = await send(id);
+    expect(sent.status).toBe(200);
+    expect(sent.body.data.document.status).toBe("sent");
+    expect((await send(id)).status).toBe(409);
+  });
+
+  it("reads one document with its preview, logged, and deletes only drafts", async () => {
+    const { owner, org, staff } = await companyWithStaff();
+    const saved = await draft(owner.token, org.id, staff.id);
+    const id = saved.body.data.document.id as string;
+    const read = await request(app)
+      .get(docsPath(org.id, staff.id, `/${id}`))
+      .set(authHeader(owner.token));
+    expect(read.status).toBe(200);
+    expect(read.body.data.preview.body).toContain("Ada Obi");
+    const sent = await request(app)
+      .post(docsPath(org.id, staff.id, `/${id}/send`))
+      .set(authHeader(owner.token));
+    expect(sent.status).toBe(200);
+    const del = await request(app)
+      .delete(docsPath(org.id, staff.id, `/${id}`))
+      .set(authHeader(owner.token));
+    expect(del.status).toBe(409);
+    const another = await draft(owner.token, org.id, staff.id, { template: "work_ownership" });
+    const gone = await request(app)
+      .delete(docsPath(org.id, staff.id, `/${another.body.data.document.id}`))
+      .set(authHeader(owner.token));
+    expect(gone.status).toBe(200);
+  });
+
+  it("lets the employee decline, shows Declined and lets HR send it again", async () => {
+    const { owner, org, staff } = await companyWithStaff();
+    expect((await send(owner.token, org.id, staff.id)).status).toBe(200);
+    const token = lastSigningToken();
+    await request(app).post(`/v1/staff-documents/${token}/decline`).expect(200);
+    const doc = await testDataSource
+      .getRepository(StaffDocument)
+      .findOneByOrFail({ staffId: staff.id });
+    expect(doc.status).toBe("declined");
+    expect(doc.declinedAt).not.toBeNull();
+    expect(doc.tokenHash).toBeNull();
+    expect(await activityTypes(staff.id)).toContain("document_declined");
+    expect((await openLink(token)).status).toBe(404);
+    expect((await signLink(token)).status).toBe(404);
+
+    const list = await request(app).get(docsPath(org.id, staff.id)).set(authHeader(owner.token));
+    expect(list.body.data.documents[0].displayStatus).toBe("declined");
+    const again = await request(app)
+      .post(docsPath(org.id, staff.id, `/${doc.id}/resend`))
+      .set(authHeader(owner.token));
+    expect(again.status).toBe(200);
+    expect(again.body.data.document).toMatchObject({ status: "sent", declinedAt: null });
+    expect((await signLink(lastSigningToken())).status).toBe(200);
+  });
+
+  it("shows To notarize, then Notarized with the scan name and who uploaded it", async () => {
+    const { owner, org, staff } = await companyWithStaff();
+    expect((await send(owner.token, org.id, staff.id)).status).toBe(200);
+    await signLink(lastSigningToken()).expect(200);
+    const doc = await testDataSource
+      .getRepository(StaffDocument)
+      .findOneByOrFail({ staffId: staff.id });
+    const statusOf = async () =>
+      (await request(app).get(docsPath(org.id, staff.id)).set(authHeader(owner.token))).body.data
+        .documents[0];
+    expect((await statusOf()).displayStatus).toBe("signed");
+    await request(app)
+      .patch(docsPath(org.id, staff.id, `/${doc.id}`))
+      .set(authHeader(owner.token))
+      .send({ needsNotarization: true })
+      .expect(200);
+    expect((await statusOf()).displayStatus).toBe("to_notarize");
+    await request(app)
+      .post(docsPath(org.id, staff.id, `/${doc.id}/notarized-scan`))
+      .set(authHeader(owner.token))
+      .attach("file", Buffer.from("scan"), {
+        filename: "nda_notarized.pdf",
+        contentType: "application/pdf",
+      })
+      .expect(200);
+    const row = await statusOf();
+    expect(row).toMatchObject({
+      displayStatus: "notarized",
+      notarizedScanName: "nda_notarized.pdf",
+      notarizedByName: expect.any(String),
+    });
+  });
+
+  it("says which company to contact when an expired or used link is opened", async () => {
+    const { owner, org, staff } = await companyWithStaff();
+    expect((await send(owner.token, org.id, staff.id)).status).toBe(200);
+    const token = lastSigningToken();
+    await testDataSource
+      .getRepository(StaffDocument)
+      .update({ staffId: staff.id }, { tokenExpiresAt: new Date(Date.now() - 1000) });
+    const res = await openLink(token);
+    expect(res.status).toBe(410);
+    expect(res.body.error.details).toMatchObject({
+      documentTitle: "Non-disclosure agreement",
+      companyName: expect.any(String),
+    });
+  });
+
+  it("keeps drafts away from My work", async () => {
+    const { owner, org, staff } = await companyWithStaff();
+    const saved = await draft(owner.token, org.id, staff.id);
+    const row = await testDataSource
+      .getRepository(StaffDocument)
+      .findOneByOrFail({ id: saved.body.data.document.id });
+    expect(row.tokenHash).toBeNull();
+    expect(row.status).toBe("draft");
   });
 });

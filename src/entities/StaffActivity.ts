@@ -27,6 +27,7 @@ export enum StaffActivityType {
   DocumentSent = "document_sent",
   DocumentEmailFailed = "document_email_failed",
   DocumentViewed = "document_viewed",
+  DocumentDeclined = "document_declined",
   DocumentSigned = "document_signed",
   DocumentCopyFailed = "document_copy_failed",
   DocumentNotarized = "document_notarized",

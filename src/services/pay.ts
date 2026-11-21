@@ -68,7 +68,7 @@ const fractionalAmount = new Intl.NumberFormat("en-NG", {
   maximumFractionDigits: 2,
 });
 
-const money = (currency: string, amount: number): string =>
+export const money = (currency: string, amount: number): string =>
   `${currency} ${(Number.isInteger(amount) ? wholeAmount : fractionalAmount).format(amount)}`;
 
 export const longDate = (dateOnly: string): string =>

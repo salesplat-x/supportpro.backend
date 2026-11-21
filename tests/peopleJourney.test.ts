@@ -10,7 +10,7 @@ import { StaffAccessLog } from "../src/entities";
 import { reconcileDueDocumentFinalization } from "../src/services/contracts.js";
 import { weekStartOf, workToday } from "../src/utils/workCalendar.js";
 import { authHeader } from "./helpers/company.js";
-import { staffPath } from "./helpers/staff.js";
+import { sendDocumentFor, staffPath } from "./helpers/staff.js";
 import { companyWithTeam } from "./helpers/team.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => {
@@ -79,11 +79,7 @@ describe("the launch journeys", () => {
       sendSignedDocument: jest.Mock;
     };
 
-    await request(app)
-      .post(staffPath(org.id, `/${report.staff.id}/documents`))
-      .set(authHeader(owner.token))
-      .send({ template: "nda" })
-      .expect(201);
+    expect((await sendDocumentFor(app, owner.token, org.id, report.staff.id)).status).toBe(200);
     const [[{ signLink }]] = emails.sendDocumentToSign.mock.calls as [[{ signLink: string }]];
     const token = signLink.split("/sign/")[1]!;
 

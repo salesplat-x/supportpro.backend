@@ -5,6 +5,7 @@ export interface ContractFacts {
   fullName: string;
   jobTitle: string;
   startDate: string;
+  managerName: string | null;
   payParagraph: string | null;
 }
 
@@ -26,7 +27,7 @@ export const CONTRACT_TEMPLATES: Record<DocumentTemplate, TemplateDefinition> = 
     ],
   },
   [DocumentTemplate.Nda]: {
-    title: "Confidentiality agreement",
+    title: "Non-disclosure agreement",
     needsPay: false,
     body: (facts) => [
       `This confidentiality agreement is between ${facts.companyName} (the company) and ${facts.fullName}, who joins as ${facts.jobTitle} on ${facts.startDate}.`,

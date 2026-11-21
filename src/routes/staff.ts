@@ -31,7 +31,7 @@ import {
   commissionPlanIdValidator,
   createCommissionPlanValidator,
   previewDocumentValidator,
-  sendDocumentValidator,
+  draftDocumentValidator,
   staffDocumentValidator,
   updateCommissionPlanValidator,
   createBenefitValidator,
@@ -323,7 +323,30 @@ router.post(
   "/:staffId/documents",
   ...recruiter,
   staffWriteLimiter,
-  validate(sendDocumentValidator),
+  validate(draftDocumentValidator),
+  asyncHandler(contracts.saveDraft, "save document draft")
+);
+
+router.get(
+  "/:staffId/documents/:documentId",
+  ...recruiter,
+  validate(staffDocumentValidator),
+  asyncHandler(contracts.show, "load document")
+);
+
+router.delete(
+  "/:staffId/documents/:documentId",
+  ...recruiter,
+  staffWriteLimiter,
+  validate(staffDocumentValidator),
+  asyncHandler(contracts.deleteDraft, "delete document draft")
+);
+
+router.post(
+  "/:staffId/documents/:documentId/send",
+  ...recruiter,
+  staffWriteLimiter,
+  validate(staffDocumentValidator),
   asyncHandler(contracts.send, "send document")
 );
 

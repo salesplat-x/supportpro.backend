@@ -5,8 +5,14 @@ import { AppDataSource } from "../database/dataSource.js";
 import { Organization } from "../entities/Organization.js";
 import { StaffAccessResource } from "../entities/StaffAccessLog.js";
 import { StaffActivityType } from "../entities/StaffActivity.js";
-import { DocumentStatus, DocumentTemplate, StaffDocument } from "../entities/StaffDocument.js";
+import {
+  type DocumentFields,
+  DocumentStatus,
+  DocumentTemplate,
+  StaffDocument,
+} from "../entities/StaffDocument.js";
 import { StaffMember, StaffStatus } from "../entities/StaffMember.js";
+import { PayPeriod } from "../entities/PayPackage.js";
 import { User } from "../entities/User.js";
 import { generateContractPdf } from "../utils/contractPdf.js";
 import {
@@ -28,7 +34,7 @@ import {
 import logger from "../utils/logger.js";
 import { AppError, ConflictError, NotFoundError, ValidationError } from "../utils/errors";
 import { INVITE_EXPIRY_DAYS, generateInviteToken } from "./organization.js";
-import { assertNotEnded, loadPay, longDate } from "./pay.js";
+import { assertNotEnded, loadPay, longDate, money } from "./pay.js";
 import { assertOwner } from "./peopleAccess.js";
 import {
   type AccessActor,
@@ -49,19 +55,28 @@ export const CHECK_CODE_VERSION = 2;
 const FIRST_SWEEP_DELAY_MS = 2 * 60 * 1000;
 
 export type DocumentCopyStatus = "none" | "pending" | "failed" | "done";
+export type DocumentDisplayStatus = DocumentStatus | "to_notarize" | "notarized";
 
 export interface DocumentView {
   id: string;
   template: DocumentTemplate;
   title: string;
   status: DocumentStatus;
-  sentAt: Date;
+  /** What the row shows: the stored status, or To notarize and Notarized once a signed document needs a notary. */
+  displayStatus: DocumentDisplayStatus;
+  fields: DocumentFields | null;
+  createdAt: Date;
+  sentAt: Date | null;
   openedAt: Date | null;
   signedAt: Date | null;
+  declinedAt: Date | null;
   signerName: string | null;
+  sentByName: string | null;
   linkExpiresAt: Date | null;
   needsNotarization: boolean;
   notarizedAt: Date | null;
+  notarizedScanName: string | null;
+  notarizedByName: string | null;
   checkCode: string | null;
   copyStatus: DocumentCopyStatus;
 }
@@ -86,18 +101,32 @@ const copyStatusOf = (doc: StaffDocument): DocumentCopyStatus => {
   return doc.finalizeNextRetryAt ? "pending" : "failed";
 };
 
+const displayStatusOf = (doc: StaffDocument): DocumentDisplayStatus => {
+  if (doc.status === DocumentStatus.Signed && doc.needsNotarization) {
+    return doc.notarizedScanKey ? "notarized" : "to_notarize";
+  }
+  return doc.status;
+};
+
 export const toDocumentView = (doc: StaffDocument): DocumentView => ({
   id: doc.id,
   template: doc.template,
   title: doc.title,
   status: doc.status,
+  displayStatus: displayStatusOf(doc),
+  fields: doc.fields,
+  createdAt: doc.createdAt,
   sentAt: doc.sentAt,
   openedAt: doc.openedAt,
   signedAt: doc.signedAt,
+  declinedAt: doc.declinedAt,
   signerName: doc.signerName,
+  sentByName: doc.sentBy ? `${doc.sentBy.firstName} ${doc.sentBy.lastName}`.trim() : null,
   linkExpiresAt: doc.tokenExpiresAt,
   needsNotarization: doc.needsNotarization,
   notarizedAt: doc.notarizedAt,
+  notarizedScanName: doc.notarizedScanName,
+  notarizedByName: doc.notarizedByName,
   checkCode: doc.checkCode,
   copyStatus: copyStatusOf(doc),
 });
@@ -108,16 +137,75 @@ const loadOrganization = (organizationId: string): Promise<Organization> =>
 const documentsRepo = (em: EntityManager = AppDataSource.manager) =>
   em.getRepository(StaffDocument);
 
-const renderFor = async (org: Organization, staff: StaffMember, template: DocumentTemplate) => {
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+const cleanFields = (input: DocumentFields | null | undefined): DocumentFields => {
+  const fields: DocumentFields = {};
+  if (input?.startDate) {
+    if (!DATE_ONLY.test(input.startDate) || Number.isNaN(Date.parse(input.startDate))) {
+      throw new ValidationError("startDate must be a date like 2026-11-05");
+    }
+    fields.startDate = input.startDate;
+  }
+  if (input?.jobTitle?.trim()) fields.jobTitle = input.jobTitle.trim().slice(0, 120);
+  if (input?.managerName?.trim()) fields.managerName = input.managerName.trim().slice(0, 120);
+  return fields;
+};
+
+const managerNameOf = async (staff: StaffMember): Promise<string | null> => {
+  if (!staff.managerId) return null;
+  const manager = await AppDataSource.getRepository(StaffMember).findOne({
+    where: { id: staff.managerId },
+    select: { id: true, fullName: true },
+  });
+  return manager?.fullName ?? null;
+};
+
+export interface DocumentPreview {
+  title: string;
+  body: string;
+  missing: string[];
+  facts: {
+    startDate: string;
+    jobTitle: string;
+    managerName: string | null;
+    monthlyPay: string | null;
+  };
+}
+
+const renderFor = async (
+  org: Organization,
+  staff: StaffMember,
+  template: DocumentTemplate,
+  fields: DocumentFields | null = null
+): Promise<DocumentPreview> => {
   const pay = await loadPay(staff.id);
   const current = pay.packages.find((pkg) => pkg.id === pay.currentPackageId);
-  return renderContract(template, {
+  const startDate = fields?.startDate ?? staff.startDate;
+  const jobTitle = fields?.jobTitle ?? staff.jobTitle;
+  const managerName = fields?.managerName ?? (await managerNameOf(staff));
+  const rendered = renderContract(template, {
     companyName: org.name,
     fullName: staff.fullName,
-    jobTitle: staff.jobTitle,
-    startDate: longDate(staff.startDate),
+    jobTitle,
+    startDate: longDate(startDate),
+    managerName,
     payParagraph: current?.paragraph ?? null,
   });
+  return {
+    ...rendered,
+    facts: {
+      startDate,
+      jobTitle,
+      managerName,
+      monthlyPay: current
+        ? money(
+            current.currency,
+            current.period === PayPeriod.Monthly ? current.baseSalary : current.baseSalary / 12
+          )
+        : null,
+    },
+  };
 };
 
 const issueSigningToken = (doc: StaffDocument): string => {
@@ -237,16 +325,103 @@ export const listDocuments = async (
   await openStaff(actor, organizationId, staffId, StaffAccessResource.Contract, ip);
   const docs = await documentsRepo().find({
     where: { staffId, organizationId },
-    order: { sentAt: "DESC" },
+    relations: { sentBy: true },
+    order: { createdAt: "DESC" },
   });
   return docs.map(toDocumentView);
+};
+
+export const getDocument = async (
+  actor: User,
+  organizationId: string,
+  staffId: string,
+  documentId: string,
+  ip: string
+): Promise<{ document: DocumentView; preview: DocumentPreview }> => {
+  const staff = await openStaff(actor, organizationId, staffId, StaffAccessResource.Contract, ip);
+  const doc = await documentsRepo().findOne({
+    where: { id: documentId, staffId, organizationId },
+    relations: { sentBy: true },
+  });
+  if (!doc) throw new NotFoundError("Document not found");
+  const preview =
+    doc.status === DocumentStatus.Draft
+      ? await renderFor(await loadOrganization(organizationId), staff, doc.template, doc.fields)
+      : {
+          title: doc.title,
+          body: doc.bodyText,
+          missing: [],
+          facts: {
+            startDate: doc.fields?.startDate ?? staff.startDate,
+            jobTitle: doc.fields?.jobTitle ?? staff.jobTitle,
+            managerName: doc.fields?.managerName ?? null,
+            monthlyPay: null,
+          },
+        };
+  return { document: toDocumentView(doc), preview };
+};
+
+/** One draft per person and template: saving again replaces it, so "Back to edit" never piles them up. */
+export const saveDraft = async (
+  actor: User,
+  organizationId: string,
+  staffId: string,
+  template: DocumentTemplate,
+  rawFields: DocumentFields | null
+): Promise<{ document: DocumentView; preview: DocumentPreview }> => {
+  const org = await assertOwner(actor.id, organizationId);
+  const fields = cleanFields(rawFields);
+  const { saved, preview } = await AppDataSource.transaction(async (em) => {
+    const staff = await findStaff(organizationId, staffId, { em, lock: true });
+    assertNotEnded(staff);
+    const rendered = await renderFor(org, staff, template, fields);
+    const existing = await documentsRepo(em).findOne({
+      where: { staffId, organizationId, template, status: DocumentStatus.Draft },
+    });
+    const doc =
+      existing ??
+      documentsRepo(em).create({
+        organizationId,
+        staffId,
+        template,
+        status: DocumentStatus.Draft,
+        sentAt: null,
+      });
+    Object.assign(doc, {
+      title: rendered.title,
+      bodyText: rendered.body,
+      fields: Object.keys(fields).length ? fields : null,
+      sentById: actor.id,
+    });
+    return { saved: await documentsRepo(em).save(doc), preview: rendered };
+  });
+  const withSender = await documentsRepo().findOneOrFail({
+    where: { id: saved.id },
+    relations: { sentBy: true },
+  });
+  return { document: toDocumentView(withSender), preview };
+};
+
+export const deleteDraft = async (
+  actor: User,
+  organizationId: string,
+  staffId: string,
+  documentId: string
+): Promise<void> => {
+  await assertOwner(actor.id, organizationId);
+  const staff = await findStaff(organizationId, staffId);
+  const doc = await findStaffDocument(AppDataSource.manager, staff, documentId);
+  if (doc.status !== DocumentStatus.Draft) {
+    throw new ConflictError("Only a draft can be deleted");
+  }
+  await documentsRepo().delete(doc.id);
 };
 
 export const sendDocument = async (
   actor: User,
   organizationId: string,
   staffId: string,
-  template: DocumentTemplate
+  documentId: string
 ): Promise<{ document: DocumentView; emailSent: boolean }> => {
   const org = await assertOwner(actor.id, organizationId);
   let token = "";
@@ -255,14 +430,15 @@ export const sendDocument = async (
     sent = await AppDataSource.transaction(async (em) => {
       const staff = await findStaff(organizationId, staffId, { em, lock: true });
       assertNotEnded(staff);
-      const rendered = await renderFor(org, staff, template);
+      const doc = await findStaffDocument(em, staff, documentId, true);
+      if (doc.status !== DocumentStatus.Draft) {
+        throw new ConflictError("Only a draft can be sent for signing");
+      }
+      const rendered = await renderFor(org, staff, doc.template, doc.fields);
       if (rendered.missing.length > 0) {
         throw new ValidationError("Set up pay first. This document includes the pay paragraph.");
       }
-      const doc = documentsRepo(em).create({
-        organizationId,
-        staffId,
-        template,
+      Object.assign(doc, {
         title: rendered.title,
         bodyText: rendered.body,
         status: DocumentStatus.Sent,
@@ -300,10 +476,16 @@ export const resendDocument = async (
     const staff = await findStaff(organizationId, staffId, { em, lock: true });
     assertNotEnded(staff);
     const doc = await findStaffDocument(em, staff, documentId, true);
-    if (doc.status !== DocumentStatus.Sent) {
-      throw new ConflictError("This document is already signed");
+    if (doc.status !== DocumentStatus.Sent && doc.status !== DocumentStatus.Declined) {
+      throw new ConflictError(
+        doc.status === DocumentStatus.Signed
+          ? "This document is already signed"
+          : "Send the draft for signing first"
+      );
     }
     token = issueSigningToken(doc);
+    doc.status = DocumentStatus.Sent;
+    doc.declinedAt = null;
     doc.sentAt = new Date();
     const saved = await documentsRepo(em).save(doc);
     await recordActivities(em, staff, [
@@ -347,6 +529,18 @@ export const downloadDocument = async (
   return signedDocumentFile(await loadOrganization(organizationId), doc);
 };
 
+const linkGone = async (organizationId: string, title: string, em: EntityManager) => {
+  const org = await em.getRepository(Organization).findOne({
+    where: { id: organizationId },
+    select: { id: true, name: true, email: true },
+  });
+  return new AppError(410, "LINK_EXPIRED", LINK_GONE, true, {
+    documentTitle: title,
+    companyName: org?.name ?? null,
+    companyEmail: org?.email ?? null,
+  });
+};
+
 const findByToken = async (
   token: string,
   em: EntityManager = AppDataSource.manager,
@@ -360,7 +554,7 @@ const findByToken = async (
     throw new NotFoundError(LINK_GONE);
   }
   if (!doc.tokenExpiresAt || doc.tokenExpiresAt.getTime() <= Date.now()) {
-    throw new AppError(410, "LINK_EXPIRED", LINK_GONE);
+    throw await linkGone(doc.organizationId, doc.title, em);
   }
   return doc;
 };
@@ -472,6 +666,36 @@ export const signLockedDocument = async (
     },
   ]);
   return { doc: signed, staff };
+};
+
+/** Shared by the email link and My work. The caller has locked `doc` in `em`. */
+export const declineLockedDocument = async (
+  em: EntityManager,
+  doc: StaffDocument,
+  ip: string
+): Promise<void> => {
+  const staff = await staffOf(doc, em);
+  Object.assign(doc, {
+    status: DocumentStatus.Declined,
+    declinedAt: new Date(),
+    tokenHash: null,
+    tokenExpiresAt: null,
+  });
+  await documentsRepo(em).save(doc);
+  await recordActivities(em, staff, [
+    {
+      type: StaffActivityType.DocumentDeclined,
+      actorId: staff.userId,
+      actorName: staff.fullName,
+      meta: { title: doc.title, ip },
+    },
+  ]);
+};
+
+export const declineWithToken = async (token: string, ip: string): Promise<void> => {
+  await AppDataSource.transaction(async (em) =>
+    declineLockedDocument(em, await findByToken(token, em, true), ip)
+  );
 };
 
 /** Contracts stay between the company's creator and the employee, whoever sent this one. */
@@ -776,6 +1000,8 @@ export const uploadNotarizedScan = async (
       Object.assign(doc, {
         notarizedScanKey: key,
         notarizedScanType: file.mimetype,
+        notarizedScanName: file.originalname.replace(/[^\w .-]/g, "_").slice(0, 200) || null,
+        notarizedByName: `${actor.firstName} ${actor.lastName}`.trim().slice(0, 120),
         notarizedAt: new Date(),
       });
       const result = await documentsRepo(em).save(doc);

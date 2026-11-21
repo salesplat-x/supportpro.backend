@@ -36,14 +36,40 @@ export const preview = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Document preview ready", { preview });
 };
 
-export const send = async (req: Request, res: Response) => {
-  const result = await contracts.sendDocument(
+export const show = async (req: Request, res: Response) => {
+  const result = await contracts.getDocument(
     req.user,
     orgId(req),
     staffId(req),
-    req.body.template as DocumentTemplate
+    documentId(req),
+    getClientIp(req)
   );
-  sendSuccessResponse(res, "Document sent for signing", result, 201);
+  sendSuccessResponse(res, "Document fetched", result);
+};
+
+export const saveDraft = async (req: Request, res: Response) => {
+  const result = await contracts.saveDraft(
+    req.user,
+    orgId(req),
+    staffId(req),
+    req.body.template as DocumentTemplate,
+    {
+      startDate: req.body.startDate as string | undefined,
+      jobTitle: req.body.jobTitle as string | undefined,
+      managerName: req.body.managerName as string | undefined,
+    }
+  );
+  sendSuccessResponse(res, "Draft saved", result, 201);
+};
+
+export const deleteDraft = async (req: Request, res: Response) => {
+  await contracts.deleteDraft(req.user, orgId(req), staffId(req), documentId(req));
+  sendSuccessResponse(res, "Draft deleted", {});
+};
+
+export const send = async (req: Request, res: Response) => {
+  const result = await contracts.sendDocument(req.user, orgId(req), staffId(req), documentId(req));
+  sendSuccessResponse(res, "Document sent for signing", result);
 };
 
 export const resend = async (req: Request, res: Response) => {
@@ -79,6 +105,11 @@ export const signWithLink = async (req: Request, res: Response) => {
     getClientIp(req)
   );
   sendSuccessResponse(res, "Document signed", { signed });
+};
+
+export const declineWithLink = async (req: Request, res: Response) => {
+  await contracts.declineWithToken(req.params["token"]!, getClientIp(req));
+  sendSuccessResponse(res, "Document declined", {});
 };
 
 export const retryFinalization = async (req: Request, res: Response) => {

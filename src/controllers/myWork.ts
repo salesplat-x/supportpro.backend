@@ -74,6 +74,11 @@ export const downloadDocument = async (req: Request, res: Response) => {
   sendPdf(res, fileName, pdf);
 };
 
+export const declineDocument = async (req: Request, res: Response) => {
+  await myWork.declineMyDocument(req.user.id, req.params["documentId"]!, getClientIp(req));
+  sendSuccessResponse(res, "Document declined", {});
+};
+
 export const signDocument = async (req: Request, res: Response) => {
   const signed = await myWork.signMyDocument(
     req.user.id,
