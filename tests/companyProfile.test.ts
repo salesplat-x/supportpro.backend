@@ -3,6 +3,7 @@ import { createApp } from "../src/app.js";
 import { startTestDatabase, stopTestDatabase, clearAllTables } from "./helpers/db.js";
 import { apiData } from "./helpers/http.js";
 import { addMember, authHeader, setupCompany } from "./helpers/company.js";
+import { MAX_COMPANY_DOCUMENT_BYTES } from "../src/middleware/multer.js";
 import { staffPath } from "./helpers/staff.js";
 
 jest.mock("../src/utils/integrations/openai.js", () => ({
@@ -42,6 +43,25 @@ const upload = (token: string, orgId: string, contentType: string) =>
     .post(staffPath(orgId, "/company-profile/extract"))
     .set(authHeader(token))
     .attach("file", Buffer.from("document"), { filename: "profile.pdf", contentType });
+
+describe("company profile upload size", () => {
+  const sized = (token: string, orgId: string, bytes: number) =>
+    request(app)
+      .post(staffPath(orgId, "/company-profile/extract"))
+      .set(authHeader(token))
+      .attach("file", Buffer.alloc(bytes, "a"), {
+        filename: "profile.pdf",
+        contentType: "application/pdf",
+      });
+
+  it("takes a 20 MB document and refuses anything larger", async () => {
+    const { owner, org } = await setupCompany();
+    expect((await sized(owner.token, org.id, MAX_COMPANY_DOCUMENT_BYTES)).status).toBe(200);
+    const tooBig = await sized(owner.token, org.id, MAX_COMPANY_DOCUMENT_BYTES + 1);
+    expect(tooBig.status).toBe(400);
+    expect(tooBig.body.error.message).toBe("File is too large");
+  });
+});
 
 describe("company profile", () => {
   it("fills the fields from a document without saving them, then saves what HR checked", async () => {
