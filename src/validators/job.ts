@@ -12,7 +12,11 @@ import {
   MatchVerdict,
 } from "../types/enums.js";
 import { workModeNeedsLocation } from "../utils/workMode.js";
-import { BOARD_COLUMNS, INTERVIEW_PROGRESS } from "../services/applicationProgress.js";
+import {
+  BOARD_COLUMNS,
+  INTERVIEW_PROGRESS,
+  VERIFICATION_STATES,
+} from "../services/applicationProgress.js";
 
 export const generateJobContentValidator = [
   body("role").optional().isString().trim(),
@@ -323,6 +327,7 @@ export const jobApplicationsQueryValidator = [
   query("q").optional().isString().trim().isLength({ max: 100 }),
   query("boardColumn").optional().isIn(BOARD_COLUMNS).withMessage("Invalid boardColumn"),
   query("interview").optional().isIn(INTERVIEW_PROGRESS).withMessage("Invalid interview"),
+  query("verification").optional().isIn(VERIFICATION_STATES).withMessage("Invalid verification"),
   query("offset").optional().isInt({ min: 0 }).toInt(),
   query("skip").optional().isInt({ min: 0 }).toInt(),
   query("limit").optional().isInt({ min: 1, max: 200 }).toInt(),

@@ -17,6 +17,8 @@ import {
 } from "./helpers/fixtures.js";
 import { ApplicationStatus } from "../src/types/enums.js";
 import { AiInterview } from "../src/entities/AiInterview.js";
+import { ApplicationCheck } from "../src/entities/ApplicationCheck.js";
+import type { CheckStatus, CheckType } from "../src/types/checks.js";
 import { AiInterviewQuestion } from "../src/entities/AiInterviewQuestion.js";
 import type { Application } from "../src/entities/Application.js";
 import type { Job } from "../src/entities/Job.js";
@@ -189,6 +191,54 @@ describe("GET /v1/jobs/applications/:jobId progress fields", () => {
     expect(filtered.body.data.applications.map((a: { id: string }) => a.id)).toEqual([
       processing.id,
     ]);
+  });
+
+  it("shows one verification status per application and filters on it", async () => {
+    const { token, job } = await setup();
+    const noChecks = await applicant(job);
+    const pending = await applicant(job);
+    const verified = await applicant(job);
+    const flagged = await applicant(job);
+    const failed = await applicant(job);
+    const { user: orderer } = await createRecruiter();
+    const order = (application: Application, type: CheckType, status: CheckStatus) =>
+      testDataSource.getRepository(ApplicationCheck).save({
+        applicationId: application.id,
+        orderedById: orderer.id,
+        type,
+        status,
+      });
+    await order(pending, "identity", "pending");
+    await order(verified, "identity", "passed");
+    await order(verified, "education", "passed");
+    await order(flagged, "identity", "passed");
+    await order(flagged, "employment", "flagged");
+    await order(failed, "identity", "failed");
+    await order(failed, "employment", "flagged");
+
+    const res = await get(`/v1/jobs/applications/${job.id}?limit=50`, token);
+    const byId = Object.fromEntries(
+      res.body.data.applications.map((a: { id: string; verification: string }) => [
+        a.id,
+        a.verification,
+      ])
+    );
+    expect(byId).toEqual({
+      [noChecks.id]: "none",
+      [pending.id]: "pending",
+      [verified.id]: "verified",
+      [flagged.id]: "flagged",
+      [failed.id]: "failed",
+    });
+
+    const only = async (state: string) =>
+      (await get(`/v1/jobs/applications/${job.id}?verification=${state}`, token)).body.data.total;
+    expect(await only("none")).toBe(1);
+    expect(await only("verified")).toBe(1);
+    expect(await only("failed")).toBe(1);
+    expect((await get(`/v1/jobs/applications/${job.id}?verification=bogus`, token)).status).toBe(
+      400
+    );
   });
 
   it("searches applicants by name and pages with a total", async () => {

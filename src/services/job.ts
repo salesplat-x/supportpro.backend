@@ -61,10 +61,12 @@ import {
   type ApplicationProgress,
   type BoardColumn,
   type InterviewProgress,
+  type VerificationState,
   boardColumnSql,
   interviewProgressSql,
   loadApplicationProgress,
   NO_PROGRESS,
+  verificationSql,
 } from "./applicationProgress.js";
 import { AiInterview } from "../entities/AiInterview.js";
 import { hasUploadedCv, regenerateCvEmbedding } from "./user.js";
@@ -1277,6 +1279,7 @@ export interface JobApplicationsParams {
   q?: string;
   boardColumn?: BoardColumn;
   interview?: InterviewProgress;
+  verification?: VerificationState;
   offset?: number | string;
   limit?: number | string;
   /** Defaults to "aiMatch" — best AI match first, matching what the applicant table shows. */
@@ -1331,6 +1334,12 @@ export const jobApplications = async (
   if (payload.interview) {
     qb.andWhere(`${interviewProgressSql("interview")} = :interviewProgress`, {
       interviewProgress: payload.interview,
+    });
+  }
+
+  if (payload.verification) {
+    qb.andWhere(`${verificationSql("application")} = :verification`, {
+      verification: payload.verification,
     });
   }
 
