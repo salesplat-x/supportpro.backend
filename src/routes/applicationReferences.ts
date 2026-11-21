@@ -5,6 +5,7 @@ import { asyncHandler } from "../middleware/asyncHandler.js";
 import { loginRequired, requireVerifiedEmail } from "../middleware/auth.js";
 import { documentLinkLimiter } from "../middleware/rateLimiter.js";
 import { validate } from "../middleware/validate.js";
+import { MAX_REFEREES, REFEREE_RELATIONSHIPS } from "../services/applicationReferences.js";
 import * as referenceLink from "../controllers/referenceLink.js";
 
 const router = Router();
@@ -14,13 +15,18 @@ const applicationParams = [
 ];
 
 const refereeBody = [
-  body("name").isString().trim().isLength({ min: 1, max: 120 }).withMessage("name is required"),
-  body("email").isString().trim().isEmail().withMessage("a valid email is required"),
-  body("relationship")
+  body("referees")
+    .isArray({ min: 1, max: MAX_REFEREES })
+    .withMessage(`referees must list 1 to ${MAX_REFEREES} people`),
+  body("referees.*.name")
     .isString()
     .trim()
     .isLength({ min: 1, max: 120 })
-    .withMessage("relationship is required"),
+    .withMessage("name is required"),
+  body("referees.*.email").isString().trim().isEmail().withMessage("a valid email is required"),
+  body("referees.*.relationship")
+    .isIn([...REFEREE_RELATIONSHIPS])
+    .withMessage(`relationship must be one of: ${REFEREE_RELATIONSHIPS.join(", ")}`),
 ];
 
 router.post(
@@ -28,7 +34,7 @@ router.post(
   loginRequired,
   requireVerifiedEmail,
   validate([...applicationParams, ...refereeBody]),
-  asyncHandler(references.addReferee, "add referee")
+  asyncHandler(references.addReferees, "send reference requests")
 );
 
 router.get(

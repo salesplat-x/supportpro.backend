@@ -59,7 +59,7 @@ const ANSWERS = {
   strengths: "Calm with customers.",
   improve: "Could delegate more.",
   reliability: "Always on time.",
-  hire_again: "Yes.",
+  hire_again: "Yes",
 };
 
 async function setup() {
@@ -76,9 +76,9 @@ async function setup() {
     request(app)
       .post(`/v1/references/applications/${application.id}`)
       .set("Authorization", `Bearer ${talentToken}`)
-      .send({ name, email, relationship: "Former manager" });
+      .send({ referees: [{ name, email, relationship: "manager" }] });
   const added = await add("ada@example.com");
-  const referenceId = added.body.data.id as string;
+  const referenceId = added.body.data.references[0].id as string;
   const tokenOf = (call = 0) =>
     String(mockSendRequest.mock.calls[call]![0].ctaUrl).split("/reference/")[1]!;
   const answer = (token: string) =>

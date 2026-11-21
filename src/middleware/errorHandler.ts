@@ -92,6 +92,7 @@ export function errorHandler(
       error: {
         code: err.code,
         message: err.isOperational ? err.message : failureMessage(res, err),
+        ...(err.details ? { details: err.details } : {}),
       },
     });
     return;
