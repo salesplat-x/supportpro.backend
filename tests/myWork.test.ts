@@ -128,6 +128,107 @@ describe("first-week checklist", () => {
   });
 });
 
+describe("checklist owners and late tasks", () => {
+  it("copies the owner and note onto new tasks and shows the owner's name and the status", async () => {
+    const { owner, org } = await setupCompany();
+    await request(app)
+      .put(staffPath(org.id, "/checklist-defaults"))
+      .set(authHeader(owner.token))
+      .send({
+        items: [
+          {
+            title: "Collect your laptop",
+            dueInDays: 0,
+            description: "IT hands it over",
+            owner: "it",
+          },
+          { title: "Read the welcome pack", dueInDays: 1, owner: "new_hire" },
+          {
+            title: "Meet your team",
+            dueInDays: 2,
+            description: "30 minute intro call",
+            owner: "manager",
+          },
+        ],
+      })
+      .expect(200);
+    const person = await createStaff(app, owner.token, org.id, {
+      fullName: "Ada Obi",
+      startDate: "2020-01-05",
+    });
+    const res = await request(app)
+      .get(staffPath(org.id, `/${person.id}/checklist`))
+      .set(authHeader(owner.token));
+    const tasks = apiData<{
+      tasks: {
+        title: string;
+        status: string;
+        owner: string | null;
+        ownerName: string | null;
+        description: string | null;
+      }[];
+    }>(res).tasks;
+    expect(
+      tasks.map((task) => [task.title, task.owner, task.ownerName, task.description, task.status])
+    ).toEqual([
+      ["Collect your laptop", "it", "IT", "IT hands it over", "late"],
+      ["Read the welcome pack", "new_hire", "Ada Obi", null, "late"],
+      ["Meet your team", "manager", "The manager", "30 minute intro call", "late"],
+    ]);
+  });
+
+  it("calls a task not done before its due date and done once ticked", async () => {
+    const { owner, org } = await setupCompany();
+    const person = await createStaff(app, owner.token, org.id, { startDate: today() });
+    const added = await request(app)
+      .post(staffPath(org.id, `/${person.id}/checklist`))
+      .set(authHeader(owner.token))
+      .send({
+        title: "Set up your work email",
+        dueOn: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
+        owner: "it",
+        description: "Create account",
+      });
+    expect(added.status).toBe(201);
+    expect(apiData<{ task: { status: string; ownerName: string } }>(added).task).toMatchObject({
+      status: "not_done",
+      ownerName: "IT",
+    });
+    const task = apiData<{ task: { id: string } }>(added).task;
+    await testDataSource.query(`UPDATE staff_checklist_tasks SET done_at = now() WHERE id = $1`, [
+      task.id,
+    ]);
+    const list = await request(app)
+      .get(staffPath(org.id, `/${person.id}/checklist`))
+      .set(authHeader(owner.token));
+    const found = apiData<{ tasks: { id: string; status: string }[] }>(list).tasks.find(
+      (item) => item.id === task.id
+    );
+    expect(found?.status).toBe("done");
+  });
+
+  it("refuses an owner outside the four", async () => {
+    const { owner, org } = await setupCompany();
+    const person = await createStaff(app, owner.token, org.id);
+    expect(
+      (
+        await request(app)
+          .post(staffPath(org.id, `/${person.id}/checklist`))
+          .set(authHeader(owner.token))
+          .send({ title: "x", dueOn: null, owner: "boss" })
+      ).status
+    ).toBe(400);
+    expect(
+      (
+        await request(app)
+          .put(staffPath(org.id, "/checklist-defaults"))
+          .set(authHeader(owner.token))
+          .send({ items: [{ title: "x", dueInDays: 0, owner: "boss" }] })
+      ).status
+    ).toBe(400);
+  });
+});
+
 describe("My work", () => {
   it("shows an employee only their own records and refuses another employee's", async () => {
     const { owner, org, ada, bayo } = await companyWithEmployees();

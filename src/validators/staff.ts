@@ -2,6 +2,7 @@ import { body, param, query, type ValidationChain } from "express-validator";
 import { PayPeriod } from "../entities/PayPackage.js";
 import { ACCESS_LOG_DETAILS, StaffAccessResource } from "../entities/StaffAccessLog.js";
 import { DocumentTemplate } from "../entities/StaffDocument.js";
+import { TASK_OWNERS } from "../entities/StaffChecklistTask.js";
 import {
   CommissionFrequency,
   CommissionPaidOn,
@@ -455,6 +456,11 @@ export const checklistDefaultsValidator = [
     .isInt({ min: 0, max: MAX_DUE_IN_DAYS })
     .withMessage(`Due days must be a whole number from 0 to ${MAX_DUE_IN_DAYS}`)
     .toInt(),
+  body("items.*.description").optional({ values: "null" }).isString().trim().isLength({ max: 200 }),
+  body("items.*.owner")
+    .optional({ values: "null" })
+    .isIn([...TASK_OWNERS])
+    .withMessage(`Owner must be one of: ${TASK_OWNERS.join(", ")}`),
 ];
 
 export const addTaskValidator = [
@@ -462,6 +468,11 @@ export const addTaskValidator = [
   staffParam,
   text(body("title"), "Task"),
   dateOnly(body("dueOn").optional({ values: "null" }), "Due date"),
+  body("description").optional({ values: "null" }).isString().trim().isLength({ max: 200 }),
+  body("owner")
+    .optional({ values: "null" })
+    .isIn([...TASK_OWNERS])
+    .withMessage(`Owner must be one of: ${TASK_OWNERS.join(", ")}`),
 ];
 
 export const taskIdValidator = [orgParam, staffParam, taskParam];
