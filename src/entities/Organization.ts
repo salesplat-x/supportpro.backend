@@ -116,7 +116,14 @@ export class Organization {
   yearlyGoals!: string[];
 
   @Column({ type: "jsonb", nullable: true, name: "default_checklist" })
-  defaultChecklist!: { title: string; dueInDays: number }[] | null;
+  defaultChecklist!:
+    | {
+        title: string;
+        dueInDays: number;
+        description?: string | null;
+        owner?: "it" | "new_hire" | "manager" | "hr" | null;
+      }[]
+    | null;
 
   @Column({ type: "enum", enum: OrganizationStatus, default: OrganizationStatus.Pending })
   status!: OrganizationStatus;

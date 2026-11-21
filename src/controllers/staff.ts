@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import type { EndReason } from "../entities/StaffMember.js";
 import * as hrAssignmentsService from "../services/hrAssignments.js";
+import type { TaskOwner } from "../entities/StaffChecklistTask.js";
 import * as checklist from "../services/checklist.js";
 import { getOrgChart } from "../services/orgChart.js";
 import * as companyProfile from "../services/companyProfile.js";
@@ -177,10 +178,14 @@ export const saveChecklistDefaults = async (req: Request, res: Response) => {
   const items = await checklist.setChecklistDefaults(
     req.user.id,
     orgId(req),
-    (req.body.items as checklist.ChecklistItem[]).map(({ title, dueInDays }) => ({
-      title,
-      dueInDays,
-    }))
+    (req.body.items as checklist.ChecklistItem[]).map(
+      ({ title, dueInDays, description, owner }) => ({
+        title,
+        dueInDays,
+        description: description?.trim() || null,
+        owner: owner ?? null,
+      })
+    )
   );
   sendSuccessResponse(res, "Default checklist saved", { items });
 };
@@ -194,6 +199,8 @@ export const addTask = async (req: Request, res: Response) => {
   const task = await checklist.addTask(req.user, orgId(req), staffId(req), {
     title: req.body.title as string,
     dueOn: (req.body.dueOn as string | undefined) ?? null,
+    description: (req.body.description as string | undefined)?.trim() || null,
+    owner: (req.body.owner as TaskOwner | undefined) ?? null,
   });
   sendSuccessResponse(res, "Task added", { task }, 201);
 };
