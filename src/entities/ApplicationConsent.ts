@@ -30,11 +30,26 @@ export class ApplicationConsent {
   @JoinColumn({ name: "talent_id" })
   talent!: User;
 
-  @Column({ type: "varchar", length: 32 })
-  version!: string;
+  @Column({ type: "varchar", length: 32, nullable: true, default: null })
+  version!: string | null;
 
-  @Column({ type: "timestamptz", name: "agreed_at" })
-  agreedAt!: Date;
+  @Column({ type: "timestamptz", name: "agreed_at", nullable: true, default: null })
+  agreedAt!: Date | null;
+
+  @Column({ type: "timestamptz", name: "requested_at", nullable: true, default: null })
+  requestedAt!: Date | null;
+
+  @Column({ type: "timestamptz", name: "declined_at", nullable: true, default: null })
+  declinedAt!: Date | null;
+
+  @Column({ type: "varchar", length: 3, name: "id_kind", nullable: true, default: null })
+  idKind!: "nin" | "bvn" | null;
+
+  @Column({ type: "text", name: "id_number_encrypted", nullable: true, default: null })
+  idNumberEncrypted!: string | null;
+
+  @Column({ type: "varchar", length: 4, name: "id_number_last4", nullable: true, default: null })
+  idNumberLast4!: string | null;
 
   @CreateDateColumn({ type: "timestamptz", name: "created_at" })
   createdAt!: Date;

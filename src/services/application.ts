@@ -20,6 +20,7 @@ import {
   QuestionType,
   MatchVerdictStatus,
 } from "../types/enums.js";
+import { requestConsentOnShortlist } from "./checkConsent.js";
 import { applicationLink, notifyTalent, TALENT_NOTIFICATION } from "./talentNotifications.js";
 import { decisionNotificationTitle } from "./applicationNotifications.js";
 import {
@@ -311,6 +312,10 @@ export const updateStatus = async (
         `Decision notification failed for application ${application.id}: ${(err as Error).message}`
       );
     }
+  }
+
+  if (payload.status === ApplicationStatus.Shortlisted) {
+    await requestConsentOnShortlist(application);
   }
 
   if (payload.status === ApplicationStatus.Rejected && payload.email?.send) {

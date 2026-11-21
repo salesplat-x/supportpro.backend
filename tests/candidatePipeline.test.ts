@@ -17,6 +17,7 @@ import {
 import { Application } from "../src/entities/Application.js";
 import { AiInterview } from "../src/entities/AiInterview.js";
 import { AiInterviewQuestion } from "../src/entities/AiInterviewQuestion.js";
+import { ApplicationConsent } from "../src/entities/ApplicationConsent.js";
 import { ApplicationReference } from "../src/entities/ApplicationReference.js";
 import type { AIConfig } from "../src/entities/AIConfig.js";
 import type { User } from "../src/entities/User.js";
@@ -317,6 +318,25 @@ describe("GET /v1/user/applications/:applicationId/pipeline — steps", () => {
     pipeline = await pipelineOf(token, application.id);
     expect(step(pipeline, "references")).toMatchObject({ state: "done", refereeCount: 1 });
     expect(pipeline.nextStep?.key).toBe("company_review");
+  });
+
+  it("a checks step appears once consent is requested and is done when the candidate answers", async () => {
+    const { token, application, talent } = await setup(ScreeningStage.AiInterview);
+    expect(step(await pipelineOf(token, application.id), "checks")).toBeUndefined();
+
+    const consents = testDataSource.getRepository(ApplicationConsent);
+    await consents.save({
+      applicationId: application.id,
+      talentId: talent.id,
+      requestedAt: new Date(),
+    });
+    let pipeline = await pipelineOf(token, application.id);
+    expect(step(pipeline, "checks")).toMatchObject({ state: "upcoming", doneAt: null });
+    expect(pipeline.steps.map((s) => s.key).slice(-2)).toEqual(["checks", "company_review"]);
+
+    await consents.update({ applicationId: application.id }, { declinedAt: new Date() });
+    pipeline = await pipelineOf(token, application.id);
+    expect(step(pipeline, "checks")).toMatchObject({ state: "done", doneAt: expect.any(String) });
   });
 
   it("tests the candidate has moved past count as done even without a score on record", async () => {

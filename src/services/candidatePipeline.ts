@@ -18,6 +18,7 @@ import {
 } from "../config/candidatePipeline.js";
 import { isPrescreeningScoreValid } from "./prescreening.js";
 import { hasReachedStage, STAGE_SWITCH } from "./applicationStage.js";
+import { ApplicationConsent } from "../entities/ApplicationConsent.js";
 import { MAX_REFEREES } from "./applicationReferences.js";
 import {
   configuredQuestionCount,
@@ -27,7 +28,8 @@ import {
   type ScreeningStepKey,
 } from "./screeningPlan.js";
 
-export type PipelineStepKey = "applied" | ScreeningStepKey | "references" | "company_review";
+export type PipelineStepKey =
+  "applied" | ScreeningStepKey | "references" | "checks" | "company_review";
 export type PipelineStepState = "done" | "current" | "upcoming";
 export type CandidateStatus =
   "interview_to_do" | "test_to_take" | "screening" | "shortlisted" | "applied" | "not_proceeding";
@@ -150,6 +152,7 @@ interface PipelineContext {
   answers: Map<string, Answer>;
   interviews: Map<string, InterviewState>;
   referees: Map<string, number>;
+  consents: Map<string, ApplicationConsent>;
   now: number;
 }
 
@@ -159,7 +162,7 @@ const loadContext = async (
 ): Promise<PipelineContext> => {
   const ids = applications.map((app) => app.id);
   const jobIds = applications.map((app) => app.jobId);
-  const [talent, answers, interviews, referees] = await Promise.all([
+  const [talent, answers, interviews, referees, consents] = await Promise.all([
     AppDataSource.getRepository(User).findOne({
       where: { id: talentId },
       select: { id: true, prescreeningScore: true, prescreeningScoredAt: true },
@@ -178,6 +181,16 @@ const loadContext = async (
       .where("r.applicationId IN (:...ids)", { ids })
       .groupBy("r.applicationId")
       .getRawMany<{ applicationId: string; count: string }>(),
+    AppDataSource.getRepository(ApplicationConsent).find({
+      where: { applicationId: In(ids) },
+      select: {
+        id: true,
+        applicationId: true,
+        requestedAt: true,
+        agreedAt: true,
+        declinedAt: true,
+      },
+    }),
   ]);
 
   const interviewIds = interviews.map((interview) => interview.id);
@@ -219,6 +232,7 @@ const loadContext = async (
       })
     ),
     referees: new Map(referees.map((row) => [row.applicationId, Number(row.count)])),
+    consents: new Map(consents.map((row) => [row.applicationId, row])),
     now: Date.now(),
   };
 };
@@ -366,6 +380,18 @@ const buildPipeline = (application: Application, ctx: PipelineContext): Candidat
       maxReferees: MAX_REFEREES,
       done: refereeCount > 0,
       started: refereeCount > 0,
+    });
+  }
+
+  const consent = ctx.consents.get(application.id);
+  if (consent) {
+    const answeredAt = consent.agreedAt ?? consent.declinedAt;
+    steps.push({
+      ...emptyStep("checks"),
+      sentAt: iso(consent.requestedAt),
+      doneAt: iso(answeredAt),
+      done: !!answeredAt,
+      started: !!answeredAt,
     });
   }
 

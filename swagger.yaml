@@ -11,7 +11,37 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-  schemas: {}
+  schemas:
+    ChecksConsent:
+      type: object
+      properties:
+        applicationId:
+          type: string
+        state:
+          type: string
+          enum: [not_requested, requested, agreed, declined]
+        version:
+          type: string
+          nullable: true
+        requestedAt:
+          type: string
+          format: date-time
+          nullable: true
+        agreedAt:
+          type: string
+          format: date-time
+          nullable: true
+        declinedAt:
+          type: string
+          format: date-time
+          nullable: true
+        idKind:
+          type: string
+          enum: [nin, bvn]
+          nullable: true
+        idNumberLast4:
+          type: string
+          nullable: true
 paths:
   /user/profile:
     post:
@@ -5342,8 +5372,10 @@ paths:
       summary: Candidate agrees to background checks for an application
       description: >-
         The candidate who applied agrees once to background checks for this application, at the
-        current consent text version. The first agreement is kept; a repeat returns it with 200.
-        No check can be ordered until this is given. Other users get 403.
+        current consent text version, and gives a NIN or BVN (exactly 11 digits) for the identity
+        check. The number is stored encrypted and only its last four digits are ever returned.
+        The first agreement is kept; a repeat returns it with 200. A candidate who declined
+        earlier can still agree. No check can be ordered until this is given. Other users get 403.
       tags:
         - checks
       parameters:
@@ -5359,12 +5391,18 @@ paths:
           application/json:
             schema:
               type: object
-              required: [version]
+              required: [version, idKind, idNumber]
               properties:
                 version:
                   type: string
-                  description: The consent text version the candidate read, currently 2026-11-v1
-                  example: 2026-11-v1
+                  description: The consent text version the candidate read, currently 2026-11-v2
+                  example: 2026-11-v2
+                idKind:
+                  type: string
+                  enum: [nin, bvn]
+                idNumber:
+                  type: string
+                  pattern: "^[0-9]{11}$"
       responses:
         "200":
           description: The candidate had already agreed; the first agreement is returned
@@ -5376,15 +5414,7 @@ paths:
                   success:
                     type: boolean
                   data:
-                    type: object
-                    properties:
-                      applicationId:
-                        type: string
-                      version:
-                        type: string
-                      agreedAt:
-                        type: string
-                        format: date-time
+                    $ref: "#/components/schemas/ChecksConsent"
         "201":
           description: The agreement was recorded
           content:
@@ -5395,17 +5425,9 @@ paths:
                   success:
                     type: boolean
                   data:
-                    type: object
-                    properties:
-                      applicationId:
-                        type: string
-                      version:
-                        type: string
-                      agreedAt:
-                        type: string
-                        format: date-time
+                    $ref: "#/components/schemas/ChecksConsent"
         "400":
-          description: The consent text version is not the current one
+          description: The consent text version is not the current one, or the number is not 11 digits
         "401":
           description: Login required
         "403":
@@ -5417,8 +5439,9 @@ paths:
     get:
       summary: Company reads whether the candidate agreed to background checks
       description: >-
-        Returns whether the candidate has agreed to background checks for this application.
-        Only a recruiter of the company that posted the job can read it; other users get 403.
+        Returns the consent state for this application: not_requested, requested, agreed or
+        declined. Only a recruiter of the company that posted the job can read it; other users
+        get 403.
       tags:
         - checks
       parameters:
@@ -5439,23 +5462,130 @@ paths:
                   success:
                     type: boolean
                   data:
-                    type: object
-                    properties:
-                      applicationId:
-                        type: string
-                      consented:
-                        type: boolean
-                      version:
-                        type: string
-                        nullable: true
-                      agreedAt:
-                        type: string
-                        format: date-time
-                        nullable: true
+                    $ref: "#/components/schemas/ChecksConsent"
         "401":
           description: Login required
         "403":
           description: Only the posting company can read consent
+        "404":
+          description: Application not found
+      security:
+        - bearerAuth: []
+  /checks/applications/{applicationId}/consent/mine:
+    get:
+      summary: Candidate reads their own background checks consent
+      description: >-
+        Returns the consent state for the candidate's own application, so the Checks step can
+        show whether it was requested, agreed or declined. Other users get 403.
+      tags:
+        - checks
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Consent state for the application
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/ChecksConsent"
+        "401":
+          description: Login required
+        "403":
+          description: Only the candidate who applied can read this
+        "404":
+          description: Application not found
+      security:
+        - bearerAuth: []
+  /checks/applications/{applicationId}/consent/decline:
+    post:
+      summary: Candidate declines background checks
+      description: >-
+        The candidate who applied declines background checks. Checks cannot be ordered while the
+        decline stands, and the candidate can still agree later. Returns 409 once they agreed.
+      tags:
+        - checks
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The decline was recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/ChecksConsent"
+        "401":
+          description: Login required
+        "403":
+          description: Only the candidate who applied can decline
+        "404":
+          description: Application not found
+        "409":
+          description: The candidate already agreed
+      security:
+        - bearerAuth: []
+  /checks/applications/{applicationId}/consent/request:
+    post:
+      summary: Company asks the candidate for consent to background checks
+      description: >-
+        Candidates are asked automatically when shortlisted. This asks when no request exists
+        yet (an application shortlisted earlier, or a failed email). It emails the candidate and
+        returns 201; when a request already exists nothing is sent and it returns 200.
+      tags:
+        - checks
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: A request already exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/ChecksConsent"
+        "201":
+          description: The request was created and the candidate emailed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/ChecksConsent"
+        "401":
+          description: Login required
+        "403":
+          description: Only the posting company can ask
         "404":
           description: Application not found
       security:

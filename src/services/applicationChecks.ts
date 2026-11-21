@@ -51,8 +51,13 @@ export const orderCheck = async (userId: string, applicationId: string, type: Ch
   if (!(await isPostingCompanyMember(userId, application.jobId))) {
     throw new AuthorizationError("Only the company that posted this job can order checks");
   }
-  if (!(await findConsent(applicationId))) {
-    throw new ConflictError("The candidate has not agreed to background checks yet");
+  const consent = await findConsent(applicationId);
+  if (!consent?.agreedAt) {
+    throw new ConflictError(
+      consent?.declinedAt
+        ? "The candidate declined background checks"
+        : "The candidate has not agreed to background checks yet"
+    );
   }
   const saved = await repo().save(
     repo().create({ applicationId, orderedById: userId, type, status: "pending", resultText: null })
