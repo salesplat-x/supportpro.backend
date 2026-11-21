@@ -20,8 +20,16 @@ export enum DocumentTemplate {
 }
 
 export enum DocumentStatus {
+  Draft = "draft",
   Sent = "sent",
   Signed = "signed",
+  Declined = "declined",
+}
+
+export interface DocumentFields {
+  startDate?: string;
+  jobTitle?: string;
+  managerName?: string;
 }
 
 @Entity("staff_documents")
@@ -68,6 +76,12 @@ export class StaffDocument {
   @Column({ type: "varchar", length: 16, default: DocumentStatus.Sent })
   status!: DocumentStatus;
 
+  @Column({ type: "jsonb", nullable: true })
+  fields!: DocumentFields | null;
+
+  @Column({ type: "timestamp", name: "declined_at", nullable: true })
+  declinedAt!: Date | null;
+
   @Column({ type: "varchar", length: 64, name: "token_hash", nullable: true })
   tokenHash!: string | null;
 
@@ -81,8 +95,8 @@ export class StaffDocument {
   @JoinColumn({ name: "sent_by_id", foreignKeyConstraintName: "FK_staff_documents_sent_by" })
   sentBy!: User | null;
 
-  @Column({ type: "timestamp", name: "sent_at" })
-  sentAt!: Date;
+  @Column({ type: "timestamp", name: "sent_at", nullable: true })
+  sentAt!: Date | null;
 
   @Column({ type: "timestamp", name: "opened_at", nullable: true })
   openedAt!: Date | null;
@@ -143,6 +157,12 @@ export class StaffDocument {
 
   @Column({ type: "timestamp", name: "notarized_at", nullable: true })
   notarizedAt!: Date | null;
+
+  @Column({ type: "varchar", length: 200, name: "notarized_scan_name", nullable: true })
+  notarizedScanName!: string | null;
+
+  @Column({ type: "varchar", length: 120, name: "notarized_by_name", nullable: true })
+  notarizedByName!: string | null;
 
   @CreateDateColumn({ name: "created_at" })
   createdAt!: Date;

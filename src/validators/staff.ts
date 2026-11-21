@@ -378,7 +378,17 @@ const documentParam = param("documentId").isUUID().withMessage("Invalid document
 
 export const previewDocumentValidator = [orgParam, staffParam, templateValue(query("template"))];
 
-export const sendDocumentValidator = [orgParam, staffParam, templateValue(body("template"))];
+export const draftDocumentValidator = [
+  orgParam,
+  staffParam,
+  templateValue(body("template")),
+  body("startDate")
+    .optional({ values: "falsy" })
+    .isISO8601({ strict: true })
+    .withMessage("startDate must be a date like 2026-11-05"),
+  body("jobTitle").optional({ values: "falsy" }).isString().trim().isLength({ max: 120 }),
+  body("managerName").optional({ values: "falsy" }).isString().trim().isLength({ max: 120 }),
+];
 
 export const staffDocumentValidator = [orgParam, staffParam, documentParam];
 

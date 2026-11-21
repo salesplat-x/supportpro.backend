@@ -14,6 +14,7 @@ import {
   finishSigning,
   recordView,
   signedDocumentFile,
+  declineLockedDocument,
   signLockedDocument,
   signingViewOf,
 } from "./contracts.js";
@@ -29,7 +30,7 @@ export interface MyWorkRecord {
   jobTitle: string;
   managerName: string | null;
   startDate: string;
-  documentsToSign: { id: string; title: string; sentAt: Date }[];
+  documentsToSign: { id: string; title: string; sentAt: Date | null }[];
   signedDocuments: { id: string; title: string; signedAt: Date | null }[];
   hasTeam: boolean;
   tasks: StaffChecklistTask[];
@@ -191,6 +192,17 @@ export const downloadMySignedDocument = async (
     where: { id: staff.organizationId },
   });
   return signedDocumentFile(org, doc);
+};
+
+export const declineMyDocument = async (
+  userId: string,
+  documentId: string,
+  ip: string
+): Promise<void> => {
+  await AppDataSource.transaction(async (em) => {
+    const { doc } = await findOwnDocument(userId, documentId, em, true);
+    await declineLockedDocument(em, doc, ip);
+  });
 };
 
 export const signMyDocument = async (

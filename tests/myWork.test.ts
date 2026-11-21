@@ -6,12 +6,13 @@ import {
   clearAllTables,
   testDataSource,
 } from "./helpers/db.js";
+import { StaffDocument } from "../src/entities/StaffDocument.js";
 import { StaffAccessLog, StaffMember } from "../src/entities";
 import { StaffAccessResource } from "../src/entities/StaffAccessLog.js";
 import { createTalent } from "./helpers/fixtures.js";
 import { apiData } from "./helpers/http.js";
 import { addMember, authHeader, setupCompany } from "./helpers/company.js";
-import { createStaff, setPay, staffPath, today } from "./helpers/staff.js";
+import { createStaff, sendDocumentFor, setPay, staffPath, today } from "./helpers/staff.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => {
   const sendDocumentToSign = jest.fn().mockResolvedValue(undefined);
@@ -163,11 +164,7 @@ describe("My work", () => {
 
   it("signs a waiting document from My work without breaking the email link first", async () => {
     const { owner, org, ada, bayo } = await companyWithEmployees();
-    await request(app)
-      .post(staffPath(org.id, `/${ada.staff.id}/documents`))
-      .set(authHeader(owner.token))
-      .send({ template: "nda" })
-      .expect(201);
+    expect((await sendDocumentFor(app, owner.token, org.id, ada.staff.id)).status).toBe(200);
     const { id } = (await myWork(ada.token))[0]!.documentsToSign[0]!;
     const emailMock = (
       jest.requireMock("../src/utils/integrations/email/emailService.js") as {
@@ -201,13 +198,23 @@ describe("My work", () => {
     expect((await myWork(ada.token))[0]!.documentsToSign).toEqual([]);
   });
 
+  it("lets the employee decline a waiting document from My work", async () => {
+    const { owner, org, ada, bayo } = await companyWithEmployees();
+    expect((await sendDocumentFor(app, owner.token, org.id, ada.staff.id)).status).toBe(200);
+    const { id } = (await myWork(ada.token))[0]!.documentsToSign[0]!;
+    const decline = (token: string) =>
+      request(app).post(`/v1/my-work/documents/${id}/decline`).set(authHeader(token));
+    expect((await decline(bayo.token)).status).toBe(404);
+    expect((await decline(ada.token)).status).toBe(200);
+    expect((await decline(ada.token)).status).toBe(404);
+    expect((await myWork(ada.token))[0]!.documentsToSign).toEqual([]);
+    const row = await testDataSource.getRepository(StaffDocument).findOneByOrFail({ id });
+    expect(row.status).toBe("declined");
+  });
+
   it("lists signed contracts and lets only their owner download them, logging each", async () => {
     const { owner, org, ada, bayo } = await companyWithEmployees();
-    await request(app)
-      .post(staffPath(org.id, `/${ada.staff.id}/documents`))
-      .set(authHeader(owner.token))
-      .send({ template: "nda" })
-      .expect(201);
+    expect((await sendDocumentFor(app, owner.token, org.id, ada.staff.id)).status).toBe(200);
     const { id } = (await myWork(ada.token))[0]!.documentsToSign[0]!;
     const pdfPath = `/v1/my-work/documents/${id}/pdf`;
     expect((await request(app).get(pdfPath).set(authHeader(ada.token))).status).toBe(404);
@@ -220,7 +227,7 @@ describe("My work", () => {
 
     const [record] = await myWork(ada.token);
     expect(record!.signedDocuments).toEqual([
-      { id, title: "Confidentiality agreement", signedAt: expect.any(String) },
+      { id, title: "Non-disclosure agreement", signedAt: expect.any(String) },
     ]);
     expect(JSON.stringify(record)).not.toContain("confidential information");
     expect((await myWork(bayo.token))[0]!.signedDocuments).toEqual([]);

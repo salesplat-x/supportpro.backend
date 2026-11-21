@@ -21,4 +21,11 @@ router.post(
   asyncHandler(contracts.signWithLink, "sign document")
 );
 
+router.post(
+  "/:token/decline",
+  documentLinkLimiter,
+  validate(documentTokenValidator),
+  asyncHandler(contracts.declineWithLink, "decline document")
+);
+
 export default (app: Router) => app.use("/staff-documents", router);

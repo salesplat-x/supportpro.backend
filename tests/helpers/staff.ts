@@ -86,3 +86,23 @@ export function setPay(
       ...overrides,
     });
 }
+
+/** Saves a draft of the document, then sends it for signing; returns the draft's response if that fails. */
+export async function sendDocumentFor(
+  app: App,
+  token: string,
+  orgId: string,
+  staffId: string,
+  template = "nda",
+  fields: Record<string, unknown> = {}
+) {
+  const base = staffPath(orgId, `/${staffId}/documents`);
+  const draft = await request(app)
+    .post(base)
+    .set("Authorization", `Bearer ${token}`)
+    .send({ template, ...fields });
+  if (draft.status !== 201) return draft;
+  return request(app)
+    .post(`${base}/${draft.body.data.document.id}/send`)
+    .set("Authorization", `Bearer ${token}`);
+}

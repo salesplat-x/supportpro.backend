@@ -84,6 +84,13 @@ router.post(
   asyncHandler(myWork.signDocument, "sign document")
 );
 
+router.post(
+  "/documents/:documentId/decline",
+  ...employee,
+  validate(myDocumentValidator),
+  asyncHandler(myWork.declineDocument, "decline document")
+);
+
 router.get(
   "/:staffId/performance",
   ...employee,
