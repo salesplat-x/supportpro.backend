@@ -23,7 +23,12 @@ import {
   logPerformanceRead,
   openPerformance,
 } from "./performanceAccess.js";
-import { type ReportView, listReportsFor } from "./weeklyReports.js";
+import {
+  type ReportView,
+  type ReportWeekView,
+  listReportsFor,
+  listWeeksFor,
+} from "./weeklyReports.js";
 import { type CompletionRequestView, loadLatestRequests } from "./completionRequests.js";
 
 const REPORTS_ON_TAB = 10;
@@ -34,6 +39,7 @@ export interface PerformanceView {
   jobDescription: JobDescriptionView | null;
   goals: GoalView[];
   reports: { items: ReportView[]; total: number };
+  weeks: ReportWeekView[];
   development: DevelopmentView[];
   feedback: FeedbackView[];
 }
@@ -46,10 +52,11 @@ export interface ManagedPerformanceView extends PerformanceView {
 
 const loadPerformance = async (staff: StaffMember, ownView: boolean): Promise<PerformanceView> => {
   const staffId = staff.id;
-  const [jobDescription, goals, reports, development, feedback] = await Promise.all([
+  const [jobDescription, goals, reports, weeks, development, feedback] = await Promise.all([
     loadJobDescription(staffId),
     listGoals(staffId, ownView),
     listReportsFor(staffId, REPORTS_ON_TAB, 0),
+    listWeeksFor(staff, REPORTS_ON_TAB),
     listDevelopment(staffId, ownView),
     listFeedback(staffId),
   ]);
@@ -57,6 +64,7 @@ const loadPerformance = async (staff: StaffMember, ownView: boolean): Promise<Pe
     staffId,
     isExecutive: staff.isExecutive,
     reports,
+    weeks,
     development: development.map(toDevelopmentView),
     feedback,
     jobDescription: jobDescription ? toJobDescriptionView(jobDescription) : null,

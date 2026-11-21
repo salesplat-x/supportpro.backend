@@ -1,3 +1,4 @@
+import { In } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { GoalStatus, StaffGoal } from "../entities/StaffGoal.js";
 import { StaffActivityType } from "../entities/StaffActivity.js";
@@ -83,6 +84,34 @@ export const listReportsFor = async (
     skip: offset,
   });
   return { items: rows.map(toReportView), total };
+};
+
+export interface ReportWeekView {
+  weekStart: string;
+  state: "submitted" | "not_yet";
+  report: ReportView | null;
+}
+
+/** Every working week from the current one back to the start week, so a missed week shows as Not yet. */
+export const listWeeksFor = async (
+  staff: { id: string; startDate: string },
+  limit: number
+): Promise<ReportWeekView[]> => {
+  const current = weekStartOf(workToday());
+  const startWeek = weekStartOf(staff.startDate);
+  const weeks: string[] = [];
+  for (let week = current; week >= startWeek && weeks.length < limit; week = addDays(week, -7)) {
+    weeks.push(week);
+  }
+  if (weeks.length === 0) return [];
+  const rows = await reportsRepo().find({
+    where: { staffId: staff.id, weekStart: In(weeks) },
+  });
+  const byWeek = new Map(rows.map((row) => [row.weekStart, toReportView(row)]));
+  return weeks.map((weekStart) => {
+    const report = byWeek.get(weekStart) ?? null;
+    return { weekStart, state: report ? "submitted" : "not_yet", report };
+  });
 };
 
 export const listReports = async (

@@ -76,6 +76,16 @@ const goalFields = [
 export const addGoalValidator = goalFields;
 export const editGoalValidator = [goalParam, ...goalFields, versionField()];
 export const approveGoalValidator = [goalParam, versionField()];
+export const approveGoalsValidator = [
+  body("goals")
+    .isArray({ min: 1, max: 20 })
+    .withMessage("Approve between 1 and 20 goals at a time"),
+  body("goals.*.id").isUUID().withMessage("Invalid goal id"),
+  body("goals.*.version")
+    .isInt({ min: 1 })
+    .withMessage("Send the version of each goal you read")
+    .toInt(),
+];
 export const goalIdValidator = [goalParam];
 export const goalProgressValidator = [
   ...selfParams,

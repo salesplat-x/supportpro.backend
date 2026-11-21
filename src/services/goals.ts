@@ -215,6 +215,42 @@ export const approveGoal = async (
   });
 };
 
+/** All or nothing: one stale version, or one missing goal, approves none of them. */
+export const approveGoals = async (
+  scope: PerformanceScope,
+  items: { goalId: string; version: number }[]
+): Promise<GoalView[]> => {
+  await assertScope(scope);
+  return AppDataSource.transaction(async (em) => {
+    const staff = await lockScopedStaff(scope, em);
+    const approved: GoalView[] = [];
+    const entries: ReturnType<typeof activityEntry>[] = [];
+    for (const { goalId, version } of items) {
+      const goal = await findLockedGoal(em, staff.id, goalId);
+      if (goal.version !== version) {
+        throw staleGoal();
+      }
+      if (goal.status !== GoalStatus.Approved) {
+        const approval = {
+          status: GoalStatus.Approved,
+          approvedAt: new Date(),
+          approvedByName: fullNameOf(scope.actor),
+        };
+        await goalsRepo(em).update(goal.id, approval);
+        Object.assign(goal, approval);
+        entries.push(
+          activityEntry(StaffActivityType.GoalApproved, scope.actor, { title: goal.title })
+        );
+      }
+      approved.push(toGoalView(goal));
+    }
+    if (entries.length > 0) {
+      await recordActivities(em, staff, entries);
+    }
+    return approved;
+  });
+};
+
 export const removeGoal = async (scope: PerformanceScope, goalId: string): Promise<void> => {
   await assertScope(scope);
   const evidence = await AppDataSource.transaction(async (em) => {

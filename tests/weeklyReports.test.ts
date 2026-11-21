@@ -520,3 +520,37 @@ describe("My team", () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe("weeks with no report", () => {
+  it("lists every week since the start, newest first, with missed weeks as not yet", async () => {
+    const { owner, org, report, hrBase, submit } = await team();
+    await testDataSource
+      .getRepository(StaffMember)
+      .update({ id: report.staff.id }, { startDate: addDays(THIS_WEEK, -14) });
+    await submit().expect(200);
+
+    const res = await request(app).get(hrBase).set(authHeader(owner.token)).expect(200);
+    const weeks = res.body.data.performance.weeks as {
+      weekStart: string;
+      state: string;
+      report: { did: string } | null;
+    }[];
+    expect(weeks.map((week) => [week.weekStart, week.state])).toEqual([
+      [THIS_WEEK, "submitted"],
+      [addDays(THIS_WEEK, -7), "not_yet"],
+      [addDays(THIS_WEEK, -14), "not_yet"],
+    ]);
+    expect(weeks[0]!.report?.did).toBe(TEXT.did);
+    expect(weeks[1]!.report).toBeNull();
+    expect(org.id).toBeTruthy();
+  });
+
+  it("starts at the week of the start date and never lists earlier weeks", async () => {
+    const { owner, hrBase } = await team();
+    const res = await request(app).get(hrBase).set(authHeader(owner.token)).expect(200);
+    const weeks = res.body.data.performance.weeks as { weekStart: string }[];
+    expect(weeks.length).toBeGreaterThanOrEqual(1);
+    expect(weeks[weeks.length - 1]!.weekStart <= THIS_WEEK).toBe(true);
+    expect(weeks.every((week) => week.weekStart <= THIS_WEEK)).toBe(true);
+  });
+});
