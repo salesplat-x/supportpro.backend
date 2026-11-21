@@ -96,6 +96,17 @@ describe("staff import", () => {
     expect(await repo.count()).toBe(11);
   });
 
+  it("checks up to 500 rows in one go and refuses more", async () => {
+    const { owner, org } = await setupCompany();
+    const rows = (count: number) => Array.from({ length: count }, (_, index) => row(index + 1));
+    const preview = await importRows(owner.token, org.id, rows(500), false);
+    expect(preview.status).toBe(200);
+    expect(apiData<{ rows: RowResult[] }>(preview).rows).toHaveLength(500);
+    const tooMany = await importRows(owner.token, org.id, rows(501), false);
+    expect(tooMany.status).toBe(400);
+    expect(JSON.stringify(tooMany.body)).toContain("between 1 and 500");
+  });
+
   it("refuses a reporting loop and a person managing themselves", async () => {
     const { owner, org } = await setupCompany();
     const preview = apiData<{ rows: RowResult[] }>(
