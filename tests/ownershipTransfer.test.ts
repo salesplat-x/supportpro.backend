@@ -153,18 +153,15 @@ describe("changing the creator", () => {
     const staff = await createStaff(app, owner.token, org.id);
     const pay = staffPath(org.id, `/${staff.id}/pay`);
     const savePay = (token: string) =>
-      request(app)
-        .put(pay)
-        .set(authHeader(token))
-        .send({
-          currency: "NGN",
-          period: "monthly",
-          baseSalary: 400000,
-          bonusPerYear: 0,
-          commissionTargetPerYear: 0,
-          startsOn: "2026-01-05",
-          benefitIds: [],
-        });
+      request(app).put(pay).set(authHeader(token)).send({
+        currency: "NGN",
+        period: "monthly",
+        baseSalary: 400000,
+        bonusPerYear: 0,
+        commissionTargetPerYear: 0,
+        startsOn: "2026-01-05",
+        benefitIds: [],
+      });
     expect((await savePay(next.token)).status).toBe(403);
 
     await change(admin.token, org.id, { newOwnerUserId: next.user.id, reason: "Left." }).expect(
