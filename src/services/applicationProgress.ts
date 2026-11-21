@@ -22,6 +22,9 @@ export type ProgressStage = (typeof PROGRESS_STAGES)[number];
 export const INTERVIEW_PROGRESS = ["not_started", "in_progress", "processing", "ready"] as const;
 export type InterviewProgress = (typeof INTERVIEW_PROGRESS)[number];
 
+export const VERIFICATION_STATES = ["none", "pending", "flagged", "failed", "verified"] as const;
+export type VerificationState = (typeof VERIFICATION_STATES)[number];
+
 export const OFF_BOARD_STATUSES = [ApplicationStatus.Rejected, ApplicationStatus.NotProceeding];
 
 const col = (alias: string, name: string) => `"${alias}"."${name}"`;
@@ -67,16 +70,31 @@ export const interviewProgressSql = (i: string) => `CASE
     ELSE 'not_started'
   END`;
 
+/** One status over every check ordered on the application: failed, flagged, pending, else verified. */
+export const verificationSql = (a: string) => `COALESCE((
+    SELECT CASE
+      WHEN bool_or(c."status" = 'failed') THEN 'failed'
+      WHEN bool_or(c."status" = 'flagged') THEN 'flagged'
+      WHEN bool_or(c."status" = 'pending') THEN 'pending'
+      ELSE 'verified'
+    END
+    FROM "application_checks" c
+    WHERE c."application_id" = ${col(a, "id")}
+    HAVING COUNT(*) > 0
+  ), 'none')`;
+
 export interface ApplicationProgress {
   stage: ProgressStage;
   boardColumn: BoardColumn | null;
   interview: { id: string | null; status: InterviewProgress };
+  verification: VerificationState;
 }
 
 export const NO_PROGRESS: ApplicationProgress = {
   stage: "applied",
   boardColumn: null,
   interview: { id: null, status: "not_started" },
+  verification: "none",
 };
 
 export const loadApplicationProgress = async (
@@ -88,7 +106,8 @@ export const loadApplicationProgress = async (
        ${progressStageSql("a", "u", "i")} AS stage,
        ${boardColumnSql("a", "u")} AS board_column,
        ${interviewProgressSql("i")} AS interview_status,
-       CASE WHEN ${interviewStartedSql("i")} THEN i.id ELSE NULL END AS interview_id
+       CASE WHEN ${interviewStartedSql("i")} THEN i.id ELSE NULL END AS interview_id,
+       ${verificationSql("a")} AS verification
      FROM applications a
      LEFT JOIN users u ON u.id = a.talent_id
      LEFT JOIN ai_interviews i ON i.application_id = a.id
@@ -100,6 +119,7 @@ export const loadApplicationProgress = async (
     board_column: BoardColumn | null;
     interview_status: InterviewProgress;
     interview_id: string | null;
+    verification: VerificationState;
   }>;
   return new Map(
     rows.map((row) => [
@@ -108,6 +128,7 @@ export const loadApplicationProgress = async (
         stage: row.stage,
         boardColumn: row.board_column,
         interview: { id: row.interview_id, status: row.interview_status },
+        verification: row.verification,
       },
     ])
   );

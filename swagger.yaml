@@ -3331,10 +3331,19 @@ paths:
           schema:
             type: string
             enum: [not_started, in_progress, processing, ready]
+        - name: verification
+          in: query
+          required: false
+          description: >-
+            Only applicants with this overall background check status (failed if any check
+            failed, else flagged, else pending, else verified; none when no check was ordered).
+          schema:
+            type: string
+            enum: [none, pending, flagged, failed, verified]
       responses:
         "200":
           description: >-
-            Applications with stage, boardColumn and interview {id, status} on each,
+            Applications with stage, boardColumn, interview {id, status} and verification on each,
             plus total (matching the filters, before paging) and aiConfig.
           content:
             application/json:
