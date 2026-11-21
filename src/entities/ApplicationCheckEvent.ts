@@ -22,21 +22,24 @@ export class ApplicationCheckEvent {
   applicationId!: string;
 
   @ManyToOne("Application", { onDelete: "CASCADE", eager: false })
-  @JoinColumn({ name: "application_id" })
+  @JoinColumn({
+    name: "application_id",
+    foreignKeyConstraintName: "FK_application_check_events_application",
+  })
   application!: Application;
 
   @Column({ type: "uuid", name: "check_id" })
   checkId!: string;
 
   @ManyToOne("ApplicationCheck", { onDelete: "CASCADE", eager: false })
-  @JoinColumn({ name: "check_id" })
+  @JoinColumn({ name: "check_id", foreignKeyConstraintName: "FK_application_check_events_check" })
   check!: ApplicationCheck;
 
   @Column({ type: "uuid", name: "actor_id", nullable: true })
   actorId!: string | null;
 
   @ManyToOne("User", { onDelete: "SET NULL", nullable: true, eager: false })
-  @JoinColumn({ name: "actor_id" })
+  @JoinColumn({ name: "actor_id", foreignKeyConstraintName: "FK_application_check_events_actor" })
   actor!: User | null;
 
   @Column({ type: "varchar", length: 24 })

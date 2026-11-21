@@ -23,21 +23,24 @@ export class ApplicationReference {
   applicationId!: string;
 
   @ManyToOne("Application", { onDelete: "CASCADE", eager: false })
-  @JoinColumn({ name: "application_id" })
+  @JoinColumn({
+    name: "application_id",
+    foreignKeyConstraintName: "FK_application_references_application",
+  })
   application!: Application;
 
   @Column({ type: "uuid", name: "job_id" })
   jobId!: string;
 
   @ManyToOne("Job", { onDelete: "CASCADE", eager: false })
-  @JoinColumn({ name: "job_id" })
+  @JoinColumn({ name: "job_id", foreignKeyConstraintName: "FK_application_references_job" })
   job!: Job;
 
   @Column({ type: "uuid", name: "talent_id" })
   talentId!: string;
 
   @ManyToOne("User", { onDelete: "CASCADE", eager: false })
-  @JoinColumn({ name: "talent_id" })
+  @JoinColumn({ name: "talent_id", foreignKeyConstraintName: "FK_application_references_talent" })
   talent!: User;
 
   @Column({ type: "varchar", length: 120 })
