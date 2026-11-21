@@ -8,8 +8,30 @@
   />
 </p>
 {{/if}}
-<h1>{{companyName}} sent you your {{documentTitle}} to sign</h1>
-<p>Hi {{firstName}},</p>
-<p>Read the document and sign it online. It takes about two minutes.</p>
+<h1>Hi {{firstName}}, your {{documentTitle}} is ready to sign.</h1>
+<p>
+  <strong>{{companyName}}</strong> sent you your {{documentTitle}} for {{jobTitle}}. Read it, then
+  sign it online. It takes about 2 minutes.
+</p>
+<table class="rows" role="presentation" width="100%" cellpadding="0" cellspacing="0">
+  <tr>
+    <td class="label">Document</td>
+    <td class="value">{{documentTitle}} for {{jobTitle}}</td>
+  </tr>
+  <tr>
+    <td class="label">Start date</td>
+    <td class="value">{{startDate}}</td>
+  </tr>
+  <tr>
+    <td class="label">How</td>
+    <td class="value">Sign by typing your full name</td>
+  </tr>
+  <tr>
+    <td class="label">After</td>
+    <td class="value">A signed copy is emailed to you</td>
+  </tr>
+</table>
 <p><a class="button" href="{{signLink}}">Review and sign</a></p>
-<p class="signoff muted">This link works once and expires in 7 days.</p>
+<p class="signoff muted">
+  This link works once. If it stops working, ask {{companyName}} to send it again.
+</p>

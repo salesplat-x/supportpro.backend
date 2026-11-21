@@ -84,9 +84,12 @@ export interface DocumentView {
 export interface SigningView {
   companyName: string;
   companyLogoUrl: string | null;
+  companyEmail: string | null;
   employeeName: string;
   title: string;
+  dateLabel: string;
   body: string;
+  signatory: string | null;
 }
 
 export interface SignedCopy {
@@ -244,25 +247,68 @@ const loadLogo = async (org: Organization): Promise<Buffer | null> => {
   }
 };
 
+const fullNameOfUser = (user: Pick<User, "firstName" | "lastName"> | null): string | null =>
+  user ? `${user.firstName} ${user.lastName}`.trim() : null;
+
+/** The person who sent the document, with their staff job title when they have one. */
+const signatoryOf = async (doc: StaffDocument): Promise<string | null> => {
+  if (!doc.sentById) return null;
+  const sender = await AppDataSource.getRepository(User).findOne({
+    where: { id: doc.sentById },
+    select: { id: true, firstName: true, lastName: true },
+  });
+  const name = fullNameOfUser(sender);
+  if (!name) return null;
+  const staff = await AppDataSource.getRepository(StaffMember).findOne({
+    where: { organizationId: doc.organizationId, userId: doc.sentById },
+    select: { id: true, jobTitle: true },
+  });
+  return staff ? `${name}, ${staff.jobTitle}` : name;
+};
+
+export const documentDateLabel = (doc: StaffDocument): string =>
+  (doc.sentAt ?? doc.createdAt).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Africa/Lagos",
+  });
+
 export const buildDocumentPdf = async (
   org: Organization,
   doc: StaffDocument
 ): Promise<{ fileName: string; pdf: Buffer }> => {
+  const staff = await AppDataSource.getRepository(StaffMember).findOneOrFail({
+    where: { id: doc.staffId },
+    select: { id: true, fullName: true, email: true },
+  });
+  const sender = doc.sentById
+    ? await AppDataSource.getRepository(User).findOne({
+        where: { id: doc.sentById },
+        select: { id: true, firstName: true, lastName: true },
+      })
+    : null;
   const pdf = await generateContractPdf({
     companyName: org.name,
     logo: await loadLogo(org),
     title: doc.title,
+    dateLabel: documentDateLabel(doc),
     body: doc.bodyText,
+    signatory: await signatoryOf(doc),
+    employeeName: staff.fullName,
     signature:
       doc.status === DocumentStatus.Signed && doc.signedAt
         ? {
             name: doc.signerName ?? "",
+            email: staff.email,
             signedAt: doc.signedAt,
-            ip: doc.signerIp ?? "",
+            sentBy: fullNameOfUser(sender),
+            sentAt: doc.sentAt,
+            openedAt: doc.openedAt,
             checkCode: doc.checkCode ?? "",
             check:
               doc.checkCodeVersion >= CHECK_CODE_VERSION
-                ? { documentId: doc.id, verifyUrl: `${env.website}/verify-document` }
+                ? { documentId: doc.id, verifyUrl: `${env.website}/verify` }
                 : null,
           }
         : null,
@@ -289,6 +335,8 @@ const emailSigningLink = async (
         companyName: org.name,
         companyLogoUrl: org.logoUrl,
         documentTitle: doc.title,
+        jobTitle: doc.fields?.jobTitle ?? staff.jobTitle,
+        startDate: longDate(doc.fields?.startDate ?? staff.startDate),
         signLink: `${env.website}/sign/${token}`,
       }),
       EMAIL_TIMEOUT_MS
@@ -602,9 +650,12 @@ export const signingViewOf = async (
   return {
     companyName: org.name,
     companyLogoUrl: org.logoUrl,
+    companyEmail: org.email,
     employeeName: staff.fullName,
     title: doc.title,
+    dateLabel: documentDateLabel(doc),
     body: doc.bodyText,
+    signatory: await signatoryOf(doc),
   };
 };
 
