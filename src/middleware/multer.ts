@@ -24,9 +24,11 @@ export const completionEvidenceUpload = multer({
 });
 
 /** Only the text is read; the document itself is not stored. */
+export const MAX_COMPANY_DOCUMENT_BYTES = 20 * 1024 * 1024;
+
 export const companyDocumentUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 25 * 1024 * 1024 },
+  limits: { fileSize: MAX_COMPANY_DOCUMENT_BYTES },
 });
 
 /** In-memory job description upload — only its text is read, the file is not stored. */
