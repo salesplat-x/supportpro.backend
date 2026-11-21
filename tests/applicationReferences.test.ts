@@ -53,27 +53,32 @@ afterEach(async () => {
   jest.clearAllMocks();
 });
 
-const REFEREE = { name: "Ada Obi", email: "Ada.Obi@Example.com", relationship: "Former manager" };
+const REFEREE = { name: "Ada Obi", email: "Ada.Obi@Example.com", relationship: "manager" };
 
 async function setup() {
   const { user: poster } = await createRecruiter();
   const job = await createJob(poster, await createRole());
   const { user: talent, token: talentToken } = await createTalent();
   const application = await createApplication(talent, job);
-  const add = (
+  const addMany = (
     token: string,
-    body: Record<string, unknown> = REFEREE,
+    referees: Array<Record<string, unknown>> = [REFEREE],
     applicationId = application.id
   ) =>
     request(app)
       .post(`/v1/references/applications/${applicationId}`)
       .set("Authorization", `Bearer ${token}`)
-      .send(body);
+      .send({ referees });
+  const add = (
+    token: string,
+    body: Record<string, unknown> = REFEREE,
+    applicationId = application.id
+  ) => addMany(token, [body], applicationId);
   const list = (token: string) =>
     request(app)
       .get(`/v1/references/applications/${application.id}`)
       .set("Authorization", `Bearer ${token}`);
-  return { poster, job, talent, talentToken, application, add, list };
+  return { poster, job, talent, talentToken, application, add, addMany, list };
 }
 
 describe("candidate names a referee", () => {
@@ -82,15 +87,17 @@ describe("candidate names a referee", () => {
     const res = await add(talentToken);
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
-    expect(res.body.data).toMatchObject({
+    expect(res.body.data.references).toHaveLength(1);
+    expect(res.body.data.references[0]).toMatchObject({
       name: "Ada Obi",
       email: "ada.obi@example.com",
-      relationship: "Former manager",
+      relationship: "manager",
       status: "sent",
     });
     expect(JSON.stringify(res.body)).not.toMatch(/token/i);
     const expiresInDays =
-      (new Date(res.body.data.expiresAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000);
+      (new Date(res.body.data.references[0].expiresAt).getTime() - Date.now()) /
+      (24 * 60 * 60 * 1000);
     expect(expiresInDays).toBeGreaterThan(13.9);
     expect(expiresInDays).toBeLessThanOrEqual(14);
 
@@ -115,23 +122,50 @@ describe("candidate names a referee", () => {
     expect(stored.answeredAt).toBeNull();
   });
 
-  it("allows up to 3 referees and refuses a 4th", async () => {
-    const { add, talentToken } = await setup();
-    for (const n of [1, 2, 3]) {
-      const ok = await add(talentToken, {
+  it("sends up to 3 referees in one request and emails each", async () => {
+    const { addMany, talentToken } = await setup();
+    const ok = await addMany(
+      talentToken,
+      [1, 2, 3].map((n) => ({
         name: `Ref ${n}`,
         email: `ref${n}@example.com`,
-        relationship: "Colleague",
-      });
-      expect(ok.status).toBe(201);
-    }
-    const fourth = await add(talentToken, {
-      name: "Ref 4",
-      email: "ref4@example.com",
-      relationship: "Colleague",
-    });
-    expect(fourth.status).toBe(400);
-    expect(await testDataSource.getRepository(ApplicationReference).count()).toBe(3);
+        relationship: "colleague",
+      }))
+    );
+    expect(ok.status).toBe(201);
+    expect(ok.body.data.references).toHaveLength(3);
+    expect(mockSendRequest).toHaveBeenCalledTimes(3);
+  });
+
+  it("refuses more than 3 referees in total and saves none of them", async () => {
+    const { add, addMany, talentToken } = await setup();
+    expect((await add(talentToken)).status).toBe(201);
+    const tooMany = await addMany(
+      talentToken,
+      [1, 2, 3].map((n) => ({
+        name: `Ref ${n}`,
+        email: `ref${n}@example.com`,
+        relationship: "colleague",
+      }))
+    );
+    expect(tooMany.status).toBe(400);
+    expect(await testDataSource.getRepository(ApplicationReference).count()).toBe(1);
+    const four = await addMany(
+      talentToken,
+      [1, 2, 3, 4].map((n) => ({
+        name: `Ref ${n}`,
+        email: `four${n}@example.com`,
+        relationship: "client",
+      }))
+    );
+    expect(four.status).toBe(400);
+  });
+
+  it("refuses the same email twice inside one request", async () => {
+    const { addMany, talentToken } = await setup();
+    const res = await addMany(talentToken, [REFEREE, { ...REFEREE, name: "Someone Else" }]);
+    expect(res.status).toBe(409);
+    expect(await testDataSource.getRepository(ApplicationReference).count()).toBe(0);
   });
 
   it("refuses the same email twice for one application", async () => {
@@ -142,11 +176,15 @@ describe("candidate names a referee", () => {
     expect(await testDataSource.getRepository(ApplicationReference).count()).toBe(1);
   });
 
-  it("rejects a missing name, a bad email and a missing relationship", async () => {
-    const { add, talentToken } = await setup();
+  it("rejects a missing name, a bad email and a relationship outside the list", async () => {
+    const { add, addMany, talentToken } = await setup();
     expect((await add(talentToken, { ...REFEREE, name: "" })).status).toBe(400);
     expect((await add(talentToken, { ...REFEREE, email: "not-an-email" })).status).toBe(400);
     expect((await add(talentToken, { ...REFEREE, relationship: "" })).status).toBe(400);
+    expect((await add(talentToken, { ...REFEREE, relationship: "Former manager" })).status).toBe(
+      400
+    );
+    expect((await addMany(talentToken, [])).status).toBe(400);
     expect(mockSendRequest).not.toHaveBeenCalled();
   });
 
@@ -155,7 +193,7 @@ describe("candidate names a referee", () => {
     const { add, talentToken, application } = await setup();
     const res = await add(talentToken);
     expect(res.status).toBe(201);
-    expect(res.body.data.status).toBe("not_sent");
+    expect(res.body.data.references[0].status).toBe("not_sent");
     const stored = await testDataSource
       .getRepository(ApplicationReference)
       .findOneByOrFail({ applicationId: application.id });
@@ -170,7 +208,7 @@ describe("candidate names a referee", () => {
     expect((await add(recruiterToken)).status).toBe(403);
     const anonymous = await request(app)
       .post("/v1/references/applications/00000000-0000-4000-8000-000000000000")
-      .send(REFEREE);
+      .send({ referees: [REFEREE] });
     expect(anonymous.status).toBe(401);
   });
 
@@ -191,7 +229,7 @@ describe("candidate sees who was asked", () => {
     expect(res.body.data.references[0]).toMatchObject({
       name: "Ada Obi",
       email: "ada.obi@example.com",
-      relationship: "Former manager",
+      relationship: "manager",
       status: "sent",
     });
     expect(JSON.stringify(res.body)).not.toMatch(/token|answers/i);

@@ -10,12 +10,15 @@ import logger from "../utils/logger.js";
 export const MAX_REFEREES = 3;
 export const REFERENCE_LINK_DAYS = 14;
 
+export const REFEREE_RELATIONSHIPS = ["manager", "colleague", "client", "other"] as const;
+export type RefereeRelationship = (typeof REFEREE_RELATIONSHIPS)[number];
+
 export type ReferenceStatus = "not_sent" | "sent" | "answered" | "expired";
 
 export interface RefereeInput {
   name: string;
   email: string;
-  relationship: string;
+  relationship: RefereeRelationship;
 }
 
 const repo = () => AppDataSource.getRepository(ApplicationReference);
@@ -83,31 +86,40 @@ const ownApplication = async (userId: string, applicationId: string): Promise<Ap
   return application;
 };
 
-export const addReferee = async (userId: string, applicationId: string, input: RefereeInput) => {
+export const addReferees = async (
+  userId: string,
+  applicationId: string,
+  inputs: RefereeInput[]
+) => {
   const application = await ownApplication(userId, applicationId);
-  const email = input.email.trim().toLowerCase();
   const existing = await repo().find({ where: { applicationId } });
-  if (existing.length >= MAX_REFEREES) {
+  if (existing.length + inputs.length > MAX_REFEREES) {
     throw new ValidationError(`You can name at most ${MAX_REFEREES} referees`);
   }
-  if (existing.some((row) => row.email === email)) {
-    throw new ConflictError("This referee has already been added");
+  const taken = new Set(existing.map((row) => row.email));
+  const prepared = inputs.map((input) => ({ ...input, email: input.email.trim().toLowerCase() }));
+  for (const { email } of prepared) {
+    if (taken.has(email)) throw new ConflictError("This referee has already been added");
+    taken.add(email);
   }
-  const { token, tokenHash, expiresAt } = newToken();
+  const issued = prepared.map((input) => ({ input, ...newToken() }));
   const saved = await repo().save(
-    repo().create({
-      applicationId,
-      jobId: application.jobId,
-      talentId: application.talentId,
-      name: input.name.trim(),
-      email,
-      relationship: input.relationship.trim(),
-      tokenHash,
-      tokenExpiresAt: expiresAt,
-    })
+    issued.map(({ input, tokenHash, expiresAt }) =>
+      repo().create({
+        applicationId,
+        jobId: application.jobId,
+        talentId: application.talentId,
+        name: input.name.trim(),
+        email: input.email,
+        relationship: input.relationship,
+        tokenHash,
+        tokenExpiresAt: expiresAt,
+      })
+    )
   );
-  await sendReferenceEmail(saved, token);
-  return toReferee(await repo().findOneByOrFail({ id: saved.id }));
+  await Promise.all(saved.map((row, index) => sendReferenceEmail(row, issued[index]!.token)));
+  const rows = await repo().find({ where: { applicationId }, order: { createdAt: "ASC" } });
+  return { applicationId, references: rows.map(toReferee) };
 };
 
 export const listRefereesForCandidate = async (userId: string, applicationId: string) => {

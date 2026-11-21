@@ -4612,12 +4612,14 @@ paths:
         - bearerAuth: []
   /references/applications/{applicationId}:
     post:
-      summary: Candidate names a referee for an application
+      summary: Candidate names referees for an application
       description: >-
-        The candidate who applied adds one referee (name, email, relationship). At most 3
-        referees can be named per application, and the same email cannot be added twice. The
-        referee is emailed a link that works once and expires after 14 days. If the email
-        cannot be sent the referee is still saved with status not_sent. Other users get 403.
+        The candidate who applied sends 1 to 3 referees (name, email, relationship) in one
+        request. Relationship is manager, colleague, client or other. At most 3 referees can
+        be named per application in total, and the same email cannot be added twice. Each
+        referee is emailed a link that works once and expires after 14 days. If an email
+        cannot be sent the referee is still saved with status not_sent. Nothing is saved if
+        any referee is invalid. Other users get 403.
       tags:
         - references
       parameters:
@@ -4633,20 +4635,28 @@ paths:
           application/json:
             schema:
               type: object
-              required: [name, email, relationship]
+              required: [referees]
               properties:
-                name:
-                  type: string
-                  maxLength: 120
-                email:
-                  type: string
-                  format: email
-                relationship:
-                  type: string
-                  maxLength: 120
+                referees:
+                  type: array
+                  minItems: 1
+                  maxItems: 3
+                  items:
+                    type: object
+                    required: [name, email, relationship]
+                    properties:
+                      name:
+                        type: string
+                        maxLength: 120
+                      email:
+                        type: string
+                        format: email
+                      relationship:
+                        type: string
+                        enum: [manager, colleague, client, other]
       responses:
         "201":
-          description: The referee was saved
+          description: The referees were saved and emailed
           content:
             application/json:
               schema:
@@ -4657,28 +4667,35 @@ paths:
                   data:
                     type: object
                     properties:
-                      id:
+                      applicationId:
                         type: string
-                      name:
-                        type: string
-                      email:
-                        type: string
-                      relationship:
-                        type: string
-                      status:
-                        type: string
-                        enum: [not_sent, sent, answered, expired]
-                      sentAt:
-                        type: string
-                        format: date-time
-                        nullable: true
-                      expiresAt:
-                        type: string
-                        format: date-time
-                      answeredAt:
-                        type: string
-                        format: date-time
-                        nullable: true
+                      references:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            name:
+                              type: string
+                            email:
+                              type: string
+                            relationship:
+                              type: string
+                            status:
+                              type: string
+                              enum: [not_sent, sent, answered, expired]
+                            sentAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            expiresAt:
+                              type: string
+                              format: date-time
+                            answeredAt:
+                              type: string
+                              format: date-time
+                              nullable: true
         "400":
           description: Invalid input, or 3 referees are already named
         "401":
@@ -4759,8 +4776,10 @@ paths:
     get:
       summary: Referee opens the link from the reference email
       description: >-
-        Public, no account. Returns who is asking and the six questions. A link that does not
-        exist is 404; a link that has expired or already been answered is 410.
+        Public, no account. Returns who is asking and the six questions, each with a type
+        (text or yesno). A link that does not exist is 404; a link that has expired or already
+        been answered is 410 and carries the job title, company name and company email in
+        error.details so the page can say who to contact.
       tags:
         - references
       parameters:
@@ -4805,6 +4824,9 @@ paths:
                               type: string
                             required:
                               type: boolean
+                            type:
+                              type: string
+                              enum: [text, yesno]
         "400":
           description: The link is malformed
         "404":
@@ -4847,6 +4869,7 @@ paths:
                       type: string
                     hire_again:
                       type: string
+                      enum: ["Yes", "No"]
                     anything_else:
                       type: string
       responses:

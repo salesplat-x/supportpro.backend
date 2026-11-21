@@ -181,23 +181,24 @@ class EmailService {
     companyName?: string;
     ctaUrl: string;
   }): Promise<void> {
+    const company = details.companyName ?? "the company";
     const paragraphs = [
-      `Hi ${details.refereeName},`,
-      `${details.candidateName} has applied for ${details.jobTitle}${details.companyName ? ` at ${details.companyName}` : ""} and named you as a referee.`,
-      "Please answer 6 short questions about working with them. It takes a few minutes and needs no account. The link works once and expires in 14 days.",
+      `Hi ${details.refereeName}, ${details.candidateName} named you as a referee.`,
+      `${details.candidateName} applied for a ${details.jobTitle} role at ${company} and named you as a referee. It takes about 5 minutes: 6 short questions, no login needed, and your answers go only to the hiring team.`,
+      `This link works once. If it stops working, ask ${company} to send it again.`,
     ];
     const html = renderTemplate("application-follow-up", {
       jobTitle: details.jobTitle,
       companyName: details.companyName,
       paragraphs,
-      ctaLabel: "Give your reference",
+      ctaLabel: "Answer questions",
       ctaUrl: details.ctaUrl,
     });
     await this.provider.send({
       to: details.to,
-      subject: `${details.candidateName} asked you for a reference`,
+      subject: `${details.candidateName} named you as a referee for ${details.jobTitle}`,
       html,
-      text: [...paragraphs, `Give your reference: ${details.ctaUrl}`].join("\n\n"),
+      text: [...paragraphs, `Answer questions: ${details.ctaUrl}`].join("\n\n"),
       tags: [{ name: "category", value: "reference-request" }],
     });
   }

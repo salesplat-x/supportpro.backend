@@ -59,7 +59,7 @@ const ANSWERS = {
   strengths: "Calm with customers and quick to learn.",
   improve: "Could delegate more.",
   reliability: "Always on time and never missed a deadline.",
-  hire_again: "Yes, without hesitation.",
+  hire_again: "Yes",
   anything_else: "A pleasure to work with.",
 };
 
@@ -75,7 +75,9 @@ async function setup() {
   const added = await request(app)
     .post(`/v1/references/applications/${application.id}`)
     .set("Authorization", `Bearer ${talentToken}`)
-    .send({ name: "Ada Obi", email: "ada@example.com", relationship: "Former manager" });
+    .send({
+      referees: [{ name: "Ada Obi", email: "ada@example.com", relationship: "manager" }],
+    });
   expect(added.status).toBe(201);
   const token = String(mockSendRequest.mock.calls[0]![0].ctaUrl).split("/reference/")[1]!;
   const open = (t = token) => request(app).get(`/v1/references/respond/${t}`);
@@ -110,6 +112,14 @@ describe("referee opens the link", () => {
       "anything_else",
     ]);
     expect(res.body.data.questions[5].required).toBe(false);
+    expect(res.body.data.questions.map((q: { type: string }) => q.type)).toEqual([
+      "text",
+      "text",
+      "text",
+      "text",
+      "yesno",
+      "text",
+    ]);
     expect(REFERENCE_QUESTIONS).toHaveLength(6);
     expect(JSON.stringify(res.body)).not.toMatch(/tokenHash|ada@example/);
   });
@@ -126,6 +136,20 @@ describe("referee opens the link", () => {
       .getRepository(ApplicationReference)
       .update({ applicationId: application.id }, { tokenExpiresAt: new Date(Date.now() - 1000) });
     expect((await open()).status).toBe(410);
+  });
+
+  it("an expired or used link says which company to contact", async () => {
+    const { open, answer } = await setup();
+    await answer({ answers: ANSWERS });
+    const res = await open();
+    expect(res.status).toBe(410);
+    expect(res.body.error.code).toBe("REFERENCE_LINK_GONE");
+    expect(res.body.error.details).toEqual({
+      jobTitle: "Support Agent",
+      companyName: null,
+      companyEmail: null,
+    });
+    expect(JSON.stringify(res.body)).not.toMatch(/Tobi|Ada Obi|ada@example/);
   });
 });
 
@@ -160,6 +184,14 @@ describe("referee answers", () => {
     const saved = await row();
     expect(saved.answeredAt).toBeNull();
     expect(saved.answers).toBeNull();
+  });
+
+  it("accepts only Yes or No for would you hire them again", async () => {
+    const { answer, row } = await setup();
+    expect((await answer({ answers: { ...ANSWERS, hire_again: "Maybe" } })).status).toBe(400);
+    expect((await row()).answeredAt).toBeNull();
+    expect((await answer({ answers: { ...ANSWERS, hire_again: "No" } })).status).toBe(200);
+    expect((await row()).answers?.["hire_again"]).toBe("No");
   });
 
   it("ignores unknown keys and caps a long answer", async () => {
