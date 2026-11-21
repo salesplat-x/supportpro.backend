@@ -146,8 +146,14 @@ describe("signing", () => {
     expect((await send(owner.token, org.id, staff.id)).status).toBe(409);
     const token = lastSigningToken();
 
-    const opened = apiData<{ document: { title: string; body: string } }>(await openLink(token));
+    const opened = apiData<{
+      document: { title: string; body: string; dateLabel: string; companyEmail: string | null };
+    }>(await openLink(token));
     expect(opened.document.title).toBe("Non-disclosure agreement");
+    expect(opened.document).toMatchObject({
+      dateLabel: expect.stringMatching(/^\d{1,2} \w+ \d{4}$/),
+      companyEmail: expect.any(String),
+    });
     await openLink(token).expect(200);
 
     const signed = await signLink(token);
@@ -780,16 +786,16 @@ describe("drafts, fields and statuses", () => {
 
   it("saves a draft without emailing anyone and replaces it when saved again", async () => {
     const { owner, org, staff } = await companyWithStaff();
-    const first = await draft(owner.token, org.id, staff.id);
+    const first = await draft(owner.token, org.id, staff.id, { template: "pay_agreement" });
     expect(first.status).toBe(201);
     expect(first.body.data.document).toMatchObject({
       status: "draft",
       displayStatus: "draft",
       sentAt: null,
-      title: "Non-disclosure agreement",
+      title: "Pay agreement",
     });
     const second = await draft(owner.token, org.id, staff.id, {
-      template: "nda",
+      template: "pay_agreement",
       jobTitle: "Lead Designer",
       startDate: "2027-02-03",
       managerName: "Tunde Bakare",
@@ -808,8 +814,9 @@ describe("drafts, fields and statuses", () => {
 
   it("uses the typed fields for that document only, not the staff record", async () => {
     const { owner, org, staff } = await companyWithStaff();
+    await setPay(app, owner.token, org.id, staff.id, {}).expect(200);
     const saved = await draft(owner.token, org.id, staff.id, {
-      template: "work_ownership",
+      template: "pay_agreement",
       jobTitle: "Lead Designer",
     });
     await request(app)

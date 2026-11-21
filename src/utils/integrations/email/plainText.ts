@@ -60,17 +60,24 @@ export const documentToSignPlainText = (details: {
   firstName: string;
   companyName: string;
   documentTitle: string;
+  jobTitle: string;
+  startDate: string;
   signLink: string;
 }): string =>
   [
-    `Hi ${details.firstName},`,
+    `Hi ${details.firstName}, your ${details.documentTitle.toLowerCase()} is ready to sign.`,
     "",
-    `${details.companyName} sent you your ${details.documentTitle.toLowerCase()} to sign.`,
+    `${details.companyName} sent you your ${details.documentTitle.toLowerCase()} for ${details.jobTitle}. Read it, then sign it online. It takes about 2 minutes.`,
     "",
-    "Review and sign it here:",
+    `${details.documentTitle} for ${details.jobTitle}`,
+    `Start date ${details.startDate}`,
+    "Sign by typing your full name",
+    "A signed copy is emailed to you",
+    "",
+    "Review and sign:",
     details.signLink,
     "",
-    "This link works once and expires in 7 days.",
+    `This link works once. If it stops working, ask ${details.companyName} to send it again.`,
   ].join("\n");
 
 export const signedDocumentPlainText = (details: {

@@ -371,6 +371,8 @@ class EmailService {
     companyName: string;
     companyLogoUrl?: string | null;
     documentTitle: string;
+    jobTitle: string;
+    startDate: string;
     signLink: string;
   }): Promise<void> {
     await this.provider.send({
