@@ -4696,6 +4696,67 @@ paths:
           description: Unexpected server error. Provider failures and timeouts are answered with the fallback clip (X-Voice-Fallback true), not an error.
       security:
         - bearerAuth: []
+  /organizations/{_id}/activity:
+    get:
+      summary: Company activity log
+      description: >-
+        Every change anyone in the company made: who did it, what they did, which item it
+        was, which fields were sent and when, newest first. Field values are never stored.
+        Only the company's owner can read it.
+      tags:
+        - organizations
+      parameters:
+        - name: _id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: actorId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: search
+          in: query
+          description: Matches the action, the item's name or the person's name
+          schema:
+            type: string
+            maxLength: 100
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: >-
+            items (id, createdAt, actorId, actorName, action, targetType, targetId,
+            targetLabel, changedFields, ip) and total
+        "400":
+          description: A filter is invalid
+        "401":
+          description: Login required
+        "403":
+          description: Only the company's owner can read the log
+      security:
+        - bearerAuth: []
   /organizations/{_id}/reference-questions:
     get:
       summary: Company's reference questions

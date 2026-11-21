@@ -10,12 +10,14 @@ import * as paymentService from "../services/payment.js";
 import { draftApplicantMessages } from "../services/applicantMessaging.js";
 import { generateSingleFitReport, generateBulkFitReport } from "../services/fitReport.js";
 import { JobStatus, UserRole } from "../types/enums.js";
+import { noteActivityTarget } from "../services/companyActivity.js";
 import { sendSuccessResponse } from "../utils/response.js";
 import { hideAssessmentResultsFromCandidate } from "../services/application.js";
 import { getJobSummary } from "../services/jobSummary.js";
 
 export const create = async (req: Request, res: Response) => {
   const result = await jobService.createJob(req.user.id, req.body);
+  noteActivityTarget(res, "job", result.id, result.role?.name);
   sendSuccessResponse(res, "Job created", { job: result }, 201);
 };
 

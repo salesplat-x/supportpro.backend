@@ -1,5 +1,6 @@
 import { Router } from "express";
 import * as organization from "../controllers/organization.js";
+import * as companyActivity from "../controllers/companyActivity.js";
 import * as referenceQuestions from "../controllers/referenceQuestions.js";
 import * as usage from "../controllers/usage.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
@@ -34,6 +35,7 @@ import {
   sendReferenceQuestionsValidator,
   setReferenceQuestionsValidator,
 } from "../validators/referenceQuestions.js";
+import { companyActivityValidator } from "../validators/companyActivity.js";
 
 const router = Router();
 
@@ -145,6 +147,14 @@ router.delete(
   requireVerifiedEmail,
   validate(removeDepartmentValidator),
   asyncHandler(organization.removeDepartment, "remove department")
+);
+
+router.get(
+  "/:_id/activity",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(companyActivityValidator),
+  asyncHandler(companyActivity.list, "load the company activity log")
 );
 
 router.get(

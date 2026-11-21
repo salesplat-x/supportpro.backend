@@ -40,6 +40,7 @@ import { ApplicationFollowUpEmail } from "../../src/entities/ApplicationFollowUp
 import { StaffMember } from "../../src/entities/StaffMember.js";
 import { StaffActivity } from "../../src/entities/StaffActivity.js";
 import { StaffAccessLog } from "../../src/entities/StaffAccessLog.js";
+import { CompanyActivity } from "../../src/entities/CompanyActivity.js";
 import { Benefit } from "../../src/entities/Benefit.js";
 import { PayPackage } from "../../src/entities/PayPackage.js";
 import { ShareGrant } from "../../src/entities/ShareGrant.js";
@@ -106,6 +107,7 @@ const ALL_ENTITIES = [
   StaffMember,
   StaffActivity,
   StaffAccessLog,
+  CompanyActivity,
   Benefit,
   PayPackage,
   ShareGrant,
@@ -231,16 +233,19 @@ async function drainBackgroundWork(): Promise<void> {
     { drainInFlightScoutRuns },
     { drainInFlightCandidateEmbeddings },
     { drainInFlightAiInterviews },
+    { settleActivityWrites },
   ] = await Promise.all([
     import("../../src/services/applicationStage.js"),
     import("../../src/services/scoutRun.js"),
     import("../../src/services/scoutCandidate.js"),
     import("../../src/services/aiInterview.js"),
+    import("../../src/services/companyActivity.js"),
   ]);
   await drainInFlightScoutRuns();
   await drainInFlightCandidateEmbeddings();
   await drainInFlightMatchVerdicts();
   await drainInFlightAiInterviews();
+  await settleActivityWrites();
 }
 
 export async function stopTestDatabase(): Promise<void> {

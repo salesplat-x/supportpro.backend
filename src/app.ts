@@ -13,6 +13,7 @@ import v1Router from "./routes";
 import swaggerDocs from "./swagger.js";
 import { reconcileDurableJobs } from "./services/reconciliation.js";
 import { asyncHandler } from "./middleware/asyncHandler.js";
+import { companyActivityLogger } from "./middleware/companyActivity.js";
 import { SWEEP_INTERVAL_MS } from "./utils/durableJobs.js";
 import { isProviderConfigured, loadAiCatalog } from "./utils/integrations/ai/catalog.js";
 import { loadAiPrompts } from "./utils/integrations/ai/prompts.js";
@@ -60,7 +61,7 @@ export function createApp(): Application {
   );
   swaggerDocs(app, env.port);
 
-  app.use("/v1", v1Router);
+  app.use("/v1", companyActivityLogger, v1Router);
 
   // Global error handler — must be last
   app.use(errorHandler);
