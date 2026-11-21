@@ -20,14 +20,17 @@ export class ApplicationConsent {
   applicationId!: string;
 
   @ManyToOne("Application", { onDelete: "CASCADE", eager: false })
-  @JoinColumn({ name: "application_id" })
+  @JoinColumn({
+    name: "application_id",
+    foreignKeyConstraintName: "FK_application_consents_application",
+  })
   application!: Application;
 
   @Column({ type: "uuid", name: "talent_id" })
   talentId!: string;
 
   @ManyToOne("User", { onDelete: "CASCADE", eager: false })
-  @JoinColumn({ name: "talent_id" })
+  @JoinColumn({ name: "talent_id", foreignKeyConstraintName: "FK_application_consents_talent" })
   talent!: User;
 
   @Column({ type: "varchar", length: 32, nullable: true, default: null })

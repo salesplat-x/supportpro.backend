@@ -46,6 +46,10 @@ import { StaffDocument } from "../entities/StaffDocument.js";
 import { StaffChecklistTask } from "../entities/StaffChecklistTask.js";
 import { PeopleAiClaim } from "../entities/PeopleAiClaim.js";
 import { StaffJobDescription } from "../entities/StaffJobDescription.js";
+import { ApplicationCheck } from "../entities/ApplicationCheck.js";
+import { ApplicationCheckEvent } from "../entities/ApplicationCheckEvent.js";
+import { ApplicationConsent } from "../entities/ApplicationConsent.js";
+import { ApplicationReference } from "../entities/ApplicationReference.js";
 import { StaffGoal } from "../entities/StaffGoal.js";
 import { StaffGoalProgressEvent } from "../entities/StaffGoalProgressEvent.js";
 import { StaffWeeklyReport } from "../entities/StaffWeeklyReport.js";
@@ -103,6 +107,10 @@ const ALL_ENTITIES = [
   StaffChecklistTask,
   PeopleAiClaim,
   StaffJobDescription,
+  ApplicationCheck,
+  ApplicationCheckEvent,
+  ApplicationConsent,
+  ApplicationReference,
   StaffGoal,
   StaffGoalProgressEvent,
   StaffWeeklyReport,

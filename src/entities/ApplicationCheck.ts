@@ -22,14 +22,20 @@ export class ApplicationCheck {
   applicationId!: string;
 
   @ManyToOne("Application", { onDelete: "CASCADE", eager: false })
-  @JoinColumn({ name: "application_id" })
+  @JoinColumn({
+    name: "application_id",
+    foreignKeyConstraintName: "FK_application_checks_application",
+  })
   application!: Application;
 
   @Column({ type: "uuid", name: "ordered_by_id" })
   orderedById!: string;
 
   @ManyToOne("User", { onDelete: "CASCADE", eager: false })
-  @JoinColumn({ name: "ordered_by_id" })
+  @JoinColumn({
+    name: "ordered_by_id",
+    foreignKeyConstraintName: "FK_application_checks_ordered_by",
+  })
   orderedBy!: User;
 
   @Column({ type: "varchar", length: 16 })
