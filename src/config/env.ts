@@ -46,6 +46,11 @@ const optionalEnvVars = {
   voiceConcurrency: positiveNumberOr(process.env.VOICE_CONCURRENCY, 2),
   stuckEmailsEnabled: process.env.STUCK_EMAILS_ENABLED === "true",
   checksEncryptionKey: process.env.CHECKS_ENCRYPTION_KEY,
+  // Criminal checks run only for candidates whose country is listed here (comma separated). Empty means off everywhere.
+  criminalCheckCountries: (process.env.CRIMINAL_CHECK_COUNTRIES ?? "")
+    .split(",")
+    .map((country) => country.trim().toLowerCase())
+    .filter(Boolean),
   publicApiUrl: process.env.PUBLIC_API_URL?.replace(/\/$/, ""),
 } as const;
 

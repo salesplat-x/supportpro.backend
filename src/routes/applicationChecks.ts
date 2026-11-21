@@ -3,7 +3,7 @@ import { body, param } from "express-validator";
 import * as applicationChecks from "../controllers/applicationChecks.js";
 import * as consent from "../controllers/applicationConsent.js";
 import { ID_KINDS } from "../services/checkConsent.js";
-import { CHECK_TYPES } from "../types/checks.js";
+import { CHECK_RESULTS, CHECK_TYPES } from "../types/checks.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { loginRequired, requireVerifiedEmail } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
@@ -83,6 +83,55 @@ router.get(
   requireVerifiedEmail,
   validate(applicationParams),
   asyncHandler(applicationChecks.listChecks, "list background checks")
+);
+
+const checkParams = [param("checkId").isUUID().withMessage("checkId must be a valid id")];
+
+const todayPlusOneDay = () => new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+const resultBody = [
+  body("confirmedOn")
+    .isISO8601({ strict: true })
+    .withMessage("confirmedOn must be a date like 2026-11-05")
+    .bail()
+    .custom((value: string) => value.slice(0, 10) <= todayPlusOneDay())
+    .withMessage("confirmedOn cannot be in the future"),
+  body("note").optional().isString().trim().isLength({ max: 2000 }),
+  body("confirmedBy")
+    .if(body("nameOnId").not().exists())
+    .isString()
+    .trim()
+    .isLength({ min: 1, max: 160 })
+    .withMessage("confirmedBy is required"),
+  body("result")
+    .if(body("nameOnId").not().exists())
+    .isIn([...CHECK_RESULTS])
+    .withMessage("result must be verified, flagged or failed"),
+  body("nameOnId").optional().isString().trim().isLength({ min: 1, max: 200 }),
+];
+
+router.patch(
+  "/:checkId/result",
+  loginRequired,
+  requireVerifiedEmail,
+  validate([...checkParams, ...resultBody]),
+  asyncHandler(applicationChecks.saveResult, "save a check result")
+);
+
+router.get(
+  "/:checkId/history",
+  loginRequired,
+  requireVerifiedEmail,
+  validate(checkParams),
+  asyncHandler(applicationChecks.history, "read a check history")
+);
+
+router.get(
+  "/:checkId/id-number",
+  loginRequired,
+  requireVerifiedEmail,
+  validate(checkParams),
+  asyncHandler(applicationChecks.idNumber, "read an ID number")
 );
 
 export default (app: Router) => app.use("/checks", router);

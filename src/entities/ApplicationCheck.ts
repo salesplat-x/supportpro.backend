@@ -41,6 +41,24 @@ export class ApplicationCheck {
   @Column({ type: "text", name: "result_text", nullable: true, default: null })
   resultText!: string | null;
 
+  @Column({ type: "varchar", length: 160, name: "confirmed_by", nullable: true, default: null })
+  confirmedBy!: string | null;
+
+  @Column({ type: "date", name: "confirmed_on", nullable: true, default: null })
+  confirmedOn!: string | null;
+
+  @Column({ type: "text", nullable: true, default: null })
+  note!: string | null;
+
+  @Column({ type: "varchar", length: 200, name: "name_on_id", nullable: true, default: null })
+  nameOnId!: string | null;
+
+  @Column({ type: "varchar", length: 200, name: "name_given", nullable: true, default: null })
+  nameGiven!: string | null;
+
+  @Column({ type: "timestamptz", name: "completed_at", nullable: true, default: null })
+  completedAt!: Date | null;
+
   @CreateDateColumn({ type: "timestamptz", name: "created_at" })
   createdAt!: Date;
 
