@@ -32,6 +32,7 @@ export { ApplicationFollowUpEmail } from "./ApplicationFollowUpEmail.js";
 export { StaffMember } from "./StaffMember.js";
 export { StaffActivity } from "./StaffActivity.js";
 export { StaffAccessLog } from "./StaffAccessLog.js";
+export { CompanyActivity } from "./CompanyActivity.js";
 export { Benefit } from "./Benefit.js";
 export { PayPackage, PayPeriod } from "./PayPackage.js";
 export { ShareGrant } from "./ShareGrant.js";
