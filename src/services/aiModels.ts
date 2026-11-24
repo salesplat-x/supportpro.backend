@@ -24,6 +24,8 @@ import {
 import { clearAiSettingsCache, unusableReason } from "../utils/integrations/ai/settings.js";
 import { getErrorStatus } from "../utils/retry.js";
 import logger from "../utils/logger.js";
+import { AiSkillSetting } from "../entities/AiSkillSetting.js";
+import { getAiSkill, loadAiSkills, skillProblem } from "../utils/integrations/ai/skills.js";
 
 const settingsRepo = () => AppDataSource.getRepository(AiFeatureSetting);
 
@@ -60,6 +62,18 @@ export interface AiPromptPartView {
   /** Why the saved edit is being ignored, for example after the catalogue changed. */
   problem: string | null;
   variables: Array<{ name: string; description: string }>;
+  /** Shared skills placed before this part's text. */
+  skills: Array<{ key: string; label: string }>;
+}
+
+export interface AiSkillView {
+  key: string;
+  label: string;
+  description: string;
+  text: string;
+  defaultText: string;
+  edited: boolean;
+  usedBy: Array<{ key: string; name: string }>;
 }
 
 export interface AiModelsOverview {
@@ -268,6 +282,7 @@ const toPromptViews = (
         name,
         description: variables[name] ?? "",
       })),
+      skills: (part.skills ?? []).map((key) => ({ key, label: getAiSkill(key)?.label ?? key })),
     };
   });
 };
@@ -319,4 +334,56 @@ export const updateAiFeaturePrompts = async (
   clearAiSettingsCache();
 
   return toPromptViews(feature, parts, prompts);
+};
+
+const skillsRepo = () => AppDataSource.getRepository(AiSkillSetting);
+
+const jobsUsing = (skillKey: string): Array<{ key: string; name: string }> =>
+  loadAiCatalog()
+    .features.filter((feature) =>
+      getPromptParts(feature.key).some((part) => part.skills?.includes(skillKey))
+    )
+    .map((feature) => ({ key: feature.key, name: feature.name }));
+
+const toSkillViews = (saved: Map<string, string>): AiSkillView[] =>
+  loadAiSkills().map((skill) => {
+    const edit = saved.get(skill.key);
+    return {
+      key: skill.key,
+      label: skill.label,
+      description: skill.description,
+      text: edit ?? skill.text,
+      defaultText: skill.text,
+      edited: edit !== undefined,
+      usedBy: jobsUsing(skill.key),
+    };
+  });
+
+const savedSkillTexts = async (): Promise<Map<string, string>> =>
+  new Map((await skillsRepo().find()).map((row) => [row.skillKey, row.text]));
+
+export const getAiSkills = async (): Promise<AiSkillView[]> =>
+  toSkillViews(await savedSkillTexts());
+
+/** Text matching the default clears the edit, so the skill follows later catalogue updates. */
+export const updateAiSkill = async (
+  adminId: string,
+  skillKey: string,
+  text: string
+): Promise<AiSkillView[]> => {
+  const skill = getAiSkill(skillKey);
+  if (!skill) {
+    throw new NotFoundError("AI skill not found");
+  }
+  const problem = skillProblem(skill.label, text);
+  if (problem) {
+    throw new ValidationError(problem);
+  }
+  if (text === skill.text) {
+    await skillsRepo().delete({ skillKey });
+  } else {
+    await skillsRepo().save(skillsRepo().create({ skillKey, text, updatedById: adminId }));
+  }
+  clearAiSettingsCache();
+  return toSkillViews(await savedSkillTexts());
 };

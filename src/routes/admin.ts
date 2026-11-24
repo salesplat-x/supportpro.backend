@@ -9,6 +9,7 @@ import {
   adminChangeOwnerValidator,
   adminAiFeatureModelValidator,
   adminAiFeaturePromptsValidator,
+  adminAiSkillValidator,
   adminApplicationFollowUpEmailValidator,
   adminOverviewQueryValidator,
   adminApplicationIdParamValidator,
@@ -206,6 +207,20 @@ router.put(
   requireVerifiedEmail,
   validate(adminAiFeaturePromptsValidator),
   asyncHandler(admin.updateAiFeaturePrompts, "save AI prompts")
+);
+
+router.get(
+  "/ai-models/skills",
+  validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
+  asyncHandler(admin.getAiSkills, "load AI skills")
+);
+router.put(
+  "/ai-models/skills/:key",
+  validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(adminAiSkillValidator),
+  asyncHandler(admin.updateAiSkill, "save AI skill")
 );
 
 export default (app: Router) => app.use("/admin", router);
