@@ -4,6 +4,7 @@ import { queueTranscript } from "../services/aiInterviewTranscriptQueue.js";
 import * as candidateInterviews from "../services/aiInterviewCandidate.js";
 import * as transcripts from "../services/aiInterviewTranscript.js";
 import * as assessments from "../services/aiInterviewScoring.js";
+import * as screenEvents from "../services/aiInterviewScreenEvents.js";
 
 export const uploadRecording = async (req: Request, res: Response) => {
   const saved = await recordings.saveRecording(
@@ -62,4 +63,12 @@ export const questionAudio = async (req: Request, res: Response) => {
   res.setHeader("Content-Length", buffer.length);
   res.setHeader("Cache-Control", "private, max-age=3600");
   res.end(buffer);
+};
+
+export const recordScreenEvent = async (req: Request, res: Response) => {
+  await screenEvents.recordScreenEvent(req.user.id, req.params["interviewId"]!, {
+    kind: req.body.kind,
+    questionId: (req.body.questionId as string | null | undefined) ?? null,
+  });
+  res.status(204).end();
 };

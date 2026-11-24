@@ -64,6 +64,9 @@ import { StaffCompletionRequest } from "../entities/StaffCompletionRequest.js";
 import { OrganizationOwnershipTransfer } from "../entities/OrganizationOwnershipTransfer.js";
 import { StuckEmailTimer } from "../entities/StuckEmailTimer.js";
 import { SavedJob } from "../entities/SavedJob.js";
+import { AiInterview } from "../entities/AiInterview.js";
+import { AiInterviewQuestion } from "../entities/AiInterviewQuestion.js";
+import { AiInterviewScreenEvent } from "../entities/AiInterviewScreenEvent.js";
 import { StaffGoalReport } from "../entities/StaffGoalReport.js";
 import { Department } from "../entities/Department.js";
 
@@ -128,6 +131,9 @@ const ALL_ENTITIES = [
   OrganizationOwnershipTransfer,
   StuckEmailTimer,
   SavedJob,
+  AiInterview,
+  AiInterviewQuestion,
+  AiInterviewScreenEvent,
   StaffGoalReport,
   Department,
 ];

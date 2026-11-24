@@ -60,6 +60,7 @@ import { ApplicationReference } from "../entities/ApplicationReference.js";
 import { AiInterview } from "../entities/AiInterview.js";
 import { AiInterviewQuestion } from "../entities/AiInterviewQuestion.js";
 import { SavedJob } from "../entities/SavedJob.js";
+import { AiInterviewScreenEvent } from "../entities/AiInterviewScreenEvent.js";
 import { StaffGoalReport } from "../entities/StaffGoalReport.js";
 import { Department } from "../entities/Department.js";
 import { ApplicationConsent } from "../entities/ApplicationConsent.js";
@@ -133,6 +134,7 @@ const databaseConfig: DataSourceOptions = {
     AiInterview,
     AiInterviewQuestion,
     SavedJob,
+    AiInterviewScreenEvent,
     StaffGoalReport,
     Department,
     ApplicationConsent,

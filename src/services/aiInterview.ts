@@ -11,6 +11,7 @@ import { AIConfig } from "../entities/AIConfig.js";
 import { loadApplicationProgress, type InterviewProgress } from "./applicationProgress.js";
 import { normalizeInterviewFlags } from "./aiInterviewScoring.js";
 import { notifyInterviewReady } from "./talentNotifications.js";
+import { type ScreenLeaves, loadScreenLeaves } from "./aiInterviewScreenEvents.js";
 
 export const AI_INTERVIEW_QUESTION_COUNT = 5;
 
@@ -152,6 +153,8 @@ export interface RecruiterInterview {
   status: InterviewProgress;
   /** True when this interview can't be scored, though its answers can still be played. */
   failed: boolean;
+  /** Each time the candidate left the interview screen while answering. */
+  screenLeaves: ScreenLeaves;
   invitedAt: Date | null;
   startedAt: Date | null;
   scoringStatus: AiInterview["scoringStatus"];
@@ -187,6 +190,7 @@ export const getRecruiterInterview = async (
     }),
     loadApplicationProgress([applicationId]),
   ]);
+  const screenLeaves = await loadScreenLeaves(interview.id, rows);
   const recordedTimes = rows
     .map((row) => row.recordedAt?.getTime())
     .filter((time): time is number => time !== undefined);
@@ -195,6 +199,7 @@ export const getRecruiterInterview = async (
     mode: interview.mode,
     status: progress.get(applicationId)?.interview.status ?? "not_started",
     failed: progress.get(applicationId)?.interview.failed ?? false,
+    screenLeaves,
     invitedAt: interview.invitedAt,
     startedAt: recordedTimes.length ? new Date(Math.min(...recordedTimes)) : null,
     scoringStatus: interview.scoringStatus,
