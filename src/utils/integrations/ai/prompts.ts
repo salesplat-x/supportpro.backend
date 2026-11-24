@@ -3,12 +3,15 @@ import path from "path";
 import yaml from "js-yaml";
 import logger from "../../logger.js";
 import { AiFeature, AiFeatureKey, getAiFeature, loadAiCatalog } from "./catalog.js";
-import { loadSavedPrompts } from "./settings.js";
+import { getAiSkill, skillProblem } from "./skills.js";
+import { loadSavedPrompts, loadSavedSkills } from "./settings.js";
 
 export interface AiPromptPart {
   key: string;
   label: string;
   variables?: string[];
+  /** Shared skills placed before this part's text, from aiSkills.yaml. */
+  skills?: string[];
   text: string;
 }
 
@@ -57,6 +60,11 @@ export const validateAiPrompts = (catalog: AiPromptCatalog): void => {
       for (const name of declared) {
         if (!catalog.variables[name]) {
           problems.push(`Variable ${name} has no description`);
+        }
+      }
+      for (const skill of part.skills ?? []) {
+        if (!getAiSkill(skill)) {
+          problems.push(`Prompt ${feature.key}.${part.key} uses unknown skill ${skill}`);
         }
       }
     }
@@ -137,13 +145,24 @@ export const renderPrompt = async (
   }
 
   const saved = (await loadSavedPrompts(key))[partKey];
-  if (saved === undefined) {
-    return fillPlaceholders(part.text, values);
-  }
-  const problem = promptProblem(getAiFeature(key)!, part, saved);
+  let text = saved ?? part.text;
+  const problem = saved === undefined ? null : promptProblem(getAiFeature(key)!, part, saved);
   if (problem) {
     logger.warn(`AI job ${key} is using its default prompt because ${problem}`);
-    return fillPlaceholders(part.text, values);
+    text = part.text;
   }
-  return fillPlaceholders(saved, values);
+  const body = fillPlaceholders(text, values);
+  return part.skills?.length ? `${await renderSkills(part.skills)}\n\n${body}` : body;
+};
+
+/** The skills' text, the admin's wording where it's still usable, else the default. */
+const renderSkills = async (keys: string[]): Promise<string> => {
+  const saved = await loadSavedSkills();
+  return keys
+    .map((key) => {
+      const skill = getAiSkill(key)!;
+      const edit = saved[key];
+      return edit !== undefined && !skillProblem(skill.label, edit) ? edit : skill.text;
+    })
+    .join("\n\n");
 };

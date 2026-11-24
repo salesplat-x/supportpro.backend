@@ -40,13 +40,17 @@ import {
   fillPlaceholders,
   getPromptParts,
   loadAiPrompts,
+  validateAiPrompts,
 } from "../src/utils/integrations/ai/prompts.js";
+import { getAiSkill, validateAiSkills } from "../src/utils/integrations/ai/skills.js";
+import { AiSkillSetting } from "../src/entities/AiSkillSetting.js";
 import { durableFailureUpdate, MAX_DURABLE_ATTEMPTS } from "../src/utils/durableJobs.js";
 import { AiConfigError } from "../src/utils/errors";
 import type {
   AiFeatureView,
   AiModelsOverview,
   AiPromptPartView,
+  AiSkillView,
 } from "../src/services/aiModels.js";
 
 const passingReply = { choices: [{ message: { content: '{"ok":true}' } }] };
@@ -397,6 +401,14 @@ describe("prompts", () => {
   const systemSent = () =>
     (lastRequest()["messages"] as Array<{ role: string; content: string }>)[0]!.content;
 
+  const withSkills = (key: string, text: string, part = "system") =>
+    [
+      ...(getPromptParts(key).find((item) => item.key === part)!.skills ?? []).map(
+        (skill) => getAiSkill(skill)!.text
+      ),
+      text,
+    ].join("\n\n");
+
   it("has a default prompt for every job that sends one", () => {
     const { jobs } = loadAiPrompts();
     for (const feature of loadAiCatalog().features) {
@@ -426,7 +438,12 @@ describe("prompts", () => {
     expect(res.status).toBe(200);
 
     await generatePersonalizedQuestions("JD", ["CV"], "Bio", 3, "Guide");
-    expect(systemSent()).toBe(`Write exactly 3 questions. Output JSON only: { "questions": [] }`);
+    expect(systemSent()).toBe(
+      withSkills(
+        "personalized_questions",
+        `Write exactly 3 questions. Output JSON only: { "questions": [] }`
+      )
+    );
   });
 
   it("goes back to the default when the edit matches it", async () => {
@@ -435,7 +452,7 @@ describe("prompts", () => {
     await savePrompts(token, "efficiency_tip", { system: "Give one short tip." });
 
     await efficiencyTip(tipInput);
-    expect(systemSent()).toBe("Give one short tip.");
+    expect(systemSent()).toBe(withSkills("efficiency_tip", "Give one short tip."));
 
     const res = await savePrompts(token, "efficiency_tip", { system: original });
     expect(res.status).toBe(200);
@@ -443,7 +460,7 @@ describe("prompts", () => {
     expect(prompts[0]?.edited).toBe(false);
 
     await efficiencyTip(tipInput);
-    expect(systemSent()).toBe(original);
+    expect(systemSent()).toBe(withSkills("efficiency_tip", original));
   });
 
   it("keeps the model choice when a prompt is saved, and the prompt when a model is chosen", async () => {
@@ -453,12 +470,12 @@ describe("prompts", () => {
     await savePrompts(token, "efficiency_tip", { system: "Give one short tip." });
     await efficiencyTip(tipInput);
     expect(lastRequest()["model"]).toBe("gemini-3.6-flash");
-    expect(systemSent()).toBe("Give one short tip.");
+    expect(systemSent()).toBe(withSkills("efficiency_tip", "Give one short tip."));
 
     await choose(token, "efficiency_tip", "gemini", "gemini-3.8-flash");
     await efficiencyTip(tipInput);
     expect(lastRequest()["model"]).toBe("gemini-3.8-flash");
-    expect(systemSent()).toBe("Give one short tip.");
+    expect(systemSent()).toBe(withSkills("efficiency_tip", "Give one short tip."));
   });
 
   it("refuses text that would break the job", async () => {
@@ -501,11 +518,29 @@ describe("prompts", () => {
     });
 
     await gradeAssessmentAnswers("[]");
-    expect(systemSent()).toBe(defaultOf("role_answer_grading", "system"));
+    expect(systemSent()).toBe(
+      withSkills("role_answer_grading", defaultOf("role_answer_grading", "system"))
+    );
 
     const res = await getPrompts(token, "role_answer_grading");
     const { prompts } = apiData<{ prompts: AiPromptPartView[] }>(res);
     expect(prompts[0]?.problem).toContain("must still ask for JSON");
+  });
+
+  it("puts each job's shared skills before its own text, and refuses an unknown skill", () => {
+    expect(getPromptParts("applicant_verdict")[0]!.skills).toContain("fair_assessment");
+    const catalog = loadAiPrompts();
+    const broken = {
+      ...catalog,
+      jobs: {
+        ...catalog.jobs,
+        efficiency_tip: [{ ...catalog.jobs["efficiency_tip"]![0]!, skills: ["made_up"] }],
+      },
+    };
+    expect(() => validateAiPrompts(broken)).toThrow(/unknown skill made_up/);
+    expect(() =>
+      validateAiSkills([{ key: "x", label: "X", description: "X", text: "Hi {{bio}}" }])
+    ).toThrow(/placeholders/);
   });
 
   it("never expands a placeholder typed into a candidate's text", () => {
@@ -536,5 +571,58 @@ describe("prompts", () => {
     expect(feature.promptParts).toBe(1);
     expect(feature.editedPromptParts).toBe(1);
     expect(featureIn(overview, "cv_matching").promptParts).toBe(0);
+  });
+});
+
+describe("shared skills", () => {
+  const getSkills = (token: string) =>
+    request(app).get("/v1/admin/ai-models/skills").set("Authorization", `Bearer ${token}`);
+  const saveSkill = (token: string, key: string, text: string) =>
+    request(app)
+      .put(`/v1/admin/ai-models/skills/${key}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ text });
+  const systemSent = () =>
+    (lastRequest()["messages"] as Array<{ role: string; content: string }>)[0]!.content;
+
+  it("lists each skill with the jobs that use it", async () => {
+    const { token } = await createAdmin();
+
+    const { skills } = apiData<{ skills: AiSkillView[] }>(await getSkills(token).expect(200));
+
+    const fair = skills.find((skill) => skill.key === "fair_assessment")!;
+    expect(fair.edited).toBe(false);
+    expect(fair.text).toBe(fair.defaultText);
+    expect(fair.usedBy.map((job) => job.key)).toContain("ai_interview_scoring");
+  });
+
+  it("uses an edited skill in every job that lists it, and resets it when saved as the default", async () => {
+    const { token } = await createAdmin();
+    const original = getAiSkill("plain_writing")!.text;
+
+    await saveSkill(token, "plain_writing", "Write like a friendly Lagos HR manager.").expect(200);
+    await efficiencyTip(tipInput);
+    expect(systemSent()).toContain("Write like a friendly Lagos HR manager.");
+    expect(systemSent()).not.toContain(original);
+
+    const res = await saveSkill(token, "plain_writing", original).expect(200);
+    expect(
+      apiData<{ skills: AiSkillView[] }>(res).skills.find((s) => s.key === "plain_writing")?.edited
+    ).toBe(false);
+    expect(await testDataSource.getRepository(AiSkillSetting).count()).toBe(0);
+    await efficiencyTip(tipInput);
+    expect(systemSent()).toContain(original);
+  });
+
+  it("refuses empty text, placeholders, unknown skills and anyone but the admin", async () => {
+    const admin = await createAdmin();
+    const talent = await createTalent();
+
+    await saveSkill(admin.token, "plain_writing", "   ").expect(400);
+    await saveSkill(admin.token, "plain_writing", "Use {{bio}}").expect(400);
+    await saveSkill(admin.token, "made_up", "Text").expect(404);
+    await saveSkill(talent.token, "plain_writing", "Text").expect(403);
+    await getSkills(talent.token).expect(403);
+    expect(await testDataSource.getRepository(AiSkillSetting).count()).toBe(0);
   });
 });

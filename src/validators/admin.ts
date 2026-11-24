@@ -149,6 +149,13 @@ export const adminAiFeaturePromptsValidator = [
   body("prompts.*").isString().withMessage("A prompt must be text"),
 ];
 
+export const adminAiSkillValidator = [
+  param("key")
+    .matches(/^[a-z_]{1,64}$/)
+    .withMessage("AI skill not found"),
+  body("text").isString().withMessage("A skill must be text"),
+];
+
 export const adminChangeOwnerValidator = [
   param("_id").isUUID().withMessage("Invalid company"),
   body("newOwnerUserId").isUUID().withMessage("Choose someone from the team"),

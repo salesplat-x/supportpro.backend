@@ -68,3 +68,4 @@ export { ApplicationCheckEvent } from "./ApplicationCheckEvent.js";
 export { Department } from "./Department.js";
 export { StaffGoalReport } from "./StaffGoalReport.js";
 export { AiInterviewScreenEvent } from "./AiInterviewScreenEvent.js";
+export { AiSkillSetting } from "./AiSkillSetting.js";

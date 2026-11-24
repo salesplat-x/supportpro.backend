@@ -1,5 +1,6 @@
 import { AppDataSource } from "../../../database/dataSource.js";
 import { AiFeatureSetting } from "../../../entities/AiFeatureSetting.js";
+import { AiSkillSetting } from "../../../entities/AiSkillSetting.js";
 import logger from "../../logger.js";
 import {
   AiChoice,
@@ -23,9 +24,30 @@ interface SavedFeature {
 }
 
 let cache: { rows: Map<string, SavedFeature>; loadedAt: number } | null = null;
+let skillCache: { texts: Record<string, string>; loadedAt: number } | null = null;
 
 export const clearAiSettingsCache = (): void => {
   cache = null;
+  skillCache = null;
+};
+
+/** The admin's wording for each edited skill. Skills missing here use their default. */
+export const loadSavedSkills = async (): Promise<Record<string, string>> => {
+  if (skillCache && Date.now() - skillCache.loadedAt < SETTINGS_CACHE_MS) {
+    return skillCache.texts;
+  }
+  if (!AppDataSource.isInitialized) {
+    return {};
+  }
+  try {
+    const rows = await AppDataSource.getRepository(AiSkillSetting).find();
+    const texts = Object.fromEntries(rows.map((row) => [row.skillKey, row.text]));
+    skillCache = { texts, loadedAt: Date.now() };
+    return texts;
+  } catch (err) {
+    logger.error(`Could not load AI skills, using defaults: ${(err as Error).message}`);
+    return skillCache?.texts ?? {};
+  }
 };
 
 const loadSettings = async (): Promise<Map<string, SavedFeature>> => {

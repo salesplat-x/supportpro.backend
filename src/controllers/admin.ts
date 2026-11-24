@@ -169,3 +169,17 @@ export const updateAiFeaturePrompts = async (req: Request, res: Response) => {
   );
   sendSuccessResponse(res, "AI prompts saved", { prompts });
 };
+
+export const getAiSkills = async (_req: Request, res: Response) => {
+  const skills = await aiModelsService.getAiSkills();
+  sendSuccessResponse(res, "AI skills fetched", { skills });
+};
+
+export const updateAiSkill = async (req: Request, res: Response) => {
+  const skills = await aiModelsService.updateAiSkill(
+    req.user.id,
+    req.params["key"]!,
+    req.body.text as string
+  );
+  sendSuccessResponse(res, "AI skill saved", { skills });
+};
