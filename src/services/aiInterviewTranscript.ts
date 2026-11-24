@@ -16,7 +16,7 @@ import logger from "../utils/logger.js";
 import { getFromSpaces } from "../utils/integrations/spaces.js";
 import { transcribe } from "./voice.js";
 import { isPostingCompanyMember } from "./aiInterviewRecording.js";
-import { askFollowUpSafely } from "./aiInterviewFollowUp.js";
+import { draftFollowUp, insertFollowUp } from "./aiInterviewFollowUp.js";
 
 const EXTENSIONS: Record<string, string> = {
   "audio/webm": "webm",
@@ -110,7 +110,6 @@ export const transcribeAnswerRecording = async (questionId: string): Promise<voi
     return;
   }
 
-  let saved = false;
   try {
     const extension = transcriptExtensionFor(question.recordingMimeType ?? "");
     if (!extension) {
@@ -121,22 +120,24 @@ export const transcribeAnswerRecording = async (questionId: string): Promise<voi
       { buffer, extension },
       { maxSeconds: INTERVIEW_ANSWER_MAX_SECONDS }
     );
-    await questionRepo().update(
-      { id: questionId, recordingKey },
-      {
-        transcript,
-        transcriptStatus: "completed",
-        transcribedAt: new Date(),
-        transcriptNextRetryAt: null,
-        transcriptLockedAt: null,
-        transcriptLastError: null,
-      }
-    );
-    saved = true;
+    const followUp = await draftFollowUp(question, transcript);
+    await AppDataSource.transaction(async (em) => {
+      const saved = await em.getRepository(AiInterviewQuestion).update(
+        { id: questionId, recordingKey },
+        {
+          transcript,
+          transcriptStatus: "completed",
+          transcribedAt: new Date(),
+          transcriptNextRetryAt: null,
+          transcriptLockedAt: null,
+          transcriptLastError: null,
+        }
+      );
+      if (followUp && saved.affected) await insertFollowUp(em, question, followUp);
+    });
   } catch (err) {
     await recordFailure(questionId, recordingKey, err);
   }
-  if (saved) await askFollowUpSafely(questionId);
 };
 
 export const reconcileDueInterviewTranscripts = async (): Promise<{ scanned: number }> => {

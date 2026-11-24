@@ -237,18 +237,21 @@ async function drainBackgroundWork(): Promise<void> {
     { drainInFlightScoutRuns },
     { drainInFlightCandidateEmbeddings },
     { drainInFlightAiInterviews },
+    { drainInFlightTranscripts },
     { settleActivityWrites },
   ] = await Promise.all([
     import("../../src/services/applicationStage.js"),
     import("../../src/services/scoutRun.js"),
     import("../../src/services/scoutCandidate.js"),
     import("../../src/services/aiInterview.js"),
+    import("../../src/services/aiInterviewTranscriptQueue.js"),
     import("../../src/services/companyActivity.js"),
   ]);
   await drainInFlightScoutRuns();
   await drainInFlightCandidateEmbeddings();
   await drainInFlightMatchVerdicts();
   await drainInFlightAiInterviews();
+  await drainInFlightTranscripts();
   await settleActivityWrites();
 }
 

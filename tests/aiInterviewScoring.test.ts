@@ -31,6 +31,11 @@ import {
 } from "../src/services/aiInterviewScoring.js";
 
 const bucket = new Map<string, { buffer: Buffer; contentType: string }>();
+jest.mock("../src/services/aiInterviewTranscriptQueue.js", () => ({
+  ...jest.requireActual("../src/services/aiInterviewTranscriptQueue.js"),
+  queueTranscript: jest.fn(),
+}));
+
 jest.mock("../src/utils/integrations/spaces.js", () => {
   const actual = jest.requireActual("../src/utils/integrations/spaces.js");
   return {

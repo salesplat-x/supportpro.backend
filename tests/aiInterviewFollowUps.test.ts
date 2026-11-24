@@ -21,7 +21,11 @@ import { AiInterview } from "../src/entities/AiInterview.js";
 import { AiInterviewQuestion } from "../src/entities/AiInterviewQuestion.js";
 import { ScreeningStage } from "../src/types/enums.js";
 import * as OpenAI from "../src/utils/integrations/openai.js";
-import { reconcileDueInterviewTranscripts } from "../src/services/aiInterviewTranscript.js";
+import {
+  reconcileDueInterviewTranscripts,
+  transcribeAnswerRecording,
+} from "../src/services/aiInterviewTranscript.js";
+import * as TranscriptQueue from "../src/services/aiInterviewTranscriptQueue.js";
 import {
   AI_FOLLOW_UP_MAX_CHARS,
   MAX_AI_INTERVIEW_FOLLOW_UPS,
@@ -29,6 +33,11 @@ import {
 } from "../src/services/aiInterviewFollowUp.js";
 
 const bucket = new Map<string, { buffer: Buffer; contentType: string }>();
+jest.mock("../src/services/aiInterviewTranscriptQueue.js", () => ({
+  ...jest.requireActual("../src/services/aiInterviewTranscriptQueue.js"),
+  queueTranscript: jest.fn(),
+}));
+
 jest.mock("../src/utils/integrations/spaces.js", () => {
   const actual = jest.requireActual("../src/utils/integrations/spaces.js");
   return {
@@ -254,6 +263,38 @@ describe("asking a follow-up after an answer", () => {
 
     expect(mockFollowUp).not.toHaveBeenCalled();
     expect((await rows()).filter((row) => row.isFollowUp)).toHaveLength(1);
+  });
+
+  it("transcribes an uploaded answer straight away, so its follow-up is ready without the sweep", async () => {
+    const actual = jest.requireActual(
+      "../src/services/aiInterviewTranscriptQueue.js"
+    ) as typeof TranscriptQueue;
+    (TranscriptQueue.queueTranscript as jest.Mock).mockImplementationOnce(actual.queueTranscript);
+    mockFollowUp.mockResolvedValueOnce(aiReply({ followUp: "What did you change first?" }));
+    const { talentToken, questions, upload, rows } = await setup();
+
+    await upload(talentToken, questions[0]!.id).expect(200);
+    await actual.drainInFlightTranscripts();
+
+    const all = await rows();
+    expect(all[0]!.transcriptStatus).toBe("completed");
+    expect(all[1]).toMatchObject({ position: 1, isFollowUp: true });
+  });
+
+  it("two answers transcribed at the same moment still stop at two follow-ups", async () => {
+    mockFollowUp.mockResolvedValue(aiReply({ followUp: "Tell me more?" }));
+    const { talentToken, questions, upload, rows } = await setup([
+      { position: 5, question: "Follow-up on question 5?" },
+    ]);
+    await upload(talentToken, questions[0]!.id);
+    await upload(talentToken, questions[1]!.id);
+
+    await Promise.all([
+      transcribeAnswerRecording(questions[0]!.id),
+      transcribeAnswerRecording(questions[1]!.id),
+    ]);
+
+    expect((await rows()).filter((row) => row.isFollowUp)).toHaveLength(2);
   });
 
   it("a question that already has a follow-up gets no second one", async () => {

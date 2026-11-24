@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import * as recordings from "../services/aiInterviewRecording.js";
+import { queueTranscript } from "../services/aiInterviewTranscriptQueue.js";
 import * as candidateInterviews from "../services/aiInterviewCandidate.js";
 import * as transcripts from "../services/aiInterviewTranscript.js";
 import * as assessments from "../services/aiInterviewScoring.js";
@@ -11,6 +12,7 @@ export const uploadRecording = async (req: Request, res: Response) => {
     req.params["questionId"]!,
     req.file
   );
+  queueTranscript(saved.questionId);
   res.status(200).json({ success: true, data: saved });
 };
 

@@ -1,3 +1,4 @@
+import type { EntityManager } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { AiInterview } from "../entities/AiInterview.js";
 import { AiInterviewQuestion } from "../entities/AiInterviewQuestion.js";
@@ -24,59 +25,79 @@ export const parseAiInterviewFollowUp = (content: string | null | undefined): st
   return trimmed;
 };
 
-export const askFollowUpAfterAnswer = async (questionId: string): Promise<void> => {
-  const questionRepo = AppDataSource.getRepository(AiInterviewQuestion);
-  const question = await questionRepo.findOne({ where: { id: questionId } });
-  if (!question || question.isFollowUp || !question.transcript) return;
+const followUpCounts = async (em: EntityManager, question: AiInterviewQuestion) => {
+  const repo = em.getRepository(AiInterviewQuestion);
+  const [total, here] = await Promise.all([
+    repo.count({ where: { interviewId: question.interviewId, isFollowUp: true } }),
+    repo.count({
+      where: { interviewId: question.interviewId, position: question.position, isFollowUp: true },
+    }),
+  ]);
+  return { total, here };
+};
 
-  const interview = await AppDataSource.getRepository(AiInterview).findOne({
-    where: { id: question.interviewId },
-  });
-  if (!interview) return;
+/**
+ * Asks the model whether a main answer needs a follow-up, using the transcript just made, so the
+ * follow-up exists by the time the transcript is saved. Returns null when the interview has its
+ * follow-ups already, none is needed, or the model fails: the transcript never waits on this.
+ */
+export const draftFollowUp = async (
+  question: AiInterviewQuestion,
+  transcript: string
+): Promise<string | null> => {
+  if (question.isFollowUp) return null;
+  try {
+    const { total, here } = await followUpCounts(AppDataSource.manager, question);
+    if (total >= MAX_AI_INTERVIEW_FOLLOW_UPS || here > 0) return null;
+    const interview = await AppDataSource.getRepository(AiInterview).findOne({
+      where: { id: question.interviewId },
+      select: { id: true, jobId: true },
+    });
+    if (!interview) return null;
+    const job = await AppDataSource.getRepository(Job).findOne({
+      where: { id: interview.jobId },
+      relations: { role: true },
+    });
+    const reply = await generateAiInterviewFollowUp({
+      roleName: job?.role?.name ?? "",
+      jobBrief: job?.jobBrief ?? "",
+      requirements: job?.requirements ?? null,
+      question: question.question,
+      answer: transcript,
+    });
+    return parseAiInterviewFollowUp(reply?.message?.content);
+  } catch (err) {
+    logger.warn(
+      `Interview follow-up skipped for question ${question.id}: ${err instanceof Error ? err.message : String(err)}`
+    );
+    return null;
+  }
+};
 
-  const followUps = await questionRepo.count({
-    where: { interviewId: interview.id, isFollowUp: true },
-  });
-  if (followUps >= MAX_AI_INTERVIEW_FOLLOW_UPS) return;
-
-  const alreadyFollowedUp = await questionRepo.count({
-    where: { interviewId: interview.id, position: question.position, isFollowUp: true },
-  });
-  if (alreadyFollowedUp > 0) return;
-
-  const job = await AppDataSource.getRepository(Job).findOne({
-    where: { id: interview.jobId },
-    relations: { role: true },
-  });
-  const reply = await generateAiInterviewFollowUp({
-    roleName: job?.role?.name ?? "",
-    jobBrief: job?.jobBrief ?? "",
-    requirements: job?.requirements ?? null,
-    question: question.question,
-    answer: question.transcript,
-  });
-  const followUp = parseAiInterviewFollowUp(reply?.message?.content);
-  if (!followUp) return;
-
-  await questionRepo
+/**
+ * Saves the follow-up inside the transcript's transaction. The interview row is locked and the
+ * follow-ups counted again, so two answers transcribed at once can't pass the limit.
+ */
+export const insertFollowUp = async (
+  em: EntityManager,
+  question: AiInterviewQuestion,
+  followUp: string
+): Promise<void> => {
+  await em.query(`SELECT 1 FROM "ai_interviews" WHERE "id" = $1 FOR UPDATE`, [
+    question.interviewId,
+  ]);
+  const { total, here } = await followUpCounts(em, question);
+  if (total >= MAX_AI_INTERVIEW_FOLLOW_UPS || here > 0) return;
+  await em
     .createQueryBuilder()
     .insert()
+    .into(AiInterviewQuestion)
     .values({
-      interviewId: interview.id,
+      interviewId: question.interviewId,
       position: question.position,
       isFollowUp: true,
       question: followUp,
     })
     .orIgnore()
     .execute();
-};
-
-export const askFollowUpSafely = async (questionId: string): Promise<void> => {
-  try {
-    await askFollowUpAfterAnswer(questionId);
-  } catch (err) {
-    logger.warn(
-      `Interview follow-up skipped for question ${questionId}: ${err instanceof Error ? err.message : String(err)}`
-    );
-  }
 };
