@@ -177,15 +177,18 @@ describe("uploading an answer recording", () => {
     expect(mockUpload).not.toHaveBeenCalled();
   });
 
-  it("replaces an earlier recording and removes the old file", async () => {
+  it("refuses a second recording for an answered question and keeps the first", async () => {
     const { talentToken, upload, reloadQuestion } = await setup();
     await upload(talentToken, Buffer.from("first"));
     const firstKey = (await reloadQuestion()).recordingKey!;
-    await upload(talentToken, Buffer.from("second"));
+
+    const again = await upload(talentToken, Buffer.from("second"));
+
+    expect(again.status).toBe(409);
     const question = await reloadQuestion();
-    expect(question.recordingKey).not.toBe(firstKey);
-    expect(bucket.has(firstKey)).toBe(false);
-    expect(bucket.get(question.recordingKey!)!.buffer.toString()).toBe("second");
+    expect(question.recordingKey).toBe(firstKey);
+    expect(bucket.get(firstKey)!.buffer.toString()).toBe("first");
+    expect(bucket.size).toBe(1);
   });
 
   it("answers 404 for a question that isn't in this interview", async () => {

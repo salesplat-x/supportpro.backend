@@ -2,7 +2,14 @@ import { AppDataSource } from "../database/dataSource.js";
 import { AiInterview } from "../entities/AiInterview.js";
 import { AiInterviewQuestion } from "../entities/AiInterviewQuestion.js";
 import { Job } from "../entities/Job.js";
-import { AppError, AuthorizationError, NotFoundError, ValidationError } from "../utils/errors";
+import { IsNull } from "typeorm";
+import {
+  AppError,
+  AuthorizationError,
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+} from "../utils/errors";
 import {
   deleteSpacesObjectQuietly,
   getFromSpaces,
@@ -88,24 +95,27 @@ export const saveRecording = async (
     measureSeconds(file.buffer, mimeType),
   ]);
 
-  const previousKey = question.recordingKey;
   const recordedAt = new Date();
-  await AppDataSource.getRepository(AiInterviewQuestion).update(question.id, {
-    recordingKey: key,
-    recordingMimeType: mimeType,
-    recordingSize: file.size,
-    recordingDurationSeconds: durationSeconds,
-    recordedAt,
-    transcriptStatus: "pending",
-    transcript: null,
-    transcribedAt: null,
-    transcriptAttempts: 0,
-    transcriptNextRetryAt: null,
-    transcriptLockedAt: null,
-    transcriptLastError: null,
-  });
-  if (previousKey && previousKey !== key) {
-    await deleteSpacesObjectQuietly(previousKey, `interview question ${question.id}`);
+  const saved = await AppDataSource.getRepository(AiInterviewQuestion).update(
+    { id: question.id, recordedAt: IsNull() },
+    {
+      recordingKey: key,
+      recordingMimeType: mimeType,
+      recordingSize: file.size,
+      recordingDurationSeconds: durationSeconds,
+      recordedAt,
+      transcriptStatus: "pending",
+      transcript: null,
+      transcribedAt: null,
+      transcriptAttempts: 0,
+      transcriptNextRetryAt: null,
+      transcriptLockedAt: null,
+      transcriptLastError: null,
+    }
+  );
+  if (!saved.affected) {
+    await deleteSpacesObjectQuietly(key, `second answer to interview question ${question.id}`);
+    throw new ConflictError("This question is already answered");
   }
   await AppDataSource.getRepository(AiInterview).update(interview.id, {
     scoringStatus: null,

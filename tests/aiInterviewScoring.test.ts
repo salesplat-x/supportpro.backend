@@ -276,7 +276,7 @@ describe("saving the assessment", () => {
     expect(saved.summary).toBe(GOOD_ASSESSMENT.summary);
   });
 
-  it("re-recording an answer clears the saved assessment, to be scored again", async () => {
+  it("a refused second recording leaves the saved assessment alone", async () => {
     const { talentToken, uploadAll, upload, sweep, reloadInterview, questions } = await setup();
     await uploadAll(talentToken);
     await sweep();
@@ -284,15 +284,10 @@ describe("saving the assessment", () => {
 
     await upload(talentToken, questions[0]!.id);
 
-    const cleared = await reloadInterview();
-    expect(cleared.scoringStatus).toBeNull();
-    expect(cleared.scores).toBeNull();
-    expect(cleared.summary).toBeNull();
-    expect(cleared.flags).toBeNull();
-
-    await sweep();
-    expect(mockScore).toHaveBeenCalledTimes(2);
-    expect((await reloadInterview()).scoringStatus).toBe("completed");
+    const kept = await reloadInterview();
+    expect(kept.scoringStatus).toBe("completed");
+    expect(kept.summary).toBe(GOOD_ASSESSMENT.summary);
+    expect(mockScore).toHaveBeenCalledTimes(1);
   });
 
   it("a provider failure is retried later with the reason kept", async () => {
