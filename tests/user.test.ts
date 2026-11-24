@@ -304,6 +304,57 @@ describe("PATCH /v1/user/me", () => {
 
     expect(res.status).toBe(400);
   });
+
+  it("saves a role the talent typed, reusing an existing one regardless of case", async () => {
+    const { token, user } = await createTalent();
+    const picked = await createRole("Product Manager");
+    const seeded = await createRole("Software Engineer");
+
+    const res = await request(app)
+      .patch("/v1/user/me")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ roleIds: [picked.id], newRoles: ["software  engineer", "Solar Installer"] });
+
+    expect(res.status).toBe(200);
+    const saved = await testDataSource.getRepository(User).findOneOrFail({
+      where: { id: user.id },
+      relations: { userRoles: true },
+    });
+    const names = saved.userRoles.map((role) => role.name).sort();
+    expect(names).toEqual(["Product Manager", "Software Engineer", "solar installer"]);
+    expect(saved.userRoles.map((role) => role.id)).toContain(seeded.id);
+    expect(saved.roleChangeCount).toBe(1);
+    expect(await testDataSource.getRepository(Role).count()).toBe(3);
+  });
+
+  it("refuses a typed role once the change limit is reached and creates no role", async () => {
+    const { token, user } = await createTalent();
+    await testDataSource.getRepository(User).update(user.id, { roleChangeCount: 3 });
+
+    const res = await request(app)
+      .patch("/v1/user/me")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ roleIds: [], newRoles: ["Solar Installer"] });
+
+    expect(res.status).toBe(400);
+    expect(await testDataSource.getRepository(Role).count()).toBe(0);
+  });
+
+  it("rejects typed roles sent without roleIds or with markup → 400", async () => {
+    const { token } = await createTalent();
+
+    const withoutIds = await request(app)
+      .patch("/v1/user/me")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ newRoles: ["Solar Installer"] });
+    const withMarkup = await request(app)
+      .patch("/v1/user/me")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ roleIds: [], newRoles: ["<b>x</b>"] });
+
+    expect(withoutIds.status).toBe(400);
+    expect(withMarkup.status).toBe(400);
+  });
 });
 
 describe("PATCH /v1/user/profile", () => {

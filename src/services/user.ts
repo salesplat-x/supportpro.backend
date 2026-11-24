@@ -39,6 +39,7 @@ import {
 } from "./candidatePipeline.js";
 import { syncCandidateStage } from "./applicationStage.js";
 import { notifyTalent, profileViewKey, TALENT_NOTIFICATION } from "./talentNotifications.js";
+import { findOrCreateRoles } from "./role.js";
 
 // mammoth (used by extractText) only supports .docx, not legacy binary .doc —
 // keep this in sync with what extractText can actually parse.
@@ -103,6 +104,7 @@ export interface UpdateUserPayload {
   country?: string;
   bio?: string;
   roleIds?: string[];
+  newRoles?: string[];
   locationCity?: string;
   locationState?: string;
   locationCountry?: string;
@@ -143,23 +145,30 @@ export const updateUser = async (userId: string, payload: UpdateUserPayload): Pr
     update.compensationPeriod = payload.compensationPeriod as User["compensationPeriod"];
   if (payload.workType !== undefined) update.workType = payload.workType;
 
-  // Role changes
-  if (payload.roleIds !== undefined) {
-    const newRoles = await validateAndFetchRoles(payload.roleIds);
-    if (rolesChanged(existingUser.userRoles ?? [], payload.roleIds)) {
-      const currentCount = existingUser.roleChangeCount ?? 0;
-      if (currentCount >= ROLE_CHANGE_LIMIT) {
-        throw new ValidationError(
-          "Role change limit reached. You may only change your role 3 times."
-        );
+  return AppDataSource.transaction(async (em) => {
+    if (payload.roleIds !== undefined) {
+      const picked = await validateAndFetchRoles(payload.roleIds);
+      const typed = await findOrCreateRoles(payload.newRoles ?? [], em);
+      const roles = [...new Map([...picked, ...typed].map((role) => [role.id, role])).values()];
+      if (
+        rolesChanged(
+          existingUser.userRoles ?? [],
+          roles.map((role) => role.id)
+        )
+      ) {
+        const currentCount = existingUser.roleChangeCount ?? 0;
+        if (currentCount >= ROLE_CHANGE_LIMIT) {
+          throw new ValidationError(
+            "Role change limit reached. You may only change your role 3 times."
+          );
+        }
+        update.roleChangeCount = currentCount + 1;
       }
-      update.roleChangeCount = currentCount + 1;
+      existingUser.userRoles = roles;
     }
-    existingUser.userRoles = newRoles;
-  }
 
-  const saved = await userRepo().save({ ...existingUser, ...update });
-  return saved;
+    return em.getRepository(User).save({ ...existingUser, ...update });
+  });
 };
 
 export interface EditProfilePayload {

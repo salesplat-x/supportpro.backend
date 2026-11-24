@@ -1,4 +1,4 @@
-import { QueryFailedError } from "typeorm";
+import { EntityManager, QueryFailedError } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { Role, Question } from "../entities";
 import { NotFoundError, ConflictError } from "../utils/errors";
@@ -31,6 +31,56 @@ export const createRole = async (payload: RolePayload): Promise<Role> => {
   }
   const role = roleRepo().create({ name, description: payload.description ?? null });
   return roleRepo().save(role);
+};
+
+const cleanRoleName = (name: string): string => name.trim().replace(/\s+/g, " ");
+
+const rolesByKey = async (em: EntityManager, keys: string[]): Promise<Map<string, Role>> => {
+  const rows = await em
+    .getRepository(Role)
+    .createQueryBuilder("role")
+    .where("lower(role.name) IN (:...keys)", { keys })
+    .orderBy("role.createdAt", "ASC")
+    .getMany();
+  const found = new Map<string, Role>();
+  for (const role of rows) {
+    const key = role.name.toLowerCase();
+    if (!found.has(key)) found.set(key, role);
+  }
+  return found;
+};
+
+/**
+ * Matches typed role names to existing roles regardless of case and creates the missing ones,
+ * lowercased like every role created through the API. Two people typing the same new role at
+ * once end up with one row.
+ */
+export const findOrCreateRoles = async (
+  names: string[],
+  em: EntityManager = AppDataSource.manager
+): Promise<Role[]> => {
+  const keys = [
+    ...new Set(
+      names
+        .map(cleanRoleName)
+        .filter(Boolean)
+        .map((n) => n.toLowerCase())
+    ),
+  ];
+  if (keys.length === 0) return [];
+  const found = await rolesByKey(em, keys);
+  const missing = keys.filter((key) => !found.has(key));
+  if (missing.length > 0) {
+    await em
+      .createQueryBuilder()
+      .insert()
+      .into(Role)
+      .values(missing.map((name) => ({ name })))
+      .orIgnore()
+      .execute();
+    for (const [key, role] of await rolesByKey(em, missing)) found.set(key, role);
+  }
+  return keys.map((key) => found.get(key)!);
 };
 
 export const fetchAllRoles = async (paging: PagingParams): Promise<Role[]> => {
