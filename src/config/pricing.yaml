@@ -72,7 +72,7 @@ plans:
 
   - key: pay_per_use
     name: Pay per Use
-    description: Pay ₦75,000 per job listing — no monthly commitment.
+    description: Pay per job listing, no monthly commitment.
     priceCaption: Billed per job listing
     cta: Get started
     secondaryCta: Chat to sales
