@@ -26,6 +26,7 @@ import {
 import { AIConfig } from "../src/entities/AIConfig.js";
 import { TalentEmbedding } from "../src/entities/TalentEmbedding.js";
 import { Job } from "../src/entities/Job.js";
+import { Role } from "../src/entities/Role.js";
 import { Organization } from "../src/entities/Organization.js";
 import { AiRecommendation } from "../src/entities/AiRecommendation.js";
 import { Application } from "../src/entities/Application.js";
@@ -169,6 +170,50 @@ describe("POST /v1/jobs/", () => {
     expect(res.status).toBe(201);
     expect(res.body.data.job.jobBrief).toBe("Looking for a great engineer");
     expect(res.body.data.job.locationCountry).toBeNull();
+  });
+
+  it("reuses an existing role typed in a different case instead of creating a duplicate", async () => {
+    const { token } = await createRecruiter();
+    const seeded = await createRole("Data Analyst");
+
+    const res = await request(app)
+      .post("/v1/jobs/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        role: "  data   analyst ",
+        jobBrief: "Looking for an analyst",
+        experienceLevel: "4-6 years",
+        maxSalary: 100000,
+        minSalary: 50000,
+        compensationPeriod: "yearly",
+        workMode: ["remote"],
+      });
+
+    expect(res.status).toBe(201);
+    const job = await testDataSource
+      .getRepository(Job)
+      .findOneByOrFail({ id: res.body.data.job.id });
+    expect(job.roleId).toBe(seeded.id);
+    expect(await testDataSource.getRepository(Role).count()).toBe(1);
+  });
+
+  it("rejects a typed role that could carry markup → 400", async () => {
+    const { token } = await createRecruiter();
+
+    const res = await request(app)
+      .post("/v1/jobs/")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        role: "<script>engineer</script>",
+        jobBrief: "Looking for an engineer",
+        experienceLevel: "4-6 years",
+        maxSalary: 100000,
+        minSalary: 50000,
+        compensationPeriod: "yearly",
+        workMode: ["remote"],
+      });
+
+    expect(res.status).toBe(400);
   });
 
   it("creates a remote job without location → 201", async () => {

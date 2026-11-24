@@ -75,6 +75,7 @@ import { screeningPlan, type ScreeningPlanStep } from "./screeningPlan.js";
 import { savedJobIds } from "./savedJobs.js";
 import { StaffMember, StaffStatus } from "../entities/StaffMember.js";
 import { notifyApplicationReceived, notifyStageReached } from "./talentNotifications.js";
+import { findOrCreateRoles } from "./role.js";
 
 const jobRepo = () => AppDataSource.getRepository(Job);
 
@@ -330,17 +331,7 @@ export const createJob = async (userId: string, payload: CreateJobPayload): Prom
       payload.role
     );
     const roleById = isUUID ? await roleRepo().findOne({ where: { id: payload.role } }) : null;
-    if (roleById) {
-      roleId = roleById.id;
-    } else {
-      // role is a name string, find or create
-      const roleName = payload.role.toLowerCase();
-      let existingRole = await roleRepo().findOne({ where: { name: roleName } });
-      if (!existingRole) {
-        existingRole = await roleRepo().save(roleRepo().create({ name: roleName }));
-      }
-      roleId = existingRole.id;
-    }
+    roleId = roleById ? roleById.id : (await findOrCreateRoles([payload.role]))[0]!.id;
   } else {
     throw new ValidationError("Role is required");
   }

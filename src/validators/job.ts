@@ -1,5 +1,7 @@
 import { body, query, param } from "express-validator";
+import { validate as isUUID } from "uuid";
 import { paginationRules, idParam } from "./shared.js";
+import { isTypedRoleName, TYPED_ROLE_NAME_MESSAGE } from "./role.js";
 import {
   ExperienceLevel,
   WorkMode,
@@ -96,7 +98,13 @@ const jobPostDetailValidators = [
 ];
 
 export const createJobValidator = [
-  body("role").notEmpty().trim().withMessage("Role is required"),
+  body("role")
+    .notEmpty()
+    .withMessage("Role is required")
+    .bail()
+    .trim()
+    .custom((value: string) => isUUID(value) || isTypedRoleName(value))
+    .withMessage(TYPED_ROLE_NAME_MESSAGE),
   body("aiConfig").optional().isString(),
   body("jobBrief").notEmpty().withMessage("Job brief is required"),
   body("experienceLevel")

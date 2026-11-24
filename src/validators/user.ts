@@ -1,5 +1,6 @@
 import { body, param, query } from "express-validator";
 import { paginationRules, idParam } from "./shared.js";
+import { isTypedRoleName, TYPED_ROLE_NAME_MESSAGE } from "./role.js";
 import {
   ExperienceLevel,
   WorkType,
@@ -57,6 +58,14 @@ export const updateUserValidator = [
   body("middleName").optional().trim(),
   body("country").optional().trim(),
   ...profileFieldRules,
+  body("newRoles")
+    .optional()
+    .isArray({ max: 5 })
+    .withMessage("newRoles must be a list of at most 5 role names")
+    .bail()
+    .custom((_value, { req }) => Array.isArray(req.body.roleIds))
+    .withMessage("Send roleIds together with newRoles"),
+  body("newRoles.*").custom(isTypedRoleName).withMessage(TYPED_ROLE_NAME_MESSAGE),
 ];
 
 export const updateProfileValidator = [...profileFieldRules];
