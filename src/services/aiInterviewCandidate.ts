@@ -1,7 +1,7 @@
 import { AppDataSource } from "../database/dataSource.js";
 import { AiInterview } from "../entities/AiInterview.js";
 import { AiInterviewQuestion } from "../entities/AiInterviewQuestion.js";
-import { AuthorizationError, NotFoundError } from "../utils/errors";
+import { AuthorizationError, ConflictError, NotFoundError } from "../utils/errors";
 
 export interface CandidateInterviewQuestion {
   id: string;
@@ -19,6 +19,14 @@ export const getCandidateInterview = async (userId: string, interviewId: string)
   if (!interview) throw new NotFoundError("Interview not found");
   if (interview.talentId !== userId) {
     throw new AuthorizationError("Only the candidate can open this interview");
+  }
+  if (interview.status === "pending") {
+    throw new ConflictError("Your interview is still being prepared. Try again in a minute.");
+  }
+  if (interview.status === "failed") {
+    throw new ConflictError(
+      "This interview isn't available right now. Please contact the hiring team."
+    );
   }
   const rows = await AppDataSource.getRepository(AiInterviewQuestion).find({
     where: { interviewId },
@@ -41,6 +49,10 @@ export const getCandidateInterview = async (userId: string, interviewId: string)
     totalQuestions: questions.length,
     answeredCount: questions.filter((question) => question.answered).length,
     nextQuestionId: next?.id ?? null,
+    /** True while a main answer is still being turned into text, so a follow-up may yet appear. */
+    checking: rows.some(
+      (row) => !row.isFollowUp && row.recordedAt !== null && row.transcriptStatus === "pending"
+    ),
     questions,
   };
 };

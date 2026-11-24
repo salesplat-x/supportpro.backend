@@ -243,7 +243,7 @@ class EmailService {
     const paragraphs = [
       `Hi ${details.firstName || "there"},`,
       `You're through to the interview for ${details.jobTitle}${details.companyName ? ` at ${details.companyName}` : ""}.`,
-      `There are 5 questions, and you'll record your answers (${how}).`,
+      `There are 5 questions, plus up to 2 short follow-ups, and you'll record your answers (${how}).`,
     ];
     const html = renderTemplate("application-follow-up", {
       jobTitle: details.jobTitle,
