@@ -150,6 +150,8 @@ export interface RecruiterInterview {
   id: string;
   mode: AiInterview["mode"];
   status: InterviewProgress;
+  /** True when this interview can't be scored, though its answers can still be played. */
+  failed: boolean;
   invitedAt: Date | null;
   startedAt: Date | null;
   scoringStatus: AiInterview["scoringStatus"];
@@ -192,6 +194,7 @@ export const getRecruiterInterview = async (
     id: interview.id,
     mode: interview.mode,
     status: progress.get(applicationId)?.interview.status ?? "not_started",
+    failed: progress.get(applicationId)?.interview.failed ?? false,
     invitedAt: interview.invitedAt,
     startedAt: recordedTimes.length ? new Date(Math.min(...recordedTimes)) : null,
     scoringStatus: interview.scoringStatus,

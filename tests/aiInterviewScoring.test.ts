@@ -29,6 +29,8 @@ import {
   parseInterviewAssessment,
   reconcileDueInterviewScoring,
 } from "../src/services/aiInterviewScoring.js";
+import { getRecruiterInterview } from "../src/services/aiInterview.js";
+import { loadApplicationProgress } from "../src/services/applicationProgress.js";
 
 const bucket = new Map<string, { buffer: Buffer; contentType: string }>();
 jest.mock("../src/services/aiInterviewTranscriptQueue.js", () => ({
@@ -236,6 +238,59 @@ describe("when scoring starts", () => {
     expect(interview.summary).toBe(GOOD_ASSESSMENT.summary);
     expect(interview.flags).toEqual(GOOD_ASSESSMENT.flags);
     expect(interview.scoredAt).toBeInstanceOf(Date);
+  });
+
+  it("doesn't wait on an unanswered follow-up, and scores again once it is answered", async () => {
+    const { talentToken, uploadAll, upload, sweep, reloadInterview, interview } = await setup();
+    await uploadAll(talentToken);
+    const followUp = await testDataSource.getRepository(AiInterviewQuestion).save({
+      interviewId: interview.id,
+      position: 1,
+      isFollowUp: true,
+      question: "Follow-up on question 1?",
+    });
+
+    await sweep();
+    expect((await reloadInterview()).scoringStatus).toBe("completed");
+
+    await upload(talentToken, followUp.id).expect(200);
+    expect((await reloadInterview()).scoringStatus).toBeNull();
+    await sweep();
+
+    expect(mockScore).toHaveBeenCalledTimes(2);
+    expect((await reloadInterview()).scoringStatus).toBe("completed");
+  });
+
+  it("marks an interview failed when scoring gives up, and keeps its status", async () => {
+    const { talentToken, uploadAll, application, interview } = await setup();
+    await uploadAll(talentToken);
+    await testDataSource.getRepository(AiInterview).update(interview.id, {
+      scoringStatus: "failed",
+    });
+
+    const progress = (await loadApplicationProgress([application.id])).get(application.id)!;
+    expect(progress.interview).toMatchObject({ status: "processing", failed: true });
+    expect((await getRecruiterInterview(application.id))?.failed).toBe(true);
+  });
+
+  it("marks an interview failed when no answer could be turned into text", async () => {
+    mockTranscribe.mockRejectedValue(new ValidationError("We couldn't hear anything"));
+    const { talentToken, uploadAll, sweep, application } = await setup();
+    await uploadAll(talentToken);
+
+    await sweep();
+
+    expect(mockScore).not.toHaveBeenCalled();
+    const progress = (await loadApplicationProgress([application.id])).get(application.id)!;
+    expect(progress.interview).toMatchObject({ status: "processing", failed: true });
+  });
+
+  it("isn't failed while answers are still coming in", async () => {
+    const { talentToken, upload, questions, application } = await setup();
+    await upload(talentToken, questions[0]!.id);
+
+    const progress = (await loadApplicationProgress([application.id])).get(application.id)!;
+    expect(progress.interview.failed).toBe(false);
   });
 
   it("leaves out an answer whose transcript failed for good", async () => {

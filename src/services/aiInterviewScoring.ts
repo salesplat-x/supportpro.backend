@@ -112,7 +112,7 @@ const READY_FOR_SCORING_SQL = `
     AND NOT EXISTS (
       SELECT 1 FROM "ai_interview_questions" q
       WHERE q."interview_id" = i."id"
-        AND (q."recorded_at" IS NULL OR q."transcript_status" = 'pending')
+        AND ((q."recorded_at" IS NULL AND NOT q."is_follow_up") OR q."transcript_status" = 'pending')
     )
 `;
 

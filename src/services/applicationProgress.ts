@@ -51,8 +51,9 @@ export const boardColumnSql = (a: string, u: string) => `CASE
   END`;
 
 /**
- * Not started until the candidate is invited or records an answer; processing once every
- * question has a recording but the scores are not in yet.
+ * Not started until the candidate is invited or records an answer; processing once every main
+ * question has a recording but the scores are not in yet. An unanswered follow-up never holds
+ * an interview back.
  */
 export const interviewProgressSql = (i: string) => `CASE
     WHEN NOT ${interviewStartedSql(i)} THEN 'not_started'
@@ -61,6 +62,7 @@ export const interviewProgressSql = (i: string) => `CASE
       AND NOT EXISTS (
         SELECT 1 FROM "ai_interview_questions" q
         WHERE q."interview_id" = ${col(i, "id")} AND q."recorded_at" IS NULL
+          AND NOT q."is_follow_up"
       ) THEN 'processing'
     WHEN ${col(i, "invited_at")} IS NOT NULL
       OR EXISTS (
@@ -69,6 +71,27 @@ export const interviewProgressSql = (i: string) => `CASE
       ) THEN 'in_progress'
     ELSE 'not_started'
   END`;
+
+/**
+ * An interview that can't be scored: scoring gave up, or every main answer is in and none could
+ * be turned into text. It stays "processing" in the status, which older pages already know.
+ */
+export const interviewFailedSql = (i: string) => `COALESCE(
+    ${col(i, "scoring_status")} = 'failed'
+    OR (
+      EXISTS (SELECT 1 FROM "ai_interview_questions" q WHERE q."interview_id" = ${col(i, "id")})
+      AND NOT EXISTS (
+        SELECT 1 FROM "ai_interview_questions" q
+        WHERE q."interview_id" = ${col(i, "id")}
+          AND ((q."recorded_at" IS NULL AND NOT q."is_follow_up") OR q."transcript_status" = 'pending')
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM "ai_interview_questions" q
+        WHERE q."interview_id" = ${col(i, "id")} AND q."transcript_status" = 'completed'
+      )
+    ),
+    false
+  )`;
 
 /** One status over every check ordered on the application: failed, flagged, pending, else verified. */
 export const verificationSql = (a: string) => `COALESCE((
@@ -86,14 +109,14 @@ export const verificationSql = (a: string) => `COALESCE((
 export interface ApplicationProgress {
   stage: ProgressStage;
   boardColumn: BoardColumn | null;
-  interview: { id: string | null; status: InterviewProgress };
+  interview: { id: string | null; status: InterviewProgress; failed: boolean };
   verification: VerificationState;
 }
 
 export const NO_PROGRESS: ApplicationProgress = {
   stage: "applied",
   boardColumn: null,
-  interview: { id: null, status: "not_started" },
+  interview: { id: null, status: "not_started", failed: false },
   verification: "none",
 };
 
@@ -106,6 +129,7 @@ export const loadApplicationProgress = async (
        ${progressStageSql("a", "u", "i")} AS stage,
        ${boardColumnSql("a", "u")} AS board_column,
        ${interviewProgressSql("i")} AS interview_status,
+       ${interviewFailedSql("i")} AS interview_failed,
        CASE WHEN ${interviewStartedSql("i")} THEN i.id ELSE NULL END AS interview_id,
        ${verificationSql("a")} AS verification
      FROM applications a
@@ -118,6 +142,7 @@ export const loadApplicationProgress = async (
     stage: ProgressStage;
     board_column: BoardColumn | null;
     interview_status: InterviewProgress;
+    interview_failed: boolean;
     interview_id: string | null;
     verification: VerificationState;
   }>;
@@ -127,7 +152,11 @@ export const loadApplicationProgress = async (
       {
         stage: row.stage,
         boardColumn: row.board_column,
-        interview: { id: row.interview_id, status: row.interview_status },
+        interview: {
+          id: row.interview_id,
+          status: row.interview_status,
+          failed: row.interview_failed,
+        },
         verification: row.verification,
       },
     ])
