@@ -11,6 +11,7 @@ import { ConflictError, NotFoundError, ValidationError } from "../utils/errors";
 import { ApplicationStatus } from "../types/enums.js";
 import { copyDefaultChecklist } from "./checklist.js";
 import { withdrawPendingForStaff } from "./completionRequests.js";
+import { resolveDepartment } from "./departments.js";
 import { assertCanManagePeople, seesOnlyAssignedStaff } from "./peopleAccess.js";
 import { activityEntry, openStaff, recordActivities } from "./staffAudit.js";
 import {
@@ -171,13 +172,15 @@ export const createStaff = async (
       if (input.managerId) {
         await assertValidManager(em, organizationId, input.managerId);
       }
+      const department = await resolveDepartment(em, organizationId, input.department);
       const repo = em.getRepository(StaffMember);
       const record = repo.create({
         organizationId,
         fullName,
         email,
         jobTitle: input.jobTitle,
-        department: input.department?.trim() || null,
+        department: department?.name ?? null,
+        departmentId: department?.id ?? null,
         managerId: input.managerId ?? null,
         startDate: input.startDate,
         isExecutive: input.isExecutive ?? false,
@@ -358,10 +361,13 @@ export const updateStaff = async (
       };
       change("fullName", input.fullName);
       change("jobTitle", input.jobTitle);
-      change(
-        "department",
-        input.department === undefined ? undefined : input.department?.trim() || null
-      );
+      let relinked = false;
+      if (input.department !== undefined) {
+        const department = await resolveDepartment(em, organizationId, input.department);
+        change("department", department?.name ?? null);
+        relinked = (department?.id ?? null) !== current.departmentId;
+        current.departmentId = department?.id ?? null;
+      }
       change("startDate", input.startDate);
       change("isExecutive", input.isExecutive);
       change("phone", clearable(input.phone));
@@ -396,13 +402,15 @@ export const updateStaff = async (
         current.managerId = input.managerId;
       }
 
-      if (Object.keys(changes).length === 0) {
+      if (Object.keys(changes).length === 0 && !relinked) {
         return current;
       }
       const saved = await em.getRepository(StaffMember).save(current);
-      await recordActivities(em, saved, [
-        activityEntry(StaffActivityType.Updated, actor, { changes }),
-      ]);
+      if (Object.keys(changes).length > 0) {
+        await recordActivities(em, saved, [
+          activityEntry(StaffActivityType.Updated, actor, { changes }),
+        ]);
+      }
       return saved;
     })
   );

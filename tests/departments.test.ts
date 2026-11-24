@@ -1,5 +1,6 @@
 import request from "supertest";
 import { createApp } from "../src/app.js";
+import { Department } from "../src/entities/Department.js";
 import { Organization } from "../src/entities/Organization.js";
 import { StaffMember } from "../src/entities/StaffMember.js";
 import {
@@ -118,6 +119,9 @@ describe("company departments", () => {
     const { owner, org } = await setupCompany();
     const full = Array.from({ length: 50 }, (_, i) => `Team ${i + 1}`);
     await testDataSource.getRepository(Organization).update(org.id, { departments: full });
+    await testDataSource
+      .getRepository(Department)
+      .save(full.map((name) => ({ organizationId: org.id, name })));
 
     const res = await add(owner.token, org.id, "One more");
 
@@ -147,17 +151,109 @@ describe("company departments", () => {
     expect(apiData<{ departments: string[] }>(again).departments).toEqual(["Design", "Support"]);
   });
 
-  it("removing a department leaves staff who are in it unchanged", async () => {
+  it("removing a department leaves the people who were in it with no department", async () => {
     const { owner, org } = await setupCompany();
     await add(owner.token, org.id, "Sales").expect(201);
     const staff = await createStaff(app, owner.token, org.id, { department: "Sales" });
 
-    await remove(owner.token, org.id, "Sales").expect(200);
+    await remove(owner.token, org.id, "sales").expect(200);
 
     const stored = await testDataSource
       .getRepository(StaffMember)
       .findOneByOrFail({ id: staff.id });
-    expect(stored.department).toBe("Sales");
+    expect(stored.department).toBeNull();
+    expect(stored.departmentId).toBeNull();
+    expect(await testDataSource.getRepository(Department).countBy({ organizationId: org.id })).toBe(
+      0
+    );
+  });
+
+  it("each added department is also a row, kept in step with the list", async () => {
+    const { owner, org } = await setupCompany();
+
+    await add(owner.token, org.id, "Engineering").expect(201);
+
+    const rows = await testDataSource.getRepository(Department).findBy({ organizationId: org.id });
+    expect(rows.map((row) => row.name)).toEqual(["Engineering"]);
+  });
+
+  it("a staff write links the department in any letter case and creates a new one", async () => {
+    const { owner, org } = await setupCompany();
+    await add(owner.token, org.id, "Sales").expect(201);
+
+    const existing = await createStaff(app, owner.token, org.id, { department: "sales" });
+    const created = await createStaff(app, owner.token, org.id, {
+      email: "ops@example.com",
+      department: "Operations",
+    });
+
+    const repo = testDataSource.getRepository(StaffMember);
+    const first = await repo.findOneByOrFail({ id: existing.id });
+    const second = await repo.findOneByOrFail({ id: created.id });
+    const departments = testDataSource.getRepository(Department);
+    expect(first.department).toBe("Sales");
+    expect(first.departmentId).toBe(
+      (await departments.findOneByOrFail({ organizationId: org.id, name: "Sales" })).id
+    );
+    expect(second.departmentId).toBe(
+      (await departments.findOneByOrFail({ organizationId: org.id, name: "Operations" })).id
+    );
+    expect(await storedDepartments(org.id)).toEqual(["Sales", "Operations"]);
+  });
+
+  it("changing someone's department moves the link", async () => {
+    const { owner, org } = await setupCompany();
+    const staff = await createStaff(app, owner.token, org.id, { department: "Sales" });
+
+    await request(app)
+      .patch(`/v1/organizations/${org.id}/staff/${staff.id}`)
+      .set(authHeader(owner.token))
+      .send({ department: "Finance" })
+      .expect(200);
+
+    const stored = await testDataSource
+      .getRepository(StaffMember)
+      .findOneByOrFail({ id: staff.id });
+    const finance = await testDataSource
+      .getRepository(Department)
+      .findOneByOrFail({ organizationId: org.id, name: "Finance" });
+    expect(stored.departmentId).toBe(finance.id);
+    expect(stored.department).toBe("Finance");
+  });
+
+  it("an import creates the departments it names once, in any letter case", async () => {
+    const { owner, org } = await setupCompany();
+    const row = (fullName: string, email: string, department: string) => ({
+      fullName,
+      email,
+      jobTitle: "Analyst",
+      department,
+      startDate: "2026-01-05",
+    });
+
+    await request(app)
+      .post(`/v1/organizations/${org.id}/staff/import`)
+      .set(authHeader(owner.token))
+      .send({
+        commit: true,
+        rows: [
+          row("Ada One", "ada@example.com", "Finance"),
+          row("Bo Two", "bo@example.com", "finance"),
+        ],
+      })
+      .expect(200);
+
+    const departments = await testDataSource
+      .getRepository(Department)
+      .findBy({ organizationId: org.id });
+    expect(departments.map((department) => department.name)).toEqual(["Finance"]);
+    const staff = await testDataSource
+      .getRepository(StaffMember)
+      .findBy({ organizationId: org.id });
+    expect(staff.map((person) => person.departmentId)).toEqual([
+      departments[0]!.id,
+      departments[0]!.id,
+    ]);
   });
 
   it("comes back with the company in GET /organizations/me", async () => {

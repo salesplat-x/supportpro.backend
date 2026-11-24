@@ -12,6 +12,7 @@ import {
 import type { User } from "./User.js";
 import type { Organization } from "./Organization.js";
 import type { Application } from "./Application.js";
+import type { Department } from "./Department.js";
 
 export enum StaffStatus {
   Invited = "invited",
@@ -50,6 +51,7 @@ export enum EndReason {
 @Index("UQ_staff_members_source_application", ["sourceApplicationId"], { unique: true })
 @Index("IDX_staff_members_org_status", ["organizationId", "status"])
 @Index("IDX_staff_members_manager", ["managerId"])
+@Index("IDX_staff_members_department", ["departmentId"])
 export class StaffMember {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
@@ -77,8 +79,16 @@ export class StaffMember {
   @Column({ type: "varchar", length: 120, name: "job_title" })
   jobTitle!: string;
 
+  /** Display name, always written together with `departmentId`, which is what access uses. */
   @Column({ type: "varchar", length: 120, nullable: true })
   department!: string | null;
+
+  @Column({ type: "uuid", name: "department_id", nullable: true })
+  departmentId!: string | null;
+
+  @ManyToOne("Department", { eager: false, onDelete: "SET NULL", nullable: true })
+  @JoinColumn({ name: "department_id", foreignKeyConstraintName: "FK_staff_members_department" })
+  departmentRef!: Department | null;
 
   @Column({ type: "uuid", name: "manager_id", nullable: true })
   managerId!: string | null;

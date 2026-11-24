@@ -167,11 +167,12 @@ export const joinOrganizationWithAccessCode = async (req: Request, res: Response
 };
 
 export const addDepartment = async (req: Request, res: Response) => {
-  const departments = await departmentService.addDepartment(
+  const { departments, department } = await departmentService.addDepartment(
     req.user.id,
     req.params["_id"]!,
     req.body.name
   );
+  noteActivityTarget(res, "department", department.id, department.name);
   sendSuccessResponse(res, "Department added", { departments }, 201);
 };
 

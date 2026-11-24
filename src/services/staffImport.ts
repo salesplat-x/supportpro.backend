@@ -1,11 +1,14 @@
 import { EntityManager, In, IsNull } from "typeorm";
 import { validationResult } from "express-validator";
 import { AppDataSource } from "../database/dataSource.js";
+import type { Department } from "../entities/Department.js";
 import { StaffActivityType } from "../entities/StaffActivity.js";
 import { StaffMember, StaffStatus } from "../entities/StaffMember.js";
 import type { User } from "../entities/User.js";
 import { importRowValidator } from "../validators/staff.js";
+import { ConflictError } from "../utils/errors";
 import { copyDefaultChecklist } from "./checklist.js";
+import { resolveDepartment } from "./departments.js";
 import { assertCanManagePeople } from "./peopleAccess.js";
 import { lockHierarchy } from "./staff.js";
 import { activityEntry, recordActivities } from "./staffAudit.js";
@@ -158,6 +161,32 @@ export const previewImport = async (
   return { rows: checked.map(toResult) };
 };
 
+const departmentFor = (departments: Map<string, Department>, name: string | null) =>
+  name?.trim() ? departments.get(name.trim().toLowerCase()) : undefined;
+
+/** Each department named in the file, matched in any letter case or created; rows naming one past the limit fail. */
+const resolveImportDepartments = async (
+  em: EntityManager,
+  organizationId: string,
+  rows: CheckedRow[]
+): Promise<Map<string, Department>> => {
+  const departments = new Map<string, Department>();
+  for (const row of rows) {
+    const name = row.value.department?.trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (departments.has(key)) continue;
+    try {
+      const department = await resolveDepartment(em, organizationId, name);
+      if (department) departments.set(key, department);
+    } catch (error) {
+      if (!(error instanceof ConflictError)) throw error;
+      row.error = error.message;
+    }
+  }
+  return departments;
+};
+
 export const commitImport = async (
   actor: User,
   organizationId: string,
@@ -167,6 +196,11 @@ export const commitImport = async (
   return AppDataSource.transaction(async (em) => {
     await lockHierarchy(em, organizationId);
     const { checked, openStaffByEmail } = await checkRows(em, organizationId, rows);
+    const departments = await resolveImportDepartments(
+      em,
+      organizationId,
+      checked.filter((row) => !row.error)
+    );
     const ready = checked.filter((row) => !row.error);
 
     const inserted: Array<{ id: string; email: string }> = ready.length
@@ -181,7 +215,8 @@ export const commitImport = async (
                 fullName: value.fullName,
                 email: value.email,
                 jobTitle: value.jobTitle,
-                department: value.department,
+                department: departmentFor(departments, value.department)?.name ?? null,
+                departmentId: departmentFor(departments, value.department)?.id ?? null,
                 startDate: value.startDate,
                 status: StaffStatus.Active,
                 hiredThroughAuxhr: false,
