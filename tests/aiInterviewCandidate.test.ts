@@ -147,6 +147,36 @@ describe("loading the candidate's interview", () => {
     expect((await load(posterToken, "00000000-0000-4000-8000-000000000000")).status).toBe(404);
   });
 
+  it.each([
+    ["pending", /still being prepared/],
+    ["failed", /isn't available/],
+  ])(
+    "tells the candidate when the interview is %s instead of showing no questions",
+    async (status, message) => {
+      const { talentToken, interview, load } = await setup();
+      await testDataSource
+        .getRepository(AiInterview)
+        .update(interview.id, { status: status as AiInterview["status"] });
+
+      const res = await load(talentToken);
+
+      expect(res.status).toBe(409);
+      expect(res.body.error.message).toMatch(message);
+    }
+  );
+
+  it("says it is still checking while a main answer is being turned into text", async () => {
+    const { talentToken, interview, load, markAnswered } = await setup();
+    await markAnswered(1);
+    expect((await load(talentToken)).body.data.checking).toBe(false);
+
+    await testDataSource
+      .getRepository(AiInterviewQuestion)
+      .update({ interviewId: interview.id, position: 1 }, { transcriptStatus: "pending" });
+
+    expect((await load(talentToken)).body.data.checking).toBe(true);
+  });
+
   it("refuses a request without a login", async () => {
     const { interview } = await setup();
     const res = await request(app).get(`/v1/interviews/${interview.id}`);
