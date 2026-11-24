@@ -49,7 +49,7 @@ const describeLimit = (seconds: number): string => {
  * Whisper bills per minute and 10 MB of Opus can hold over an hour, so the length is checked
  * before anything is paid for. A missing ffprobe propagates as our failure (fail closed).
  */
-const assertWithinLengthLimit = async (input: VoiceAudioInput): Promise<void> => {
+const assertWithinLengthLimit = async (input: VoiceAudioInput, limit: number): Promise<void> => {
   let seconds: number;
   try {
     seconds = await probeAudioDurationSeconds(input.buffer, input.extension);
@@ -59,7 +59,6 @@ const assertWithinLengthLimit = async (input: VoiceAudioInput): Promise<void> =>
     }
     throw err;
   }
-  const limit = env.voiceMaxDurationSeconds;
   if (seconds > limit) {
     throw new ValidationError(
       `That recording is too long. Please keep it under ${describeLimit(limit)}.`
@@ -95,8 +94,12 @@ const withDeadline = async <T>(work: (signal: AbortSignal) => Promise<T>): Promi
   }
 };
 
-const transcribeWithin = async (input: VoiceAudioInput, signal: AbortSignal): Promise<string> => {
-  await assertWithinLengthLimit(input);
+const transcribeWithin = async (
+  input: VoiceAudioInput,
+  signal: AbortSignal,
+  maxSeconds: number = env.voiceMaxDurationSeconds
+): Promise<string> => {
+  await assertWithinLengthLimit(input, maxSeconds);
   let text: string;
   try {
     text = await transcribeAudio(input.buffer, `voice.${input.extension}`, { signal });
@@ -112,9 +115,15 @@ const transcribeWithin = async (input: VoiceAudioInput, signal: AbortSignal): Pr
   return text;
 };
 
-/** Speech-to-text only. Unreadable audio is the caller's problem (400); anything else is ours. */
-export const transcribe = (input: VoiceAudioInput): Promise<string> =>
-  withDeadline((signal) => transcribeWithin(input, signal));
+/**
+ * Speech-to-text only. Unreadable audio is the caller's problem (400); anything else is ours.
+ * `maxSeconds` lets a caller with its own recording limit allow for the few seconds a browser
+ * adds after it stops recording.
+ */
+export const transcribe = (
+  input: VoiceAudioInput,
+  { maxSeconds }: { maxSeconds?: number } = {}
+): Promise<string> => withDeadline((signal) => transcribeWithin(input, signal, maxSeconds));
 
 /**
  * Speech in, reply text out. Shared by the buffered and streamed endpoints so both fail

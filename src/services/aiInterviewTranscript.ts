@@ -59,6 +59,9 @@ const CLAIM_TRANSCRIPT_SQL = `
   RETURNING "id"
 `;
 
+/** Answers stop at 2 minutes in the browser; the extra seconds cover a recorder that stops late. */
+const INTERVIEW_ANSWER_MAX_SECONDS = 130;
+
 const questionRepo = () => AppDataSource.getRepository(AiInterviewQuestion);
 
 const failureUpdate = (attempts: number, err: unknown): DurableFailureUpdate => {
@@ -114,7 +117,10 @@ export const transcribeAnswerRecording = async (questionId: string): Promise<voi
       throw new ValidationError("This recording type can't be transcribed");
     }
     const buffer = await getFromSpaces(recordingKey);
-    const transcript = await transcribe({ buffer, extension });
+    const transcript = await transcribe(
+      { buffer, extension },
+      { maxSeconds: INTERVIEW_ANSWER_MAX_SECONDS }
+    );
     await questionRepo().update(
       { id: questionId, recordingKey },
       {

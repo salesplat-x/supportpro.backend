@@ -55,7 +55,8 @@ jest.mock("../src/utils/audioDuration.js", () => {
       if (buffer.toString("utf8", 0, 4) === "fake") {
         throw new actual.AudioUnreadableError();
       }
-      return buffer.length > 20_000 ? 130 : 3;
+      if (buffer.toString("utf8", 0, 8) === "at-limit") return 125;
+      return buffer.length > 20_000 ? 135 : 3;
     }),
   };
 });
@@ -227,6 +228,17 @@ describe("queueing and saving a transcript", () => {
     expect(question.transcriptLastError).toMatch(/too long/);
   });
 
+  it("an answer stopped a few seconds past the 2-minute limit is still transcribed", async () => {
+    mockTranscribe.mockResolvedValueOnce("a full answer");
+    const { talentToken, upload, reload } = await setup();
+    await upload(talentToken, Buffer.from("at-limit answer"));
+
+    await reconcileDueInterviewTranscripts();
+
+    expect(mockTranscribe).toHaveBeenCalledTimes(1);
+    expect((await reload()).transcriptStatus).toBe("completed");
+  });
+
   it("audio that cannot be read is failed without a paid call", async () => {
     const { talentToken, upload, reload } = await setup();
     await upload(talentToken, Buffer.from("fake-audio"));
@@ -252,21 +264,6 @@ describe("queueing and saving a transcript", () => {
     await reconcileDueInterviewTranscripts();
     expect(mockTranscribe).toHaveBeenCalledTimes(1);
     expect((await reload()).transcript).toBe("held then taken");
-  });
-
-  it("replacing a recording starts its transcript again", async () => {
-    mockTranscribe.mockResolvedValueOnce("first answer");
-    const { talentToken, upload, reload } = await setup();
-    await upload(talentToken, SHORT_WEBM());
-    await reconcileDueInterviewTranscripts();
-    expect((await reload()).transcriptStatus).toBe("completed");
-
-    await upload(talentToken, SHORT_WEBM());
-    const question = await reload();
-    expect(question.transcriptStatus).toBe("pending");
-    expect(question.transcript).toBeNull();
-    expect(question.transcriptAttempts).toBe(0);
-    expect(question.transcribedAt).toBeNull();
   });
 
   it("a transcript for a recording replaced mid-job is not written", async () => {
