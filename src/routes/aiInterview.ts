@@ -42,6 +42,14 @@ router.get(
 );
 
 router.get(
+  "/:interviewId/questions/:questionId/audio",
+  loginRequired,
+  requireVerifiedEmail,
+  validate(recordingParams),
+  asyncHandler(interview.questionAudio, "play interview question")
+);
+
+router.get(
   "/:interviewId/transcripts",
   loginRequired,
   requireVerifiedEmail,

@@ -34,6 +34,9 @@ const optionalEnvVars = {
   // the canned fallback clip instead of failing, and the rest of the API is unaffected.
   elevenlabsApiKey: process.env.ELEVENLABS_API_KEY,
   elevenlabsVoiceId: process.env.ELEVENLABS_VOICE_ID,
+  // The AI interviewer's voice: a Nigerian English voice from the ElevenLabs Voice Library.
+  // Without it the interview shows each question as text only.
+  elevenlabsInterviewVoiceId: process.env.ELEVENLABS_INTERVIEW_VOICE_ID,
   elevenlabsModelId: process.env.ELEVENLABS_MODEL_ID,
   // Longest recording the voice endpoints accept. Whisper bills per minute, and a 10 MB
   // Opus file can hold over an hour, so length is capped as well as size.

@@ -20,7 +20,14 @@ import { AiInterview } from "../src/entities/AiInterview.js";
 import { AiInterviewQuestion } from "../src/entities/AiInterviewQuestion.js";
 import { ScreeningStage, type AiInterviewMode } from "../src/types/enums.js";
 import * as Spaces from "../src/utils/integrations/spaces.js";
+import * as ElevenLabs from "../src/utils/integrations/elevenlabs.js";
 import { AddRecordingsToAiInterviewQuestions1789003100000 } from "../src/migrations/1789003100000-AddRecordingsToAiInterviewQuestions.js";
+
+jest.mock("../src/utils/integrations/elevenlabs.js", () => ({
+  ...jest.requireActual("../src/utils/integrations/elevenlabs.js"),
+  isInterviewVoiceConfigured: jest.fn(() => true),
+  synthesizeSpeech: jest.fn(async () => Buffer.from("spoken question")),
+}));
 
 const bucket = new Map<string, { buffer: Buffer; contentType: string }>();
 jest.mock("../src/utils/integrations/spaces.js", () => {
@@ -253,6 +260,52 @@ describe("opening an answer recording", () => {
   it("answers 404 when no recording has been uploaded yet", async () => {
     const { talentToken, open, url, questions } = await withRecording();
     expect((await open(talentToken, url(questions[1]!.id))).status).toBe(404);
+  });
+});
+
+describe("hearing a question read aloud", () => {
+  const audioPath = (interviewId: string, questionId: string) =>
+    `/v1/interviews/${interviewId}/questions/${questionId}/audio`;
+
+  it("reads the question in the interviewer's voice once and replays the stored audio", async () => {
+    const { talentToken, interview, questions, reloadQuestion } = await setup();
+    const play = () =>
+      request(app)
+        .get(audioPath(interview.id, questions[0]!.id))
+        .set("Authorization", `Bearer ${talentToken}`);
+
+    const first = await play().expect(200);
+    const second = await play().expect(200);
+
+    expect(first.headers["content-type"]).toBe("audio/mpeg");
+    expect(second.body.toString()).toBe("spoken question");
+    expect(ElevenLabs.synthesizeSpeech).toHaveBeenCalledTimes(1);
+    expect(ElevenLabs.synthesizeSpeech).toHaveBeenCalledWith("Question 1?", expect.any(Object));
+    expect((await reloadQuestion()).audioKey).toMatch(/^interview-question-audio\//);
+  });
+
+  it("only plays for the candidate", async () => {
+    const { posterToken, interview, questions } = await setup();
+    const { token: strangerToken } = await createTalent();
+
+    for (const token of [posterToken, strangerToken]) {
+      await request(app)
+        .get(audioPath(interview.id, questions[0]!.id))
+        .set("Authorization", `Bearer ${token}`)
+        .expect(403);
+    }
+    expect(ElevenLabs.synthesizeSpeech).not.toHaveBeenCalled();
+  });
+
+  it("answers 503 when the interviewer's voice isn't set up", async () => {
+    (ElevenLabs.isInterviewVoiceConfigured as jest.Mock).mockReturnValueOnce(false);
+    const { talentToken, interview, questions } = await setup();
+
+    await request(app)
+      .get(audioPath(interview.id, questions[0]!.id))
+      .set("Authorization", `Bearer ${talentToken}`)
+      .expect(503);
+    expect(ElevenLabs.synthesizeSpeech).not.toHaveBeenCalled();
   });
 });
 

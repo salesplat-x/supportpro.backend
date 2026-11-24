@@ -106,7 +106,8 @@ export const spacesKeyFor = (
     | "signed-documents"
     | "completion-evidence"
     | "goal-reports"
-    | "interview-recordings",
+    | "interview-recordings"
+    | "interview-question-audio",
   ownerId: string,
   originalname: string
 ): string => {
