@@ -65,3 +65,4 @@ export { SavedJob } from "./SavedJob.js";
 export { ApplicationConsent } from "./ApplicationConsent.js";
 export { ApplicationCheck } from "./ApplicationCheck.js";
 export { ApplicationCheckEvent } from "./ApplicationCheckEvent.js";
+export { Department } from "./Department.js";

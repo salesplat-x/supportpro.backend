@@ -63,6 +63,7 @@ import { OrganizationOwnershipTransfer } from "../../src/entities/OrganizationOw
 import { StuckEmailTimer } from "../../src/entities/StuckEmailTimer.js";
 import { ApplicationReference } from "../../src/entities/ApplicationReference.js";
 import { SavedJob } from "../../src/entities/SavedJob.js";
+import { Department } from "../../src/entities/Department.js";
 import { AiInterview } from "../../src/entities/AiInterview.js";
 import { AiInterviewQuestion } from "../../src/entities/AiInterviewQuestion.js";
 import { ApplicationConsent } from "../../src/entities/ApplicationConsent.js";
@@ -132,6 +133,7 @@ const ALL_ENTITIES = [
   AiInterview,
   AiInterviewQuestion,
   SavedJob,
+  Department,
   ApplicationConsent,
   ApplicationCheck,
   ApplicationCheckEvent,
