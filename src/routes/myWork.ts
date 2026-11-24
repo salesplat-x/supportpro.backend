@@ -15,7 +15,10 @@ import {
   goalProgressValidator,
   myCompletionRequestValidator,
   myEvidenceValidator,
+  myGoalReportFileValidator,
+  myGoalReportsValidator,
   submitCompletionValidator,
+  submitGoalReportValidator,
   managerParams,
   myReportsValidator,
   selfParams,
@@ -132,6 +135,29 @@ router.patch(
   ...employee,
   validate(developmentDoneValidator),
   asyncHandler(performance.setDevelopmentDone, "save plan item")
+);
+
+router.get(
+  "/:staffId/goals/:goalId/reports",
+  ...employee,
+  validate(myGoalReportsValidator),
+  asyncHandler(myWork.myGoalReports, "load my goal reports")
+);
+
+router.put(
+  "/:staffId/goals/:goalId/reports/:periodStart",
+  ...employee,
+  staffWriteLimiter,
+  completionEvidenceUpload.array("files", MAX_EVIDENCE_FILES),
+  validate(submitGoalReportValidator),
+  asyncHandler(myWork.submitGoalReport, "send goal report")
+);
+
+router.get(
+  "/:staffId/goals/:goalId/reports/:goalReportId/files/:fileId",
+  ...employee,
+  validate(myGoalReportFileValidator),
+  asyncHandler(myWork.myGoalReportFile, "download goal report file")
 );
 
 router.get(

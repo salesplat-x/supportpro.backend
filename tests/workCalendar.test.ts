@@ -1,7 +1,12 @@
 import {
   addDays,
   daysBetween,
+  firstPeriodFrom,
+  isAlignedPeriod,
+  isPeriodOpen,
   isWeekOpen,
+  nextPeriodStart,
+  periodStartOf,
   monthStartOf,
   quarterFromKey,
   quarterOf,
@@ -53,5 +58,24 @@ describe("work calendar", () => {
     expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
     expect(daysBetween("2026-11-01", "2026-11-29")).toBe(28);
     expect(monthStartOf("2026-11-29")).toBe("2026-11-01");
+  });
+
+  it("puts a weekend day in Friday's daily period and starts new daily goals on Monday", () => {
+    expect(periodStartOf("daily", "2026-11-21")).toBe("2026-11-20");
+    expect(firstPeriodFrom("daily", "2026-11-21")).toBe("2026-11-23");
+    expect(nextPeriodStart("daily", "2026-11-20")).toBe("2026-11-23");
+    expect(isAlignedPeriod("daily", "2026-11-22")).toBe(false);
+    expect(isAlignedPeriod("weekly", "2026-11-24")).toBe(false);
+    expect(nextPeriodStart("monthly", "2026-12-01")).toBe("2027-01-01");
+  });
+
+  it("keeps the previous period open through the next period's first work day", () => {
+    expect(isPeriodOpen("daily", "2026-11-20", "2026-11-22")).toBe(true);
+    expect(isPeriodOpen("daily", "2026-11-20", "2026-11-23")).toBe(true);
+    expect(isPeriodOpen("daily", "2026-11-20", "2026-11-24")).toBe(false);
+    expect(isPeriodOpen("weekly", "2026-11-16", "2026-11-23")).toBe(true);
+    expect(isPeriodOpen("weekly", "2026-11-16", "2026-11-24")).toBe(false);
+    expect(isPeriodOpen("monthly", "2026-10-01", "2026-11-02")).toBe(true);
+    expect(isPeriodOpen("monthly", "2026-10-01", "2026-11-03")).toBe(false);
   });
 });

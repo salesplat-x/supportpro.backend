@@ -455,6 +455,7 @@ describe("My team", () => {
         goalsWaiting: 0,
         relation: "report",
         departmentName: "Design",
+        goalReportsToRead: 0,
       },
     ]);
     const { body } = await submit().expect(200);

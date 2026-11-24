@@ -1,5 +1,7 @@
+import { REPORT_FREQUENCIES } from "../utils/workCalendar.js";
 import { body, param, query, type ValidationChain } from "express-validator";
 import { MAX_JOB_DESCRIPTION } from "../services/goals.js";
+import { MAX_GOAL_REPORT_NOTE, MAX_GOAL_REPORT_TEXT } from "../services/goalReports.js";
 import { DevelopmentStatus } from "../entities/StaffDevelopmentItem.js";
 import { Currency } from "../types/enums.js";
 import { MAX_COMPLETION_SUMMARY, MAX_REVIEW_NOTE } from "../services/completionRequests.js";
@@ -71,6 +73,10 @@ const goalFields = [
     .matches(NO_NUL)
     .withMessage("Target can't contain control characters"),
   dateOnly(body("dueOn"), "Due date"),
+  body("reportFrequency")
+    .optional({ values: "undefined" })
+    .custom((value) => value === null || REPORT_FREQUENCIES.includes(value))
+    .withMessage("Report frequency must be daily, weekly, monthly or none"),
 ];
 
 export const addGoalValidator = goalFields;
@@ -215,3 +221,32 @@ export const returnCompletionValidator = [
 export const completeGoalValidator = [goalParam, versionField()];
 export const reopenGoalValidator = [goalParam];
 export const taskActionValidator = [taskParam];
+
+const goalReportParam = param("goalReportId").isUUID().withMessage("Invalid report id");
+
+export const goalReportsValidator = [goalParam];
+export const myGoalReportsValidator = [...selfParams, goalParam];
+
+export const submitGoalReportValidator = [
+  ...selfParams,
+  goalParam,
+  dateOnly(param("periodStart"), "Report period"),
+  longText(body("text").optional({ values: "null" }), "Report", MAX_GOAL_REPORT_TEXT, true),
+  body("keepFileIds")
+    .optional()
+    .customSanitizer((value: unknown) =>
+      value === undefined ? [] : Array.isArray(value) ? value : [value]
+    ),
+  body("keepFileIds.*").isUUID().withMessage("Invalid file id"),
+];
+
+export const goalReportNoteValidator = [
+  goalParam,
+  goalReportParam,
+  longText(body("note"), "Note", MAX_GOAL_REPORT_NOTE),
+  versionField("textVersion"),
+  versionField("noteVersion"),
+];
+
+export const goalReportFileValidator = [goalParam, goalReportParam, fileParam];
+export const myGoalReportFileValidator = [...selfParams, goalParam, goalReportParam, fileParam];

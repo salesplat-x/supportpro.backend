@@ -4,6 +4,7 @@ import { EntityManager, In, IsNull } from "typeorm";
 import env from "../config/env.js";
 import { AppDataSource } from "../database/dataSource.js";
 import { Department } from "../entities/Department.js";
+import { StaffGoalReport } from "../entities/StaffGoalReport.js";
 import { Notification } from "../entities/Notification.js";
 import { Organization } from "../entities/Organization.js";
 import { StaffActivityType } from "../entities/StaffActivity.js";
@@ -189,7 +190,7 @@ const cleanFileName = (name: string, extension: string): string => {
   return `${base || "evidence"}${extension}`;
 };
 
-const cleanLinks = (links: string[]): string[] =>
+export const cleanLinks = (links: string[]): string[] =>
   [...new Set(links.map((link) => link.trim()).filter(Boolean))].map((link) => {
     let parsed: URL;
     try {
@@ -209,16 +210,17 @@ const cleanLinks = (links: string[]): string[] =>
     return parsed.toString();
   });
 
-const prepareFiles = (
+export const prepareFiles = (
   files: Express.Multer.File[],
-  organizationId: string
+  organizationId: string,
+  prefix: "completion-evidence" | "goal-reports" = "completion-evidence"
 ): Array<{ meta: CompletionEvidenceFile; buffer: Buffer }> =>
   files.map((file) => {
     const type = file.size > 0 ? detectEvidenceType(file.buffer) : null;
     if (!type) {
       throw new ValidationError("Upload evidence as a PDF, JPG, PNG or Word (.docx) file");
     }
-    const key = spacesKeyFor("completion-evidence", organizationId, `evidence${type.extension}`);
+    const key = spacesKeyFor(prefix, organizationId, `evidence${type.extension}`);
     return {
       buffer: file.buffer,
       meta: {
@@ -235,10 +237,26 @@ const deleteEvidence = async (keys: string[], reason: string): Promise<void> => 
   await Promise.all(keys.map((key) => deleteSpacesObjectQuietly(key, reason)));
 };
 
-/** For deleting a goal, task or company: read these first, then delete them after the commit. */
+/**
+ * For deleting a goal, task or company: read these first, then delete them after the commit.
+ * Goal report files are included, since they go with the goal or company too.
+ */
 export const evidenceKeysFor = async (
   where: { goalId: string } | { taskId: string } | { organizationId: string },
   em: EntityManager = AppDataSource.manager
+): Promise<string[]> => {
+  const reportKeys =
+    "taskId" in where
+      ? []
+      : (
+          await em.getRepository(StaffGoalReport).find({ where, select: { id: true, files: true } })
+        ).flatMap((report) => report.files.map((file) => file.key));
+  return [...reportKeys, ...(await completionEvidenceKeys(where, em))];
+};
+
+const completionEvidenceKeys = async (
+  where: { goalId: string } | { taskId: string } | { organizationId: string },
+  em: EntityManager
 ): Promise<string[]> => {
   const query = requestsRepo(em).createQueryBuilder("request");
   if ("organizationId" in where) {

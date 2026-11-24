@@ -10,6 +10,7 @@ import {
 } from "typeorm";
 import type { Organization } from "./Organization.js";
 import type { StaffMember } from "./StaffMember.js";
+import type { ReportFrequency } from "../utils/workCalendar.js";
 
 export enum GoalStatus {
   Draft = "draft",
@@ -27,6 +28,10 @@ export enum GoalSource {
 @Check(
   "CHK_staff_goals_completed",
   `("progress" = 100) = ("completed_at" IS NOT NULL) AND ("completed_at" IS NULL OR "status" = 'approved')`
+)
+@Check(
+  "CHK_staff_goals_report_frequency",
+  `"report_frequency" IS NULL OR "report_frequency" IN ('daily', 'weekly', 'monthly')`
 )
 @Index("IDX_staff_goals_staff", ["staffId", "status"])
 @Index("IDX_staff_goals_org", ["organizationId", "status"])
@@ -85,6 +90,14 @@ export class StaffGoal {
 
   @Column({ type: "varchar", length: 241, name: "completed_by_name", nullable: true })
   completedByName!: string | null;
+
+  /** How often the employee reports on this goal. Null means no reports are expected. */
+  @Column({ type: "varchar", length: 16, name: "report_frequency", nullable: true })
+  reportFrequency!: ReportFrequency | null;
+
+  /** The Lagos date the frequency was last set; missed periods count from here. */
+  @Column({ type: "date", name: "report_frequency_since", nullable: true })
+  reportFrequencySince!: string | null;
 
   @CreateDateColumn({ type: "timestamptz", name: "created_at" })
   createdAt!: Date;

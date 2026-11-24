@@ -53,6 +53,8 @@ const PERFORMANCE_ACTIVITY = [
   StaffActivityType.HrRemoved,
   StaffActivityType.DepartmentHeadAssigned,
   StaffActivityType.DepartmentHeadRemoved,
+  StaffActivityType.GoalReportSubmitted,
+  StaffActivityType.GoalReportNoteAdded,
 ];
 
 const INVITE_ACTIVITY = [
