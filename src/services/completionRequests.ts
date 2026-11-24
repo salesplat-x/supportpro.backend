@@ -3,6 +3,7 @@ import path from "path";
 import { EntityManager, In, IsNull } from "typeorm";
 import env from "../config/env.js";
 import { AppDataSource } from "../database/dataSource.js";
+import { Department } from "../entities/Department.js";
 import { Notification } from "../entities/Notification.js";
 import { Organization } from "../entities/Organization.js";
 import { StaffActivityType } from "../entities/StaffActivity.js";
@@ -272,7 +273,7 @@ interface Reviewer {
   organizationId: string | null;
 }
 
-/** Assigned HRs and the direct manager. The creator hears about it only when there's no one else. */
+/** Assigned HRs, the direct manager and the department head. The creator hears about it only when there's no one else. */
 const reviewersOf = async (em: EntityManager, staff: StaffMember): Promise<Reviewer[]> => {
   const assignments = await em
     .getRepository(StaffHrAssignment)
@@ -289,6 +290,22 @@ const reviewersOf = async (em: EntityManager, staff: StaffMember): Promise<Revie
     });
     if (manager?.userId) {
       reviewers.push({ userId: manager.userId, link: MY_WORK_LINK, organizationId: null });
+    }
+  }
+  if (staff.departmentId) {
+    const department = await em.getRepository(Department).findOne({
+      where: { id: staff.departmentId },
+      select: { id: true, headStaffId: true },
+    });
+    const head =
+      department?.headStaffId && department.headStaffId !== staff.id
+        ? await em.getRepository(StaffMember).findOne({
+            where: { id: department.headStaffId, endDate: IsNull() },
+            select: { id: true, userId: true },
+          })
+        : null;
+    if (head?.userId && !reviewers.some((reviewer) => reviewer.userId === head.userId)) {
+      reviewers.push({ userId: head.userId, link: MY_WORK_LINK, organizationId: null });
     }
   }
   if (reviewers.length === 0) {

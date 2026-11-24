@@ -5,6 +5,7 @@ import * as development from "../services/development.js";
 import { requestEfficiencyTip } from "../services/efficiency.js";
 import * as goals from "../services/goals.js";
 import { saveFeedback as saveMonthlyFeedback } from "../services/monthlyFeedback.js";
+import * as myWorkService from "../services/myWork.js";
 import { getMyPerformance, getPerformance } from "../services/performance.js";
 import type { PerformanceScope } from "../services/performanceAccess.js";
 import { getQuarterlyReview, saveQuarterGoal } from "../services/quarterlyReview.js";
@@ -284,6 +285,19 @@ export const myTeam = async (req: Request, res: Response) => {
     res,
     "Team fetched",
     await weeklyReports.getMyTeam(req.user, req.params["staffId"]!, getClientIp(req))
+  );
+};
+
+export const teamMemberDetails = async (req: Request, res: Response) => {
+  sendSuccessResponse(
+    res,
+    "Details fetched",
+    await myWorkService.getTeamMemberDetails(
+      req.user,
+      req.params["staffId"]!,
+      req.params["reportId"]!,
+      getClientIp(req)
+    )
   );
 };
 

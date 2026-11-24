@@ -11,7 +11,7 @@ import { ConflictError, NotFoundError, ValidationError } from "../utils/errors";
 import { ApplicationStatus } from "../types/enums.js";
 import { copyDefaultChecklist } from "./checklist.js";
 import { withdrawPendingForStaff } from "./completionRequests.js";
-import { resolveDepartment } from "./departments.js";
+import { clearHeadships, resolveDepartment } from "./departments.js";
 import { assertCanManagePeople, seesOnlyAssignedStaff } from "./peopleAccess.js";
 import { activityEntry, openStaff, recordActivities } from "./staffAudit.js";
 import {
@@ -468,6 +468,7 @@ export const endStaff = async (
     current.endDate = effective;
     current.endingOn = null;
     await withdrawPendingForStaff(em, current.id);
+    await clearHeadships(em, current.id);
     current.inviteTokenHash = null;
     current.inviteExpiresAt = null;
     const saved = await repo.save(current);
@@ -514,6 +515,7 @@ export const finalizeScheduledEndings = async (): Promise<number> => {
       }[];
       for (const row of rows) {
         await withdrawPendingForStaff(em, row.id);
+        await clearHeadships(em, row.id);
         await recordActivities(em, { id: row.id, organizationId: row.organization_id }, [
           {
             type: StaffActivityType.Ended,

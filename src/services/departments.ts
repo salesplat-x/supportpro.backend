@@ -1,9 +1,17 @@
-import { EntityManager } from "typeorm";
+import { EntityManager, IsNull } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { Department } from "../entities/Department.js";
+import { Notification } from "../entities/Notification.js";
+import { StaffActivityType } from "../entities/StaffActivity.js";
+import { StaffMember } from "../entities/StaffMember.js";
+import type { User } from "../entities/User.js";
 import { resultRows } from "../utils/durableJobs.js";
-import { ConflictError } from "../utils/errors";
-import { assertCanManagePeople } from "./peopleAccess.js";
+import { ConflictError, NotFoundError } from "../utils/errors";
+import { assertCanManagePeople, assertCompanyMember, assertOwner } from "./peopleAccess.js";
+import { activityEntry, recordActivities } from "./staffAudit.js";
+
+export const NOTIFICATION_TYPE_DEPARTMENT_HEAD = "department_head";
+const MY_TEAM_LINK = "/talentDashboard/my-work";
 
 export const MAX_DEPARTMENTS = 50;
 export const MAX_DEPARTMENT_LENGTH = 60;
@@ -126,3 +134,116 @@ export const removeDepartment = async (
     return rows[0]?.departments ?? [];
   });
 };
+
+export interface DepartmentView {
+  id: string;
+  name: string;
+  head: { staffId: string; fullName: string } | null;
+  staffCount: number;
+}
+
+/** Every department with its head and how many current people are in it. */
+export const listDepartments = async (
+  userId: string,
+  organizationId: string
+): Promise<DepartmentView[]> => {
+  await assertCompanyMember(userId, organizationId);
+  const rows: Array<{
+    id: string;
+    name: string;
+    head_staff_id: string | null;
+    head_name: string | null;
+    staff_count: number;
+  }> = await AppDataSource.query(
+    `SELECT d.id, d.name, d.head_staff_id, h.full_name AS head_name,
+            (SELECT COUNT(*)::int FROM staff_members s
+             WHERE s.department_id = d.id AND s.end_date IS NULL) AS staff_count
+     FROM departments d
+     LEFT JOIN staff_members h ON h.id = d.head_staff_id
+     WHERE d.organization_id = $1
+     ORDER BY d.created_at, d.name`,
+    [organizationId]
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    head:
+      row.head_staff_id && row.head_name
+        ? { staffId: row.head_staff_id, fullName: row.head_name }
+        : null,
+    staffCount: row.staff_count,
+  }));
+};
+
+/**
+ * Makes an employee the head of a department, or clears it. Heads get the same tools a manager
+ * has for everyone in the department, so only the company's creator can choose them. The
+ * person's row is locked before the department's, the order `endStaff` uses.
+ */
+export const setDepartmentHead = async (
+  actor: User,
+  organizationId: string,
+  departmentId: string,
+  staffId: string | null
+): Promise<Department> => {
+  await assertOwner(actor.id, organizationId);
+  return AppDataSource.transaction(async (em) => {
+    const head = staffId
+      ? await em.getRepository(StaffMember).findOne({
+          where: { id: staffId, organizationId, endDate: IsNull() },
+          lock: { mode: "pessimistic_write" },
+        })
+      : null;
+    if (staffId && !head) {
+      throw new NotFoundError("Staff member not found");
+    }
+    const department = await em.getRepository(Department).findOne({
+      where: { id: departmentId, organizationId },
+      lock: { mode: "pessimistic_write" },
+    });
+    if (!department) {
+      throw new NotFoundError("Department not found");
+    }
+    if (department.headStaffId === (head?.id ?? null)) {
+      return department;
+    }
+
+    const previous = department.headStaffId
+      ? await em.getRepository(StaffMember).findOneBy({ id: department.headStaffId })
+      : null;
+    department.headStaffId = head?.id ?? null;
+    const saved = await em.getRepository(Department).save(department);
+
+    if (previous) {
+      await recordActivities(em, previous, [
+        activityEntry(StaffActivityType.DepartmentHeadRemoved, actor, {
+          department: department.name,
+        }),
+      ]);
+    }
+    if (head) {
+      await recordActivities(em, head, [
+        activityEntry(StaffActivityType.DepartmentHeadAssigned, actor, {
+          department: department.name,
+        }),
+      ]);
+      if (head.userId) {
+        await em.getRepository(Notification).save(
+          em.getRepository(Notification).create({
+            userId: head.userId,
+            title: `You now head ${department.name}`,
+            message: `You can see everyone in ${department.name} and manage their goals and reports from My team.`,
+            type: NOTIFICATION_TYPE_DEPARTMENT_HEAD,
+            link: MY_TEAM_LINK,
+            organizationId: null,
+          })
+        );
+      }
+    }
+    return saved;
+  });
+};
+
+/** Run inside `endStaff`'s transaction, after the person's row is locked. */
+export const clearHeadships = (em: EntityManager, staffId: string) =>
+  em.getRepository(Department).update({ headStaffId: staffId }, { headStaffId: null });
