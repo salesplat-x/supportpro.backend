@@ -52,6 +52,9 @@ export interface TeamMemberView {
   jobTitle: string;
   reportId: string | null;
   goalsWaiting: number;
+  /** Why they're on this team: they report to this person, they're in a department this person heads, or both. */
+  relation: "report" | "department" | "both";
+  departmentName: string | null;
 }
 
 const reportsRepo = (em = AppDataSource.manager) => em.getRepository(StaffWeeklyReport);
@@ -315,7 +318,11 @@ export const getMyTeam = async (
   actor: User,
   managerStaffId: string,
   ip: string
-): Promise<{ weekStart: string; members: TeamMemberView[] }> => {
+): Promise<{
+  weekStart: string;
+  members: TeamMemberView[];
+  departments: Array<{ id: string; name: string }>;
+}> => {
   const manager = await findOwnStaff(actor.id, managerStaffId);
   await logPerformanceRead(
     actor,
@@ -334,17 +341,28 @@ export const getMyTeam = async (
     job_title: string;
     report_id: string | null;
     goals_waiting: number;
+    is_report: boolean;
+    in_department: boolean;
+    department_name: string | null;
   }> = await AppDataSource.query(
-    `SELECT s.id, s.full_name, s.job_title, r.id AS report_id,
+    `SELECT s.id, s.full_name, s.job_title, r.id AS report_id, dep.name AS department_name,
+            s.manager_id IS NOT DISTINCT FROM $1 AS is_report,
+            dep.head_staff_id IS NOT DISTINCT FROM $1 AS in_department,
             (SELECT COUNT(*)::int FROM staff_goals g
              WHERE g.staff_id = s.id AND g.status = $4) AS goals_waiting
      FROM staff_members s
+     LEFT JOIN departments dep ON dep.id = s.department_id
      LEFT JOIN staff_weekly_reports r ON r.staff_id = s.id AND r.week_start = $3
-     WHERE s.manager_id = $1 AND s.organization_id = $2
+     WHERE s.organization_id = $2 AND s.id <> $1
+       AND (s.manager_id = $1 OR dep.head_staff_id = $1)
        AND s.end_date IS NULL AND s.start_date <= $5
      ORDER BY s.full_name, s.id
      LIMIT $6`,
     [manager.id, manager.organizationId, weekStart, GoalStatus.Draft, today, MAX_TEAM]
+  );
+  const departments: Array<{ id: string; name: string }> = await AppDataSource.query(
+    `SELECT id, name FROM departments WHERE head_staff_id = $1 ORDER BY name`,
+    [manager.id]
   );
   return {
     weekStart,
@@ -354,6 +372,9 @@ export const getMyTeam = async (
       jobTitle: row.job_title,
       reportId: row.report_id,
       goalsWaiting: row.goals_waiting,
+      relation: row.is_report ? (row.in_department ? "both" : "report") : "department",
+      departmentName: row.department_name,
     })),
+    departments,
   };
 };

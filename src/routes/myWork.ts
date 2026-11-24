@@ -141,6 +141,13 @@ router.get(
   asyncHandler(performance.myTeam, "load my team")
 );
 
+router.get(
+  "/:staffId/team/:reportId/details",
+  ...employee,
+  validate(managerParams),
+  asyncHandler(performance.teamMemberDetails, "load team member details")
+);
+
 registerSharedPerformanceRoutes(router, "/:staffId/team/:reportId", employee, managerParams);
 
 export default (app: Router) => app.use("/my-work", router);

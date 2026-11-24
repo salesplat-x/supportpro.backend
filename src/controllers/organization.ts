@@ -176,6 +176,24 @@ export const addDepartment = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Department added", { departments }, 201);
 };
 
+export const listDepartments = async (req: Request, res: Response) => {
+  const departments = await departmentService.listDepartments(req.user.id, req.params["_id"]!);
+  sendSuccessResponse(res, "Departments fetched", { departments });
+};
+
+export const setDepartmentHead = async (req: Request, res: Response) => {
+  const department = await departmentService.setDepartmentHead(
+    req.user,
+    req.params["_id"]!,
+    req.params["departmentId"]!,
+    req.body.staffId as string | null
+  );
+  noteActivityTarget(res, "department", department.id, department.name);
+  sendSuccessResponse(res, "Department head saved", {
+    department: { id: department.id, name: department.name, headStaffId: department.headStaffId },
+  });
+};
+
 export const removeDepartment = async (req: Request, res: Response) => {
   const departments = await departmentService.removeDepartment(
     req.user.id,

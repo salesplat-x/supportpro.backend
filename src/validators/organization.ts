@@ -1,4 +1,5 @@
 import { body, param } from "express-validator";
+import { validate as isUUID } from "uuid";
 import { idParam, phoneRule } from "./shared.js";
 import { isValidLinkedinUrl } from "../utils/emailDomain.js";
 import { MAX_DEPARTMENT_LENGTH } from "../services/departments.js";
@@ -141,6 +142,19 @@ export const addDepartmentValidator = [
     .trim()
     .isLength({ min: 1, max: MAX_DEPARTMENT_LENGTH })
     .withMessage(`Department name must be 1-${MAX_DEPARTMENT_LENGTH} characters`),
+];
+
+export const listDepartmentsValidator = [idParam("_id")];
+
+export const setDepartmentHeadValidator = [
+  idParam("_id"),
+  param("departmentId").isUUID().withMessage("departmentId must be a valid id"),
+  body("staffId")
+    .exists()
+    .withMessage("staffId is required, or null to clear the head")
+    .bail()
+    .custom((value) => value === null || (typeof value === "string" && isUUID(value)))
+    .withMessage("staffId must be a valid id or null"),
 ];
 
 export const removeDepartmentValidator = [

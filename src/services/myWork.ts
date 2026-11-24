@@ -1,5 +1,6 @@
 import { In, IsNull } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
+import { Department } from "../entities/Department.js";
 import { Organization } from "../entities/Organization.js";
 import { StaffAccessResource } from "../entities/StaffAccessLog.js";
 import { StaffChecklistTask } from "../entities/StaffChecklistTask.js";
@@ -19,6 +20,7 @@ import {
   signingViewOf,
 } from "./contracts.js";
 import { PayView, loadPay } from "./pay.js";
+import { openDepartmentMember } from "./performanceAccess.js";
 import { logStaffAccess } from "./staffAudit.js";
 import { loadManagerNames } from "./staffRecord.js";
 import { type CompletionRequestView, loadLatestRequests } from "./completionRequests.js";
@@ -58,7 +60,7 @@ export const getMyWork = async (userId: string): Promise<MyWorkRecord[]> => {
   if (records.length === 0) return [];
   const staffIds = records.map((staff) => staff.id);
 
-  const [orgs, documents, signedDocuments, tasks, managerNames, managers, requests] =
+  const [orgs, documents, signedDocuments, tasks, managerNames, managers, requests, headed] =
     await Promise.all([
       AppDataSource.getRepository(Organization).find({
         where: { id: In(records.map((staff) => staff.organizationId)) },
@@ -84,6 +86,10 @@ export const getMyWork = async (userId: string): Promise<MyWorkRecord[]> => {
         select: { id: true, managerId: true },
       }),
       loadLatestRequests(staffIds),
+      AppDataSource.getRepository(Department).find({
+        where: { headStaffId: In(staffIds) },
+        select: { id: true, headStaffId: true },
+      }),
     ]);
 
   return records.map((staff) => {
@@ -107,7 +113,9 @@ export const getMyWork = async (userId: string): Promise<MyWorkRecord[]> => {
           request.itemType === "task" &&
           tasks.some((task) => task.id === request.itemId && task.staffId === staff.id)
       ),
-      hasTeam: managers.some((report) => report.managerId === staff.id),
+      hasTeam:
+        managers.some((report) => report.managerId === staff.id) ||
+        headed.some((department) => department.headStaffId === staff.id),
     };
   });
 };
@@ -216,4 +224,40 @@ export const signMyDocument = async (
     return signLockedDocument(em, owned.doc, signerName, ip);
   });
   return finishSigning(doc);
+};
+
+export interface TeamMemberDetails {
+  staffId: string;
+  fullName: string;
+  jobTitle: string;
+  department: string | null;
+  managerName: string | null;
+  email: string;
+  phone: string | null;
+  startDate: string;
+  status: StaffMember["status"];
+  joinedAt: Date | null;
+}
+
+/** What a department head may see about someone in their department. Never address, pay or contracts. */
+export const getTeamMemberDetails = async (
+  actor: User,
+  headStaffId: string,
+  staffId: string,
+  ip: string
+): Promise<TeamMemberDetails> => {
+  const member = await openDepartmentMember(actor, headStaffId, staffId, ip);
+  const managerNames = await loadManagerNames([member]);
+  return {
+    staffId: member.id,
+    fullName: member.fullName,
+    jobTitle: member.jobTitle,
+    department: member.department,
+    managerName: member.managerId ? (managerNames.get(member.managerId) ?? null) : null,
+    email: member.email,
+    phone: member.phone,
+    startDate: member.startDate,
+    status: member.status,
+    joinedAt: member.joinedAt,
+  };
 };

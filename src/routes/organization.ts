@@ -23,6 +23,8 @@ import {
   joinRequestOrganizationValidator,
   organizationLogoValidator,
   removeDepartmentValidator,
+  listDepartmentsValidator,
+  setDepartmentHeadValidator,
   revokeOrganizationInviteValidator,
   sendOrganizationInviteValidator,
   switchOrganizationValidator,
@@ -139,6 +141,22 @@ router.post(
   requireVerifiedEmail,
   validate(addDepartmentValidator),
   asyncHandler(organization.addDepartment, "add department")
+);
+
+router.get(
+  "/:_id/departments",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(listDepartmentsValidator),
+  asyncHandler(organization.listDepartments, "load departments")
+);
+
+router.put(
+  "/:_id/departments/:departmentId/head",
+  validateAccess([UserRole.Recruiter]),
+  requireVerifiedEmail,
+  validate(setDepartmentHeadValidator),
+  asyncHandler(organization.setDepartmentHead, "set department head")
 );
 
 router.delete(

@@ -1,5 +1,6 @@
 import { EntityManager, IsNull } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
+import { Department } from "../entities/Department.js";
 import { StaffAccessResource } from "../entities/StaffAccessLog.js";
 import { StaffMember, StaffStatus } from "../entities/StaffMember.js";
 import type { User } from "../entities/User.js";
@@ -43,7 +44,10 @@ export const logPerformanceRead = (
     ip,
   });
 
-/** Direct reports only: the report's manager must be this person's own open staff record. */
+/**
+ * Someone on this person's team: a direct report, or anyone in a department this person heads.
+ * Never the person themself, and only while both records are open.
+ */
 const findTeamMember = async (
   scope: Extract<PerformanceScope, { kind: "manager" }>,
   em: EntityManager,
@@ -53,19 +57,59 @@ const findTeamMember = async (
   if (!manager) {
     throw notOnYourTeam();
   }
-  const report = await em.getRepository(StaffMember).findOne({
-    where: {
-      id: scope.staffId,
-      managerId: manager.id,
+  const query = em
+    .getRepository(StaffMember)
+    .createQueryBuilder("staff")
+    .where("staff.id = :staffId", { staffId: scope.staffId })
+    .andWhere("staff.organizationId = :organizationId", {
       organizationId: manager.organizationId,
-      endDate: IsNull(),
-    },
-    ...(lock ? { lock: { mode: "pessimistic_write" as const } } : {}),
-  });
+    })
+    .andWhere("staff.endDate IS NULL")
+    .andWhere("staff.id <> :managerId", { managerId: manager.id })
+    .andWhere(
+      `(staff.managerId = :managerId OR staff.departmentId IN (
+        SELECT d.id FROM departments d WHERE d.head_staff_id = :managerId
+      ))`
+    );
+  const report = await (lock ? query.setLock("pessimistic_write") : query).getOne();
   if (!report) {
     throw notOnYourTeam();
   }
   return report;
+};
+
+/**
+ * A department head opening one person's record. Only people in a department they head, not
+ * direct reports elsewhere, and the read is logged before anything is returned.
+ */
+export const openDepartmentMember = async (
+  actor: User,
+  headStaffId: string,
+  staffId: string,
+  ip: string
+): Promise<StaffMember> => {
+  const em = AppDataSource.manager;
+  const member = await findTeamMember(
+    { kind: "manager", actor, managerStaffId: headStaffId, staffId },
+    em,
+    false
+  );
+  const heads =
+    member.departmentId !== null &&
+    (await em
+      .getRepository(Department)
+      .existsBy({ id: member.departmentId, headStaffId: headStaffId }));
+  if (!heads) {
+    throw notOnYourTeam();
+  }
+  await logStaffAccess({
+    organizationId: member.organizationId,
+    actor,
+    staff: member,
+    resource: StaffAccessResource.StaffRecord,
+    ip,
+  });
+  return member;
 };
 
 /** For reads: checks the right, then writes the log line before any data is loaded. */

@@ -51,6 +51,8 @@ const PERFORMANCE_ACTIVITY = [
   StaffActivityType.CompletionReopened,
   StaffActivityType.HrAssigned,
   StaffActivityType.HrRemoved,
+  StaffActivityType.DepartmentHeadAssigned,
+  StaffActivityType.DepartmentHeadRemoved,
 ];
 
 const INVITE_ACTIVITY = [

@@ -453,6 +453,8 @@ describe("My team", () => {
         jobTitle: expect.any(String),
         reportId: null,
         goalsWaiting: 0,
+        relation: "report",
+        departmentName: "Design",
       },
     ]);
     const { body } = await submit().expect(200);

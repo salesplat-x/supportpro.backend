@@ -176,6 +176,14 @@ export const seesOnlyAssignedStaff = async (
   throw noPeopleAccess();
 };
 
+/** Anyone on the company's team: the owner or a member. */
+export const assertCompanyMember = async (
+  userId: string,
+  organizationId: string
+): Promise<void> => {
+  await loadAccess(userId, organizationId);
+};
+
 export const assertOwner = async (
   userId: string,
   organizationId: string
