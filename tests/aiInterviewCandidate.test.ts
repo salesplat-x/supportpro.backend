@@ -17,6 +17,9 @@ import {
 import { AiInterview } from "../src/entities/AiInterview.js";
 import { AiInterviewQuestion } from "../src/entities/AiInterviewQuestion.js";
 import { ScreeningStage, type AiInterviewMode } from "../src/types/enums.js";
+import { AiInterviewScreenEvent } from "../src/entities/AiInterviewScreenEvent.js";
+import { getRecruiterInterview } from "../src/services/aiInterview.js";
+import { MAX_SCREEN_EVENTS } from "../src/services/aiInterviewScreenEvents.js";
 
 jest.mock("../src/utils/integrations/spaces.js", () => {
   const actual = jest.requireActual("../src/utils/integrations/spaces.js");
@@ -181,5 +184,62 @@ describe("loading the candidate's interview", () => {
     const { interview } = await setup();
     const res = await request(app).get(`/v1/interviews/${interview.id}`);
     expect(res.status).toBe(401);
+  });
+});
+
+describe("leaving the interview screen", () => {
+  const report = (token: string, interviewId: string, body: Record<string, unknown>) =>
+    request(app)
+      .post(`/v1/interviews/${interviewId}/screen-events`)
+      .set("Authorization", `Bearer ${token}`)
+      .send(body);
+
+  it("records each time the candidate leaves and shows the hiring team when and where", async () => {
+    const { talentToken, interview, questions } = await setup();
+
+    await report(talentToken, interview.id, {
+      kind: "tab_hidden",
+      questionId: questions[1]!.id,
+    }).expect(204);
+    await report(talentToken, interview.id, { kind: "fullscreen_exit" }).expect(204);
+
+    const view = await getRecruiterInterview(interview.applicationId);
+    expect(view?.screenLeaves.count).toBe(2);
+    expect(view?.screenLeaves.events.map(({ kind, position }) => [kind, position])).toEqual([
+      ["tab_hidden", 2],
+      ["fullscreen_exit", null],
+    ]);
+  });
+
+  it("refuses anyone but the candidate and unknown kinds or questions", async () => {
+    const { posterToken, talentToken, interview } = await setup();
+
+    await report(posterToken, interview.id, { kind: "tab_hidden" }).expect(403);
+    await report(talentToken, interview.id, { kind: "screenshot" }).expect(400);
+    await report(talentToken, interview.id, {
+      kind: "tab_hidden",
+      questionId: "00000000-0000-4000-8000-000000000000",
+    }).expect(404);
+    expect((await getRecruiterInterview(interview.applicationId))?.screenLeaves.count).toBe(0);
+  });
+
+  it("ignores reports once every question is answered, and stops at the cap", async () => {
+    const { talentToken, interview, markAnswered } = await setup();
+    await testDataSource.getRepository(AiInterviewScreenEvent).save(
+      Array.from({ length: MAX_SCREEN_EVENTS }, () => ({
+        interviewId: interview.id,
+        kind: "window_blur" as const,
+      }))
+    );
+
+    await report(talentToken, interview.id, { kind: "tab_hidden" }).expect(204);
+    for (const position of [1, 2, 3, 4, 5]) await markAnswered(position);
+    await report(talentToken, interview.id, { kind: "tab_hidden" }).expect(204);
+
+    expect(
+      await testDataSource
+        .getRepository(AiInterviewScreenEvent)
+        .countBy({ interviewId: interview.id })
+    ).toBe(MAX_SCREEN_EVENTS);
   });
 });

@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { param } from "express-validator";
+import { body, param } from "express-validator";
+import { SCREEN_EVENT_KINDS } from "../entities/AiInterviewScreenEvent.js";
 import * as interview from "../controllers/aiInterview.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { loginRequired, requireVerifiedEmail } from "../middleware/auth.js";
@@ -47,6 +48,25 @@ router.get(
   requireVerifiedEmail,
   validate(recordingParams),
   asyncHandler(interview.questionAudio, "play interview question")
+);
+
+const screenEventParams = [
+  ...interviewParams,
+  body("kind")
+    .isIn([...SCREEN_EVENT_KINDS])
+    .withMessage("Unknown screen event"),
+  body("questionId")
+    .optional({ values: "null" })
+    .isUUID()
+    .withMessage("questionId must be a valid id"),
+];
+
+router.post(
+  "/:interviewId/screen-events",
+  loginRequired,
+  requireVerifiedEmail,
+  validate(screenEventParams),
+  asyncHandler(interview.recordScreenEvent, "record leaving the interview screen")
 );
 
 router.get(
