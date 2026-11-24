@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import * as completion from "../services/completionRequests.js";
+import * as goalReports from "../services/goalReports.js";
 import * as myWork from "../services/myWork.js";
 import { getClientIp } from "../utils/clientIp.js";
 import { sendSuccessResponse } from "../utils/response.js";
@@ -87,4 +88,47 @@ export const signDocument = async (req: Request, res: Response) => {
     getClientIp(req)
   );
   sendSuccessResponse(res, "Document signed", { signed });
+};
+
+export const myGoalReports = async (req: Request, res: Response) => {
+  sendSuccessResponse(
+    res,
+    "Reports fetched",
+    await goalReports.listMyGoalReports(
+      req.user,
+      req.params["staffId"]!,
+      req.params["goalId"]!,
+      getClientIp(req)
+    )
+  );
+};
+
+export const submitGoalReport = async (req: Request, res: Response) => {
+  const report = await goalReports.submitGoalReport(
+    req.user,
+    req.params["staffId"]!,
+    req.params["goalId"]!,
+    req.params["periodStart"]!,
+    {
+      text: (req.body.text as string | null | undefined) ?? null,
+      links: asList(req.body.links),
+      keepFileIds: asList(req.body.keepFileIds),
+    },
+    (req.files as Express.Multer.File[] | undefined) ?? []
+  );
+  sendSuccessResponse(res, "Report sent", { report });
+};
+
+export const myGoalReportFile = async (req: Request, res: Response) => {
+  sendEvidence(
+    res,
+    await goalReports.downloadMyGoalReportFile(
+      req.user,
+      req.params["staffId"]!,
+      req.params["goalId"]!,
+      req.params["goalReportId"]!,
+      req.params["fileId"]!,
+      getClientIp(req)
+    )
+  );
 };

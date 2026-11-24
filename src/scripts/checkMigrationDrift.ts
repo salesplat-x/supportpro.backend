@@ -64,6 +64,7 @@ import { StaffCompletionRequest } from "../entities/StaffCompletionRequest.js";
 import { OrganizationOwnershipTransfer } from "../entities/OrganizationOwnershipTransfer.js";
 import { StuckEmailTimer } from "../entities/StuckEmailTimer.js";
 import { SavedJob } from "../entities/SavedJob.js";
+import { StaffGoalReport } from "../entities/StaffGoalReport.js";
 import { Department } from "../entities/Department.js";
 
 const ALL_ENTITIES = [
@@ -127,6 +128,7 @@ const ALL_ENTITIES = [
   OrganizationOwnershipTransfer,
   StuckEmailTimer,
   SavedJob,
+  StaffGoalReport,
   Department,
 ];
 

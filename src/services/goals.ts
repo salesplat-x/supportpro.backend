@@ -12,7 +12,7 @@ import {
   generateJobField as generateJobFieldAI,
   suggestGoals as suggestGoalsAI,
 } from "../utils/integrations/openai.js";
-import { addDays, workToday } from "../utils/workCalendar.js";
+import { type ReportFrequency, addDays, workToday } from "../utils/workCalendar.js";
 import { assertCanManagePeople } from "./peopleAccess.js";
 import { aiFailure, askAi, cleanAiText, withAiClaim } from "./peopleAi.js";
 import {
@@ -41,10 +41,12 @@ export interface GoalInput {
   keyResults: string[];
   target: string | null;
   dueOn: string;
+  reportFrequency?: ReportFrequency | null;
 }
 
 export interface GoalView extends GoalInput {
   id: string;
+  reportFrequency: ReportFrequency | null;
   progress: number;
   status: GoalStatus;
   source: GoalSource;
@@ -73,6 +75,7 @@ export const toGoalView = (goal: StaffGoal): GoalView => ({
   keyResults: goal.keyResults,
   target: goal.target,
   dueOn: goal.dueOn,
+  reportFrequency: goal.reportFrequency,
   progress: goal.progress,
   status: goal.status,
   source: goal.source,
@@ -150,6 +153,8 @@ export const addGoal = async (scope: PerformanceScope, input: GoalInput): Promis
     const goal = await goalsRepo(em).save(
       goalsRepo(em).create({
         ...input,
+        reportFrequency: input.reportFrequency ?? null,
+        reportFrequencySince: input.reportFrequency ? workToday() : null,
         organizationId: staff.organizationId,
         staffId: staff.id,
       })
@@ -178,11 +183,17 @@ export const editGoal = async (
       throw new ValidationError("The due date can't be in the past");
     }
     const nextVersion = goal.version + 1;
-    await goalsRepo(em).update(goal.id, { ...input, version: nextVersion });
+    const { reportFrequency, ...wording } = input;
+    const frequency =
+      reportFrequency !== undefined && reportFrequency !== goal.reportFrequency
+        ? { reportFrequency, reportFrequencySince: reportFrequency ? workToday() : null }
+        : {};
+    const changes = { ...wording, ...frequency, version: nextVersion };
+    await goalsRepo(em).update(goal.id, changes);
     await recordActivities(em, staff, [
       activityEntry(StaffActivityType.GoalChanged, scope.actor, { title: input.title }),
     ]);
-    return toGoalView(Object.assign(goal, input, { version: nextVersion }));
+    return toGoalView(Object.assign(goal, changes));
   });
 };
 

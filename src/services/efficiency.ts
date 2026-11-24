@@ -113,7 +113,7 @@ export interface EfficiencyPerson {
  * Someone with no AuxHR account can't submit a report, so they have no rate rather than 0%.
  * Weeks count from when they could first submit: their start date or the day they joined.
  */
-const reportingStart = (person: EfficiencyPerson): string | null => {
+export const reportingStart = (person: EfficiencyPerson): string | null => {
   if (!person.userId) return null;
   const joined = person.joinedAt ? workToday(new Date(person.joinedAt)) : null;
   return joined && joined > person.startDate ? joined : person.startDate;

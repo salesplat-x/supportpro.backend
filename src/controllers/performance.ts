@@ -3,6 +3,7 @@ import type { DevelopmentStatus } from "../entities/StaffDevelopmentItem.js";
 import * as completion from "../services/completionRequests.js";
 import * as development from "../services/development.js";
 import { requestEfficiencyTip } from "../services/efficiency.js";
+import * as goalReportService from "../services/goalReports.js";
 import * as goals from "../services/goals.js";
 import { saveFeedback as saveMonthlyFeedback } from "../services/monthlyFeedback.js";
 import * as myWorkService from "../services/myWork.js";
@@ -34,6 +35,7 @@ const goalInput = (req: Request): goals.GoalInput => ({
   keyResults: req.body.keyResults as string[],
   target: (req.body.target as string | null | undefined) || null,
   dueOn: req.body.dueOn as string,
+  reportFrequency: req.body.reportFrequency as goals.GoalInput["reportFrequency"],
 });
 
 /** Always a download with a fixed type, so an evidence file can never run as a page on our site. */
@@ -380,4 +382,37 @@ export const quarterGoal = async (req: Request, res: Response) => {
     version: req.body.version as number | null,
   });
   sendSuccessResponse(res, "Revenue goal saved", { goal });
+};
+
+export const goalReports = async (req: Request, res: Response) => {
+  sendSuccessResponse(
+    res,
+    "Reports fetched",
+    await goalReportService.listGoalReports(scopeOf(req), req.params["goalId"]!, getClientIp(req))
+  );
+};
+
+export const noteGoalReport = async (req: Request, res: Response) => {
+  const report = await goalReportService.addGoalReportNote(
+    scopeOf(req),
+    req.params["goalId"]!,
+    req.params["goalReportId"]!,
+    req.body.note as string,
+    req.body.textVersion as number,
+    req.body.noteVersion as number
+  );
+  sendSuccessResponse(res, "Note saved", { report });
+};
+
+export const goalReportFile = async (req: Request, res: Response) => {
+  sendEvidence(
+    res,
+    await goalReportService.downloadGoalReportFile(
+      scopeOf(req),
+      req.params["goalId"]!,
+      req.params["goalReportId"]!,
+      req.params["fileId"]!,
+      getClientIp(req)
+    )
+  );
 };

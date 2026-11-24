@@ -55,6 +55,8 @@ export interface TeamMemberView {
   /** Why they're on this team: they report to this person, they're in a department this person heads, or both. */
   relation: "report" | "department" | "both";
   departmentName: string | null;
+  /** Goal reports from the last 30 days that nobody has replied to yet. */
+  goalReportsToRead: number;
 }
 
 const reportsRepo = (em = AppDataSource.manager) => em.getRepository(StaffWeeklyReport);
@@ -341,6 +343,7 @@ export const getMyTeam = async (
     job_title: string;
     report_id: string | null;
     goals_waiting: number;
+    goal_reports_to_read: number;
     is_report: boolean;
     in_department: boolean;
     department_name: string | null;
@@ -349,7 +352,10 @@ export const getMyTeam = async (
             s.manager_id IS NOT DISTINCT FROM $1 AS is_report,
             dep.head_staff_id IS NOT DISTINCT FROM $1 AS in_department,
             (SELECT COUNT(*)::int FROM staff_goals g
-             WHERE g.staff_id = s.id AND g.status = $4) AS goals_waiting
+             WHERE g.staff_id = s.id AND g.status = $4) AS goals_waiting,
+            (SELECT COUNT(*)::int FROM staff_goal_reports gr
+             WHERE gr.staff_id = s.id AND gr.reviewer_note IS NULL
+               AND gr.submitted_at > NOW() - INTERVAL '30 days') AS goal_reports_to_read
      FROM staff_members s
      LEFT JOIN departments dep ON dep.id = s.department_id
      LEFT JOIN staff_weekly_reports r ON r.staff_id = s.id AND r.week_start = $3
@@ -372,6 +378,7 @@ export const getMyTeam = async (
       jobTitle: row.job_title,
       reportId: row.report_id,
       goalsWaiting: row.goals_waiting,
+      goalReportsToRead: row.goal_reports_to_read,
       relation: row.is_report ? (row.in_department ? "both" : "report") : "department",
       departmentName: row.department_name,
     })),

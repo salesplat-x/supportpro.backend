@@ -105,6 +105,7 @@ export const spacesKeyFor = (
     | "notarized-scans"
     | "signed-documents"
     | "completion-evidence"
+    | "goal-reports"
     | "interview-recordings",
   ownerId: string,
   originalname: string

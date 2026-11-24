@@ -20,6 +20,9 @@ import {
   editGoalValidator,
   feedbackValidator,
   goalIdValidator,
+  goalReportFileValidator,
+  goalReportNoteValidator,
+  goalReportsValidator,
   reportNoteValidator,
   reportsPageValidator,
 } from "../validators/performance.js";
@@ -127,6 +130,24 @@ export const registerSharedPerformanceRoutes = (
     ...guard,
     validate([...params, ...reportsPageValidator]),
     asyncHandler(performance.reports, "load reports")
+  );
+  router.get(
+    `${prefix}/goals/:goalId/reports`,
+    ...guard,
+    validate([...params, ...goalReportsValidator]),
+    asyncHandler(performance.goalReports, "load goal reports")
+  );
+  router.put(
+    `${prefix}/goals/:goalId/reports/:goalReportId/note`,
+    ...guard,
+    validate([...params, ...goalReportNoteValidator]),
+    asyncHandler(performance.noteGoalReport, "save goal report note")
+  );
+  router.get(
+    `${prefix}/goals/:goalId/reports/:goalReportId/files/:fileId`,
+    ...guard,
+    validate([...params, ...goalReportFileValidator]),
+    asyncHandler(performance.goalReportFile, "download goal report file")
   );
   router.put(
     `${prefix}/reports/:weeklyReportId/note`,

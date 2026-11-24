@@ -51,6 +51,8 @@ export enum StaffActivityType {
   HrRemoved = "hr_removed",
   DepartmentHeadAssigned = "department_head_assigned",
   DepartmentHeadRemoved = "department_head_removed",
+  GoalReportSubmitted = "goal_report_submitted",
+  GoalReportNoteAdded = "goal_report_note_added",
 }
 
 /** Append-only history of what happens to one staff member. Rows are never edited or deleted. */
