@@ -1,5 +1,5 @@
 # Update this file from each provider's official models page, then run `npm run ai:smoke`.
-verifiedOn: "2026-11-12"
+verifiedOn: "2026-11-24"
 
 providers:
   - key: openai
@@ -151,6 +151,7 @@ models:
     provider: gemini
     label: Gemini Embedding 001
     kind: embedding
+    retiresOn: "2028-05-14"
 
   - id: grok-4.7
     provider: grok
