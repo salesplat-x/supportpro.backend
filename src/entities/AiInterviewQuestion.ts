@@ -39,6 +39,10 @@ export class AiInterviewQuestion {
   @Column({ type: "varchar", length: 255, name: "recording_key", nullable: true, default: null })
   recordingKey!: string | null;
 
+  /** The question read aloud, made the first time the candidate plays it and reused after. */
+  @Column({ type: "varchar", length: 255, name: "audio_key", nullable: true, default: null })
+  audioKey!: string | null;
+
   @Column({
     type: "varchar",
     length: 100,

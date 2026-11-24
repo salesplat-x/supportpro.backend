@@ -9,13 +9,17 @@ const BASE_URL = "https://api.elevenlabs.io/v1/text-to-speech";
 export const isElevenLabsConfigured = (): boolean =>
   Boolean(env.elevenlabsApiKey && env.elevenlabsVoiceId);
 
-const request = (text: string, stream: boolean) => {
-  if (!isElevenLabsConfigured()) {
-    throw new Error("ElevenLabs is not configured (ELEVENLABS_API_KEY / ELEVENLABS_VOICE_ID)");
+/** The AI interviewer reads questions in its own Nigerian English voice, apart from Grace's. */
+export const isInterviewVoiceConfigured = (): boolean =>
+  Boolean(env.elevenlabsApiKey && env.elevenlabsInterviewVoiceId);
+
+const request = (text: string, stream: boolean, voiceId = env.elevenlabsVoiceId) => {
+  if (!env.elevenlabsApiKey || !voiceId) {
+    throw new Error("ElevenLabs is not configured (ELEVENLABS_API_KEY and a voice id)");
   }
   const suffix = stream ? "/stream" : "";
   return {
-    url: `${BASE_URL}/${encodeURIComponent(env.elevenlabsVoiceId!)}${suffix}`,
+    url: `${BASE_URL}/${encodeURIComponent(voiceId)}${suffix}`,
     payload: { text, ...(env.elevenlabsModelId ? { model_id: env.elevenlabsModelId } : {}) },
     headers: {
       "Content-Type": "application/json",
@@ -29,6 +33,8 @@ const request = (text: string, stream: boolean) => {
 export interface SpeechOptions {
   /** Aborted when the voice request's overall deadline passes. */
   signal?: AbortSignal;
+  /** Defaults to Grace's voice. */
+  voiceId?: string;
 }
 
 const ATTEMPTS = 2;
@@ -36,9 +42,9 @@ const ATTEMPTS = 2;
 /** Synthesizes `text` into a complete mp3 buffer. */
 export const synthesizeSpeech = async (
   text: string,
-  { signal }: SpeechOptions = {}
+  { signal, voiceId }: SpeechOptions = {}
 ): Promise<Buffer> => {
-  const { url, payload, headers } = request(text, false);
+  const { url, payload, headers } = request(text, false, voiceId);
   const response = await withRetry(
     () =>
       axios.post<ArrayBuffer>(url, payload, {

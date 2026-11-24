@@ -19,6 +19,8 @@ import {
 } from "../utils/integrations/spaces.js";
 import { getActiveOrganizationId } from "./organizationScope.js";
 import { probeAudioDurationSeconds } from "../utils/audioDuration.js";
+import env from "../config/env.js";
+import { isInterviewVoiceConfigured, synthesizeSpeech } from "../utils/integrations/elevenlabs.js";
 import logger from "../utils/logger.js";
 
 export interface RecordingFile {
@@ -144,4 +146,46 @@ export const openRecording = async (
   if (!isSpacesConfigured()) throw notSetUp();
   const buffer = await getFromSpaces(question.recordingKey);
   return { buffer, mimeType: question.recordingMimeType ?? "application/octet-stream" };
+};
+
+const QUESTION_AUDIO_TYPE = "audio/mpeg";
+
+/**
+ * The question read aloud in the interviewer's Nigerian voice, for the candidate only. It is
+ * made the first time it's played, stored, and reused after, so each question is paid for once.
+ */
+export const openQuestionAudio = async (
+  userId: string,
+  interviewId: string,
+  questionId: string
+): Promise<{ buffer: Buffer; mimeType: string }> => {
+  const { interview, question } = await loadQuestion(interviewId, questionId);
+  if (interview.talentId !== userId) {
+    throw new AuthorizationError("Only the candidate can play this interview's questions");
+  }
+  if (question.audioKey) {
+    return { buffer: await getFromSpaces(question.audioKey), mimeType: QUESTION_AUDIO_TYPE };
+  }
+  if (!isInterviewVoiceConfigured()) {
+    throw new AppError(
+      503,
+      "INTERVIEW_VOICE_NOT_CONFIGURED",
+      "The interviewer's voice is not set up"
+    );
+  }
+  if (!isSpacesConfigured()) throw notSetUp();
+
+  const buffer = await synthesizeSpeech(question.question, {
+    voiceId: env.elevenlabsInterviewVoiceId,
+  });
+  const key = spacesKeyFor("interview-question-audio", interview.id, "question.mp3");
+  await uploadPrivateToSpaces(buffer, key, QUESTION_AUDIO_TYPE);
+  const saved = await AppDataSource.getRepository(AiInterviewQuestion).update(
+    { id: question.id, audioKey: IsNull() },
+    { audioKey: key }
+  );
+  if (!saved.affected) {
+    await deleteSpacesObjectQuietly(key, `duplicate audio for interview question ${question.id}`);
+  }
+  return { buffer, mimeType: QUESTION_AUDIO_TYPE };
 };

@@ -51,3 +51,15 @@ export const getInterviewAssessment = async (req: Request, res: Response) => {
   );
   res.status(200).json({ success: true, data });
 };
+
+export const questionAudio = async (req: Request, res: Response) => {
+  const { buffer, mimeType } = await recordings.openQuestionAudio(
+    req.user.id,
+    req.params["interviewId"]!,
+    req.params["questionId"]!
+  );
+  res.setHeader("Content-Type", mimeType);
+  res.setHeader("Content-Length", buffer.length);
+  res.setHeader("Cache-Control", "private, max-age=3600");
+  res.end(buffer);
+};
