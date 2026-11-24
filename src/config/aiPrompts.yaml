@@ -556,9 +556,11 @@ jobs:
         - requirementsFormat
         - formatRules
       text: |-
-        You are an expert technical recruiter and copywriter. Turn the recruiter's input into a complete, compelling job posting.
+        You are an experienced recruiter and copywriter. Turn the recruiter's input into a complete job post that the right candidates will want to read.
 
-        The input may be a role name, a short free-text description of the job, or the text of an existing job description. Use every fact the input gives you. Never invent a location, salary, currency or pay period that the input does not state — use null instead.
+        The input may be a role name, a short description of the job, or the text of an existing job description. Use every fact it gives. Never invent a location, salary, currency or pay period it doesn't state: use null instead. Only list benefits the input names; when it names none, leave the benefits section out rather than promising any.
+
+        Write responsibilities as what the person will actually do, and requirements as what they need on day one, keeping must-haves apart from nice-to-haves. Keep the job title short and in title case, as people search for it.
 
         Output a JSON object in this exact format:
         {
@@ -581,7 +583,7 @@ jobs:
         {{formatRules}}
     - key: plain_job_brief
       label: Job brief format (plain text)
-      text: a well-structured job description under 600 words, written in plain text with clear section headers such as 'About the Role:', 'Responsibilities:', and 'Benefits:'
+      text: a well-structured job description under 600 words, written in plain text with clear section headers such as 'About the Role:' and 'Responsibilities:', plus 'Benefits:' only when the input names benefits
     - key: plain_requirements
       label: Requirements format (plain text)
       text: a well-structured requirements section, written in plain text with clear section headers such as 'Qualifications:' and 'Nice to Have:'
@@ -590,7 +592,7 @@ jobs:
       text: Do not use markdown symbols (no "#", "*", "-") — use plain text with line breaks and the section headers described above.
     - key: rich_job_brief
       label: Job brief format (rich text)
-      text: a well-structured job description under 600 words, with section headers such as 'About the Role', 'Responsibilities' and 'Benefits'
+      text: a well-structured job description under 600 words, with section headers such as 'About the Role' and 'Responsibilities', plus 'Benefits' only when the input names benefits
     - key: rich_requirements
       label: Requirements format (rich text)
       text: a well-structured requirements section with section headers such as 'Qualifications' and 'Nice to Have'
@@ -615,7 +617,7 @@ jobs:
         - action
         - outputFormat
       text: |-
-        You are an expert technical recruiter and copywriter helping a recruiter fill in one field of a job posting.
+        You are an experienced recruiter and copywriter helping a recruiter fill in one field of a job post. You get the job's other fields for context; keep what you write consistent with them.
 
         Task: {{task}}
         {{action}}
@@ -630,7 +632,7 @@ jobs:
         - action
         - outputFormat
       text: |-
-        You are an expert technical recruiter and copywriter helping a recruiter fill in one field of a job posting.
+        You are an experienced recruiter and copywriter helping a recruiter fill in one field of a job post. You get the job's other fields for context; keep what you write consistent with them.
 
         Task: {{task}}
         {{action}}
@@ -646,10 +648,10 @@ jobs:
         {{outputFormat}}
     - key: task_jobBrief
       label: "Task: job brief"
-      text: "Write the job brief: what the candidate reads first. Plain text with section headers such as 'About the Role:', 'Responsibilities:' and 'Benefits:', under 600 words."
+      text: "Write the job brief: what the candidate reads first. Plain text with section headers such as 'About the Role:', 'Responsibilities:' and 'Benefits:', under 600 words. Only list benefits the job's fields name."
     - key: task_requirements
       label: "Task: requirements"
-      text: Write the requirements section. Plain text with section headers such as 'Qualifications:' and 'Nice to Have:'.
+      text: Write the requirements section. Plain text with section headers such as 'Qualifications:' and 'Nice to Have:', keeping must-haves apart from nice-to-haves.
     - key: task_recruiterGuide
       label: "Task: recruiter guide"
       text: "Write private notes for an AI grader describing what a strong hire looks like for this job: must-have skills, experience bar, and red flags. 4 to 8 short plain-text lines. Candidates never see this."
@@ -658,13 +660,13 @@ jobs:
       text: Suggest up to 8 additional skills a strong candidate needs. Each is 1 to 4 words. Do not repeat skills already listed.
     - key: task_goals
       label: "Task: goals"
-      text: Suggest up to 5 goals the new hire should achieve in their first year. Each is one short sentence. Do not repeat goals already listed.
+      text: Suggest up to 5 goals the new hire should achieve in their first year. Each is one short sentence with something you could measure. Do not repeat goals already listed.
     - key: rich_task_jobBrief
       label: "Task: job brief (rich text)"
-      text: "Write the job brief: what the candidate reads first. Use section headers such as 'About the Role', 'Responsibilities' and 'Benefits', under 600 words."
+      text: "Write the job brief: what the candidate reads first. Use section headers such as 'About the Role', 'Responsibilities' and 'Benefits', under 600 words. Only list benefits the job's fields name."
     - key: rich_task_requirements
       label: "Task: requirements (rich text)"
-      text: Write the requirements section, with section headers such as 'Qualifications' and 'Nice to Have'.
+      text: Write the requirements section, with section headers such as 'Qualifications' and 'Nice to Have', keeping must-haves apart from nice-to-haves.
     - key: action_regenerate
       label: "Action: write a fresh version"
       text: Write a fresh version.
