@@ -27,6 +27,7 @@ import { Application } from "../src/entities/Application.js";
 import { Job } from "../src/entities/Job.js";
 import { Question } from "../src/entities/Question.js";
 import { Answer } from "../src/entities/Answer.js";
+import { User } from "../src/entities/User.js";
 import { ApplicationStatus, QuestionType, ScreeningStage } from "../src/types/enums.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
@@ -55,20 +56,6 @@ jest.mock("../src/utils/integrations/openai.js", () => ({
         recommendation: "hire",
       }),
     },
-  }),
-  gradeAssessmentAnswers: jest.fn().mockImplementation((_questionsJSON: string) => {
-    const questions = JSON.parse(_questionsJSON);
-    return Promise.resolve({
-      message: {
-        content: JSON.stringify({
-          responses: questions.map((q: { questionId: string }) => ({
-            questionId: q.questionId,
-            answer: "Test answer",
-            score: 4,
-          })),
-        }),
-      },
-    });
   }),
   gradePersonalizedAnswers: jest.fn().mockImplementation((_answersJSON: string) => {
     const answers = JSON.parse(_answersJSON);
@@ -634,76 +621,24 @@ describe("GET /v1/questions/?questionType=personality — per-applicant random s
 });
 
 // ---------------------------------------------------------------------------
-// POST /v1/questions/answer/prescreening — submit prescreening answers (Talent)
+// POST /v1/questions/answer/prescreening — removed; only /v1/prescreening/submit scores
 // ---------------------------------------------------------------------------
 
-describe("POST /v1/questions/answer/prescreening — submit prescreening answers", () => {
-  it("Talent submits valid answers for their role → 200, scorePercent returned", async () => {
+describe("POST /v1/questions/answer/prescreening — removed", () => {
+  it("is gone, so it can't overwrite the talent's pre-assessment score", async () => {
     const role = await createRole();
-    const { token: talentToken } = await createCompleteTalent(role);
-
-    const q1 = await createQuestion(QuestionType.Prescreening, { roleId: role.id });
-
-    const answers: Record<string, string> = { [q1.id]: "TypeScript is my primary language" };
-
-    const res = await request(app)
-      .post("/v1/questions/answer/prescreening")
-      .set("Authorization", `Bearer ${talentToken}`)
-      .send({ roleId: role.id, answers });
-
-    expect(res.status).toBe(200);
-    expect(res.body.data.scorePercent).toBeDefined();
-  });
-
-  it("Too many answers (>15) → 400", async () => {
-    const role = await createRole();
-    const { token } = await createCompleteTalent(role);
-
-    const answers: Record<string, string> = {};
-    for (let i = 0; i < 16; i++) answers[`fake-id-${i}`] = "answer";
+    const { user, token } = await createCompleteTalent(role);
+    await testDataSource.getRepository(User).update(user.id, { prescreeningScore: 40 });
+    const q = await createQuestion(QuestionType.Prescreening, { roleId: role.id });
 
     const res = await request(app)
       .post("/v1/questions/answer/prescreening")
       .set("Authorization", `Bearer ${token}`)
-      .send({ roleId: role.id, answers });
+      .send({ roleId: role.id, answers: { [q.id]: "answer" } });
 
-    expect(res.status).toBe(400);
-  });
-
-  it("Talent not permitted for that role (not in their userRoles) → 403", async () => {
-    const role = await createRole();
-    const otherRole = await createRole("other-role");
-    const { token } = await createCompleteTalent(role); // talent only has `role`
-
-    const q = await createQuestion(QuestionType.Prescreening, { roleId: otherRole.id });
-
-    const res = await request(app)
-      .post("/v1/questions/answer/prescreening")
-      .set("Authorization", `Bearer ${token}`)
-      .send({ roleId: otherRole.id, answers: { [q.id]: "answer" } });
-
-    expect(res.status).toBe(403);
-  });
-
-  it("Profile incomplete → 403", async () => {
-    const role = await createRole();
-    const { token } = await createTalent(); // no CV
-
-    const res = await request(app)
-      .post("/v1/questions/answer/prescreening")
-      .set("Authorization", `Bearer ${token}`)
-      .send({ roleId: role.id, answers: { "some-id": "answer" } });
-
-    expect(res.status).toBe(403);
-  });
-
-  it("Recruiter cannot access → 403", async () => {
-    const { token } = await createRecruiter();
-    const res = await request(app)
-      .post("/v1/questions/answer/prescreening")
-      .set("Authorization", `Bearer ${token}`)
-      .send({ roleId: "any", answers: {} });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(404);
+    const after = await testDataSource.getRepository(User).findOneByOrFail({ id: user.id });
+    expect(after.prescreeningScore).toBe(40);
   });
 });
 

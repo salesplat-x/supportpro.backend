@@ -5,17 +5,10 @@ import { Application } from "../entities/Application.js";
 import { User } from "../entities/User.js";
 import { Job } from "../entities/Job.js";
 import { IsNull, type EntityManager } from "typeorm";
-import { NotFoundError, ValidationError, AuthorizationError, ConflictError } from "../utils/errors";
+import { NotFoundError, ValidationError, ConflictError } from "../utils/errors";
 import { QuestionType, JobStatus, ApplicationStatus, ScreeningStage } from "../types/enums.js";
-import { calculateTimeLeft } from "../utils/text.js";
 import * as AI from "../utils/integrations/openai.js";
-import {
-  canTakeAssessment,
-  getAssessmentRetryDate,
-  hasReachedStage,
-  processNextStage,
-  stageMoveColumns,
-} from "./applicationStage.js";
+import { hasReachedStage, processNextStage, stageMoveColumns } from "./applicationStage.js";
 import { assertStageReached } from "./question.js";
 import { notifyStageReached } from "./talentNotifications.js";
 import { mergeSubmittedAnswers } from "../utils/answerResponses.js";
@@ -72,104 +65,6 @@ const saveOrUpdateAnswer = async (
     responses,
   });
   return repo.save(newAnswer);
-};
-
-export interface AnswerPrescreeningPayload {
-  roleId: string;
-  answers: Record<string, string>;
-}
-
-export const answerPrescreening = async (
-  userId: string,
-  payload: AnswerPrescreeningPayload
-): Promise<{ scorePercent: number }> => {
-  const user = await userRepo().findOne({
-    where: { id: userId },
-    relations: { userRoles: true },
-  });
-  if (!user) {
-    throw new NotFoundError("Authenticated user no longer exists");
-  }
-
-  if (!canTakeAssessment(user.assessmentRetryDate)) {
-    const days = calculateTimeLeft(user.assessmentRetryDate!);
-    throw new AuthorizationError(
-      `Sorry, you cannot take this assessment at the moment, retry ${days}`
-    );
-  }
-
-  const userRoleIds = (user.userRoles ?? []).map((r) => r.id);
-  if (!userRoleIds.includes(payload.roleId)) {
-    throw new AuthorizationError("User is not permitted to take assessment for this role");
-  }
-
-  const questionIds = Object.keys(payload.answers);
-  const MAX_ANSWERS = 15;
-  if (questionIds.length > MAX_ANSWERS) {
-    throw new ValidationError(`Maximum length of answers ${MAX_ANSWERS} has been exceeded`);
-  }
-
-  // Get all questions by Id that belong to this role
-  const questions = await questionRepo()
-    .createQueryBuilder("q")
-    .whereInIds(questionIds)
-    .andWhere("q.role_id = :roleId", { roleId: payload.roleId })
-    .getMany();
-
-  if (questions.length !== questionIds.length) {
-    throw new ValidationError("One or more questions do not belong to the role");
-  }
-
-  const questionsConstruct = questions.map((q) => ({
-    question: q.question,
-    questionId: q.id,
-    criteria: q.criteria,
-    answer: payload.answers[q.id]!,
-  }));
-
-  const questionsJSON = JSON.stringify(questionsConstruct);
-
-  const response = await AI.gradeAssessmentAnswers(questionsJSON);
-  if (!response || !response.message || !response.message.content) {
-    throw new ValidationError("Error with LLM");
-  }
-
-  let responseArray: IResponse[];
-  try {
-    responseArray = JSON.parse(response.message.content).responses;
-  } catch {
-    throw new ValidationError("Error with LLM");
-  }
-
-  if (responseArray.length !== questionsConstruct.length) {
-    throw new ValidationError("Length of response array doesn't match length of input array");
-  }
-
-  let totalScore = 0;
-  for (const res of responseArray) {
-    if (res.score == null || res.score > 5) {
-      throw new ValidationError("Invalid score received");
-    }
-    totalScore += res.score;
-  }
-
-  const maxScore = 5 * responseArray.length;
-  const scorePercent = Number(((totalScore / maxScore) * 100).toFixed(2));
-
-  await saveOrUpdateAnswer(
-    { userId, roleId: payload.roleId, questionType: QuestionType.Prescreening },
-    mergeSubmittedAnswers(payload.answers, responseArray)
-  );
-
-  // Update user assessment retry date and score
-  const retryDate = getAssessmentRetryDate();
-  await userRepo().save({
-    ...user,
-    assessmentRetryDate: retryDate,
-    prescreeningScore: scorePercent,
-  });
-
-  return { scorePercent };
 };
 
 export interface AnswerPersonalizedPayload {

@@ -33,8 +33,8 @@ import { clearAiSettingsCache } from "../src/utils/integrations/ai/settings.js";
 import {
   createEmbedding as embedText,
   efficiencyTip,
+  evaluatePersonalityType,
   generatePersonalizedQuestions,
-  gradeAssessmentAnswers,
 } from "../src/utils/integrations/openai.js";
 import {
   fillPlaceholders,
@@ -513,16 +513,16 @@ describe("prompts", () => {
   it("ignores a saved edit that no longer passes, and tells the admin why", async () => {
     const { token } = await createAdmin();
     await testDataSource.getRepository(AiFeatureSetting).save({
-      featureKey: "role_answer_grading",
+      featureKey: "personality_type",
       prompts: { system: "Score these answers." },
     });
 
-    await gradeAssessmentAnswers("[]");
+    await evaluatePersonalityType("[]");
     expect(systemSent()).toBe(
-      withSkills("role_answer_grading", defaultOf("role_answer_grading", "system"))
+      withSkills("personality_type", defaultOf("personality_type", "system"))
     );
 
-    const res = await getPrompts(token, "role_answer_grading");
+    const res = await getPrompts(token, "personality_type");
     const { prompts } = apiData<{ prompts: AiPromptPartView[] }>(res);
     expect(prompts[0]?.problem).toContain("must still ask for JSON");
   });

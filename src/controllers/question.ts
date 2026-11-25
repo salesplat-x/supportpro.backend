@@ -23,11 +23,6 @@ export const fetch = async (req: Request, res: Response) => {
   sendSuccessResponse(res, "Question fetched", { question: result });
 };
 
-export const answerPrescreening = async (req: Request, res: Response) => {
-  const result = await answerService.answerPrescreening(req.user.id, req.body);
-  sendSuccessResponse(res, "Prescreening answers submitted", result);
-};
-
 export const generatePersonalizedQuestions = async (req: Request, res: Response) => {
   const result = await questionService.generatePersonalizedQuestions(req.body);
   if (req.user.userRole === UserRole.Talent) hideAssessmentResultsFromCandidate(result.application);

@@ -17,11 +17,6 @@ export const createQuestionValidator = [
 
 export const questionIdParamValidator = [idParam("_id")];
 
-export const answerPrescreeningValidator = [
-  body("roleId").notEmpty().withMessage("roleId is required"),
-  body("answers").isObject().withMessage("answers must be an object"),
-];
-
 export const answerPersonalizedValidator = [
   body("jobId").notEmpty().withMessage("jobId is required"),
   body("answers").isObject().withMessage("answers must be an object"),

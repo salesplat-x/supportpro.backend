@@ -4,14 +4,6 @@
 export const openaiMocks = {
   createEmbedding: jest.fn().mockResolvedValue([{ embedding: new Array(512).fill(0.1) }]),
 
-  gradeAssessmentAnswers: jest.fn().mockResolvedValue({
-    message: {
-      content: JSON.stringify({
-        responses: [{ questionId: "q1", answer: "Good answer", score: 4 }],
-      }),
-    },
-  }),
-
   gradePersonalizedAnswers: jest.fn().mockResolvedValue({
     message: {
       content: JSON.stringify({

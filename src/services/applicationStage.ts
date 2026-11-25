@@ -248,11 +248,6 @@ export const loadRecommendationsByApplicationIds = async (
   return new Map(recommendations.map((r) => [r.applicationId, r]));
 };
 
-export const canTakeAssessment = (assessmentRetryDate: Date | null): boolean => {
-  if (!assessmentRetryDate) return true;
-  return new Date() >= assessmentRetryDate;
-};
-
 export const getAssessmentRetryDate = (days = 7): Date => {
   const d = new Date();
   d.setDate(d.getDate() + days);

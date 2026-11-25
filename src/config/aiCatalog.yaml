@@ -388,13 +388,6 @@ features:
     kind: chat
     format: json_object
     default: { provider: openai, model: gpt-5.6-luna }
-  - key: role_answer_grading
-    name: Role answer grading AI
-    description: Grades answers to role questions from 1 to 5.
-    group: Assessments
-    kind: chat
-    format: json_object
-    default: { provider: openai, model: gpt-5.6-luna }
   - key: personalized_answer_grading
     name: Personalized answer grading AI
     description: Grades answers to personalized questions.
