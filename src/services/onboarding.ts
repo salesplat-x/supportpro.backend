@@ -27,6 +27,7 @@ import {
   talentSteps,
 } from "./onboardingRules.js";
 import { getProfileCompletion } from "./user.js";
+import { PRESCREENING_SCORE_VALIDITY_DAYS } from "./prescreening.js";
 
 const userRepo = () => AppDataSource.getRepository(User);
 const emailRepo = () => AppDataSource.getRepository(OnboardingEmail);
@@ -44,7 +45,7 @@ const talentFactSql = (u: string): Record<keyof TalentFacts, string> => ({
     `${u}."cvText"`
   )})`,
   hasRoles: `EXISTS (SELECT 1 FROM user_roles ob_ur WHERE ob_ur.user_id = ${u}.id)`,
-  hasScore: `${u}."prescreeningScore" IS NOT NULL`,
+  hasScore: `(${u}."prescreeningScore" IS NOT NULL AND ${u}."prescreeningScoredAt" > NOW() - INTERVAL '${PRESCREENING_SCORE_VALIDITY_DAYS} days')`,
   hasApplication: `EXISTS (SELECT 1 FROM applications ob_a WHERE ob_a.talent_id = ${u}.id)`,
 });
 

@@ -23,6 +23,7 @@ import {
   createAdmin,
   createRole,
   createCompleteTalent,
+  validPreAssessment,
 } from "./helpers/fixtures.js";
 import { uploadToSpaces, deleteFromSpaces } from "../src/utils/integrations/spaces.js";
 import { extractText } from "../src/utils/text.js";
@@ -171,11 +172,24 @@ describe("GET /v1/user/me/onboarding", () => {
   it("asks a scored talent without an application to apply", async () => {
     const role = await createRole();
     const { user, token } = await createCompleteTalent(role);
-    await testDataSource.getRepository(User).update(user.id, { prescreeningScore: 80 });
+    await testDataSource.getRepository(User).update(user.id, validPreAssessment(80));
 
     const res = await getOnboarding(token);
 
     expect(res.body.data.onboarding.stage).toBe("apply_to_job");
+  });
+
+  it("asks a talent whose score is more than 90 days old to take the pre-assessment again", async () => {
+    const role = await createRole();
+    const { user, token } = await createCompleteTalent(role);
+    await testDataSource.getRepository(User).update(user.id, {
+      prescreeningScore: 80,
+      prescreeningScoredAt: new Date(Date.now() - 91 * 86_400_000),
+    });
+
+    const res = await getOnboarding(token);
+
+    expect(res.body.data.onboarding.stage).toBe("take_assessment");
   });
 
   it("puts a recruiter without a company on the company step", async () => {

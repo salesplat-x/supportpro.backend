@@ -23,6 +23,7 @@ import {
   createRecruiter,
   createRole,
   createTalent,
+  validPreAssessment,
 } from "./helpers/fixtures.js";
 
 jest.mock("../src/utils/integrations/openai.js", () => ({
@@ -83,9 +84,9 @@ async function seedTalents(role: Role) {
   const blankCvName = (await createTalent({ cvFileName: "" })).user;
   const cvNoRoles = (await createCompleteTalent()).user;
   const takeAssessment = (await createCompleteTalent(role)).user;
-  const applyToJob = (await createCompleteTalent(role, { prescreeningScore: 70 })).user;
-  const zeroScore = (await createCompleteTalent(role, { prescreeningScore: 0 })).user;
-  const active = (await createCompleteTalent(role, { prescreeningScore: 80 })).user;
+  const applyToJob = (await createCompleteTalent(role, validPreAssessment(70))).user;
+  const zeroScore = (await createCompleteTalent(role, validPreAssessment(0))).user;
+  const active = (await createCompleteTalent(role, validPreAssessment(80))).user;
   await createApplication(active, job);
   return {
     verify_email: [verifyEmail],
@@ -274,7 +275,7 @@ describe("GET /v1/admin/talents — onboarding", () => {
       const { user } = await createTalent({
         emailVerifiedAt: coin() ? new Date() : null,
         cvFileName: coin() ? "cv.pdf" : null,
-        prescreeningScore: coin() ? 55 : null,
+        ...(coin() ? validPreAssessment(55) : { prescreeningScore: null }),
       });
       if (coin()) {
         user.userRoles = [role];
@@ -558,7 +559,7 @@ describe("POST /v1/admin/users/:_id/onboarding/draft", () => {
     const { token } = await createAdmin();
     const role = await createRole();
     const job = await createJob((await createRecruiter()).user, role);
-    const { user } = await createCompleteTalent(role, { prescreeningScore: 80 });
+    const { user } = await createCompleteTalent(role, validPreAssessment(80));
     await createApplication(user, job);
 
     const res = await draftAs(token, user.id);
@@ -690,7 +691,7 @@ describe("POST /v1/admin/users/:_id/onboarding/emails", () => {
     const before = await listAs(token, "/v1/admin/talents?followUp=emailed");
     expect(before.body.data.users.map((u: { id: string }) => u.id)).toEqual([user.id]);
 
-    await testDataSource.getRepository(User).update(user.id, { prescreeningScore: 75 });
+    await testDataSource.getRepository(User).update(user.id, validPreAssessment(75));
 
     const after = await listAs(token, "/v1/admin/talents?followUp=progressed");
     expect(after.body.data.users.map((u: { id: string }) => u.id)).toEqual([user.id]);

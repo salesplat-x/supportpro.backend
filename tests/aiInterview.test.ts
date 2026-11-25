@@ -13,6 +13,7 @@ import {
   createJob,
   createAIConfig,
   createApplication,
+  validPreAssessment,
 } from "./helpers/fixtures.js";
 import { Notification } from "../src/entities/Notification.js";
 import { Application } from "../src/entities/Application.js";
@@ -165,7 +166,7 @@ describe("candidate reaching the AI interview stage", () => {
     const aiConfig = await createAIConfig(recruiter, configOverrides);
     await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
     const { user: talent, token } = await createTalent({
-      prescreeningScore: 75,
+      ...validPreAssessment(75),
       cvFileName: "cv.pdf",
     });
     return { job, aiConfig, talent, token };

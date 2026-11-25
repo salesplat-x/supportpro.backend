@@ -15,6 +15,7 @@ import {
   createRecruiter,
   createRole,
   createPreScreening,
+  validPreAssessment,
 } from "./helpers/fixtures.js";
 import { PreScreening } from "../src/entities/PreScreening.js";
 import { User } from "../src/entities/User.js";
@@ -1050,5 +1051,30 @@ describe("Pre-assessment next set", () => {
     const next = await nextSetFor(user.id);
     expect(next.nextGenerationStatus).toBe("succeeded");
     expect(next.nextQuestions?.[0]?.question).toBe("Next question 1?");
+  });
+});
+
+describe("GET /v1/prescreening/ — hasValidScore", () => {
+  it("is true only while the talent's score is inside its 90 days", async () => {
+    const role = await createRole();
+    const { user: fresh, token: freshToken } = await createCompleteTalent(
+      role,
+      validPreAssessment()
+    );
+    await createPreScreening(fresh, [role.id], {
+      status: PreScreeningStatus.Completed,
+      generationStatus: GenerationStatus.Succeeded,
+    });
+    const { token: newToken } = await createCompleteTalent(role);
+
+    const freshRes = await request(app)
+      .get("/v1/prescreening/")
+      .set("Authorization", `Bearer ${freshToken}`);
+    const newRes = await request(app)
+      .get("/v1/prescreening/")
+      .set("Authorization", `Bearer ${newToken}`);
+
+    expect(freshRes.body.data.preScreening.hasValidScore).toBe(true);
+    expect(newRes.body.data.preScreening.hasValidScore).toBe(false);
   });
 });

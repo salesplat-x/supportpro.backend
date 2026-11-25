@@ -24,6 +24,7 @@ import {
   createJob,
   createApplication,
   createAIConfig,
+  validPreAssessment,
 } from "./helpers/fixtures.js";
 import { Application } from "../src/entities/Application.js";
 import { Job } from "../src/entities/Job.js";
@@ -120,15 +121,21 @@ describe("computeCvSimilarityScore", () => {
 });
 
 describe("apply", () => {
+  const setupApplicant = async () => {
+    const context = await setup();
+    await testDataSource.getRepository(User).update(context.talent.id, validPreAssessment());
+    return context;
+  };
+
   it("stores the CV match score on the new application", async () => {
-    const { talent, job } = await setup();
+    const { talent, job } = await setupApplicant();
     await embedCv(talent.id, 1);
     const application = await apply(talent, { jobId: job.id });
     expect((await reload(application.id)).cvSimilarityScore).toBe(100);
   });
 
   it("leaves the score empty while the CV embedding is pending", async () => {
-    const { talent, job } = await setup();
+    const { talent, job } = await setupApplicant();
     const application = await apply(talent, { jobId: job.id });
     expect((await reload(application.id)).cvSimilarityScore).toBeNull();
   });
