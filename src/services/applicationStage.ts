@@ -153,6 +153,44 @@ export const buildGradedAnswerPairs = async (
   });
 };
 
+/** The pre-assessment is one test for every job, so its answer row has no job or role. */
+export const preAssessmentAnswerWhere = (userId: string) => ({
+  userId,
+  questionType: QuestionType.Prescreening,
+  jobId: IsNull(),
+  roleId: IsNull(),
+});
+
+const PRE_ASSESSMENT_MAX_SCORE = 10;
+
+export const buildPreAssessmentAnswerPairs = async (
+  userId: string
+): Promise<GradedAnswerPair[]> => {
+  const answer = await answerRepo().findOne({
+    where: preAssessmentAnswerWhere(userId),
+    order: { updatedAt: "DESC" },
+  });
+  return (answer?.responses ?? []).map((r) => {
+    const options = r.options ?? [];
+    const picked =
+      typeof r.selectedOption === "number" &&
+      r.selectedOption >= 0 &&
+      r.selectedOption < options.length;
+    const choice =
+      picked && typeof r.correctOption === "number"
+        ? { options, selectedOption: r.selectedOption!, correctOption: r.correctOption }
+        : {};
+    return {
+      question: r.question || "Unknown question",
+      answer: r.answer ?? "",
+      score: typeof r.score === "number" ? r.score : null,
+      maxScore: PRE_ASSESSMENT_MAX_SCORE,
+      feedback: r.feedback ?? null,
+      ...choice,
+    };
+  });
+};
+
 const persistRecommendation = async (
   applicationId: string,
   payload: {

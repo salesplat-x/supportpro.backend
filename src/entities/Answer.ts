@@ -45,6 +45,9 @@ export class Answer {
   responses!: Array<{
     questionId: string;
     answer: string;
+    question?: string;
+    options?: string[];
+    correctOption?: number;
     selectedOption?: number;
     score?: number;
     feedback?: string;

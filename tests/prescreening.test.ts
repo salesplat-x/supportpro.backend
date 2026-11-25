@@ -15,11 +15,19 @@ import {
   createRecruiter,
   createRole,
   createPreScreening,
+  createJob,
+  createApplication,
   validPreAssessment,
 } from "./helpers/fixtures.js";
 import { PreScreening } from "../src/entities/PreScreening.js";
 import { User } from "../src/entities/User.js";
-import { CvEmbeddingStatus, PreScreeningStatus, GenerationStatus } from "../src/types/enums.js";
+import {
+  CvEmbeddingStatus,
+  PreScreeningStatus,
+  GenerationStatus,
+  ScreeningStage,
+} from "../src/types/enums.js";
+import { scorePreScreeningAssessment } from "../src/utils/integrations/openai.js";
 import { TalentEmbedding } from "../src/entities/TalentEmbedding.js";
 import {
   drainInFlightPreScreenings,
@@ -520,6 +528,117 @@ describe("POST /v1/prescreening/retake — request retake", () => {
         previousQuestions: ["Describe your experience"],
       })
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The company sees the questions and answers behind the pre-assessment score
+// ---------------------------------------------------------------------------
+
+describe("Pre-assessment answers on the company's application view", () => {
+  const questions = [
+    {
+      questionId: "q1",
+      question: "A customer is angry about a late delivery. What first?",
+      category: "general",
+      options: ["Apologise and check the order", "Offer a refund", "Escalate", "Wait"],
+      correctOption: 0,
+      intent: "customer care",
+      scoringHint: "A is best",
+    },
+    {
+      questionId: "q2",
+      question: "Two deadlines clash. What do you do?",
+      category: "general",
+      options: ["Work late", "Ask your manager to prioritise", "Pick one", "Skip both"],
+      correctOption: 1,
+      intent: "prioritising",
+      scoringHint: "B is best",
+    },
+  ];
+
+  const submitWithApplication = async () => {
+    const role = await createRole();
+    const { user: talent, token: talentToken } = await createCompleteTalent(role);
+    await createPreScreening(talent, [role.id], { questions });
+    const { user: recruiter, token: recruiterToken } = await createRecruiter();
+    const job = await createJob(recruiter, role);
+    const application = await createApplication(talent, job, {
+      currentStage: ScreeningStage.CvSimilarity,
+    });
+    (scorePreScreeningAssessment as jest.Mock).mockResolvedValueOnce({
+      message: {
+        content: JSON.stringify({
+          totalScore: 75,
+          breakdown: [
+            { questionId: "q1", score: 10, reasoning: "Right first step." },
+            { questionId: "q2", score: 5, reasoning: "Defensible, but slow." },
+          ],
+        }),
+      },
+    });
+    const submit = await request(app)
+      .post("/v1/prescreening/submit")
+      .set("Authorization", `Bearer ${talentToken}`)
+      .send({
+        answers: [
+          { questionId: "q1", selectedOption: 0 },
+          { questionId: "q2", selectedOption: 2 },
+        ],
+      });
+    expect(submit.status).toBe(200);
+    const view = (token: string) =>
+      request(app)
+        .get(`/v1/applications/${application.id}`)
+        .set("Authorization", `Bearer ${token}`);
+    return { talentToken, recruiterToken, view };
+  };
+
+  const expected = [
+    {
+      question: questions[0]!.question,
+      answer: "Apologise and check the order",
+      score: 10,
+      maxScore: 10,
+      feedback: "Right first step.",
+      options: questions[0]!.options,
+      selectedOption: 0,
+      correctOption: 0,
+    },
+    {
+      question: questions[1]!.question,
+      answer: "Pick one",
+      score: 5,
+      maxScore: 10,
+      feedback: "Defensible, but slow.",
+      options: questions[1]!.options,
+      selectedOption: 2,
+      correctOption: 1,
+    },
+  ];
+
+  it("shows the company each question and the option the talent chose, but not the talent", async () => {
+    const { talentToken, recruiterToken, view } = await submitWithApplication();
+
+    const company = await view(recruiterToken);
+    expect(company.status).toBe(200);
+    expect(company.body.data.application.preAssessmentAnswers).toEqual(expected);
+
+    const own = await view(talentToken);
+    expect(own.status).toBe(200);
+    expect(own.body.data.application).not.toHaveProperty("preAssessmentAnswers");
+  });
+
+  it("keeps showing the answers behind the current score while the talent retakes", async () => {
+    const { talentToken, recruiterToken, view } = await submitWithApplication();
+
+    const retake = await request(app)
+      .post("/v1/prescreening/retake")
+      .set("Authorization", `Bearer ${talentToken}`);
+    expect(retake.status).toBe(200);
+
+    const company = await view(recruiterToken);
+    expect(company.body.data.application.preAssessmentAnswers).toEqual(expected);
   });
 });
 

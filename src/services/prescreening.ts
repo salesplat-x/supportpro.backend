@@ -1,6 +1,7 @@
 import { In, QueryFailedError } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { PreScreening } from "../entities/PreScreening.js";
+import { Answer } from "../entities/Answer.js";
 import { User } from "../entities/User.js";
 import { Role } from "../entities/Role.js";
 import { TalentEmbedding } from "../entities/TalentEmbedding.js";
@@ -9,6 +10,7 @@ import {
   CvEmbeddingStatus,
   GenerationStatus,
   PreScreeningStatus,
+  QuestionType,
   UserRole,
 } from "../types/enums.js";
 import {
@@ -17,7 +19,10 @@ import {
   PreScreeningProfileContext,
 } from "../utils/integrations/openai.js";
 import { getProfileCompletion } from "./user.js";
-import { advanceApplicationsAfterPrescreening } from "./applicationStage.js";
+import {
+  advanceApplicationsAfterPrescreening,
+  preAssessmentAnswerWhere,
+} from "./applicationStage.js";
 import logger from "../utils/logger.js";
 import { redistributeCorrectOptions } from "../utils/generatedQuestions.js";
 import {
@@ -75,6 +80,35 @@ export interface IPreScreeningAnswer {
   questionId: string;
   selectedOption: number;
 }
+
+// The pre-screening row's questions are replaced on a retake, so each answer keeps its question.
+const answeredQuestions = (
+  questions: IGeneratedQuestion[],
+  selected: Map<string, number>,
+  breakdown: unknown
+): Answer["responses"] => {
+  const graded = new Map<string, { score?: number; feedback?: string }>();
+  for (const item of Array.isArray(breakdown) ? breakdown : []) {
+    const { questionId, score, reasoning } = (item ?? {}) as Record<string, unknown>;
+    if (typeof questionId !== "string") continue;
+    graded.set(questionId, {
+      ...(typeof score === "number" && score >= 0 && score <= 10 ? { score } : {}),
+      ...(typeof reasoning === "string" && reasoning.trim() ? { feedback: reasoning.trim() } : {}),
+    });
+  }
+  return questions.map((q) => {
+    const selectedOption = selected.get(q.questionId) ?? -1;
+    return {
+      questionId: q.questionId,
+      question: q.question,
+      options: q.options,
+      correctOption: q.correctOption,
+      selectedOption,
+      answer: q.options[selectedOption] ?? "",
+      ...graded.get(q.questionId),
+    };
+  });
+};
 
 const normalizeCorrectOption = (question: IGeneratedQuestion): number => {
   const { options } = question;
@@ -761,19 +795,32 @@ export const submitPreScreeningAnswers = async (
   }
 
   const totalScore = Math.min(100, Math.max(0, Number(scored.totalScore) || 0));
+  const responses = answeredQuestions(storedQuestions, answerMap, scored.breakdown);
 
-  // Mark prescreening completed
-  preScreening.status = PreScreeningStatus.Completed;
-  preScreening.score = totalScore;
-  preScreening.completedAt = new Date();
-  await preScreeningRepo().save(preScreening);
-
-  // Update user's prescreeningScore
-  if (user) {
-    await userRepo().update(user.id, {
+  await AppDataSource.transaction(async (manager) => {
+    preScreening.status = PreScreeningStatus.Completed;
+    preScreening.score = totalScore;
+    preScreening.completedAt = new Date();
+    await manager.save(PreScreening, preScreening);
+    if (!user) return;
+    await manager.update(User, user.id, {
       prescreeningScore: totalScore,
       prescreeningScoredAt: new Date(),
     });
+    await manager.delete(Answer, preAssessmentAnswerWhere(user.id));
+    await manager.save(
+      Answer,
+      manager.create(Answer, {
+        userId: user.id,
+        questionType: QuestionType.Prescreening,
+        jobId: null,
+        roleId: null,
+        responses,
+      })
+    );
+  });
+
+  if (user) {
     // Advance every application currently parked at the Prescreening stage for this
     // talent — Pre-Assessment is a single global test reused across all jobs.
     await advanceApplicationsAfterPrescreening(user, totalScore);
