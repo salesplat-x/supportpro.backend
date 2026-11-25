@@ -761,6 +761,20 @@ paths:
                               type: string
                               enum: [shortlisted, not_proceeding]
                               nullable: true
+                            checks:
+                              type: object
+                              nullable: true
+                              description: >-
+                                On company review only, once the company asked the candidate to agree to background checks. answeredAt is null until they agree or decline on the checks page.
+                              properties:
+                                requestedAt:
+                                  type: string
+                                  format: date-time
+                                  nullable: true
+                                answeredAt:
+                                  type: string
+                                  format: date-time
+                                  nullable: true
                       currentStep:
                         type: integer
                         nullable: true
@@ -840,6 +854,20 @@ paths:
                             type: string
                             enum: [shortlisted, not_proceeding]
                             nullable: true
+                          checks:
+                            type: object
+                            nullable: true
+                            description: >-
+                              On company review only, once the company asked the candidate to agree to background checks. answeredAt is null until they agree or decline on the checks page.
+                            properties:
+                              requestedAt:
+                                type: string
+                                format: date-time
+                                nullable: true
+                              answeredAt:
+                                type: string
+                                format: date-time
+                                nullable: true
         "400":
           description: Bad applicationId
         "401":
