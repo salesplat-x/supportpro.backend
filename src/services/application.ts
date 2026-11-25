@@ -44,6 +44,12 @@ import {
   startAiInterview,
 } from "./aiInterview.js";
 import { deliverApplicantMessage } from "./message.js";
+import {
+  type ApplicationProgress,
+  loadApplicationProgress,
+  NO_PROGRESS,
+  type WaitingFor,
+} from "./applicationProgress.js";
 
 const notificationRepo = () => AppDataSource.getRepository(Notification);
 
@@ -200,9 +206,10 @@ export const getApplication = async (
       buildGradedAnswerPairs(application.jobId, application.talentId, QuestionType.ProblemSolving),
       buildGradedAnswerPairs(application.jobId, application.talentId, QuestionType.CultureFit),
     ]);
-    const [interview, nextStep] = await Promise.all([
+    const [interview, nextStep, progress] = await Promise.all([
       getRecruiterInterview(application.id),
       nextStepFor(application),
+      progressOf(application.id),
     ]);
     Object.assign(application, {
       problemSolvingAnswers,
@@ -210,6 +217,10 @@ export const getApplication = async (
       personalityFitPending: isPersonalityFitPending(application),
       interview,
       nextStep,
+      readyForReview: progress.readyForReview,
+      waitingFor: progress.waitingFor,
+      canStartInterview: progress.canStartInterview,
+      belowCvMinimum: progress.belowCvMinimum,
     });
   }
 
@@ -283,6 +294,32 @@ export interface DecisionEmail {
   body: string;
 }
 
+const progressOf = async (applicationId: string): Promise<ApplicationProgress> =>
+  (await loadApplicationProgress([applicationId])).get(applicationId) ?? NO_PROGRESS;
+
+const WAITING_FOR_LABEL: Record<WaitingFor, string> = {
+  [ScreeningStage.Prescreening]: "the pre-assessment",
+  [ScreeningStage.CvSimilarity]: "the CV match",
+  [ScreeningStage.Personalized]: "the tailored questions",
+  [ScreeningStage.ProblemSolving]: "the problem-solving test",
+  [ScreeningStage.CultureFit]: "the culture-fit test",
+  [ScreeningStage.Personality]: "the personality test",
+  [ScreeningStage.AiInterview]: "the AI interview",
+  [ScreeningStage.Completed]: "the last step",
+  references: "at least one referee",
+};
+
+/** Shortlisting is the company review, the last step: only for candidates who finished every other one. */
+const assertReadyForReview = (progress: ApplicationProgress): void => {
+  if (progress.readyForReview) return;
+  const waiting = progress.waitingFor ? WAITING_FOR_LABEL[progress.waitingFor] : "their next step";
+  throw new AppError(
+    422,
+    "STEPS_NOT_FINISHED",
+    `This candidate can't be shortlisted until they finish every application step. Still waiting for ${waiting}.`
+  );
+};
+
 export const updateStatus = async (
   userId: string,
   payload: { id: string; status: ApplicationStatus; email?: DecisionEmail }
@@ -303,6 +340,13 @@ export const updateStatus = async (
       application.job.organizationId,
       application.job.postedById
     );
+  }
+
+  if (
+    payload.status === ApplicationStatus.Shortlisted &&
+    application.status !== ApplicationStatus.Shortlisted
+  ) {
+    assertReadyForReview(await progressOf(application.id));
   }
 
   application.status = payload.status;
@@ -371,8 +415,9 @@ export interface AdvanceResult {
 }
 
 /**
- * Move forward: shortlist, and start the recorded interview when it is the next step.
- * The invite email goes out only when the recruiter asks for it.
+ * Move forward: start the recorded interview when it is the candidate's next step, otherwise
+ * shortlist a candidate who finished every step. The invite email goes out only when the
+ * recruiter asks for it.
  */
 export const advanceApplication = async (
   userId: string,
@@ -393,22 +438,23 @@ export const advanceApplication = async (
     throw new ValidationError("This candidate was rejected, so they can't move forward");
   }
 
-  const nextStep = await nextStepFor(application);
-  const saved =
-    application.status === ApplicationStatus.Shortlisted
-      ? application
-      : await updateStatus(userId, { id: application.id, status: ApplicationStatus.Shortlisted });
-  if (nextStep === "ai_interview") {
+  const progress = await progressOf(application.id);
+  if (progress.canStartInterview) {
     await AppDataSource.getRepository(AiInterview).delete({
       applicationId: application.id,
       status: "failed",
     });
+    const interview = await startAiInterview(application.id, {
+      sendInvite: payload.sendInterviewInvite,
+    });
+    return { application, nextStep: "ai_interview", interview };
   }
-  const interview =
-    nextStep === "ai_interview"
-      ? await startAiInterview(application.id, { sendInvite: payload.sendInterviewInvite })
-      : null;
-  return { application: saved, nextStep, interview };
+
+  const saved =
+    application.status === ApplicationStatus.Shortlisted
+      ? application
+      : await updateStatus(userId, { id: application.id, status: ApplicationStatus.Shortlisted });
+  return { application: saved, nextStep: "shortlisted", interview: null };
 };
 
 // Applications the caller doesn't own are silently skipped rather than failing
@@ -421,7 +467,7 @@ export const bulkUpdateStatus = async (
     applicationIds: string[];
     status: ApplicationStatus.Rejected | ApplicationStatus.Shortlisted;
   }
-): Promise<{ updated: number }> => {
+): Promise<{ updated: number; skipped: number }> => {
   const activeOrgId = await getActiveOrganizationId(userId);
   if (activeOrgId) {
     let org = await organizationRepo().findOne({ where: { id: activeOrgId } });
@@ -451,12 +497,23 @@ export const bulkUpdateStatus = async (
     throw new NotFoundError("No applications found");
   }
 
-  const changing = owned.filter((application) => application.status !== payload.status);
+  // Shortlisting skips candidates who haven't finished every step; rejecting never waits.
+  let eligible = owned;
+  if (payload.status === ApplicationStatus.Shortlisted) {
+    const progress = await loadApplicationProgress(owned.map((application) => application.id));
+    eligible = owned.filter(
+      (application) =>
+        application.status === ApplicationStatus.Shortlisted ||
+        progress.get(application.id)?.readyForReview
+    );
+  }
 
-  for (const application of owned) {
+  const changing = eligible.filter((application) => application.status !== payload.status);
+
+  for (const application of eligible) {
     application.status = payload.status;
   }
-  await applicationRepo().save(owned);
+  await applicationRepo().save(eligible);
 
   const notifications = changing.map((application) => {
     const jobTitle = application.job.role?.name;
@@ -475,5 +532,5 @@ export const bulkUpdateStatus = async (
     await notificationRepo().save(notifications.slice(i, i + CHUNK));
   }
 
-  return { updated: owned.length };
+  return { updated: eligible.length, skipped: owned.length - eligible.length };
 };

@@ -12,9 +12,12 @@ import {
   createRole,
   createJob,
   createApplication,
+  addReferee,
 } from "./helpers/fixtures.js";
 import EmailService from "../src/utils/integrations/email/emailService.js";
 import { ApplicationConsent } from "../src/entities/ApplicationConsent.js";
+import { Application } from "../src/entities/Application.js";
+import { ApplicationStatus, ScreeningStage } from "../src/types/enums.js";
 import { CHECKS_CONSENT_VERSION } from "../src/services/checkConsent.js";
 import { decryptSecret } from "../src/utils/secretBox.js";
 
@@ -284,6 +287,11 @@ describe("candidate declines, and the company asks", () => {
 describe("shortlisting asks the candidate for consent", () => {
   it("creates one request and one email, however many times the status is set", async () => {
     const { application, posterToken, read } = await setup();
+    await testDataSource.getRepository(Application).update(application.id, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+    });
+    await addReferee(application);
     const shortlist = () =>
       request(app)
         .patch(`/v1/applications/${application.id}/status`)

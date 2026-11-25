@@ -14,6 +14,7 @@ import {
   createQuestion,
   createRole,
   validPreAssessment,
+  createApplicationReadyForReview,
 } from "./helpers/fixtures.js";
 import { Notification, StaffMember } from "../src/entities";
 import { ApplicationStatus, QuestionType, ScreeningStage } from "../src/types/enums.js";
@@ -132,7 +133,7 @@ describe("application notifications", () => {
   it("a recruiter's decision is typed and links to the application", async () => {
     const { job, owner } = await openJob();
     const { user: talent } = await createCompleteTalent();
-    const application = await createApplication(talent, job);
+    const application = await createApplicationReadyForReview(talent, job);
 
     const res = await request(app)
       .patch(`/v1/applications/${application.id}/status`)

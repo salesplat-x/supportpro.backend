@@ -377,6 +377,10 @@ describe("Day 5 — candidates never see their scores or the grading", () => {
       cvSimilarityScore: 42,
       matchVerdict: "medium",
       overallFitScore: 61,
+      readyForReview: false,
+      waitingFor: "references",
+      canStartInterview: false,
+      belowCvMinimum: false,
     });
   });
 
