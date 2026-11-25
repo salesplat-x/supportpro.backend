@@ -65,6 +65,8 @@ import { OrganizationOwnershipTransfer } from "../entities/OrganizationOwnership
 import { StuckEmailTimer } from "../entities/StuckEmailTimer.js";
 import { SavedJob } from "../entities/SavedJob.js";
 import { AiSkillSetting } from "../entities/AiSkillSetting.js";
+import { AiUsageDaily } from "../entities/AiUsageDaily.js";
+import { AiProviderStatus } from "../entities/AiProviderStatus.js";
 import { AiInterview } from "../entities/AiInterview.js";
 import { AiInterviewQuestion } from "../entities/AiInterviewQuestion.js";
 import { AiInterviewScreenEvent } from "../entities/AiInterviewScreenEvent.js";
@@ -133,6 +135,8 @@ const ALL_ENTITIES = [
   StuckEmailTimer,
   SavedJob,
   AiSkillSetting,
+  AiUsageDaily,
+  AiProviderStatus,
   AiInterview,
   AiInterviewQuestion,
   AiInterviewScreenEvent,

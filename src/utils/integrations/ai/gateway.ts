@@ -1,9 +1,12 @@
 import OpenAI from "openai";
 import { createLimiter, Limiter } from "../../concurrencyLimiter.js";
 import { AiConfigError } from "../../errors/AiConfigError.js";
+import { AiCreditError } from "../../errors/AiCreditError.js";
 import { getErrorStatus, withRetry } from "../../retry.js";
 import { AiFeatureKey, AiModel, AiProvider } from "./catalog.js";
+import { isOutOfCreditError } from "./credit.js";
 import { resolveAiModel } from "./settings.js";
+import { type AiCallUsage, recordAiCall, recordAiFailure } from "./usage.js";
 
 export type AiChatParams = Omit<
   OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
@@ -63,32 +66,64 @@ export const buildChatRequest = (
 };
 
 const asConfigError = (err: unknown, provider: AiProvider, model: AiModel): unknown => {
+  if (isOutOfCreditError(err)) return new AiCreditError();
   const status = getErrorStatus(err);
   return status !== undefined && MISCONFIGURED_STATUSES.has(status)
     ? new AiConfigError(`${provider.name} refused ${model.label} with status ${status}.`)
     : err;
 };
 
+/** Calls not made for an AI job: the admin's model test and the smoke script. */
+export const MANUAL_TEST_FEATURE = "manual_test";
+
+/** Runs one provider call and records its usage, or its failure, for the admin's AI usage page. */
+const recorded = async <T>(
+  provider: AiProvider,
+  model: AiModel,
+  feature: string,
+  call: () => Promise<T>,
+  usageOf: (result: T) => AiCallUsage
+): Promise<T> => {
+  const ref = { provider: provider.key, model: model.id, feature };
+  try {
+    const result = await call();
+    recordAiCall(ref, usageOf(result));
+    return result;
+  } catch (err) {
+    recordAiFailure(ref, err);
+    throw asConfigError(err, provider, model);
+  }
+};
+
+const chatUsage = (completion: OpenAI.Chat.Completions.ChatCompletion): AiCallUsage => ({
+  inputTokens: completion.usage?.prompt_tokens,
+  outputTokens: completion.usage?.completion_tokens,
+});
+
 /** Sends directly to one provider and model, so the admin page can test a choice before saving it. */
 export const completeWith = async (
   provider: AiProvider,
   model: AiModel,
   params: AiChatParams,
-  requestOptions?: OpenAI.RequestOptions
+  requestOptions?: OpenAI.RequestOptions,
+  feature: string = MANUAL_TEST_FEATURE
 ): Promise<OpenAI.Chat.Completions.ChatCompletion> => {
   const client = clientFor(provider);
-  try {
-    return await limiterFor(provider).run(() =>
-      withRetry(
-        () => client.chat.completions.create(buildChatRequest(model, params), requestOptions),
-        {
-          label: `${provider.name} chat completion`,
-        }
-      )
-    );
-  } catch (err) {
-    throw asConfigError(err, provider, model);
-  }
+  return recorded(
+    provider,
+    model,
+    feature,
+    () =>
+      limiterFor(provider).run(() =>
+        withRetry(
+          () => client.chat.completions.create(buildChatRequest(model, params), requestOptions),
+          {
+            label: `${provider.name} chat completion`,
+          }
+        )
+      ),
+    chatUsage
+  );
 };
 
 export const complete = async (
@@ -97,7 +132,7 @@ export const complete = async (
   requestOptions?: OpenAI.RequestOptions
 ): Promise<OpenAI.Chat.Completions.ChatCompletion> => {
   const { provider, model } = await resolveAiModel(key);
-  return completeWith(provider, model, params, requestOptions);
+  return completeWith(provider, model, params, requestOptions, key);
 };
 
 const PEOPLE_AI_TOTAL_MS = 80_000;
@@ -114,24 +149,27 @@ export const completeWhileWaiting = async (
   const { provider, model } = await resolveAiModel(key);
   const client = clientFor(provider);
   const deadline = Date.now() + PEOPLE_AI_TOTAL_MS;
-  try {
-    return await limiterFor(provider).run(() =>
-      withRetry(
-        () => {
-          if (Date.now() > deadline) {
-            throw new Error("The AI request waited too long");
-          }
-          return client.chat.completions.create(buildChatRequest(model, params), {
-            timeout: provider.attemptTimeoutMs,
-            maxRetries: 0,
-          });
-        },
-        { label: `${provider.name} chat completion` }
-      )
-    );
-  } catch (err) {
-    throw asConfigError(err, provider, model);
-  }
+  return recorded(
+    provider,
+    model,
+    key,
+    () =>
+      limiterFor(provider).run(() =>
+        withRetry(
+          () => {
+            if (Date.now() > deadline) {
+              throw new Error("The AI request waited too long");
+            }
+            return client.chat.completions.create(buildChatRequest(model, params), {
+              timeout: provider.attemptTimeoutMs,
+              maxRetries: 0,
+            });
+          },
+          { label: `${provider.name} chat completion` }
+        )
+      ),
+    chatUsage
+  );
 };
 
 export const embed = async (
@@ -139,22 +177,26 @@ export const embed = async (
   params: AiEmbeddingParams
 ): Promise<OpenAI.Embeddings.CreateEmbeddingResponse> => {
   const { provider, model } = await resolveAiModel(key);
-  return embedWith(provider, model, params);
+  return embedWith(provider, model, params, key);
 };
 
 export const embedWith = async (
   provider: AiProvider,
   model: AiModel,
-  params: AiEmbeddingParams
+  params: AiEmbeddingParams,
+  feature: string = MANUAL_TEST_FEATURE
 ): Promise<OpenAI.Embeddings.CreateEmbeddingResponse> => {
   const client = clientFor(provider);
-  try {
-    return await limiterFor(provider).run(() =>
-      withRetry(() => client.embeddings.create({ ...params, model: model.id }), {
-        label: `${provider.name} embedding`,
-      })
-    );
-  } catch (err) {
-    throw asConfigError(err, provider, model);
-  }
+  return recorded(
+    provider,
+    model,
+    feature,
+    () =>
+      limiterFor(provider).run(() =>
+        withRetry(() => client.embeddings.create({ ...params, model: model.id }), {
+          label: `${provider.name} embedding`,
+        })
+      ),
+    (response) => ({ inputTokens: response.usage?.prompt_tokens })
+  );
 };

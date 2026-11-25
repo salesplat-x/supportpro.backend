@@ -5,6 +5,12 @@ const withRetry = jest.fn((fn: () => Promise<unknown>, _options?: unknown) => fn
 jest.mock("../src/utils/retry.js", () => ({
   withRetry: (fn: () => Promise<unknown>, options?: unknown) => withRetry(fn, options),
 }));
+const recordAiCall = jest.fn();
+const recordAiFailure = jest.fn();
+jest.mock("../src/utils/integrations/ai/usage.js", () => ({
+  recordAiCall: (...args: unknown[]) => recordAiCall(...args),
+  recordAiFailure: (...args: unknown[]) => recordAiFailure(...args),
+}));
 
 interface PostConfig {
   headers: Record<string, string | undefined>;
@@ -101,4 +107,36 @@ describe("ElevenLabs integration", () => {
       );
     }
   );
+  it("records the characters spoken, for the admin's AI usage page", async () => {
+    const mod = load();
+    post.mockResolvedValue({ data: new ArrayBuffer(1) });
+    recordAiCall.mockClear();
+    await mod.synthesizeSpeech("hello", { feature: "interview_question_audio" });
+
+    expect(recordAiCall).toHaveBeenCalledWith(
+      { provider: "elevenlabs", model: "model-1", feature: "interview_question_audio" },
+      { characters: 5 }
+    );
+  });
+
+  it("reads a quota refusal sent as audio bytes, so it can count as out of credit", async () => {
+    const mod = load();
+    const body = Buffer.from(
+      JSON.stringify({ detail: { status: "quota_exceeded", message: "Over your quota." } })
+    );
+    const arrayBuffer = body.buffer.slice(body.byteOffset, body.byteOffset + body.length);
+    post.mockRejectedValue(
+      Object.assign(new Error("Request failed with status code 401"), {
+        response: { status: 401, data: arrayBuffer },
+      })
+    );
+    recordAiFailure.mockClear();
+
+    await expect(mod.synthesizeSpeech("hello")).rejects.toThrow(/401/);
+
+    const [, err] = recordAiFailure.mock.calls[0] as [unknown, { response: { data: unknown } }];
+    expect(err.response.data).toEqual({
+      detail: { status: "quota_exceeded", message: "Over your quota." },
+    });
+  });
 });

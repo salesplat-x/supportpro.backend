@@ -49,7 +49,7 @@ const describeLimit = (seconds: number): string => {
  * Whisper bills per minute and 10 MB of Opus can hold over an hour, so the length is checked
  * before anything is paid for. A missing ffprobe propagates as our failure (fail closed).
  */
-const assertWithinLengthLimit = async (input: VoiceAudioInput, limit: number): Promise<void> => {
+const assertWithinLengthLimit = async (input: VoiceAudioInput, limit: number): Promise<number> => {
   let seconds: number;
   try {
     seconds = await probeAudioDurationSeconds(input.buffer, input.extension);
@@ -64,6 +64,7 @@ const assertWithinLengthLimit = async (input: VoiceAudioInput, limit: number): P
       `That recording is too long. Please keep it under ${describeLimit(limit)}.`
     );
   }
+  return seconds;
 };
 
 /** The voice request ran past its overall deadline. */
@@ -99,10 +100,13 @@ const transcribeWithin = async (
   signal: AbortSignal,
   maxSeconds: number = env.voiceMaxDurationSeconds
 ): Promise<string> => {
-  await assertWithinLengthLimit(input, maxSeconds);
+  const durationSeconds = await assertWithinLengthLimit(input, maxSeconds);
   let text: string;
   try {
-    text = await transcribeAudio(input.buffer, `voice.${input.extension}`, { signal });
+    text = await transcribeAudio(input.buffer, `voice.${input.extension}`, {
+      signal,
+      durationSeconds,
+    });
   } catch (err) {
     if (getErrorStatus(err) === 400) {
       throw new ValidationError(UNREADABLE_AUDIO);

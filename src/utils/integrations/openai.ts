@@ -11,6 +11,7 @@ import {
 } from "../../config/assessmentQuestions.js";
 import { createLimiter } from "../concurrencyLimiter.js";
 import { withRetry } from "../retry.js";
+import { type AiCallUsage, recordAiCall, recordAiFailure } from "./ai/usage.js";
 
 // Every call names its AI job. The gateway looks up which provider and model the admin chose for
 // it, and renderPrompt uses the admin's edited prompt or the default in config/aiPrompts.yaml.
@@ -33,6 +34,11 @@ export interface VoiceCallOptions {
   signal?: AbortSignal;
 }
 
+export interface TranscribeOptions extends VoiceCallOptions {
+  /** The recording's length, measured before sending; Whisper bills per minute. */
+  durationSeconds?: number;
+}
+
 const voiceRequestOptions = ({ signal }: VoiceCallOptions) => ({
   timeout: env.voiceCallTimeoutMs,
   // withRetry already retries; SDK retries on top would multiply the attempts.
@@ -40,13 +46,26 @@ const voiceRequestOptions = ({ signal }: VoiceCallOptions) => ({
   ...(signal ? { signal } : {}),
 });
 
-const runVoiceCall = <T>(label: string, signal: AbortSignal | undefined, call: () => Promise<T>) =>
-  voiceLimiter.run(() => {
+const runVoiceCall = <T>(
+  label: string,
+  signal: AbortSignal | undefined,
+  call: () => Promise<T>,
+  usage: { model: string; feature: string; of: (result: T) => AiCallUsage }
+) =>
+  voiceLimiter.run(async () => {
     // The request may have been given up on while this call waited for a slot.
     if (signal?.aborted) {
-      return Promise.reject(new Error(`${label} skipped: the voice request was abandoned`));
+      throw new Error(`${label} skipped: the voice request was abandoned`);
     }
-    return withRetry(call, { retries: VOICE_ATTEMPTS, label });
+    const ref = { provider: "openai", model: usage.model, feature: usage.feature };
+    try {
+      const result = await withRetry(call, { retries: VOICE_ATTEMPTS, label });
+      recordAiCall(ref, usage.of(result));
+      return result;
+    } catch (err) {
+      recordAiFailure(ref, err);
+      throw err;
+    }
   });
 
 export const gradeAssessmentAnswers = async (
@@ -847,16 +866,26 @@ const VOICE_SYSTEM_PROMPT =
 export const transcribeAudio = async (
   audio: Buffer,
   filename: string,
-  options: VoiceCallOptions = {}
+  options: TranscribeOptions = {}
 ): Promise<string> => {
-  const transcription = await runVoiceCall("OpenAI transcription", options.signal, async () =>
-    voiceOpenAI().audio.transcriptions.create(
-      { file: await toFile(audio, filename), model: "whisper-1" },
-      voiceRequestOptions(options)
-    )
+  const transcription = await runVoiceCall(
+    "OpenAI transcription",
+    options.signal,
+    async () =>
+      voiceOpenAI().audio.transcriptions.create(
+        { file: await toFile(audio, filename), model: TRANSCRIPTION_MODEL },
+        voiceRequestOptions(options)
+      ),
+    {
+      model: TRANSCRIPTION_MODEL,
+      feature: "voice_transcription",
+      of: () => ({ audioSeconds: options.durationSeconds }),
+    }
   );
   return transcription.text.trim();
 };
+
+export const TRANSCRIPTION_MODEL = "whisper-1";
 
 const voiceReplyModel = () =>
   findModel(loadAiCatalog(), { provider: "openai", model: "gpt-5.6-luna" })!;
@@ -866,17 +895,29 @@ export const generateVoiceReply = async (
   userText: string,
   options: VoiceCallOptions = {}
 ): Promise<string> => {
-  const completion = await runVoiceCall("OpenAI voice reply", options.signal, () =>
-    voiceOpenAI().chat.completions.create(
-      buildChatRequest(voiceReplyModel(), {
-        max_tokens: 300,
-        messages: [
-          { role: "system", content: VOICE_SYSTEM_PROMPT },
-          { role: "user", content: userText },
-        ],
+  const model = voiceReplyModel();
+  const completion = await runVoiceCall(
+    "OpenAI voice reply",
+    options.signal,
+    () =>
+      voiceOpenAI().chat.completions.create(
+        buildChatRequest(model, {
+          max_tokens: 300,
+          messages: [
+            { role: "system", content: VOICE_SYSTEM_PROMPT },
+            { role: "user", content: userText },
+          ],
+        }),
+        voiceRequestOptions(options)
+      ),
+    {
+      model: model.id,
+      feature: "voice_reply",
+      of: (result) => ({
+        inputTokens: result.usage?.prompt_tokens,
+        outputTokens: result.usage?.completion_tokens,
       }),
-      voiceRequestOptions(options)
-    )
+    }
   );
   return completion.choices[0]?.message?.content?.trim() ?? "";
 };
