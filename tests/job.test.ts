@@ -33,6 +33,7 @@ import { Application } from "../src/entities/Application.js";
 import { Notification } from "../src/entities/Notification.js";
 import { closeExpiredJobs } from "../src/services/job.js";
 import {
+  ApplicationStatus,
   MatchVerdict,
   MatchRecommendation,
   MatchVerdictStatus,
@@ -752,6 +753,38 @@ describe("GET /v1/jobs/talents/:jobId — top talents enriched with fit evidence
     expect(matched).toBeDefined();
     expect(matched.strengths).toEqual(["Five years of relevant backend experience per the CV."]);
     expect(matched.weaknesses).toEqual(["No mention of the specific cloud provider used here."]);
+  });
+
+  it("never moves an existing applicant who is past the CV match back to it", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const job = await createJob(recruiter, await createRole(), {
+      jobEmbedding: `[${new Array(512).fill(0.1).join(",")}]`,
+    });
+    const aiConfig = await createAIConfig(recruiter);
+    await testDataSource.getRepository(Job).update(job.id, { aiConfigId: aiConfig.id });
+    const { user: talent } = await createTalent();
+    await testDataSource.getRepository(TalentEmbedding).save({
+      userId: talent.id,
+      cvText: "Five years of backend engineering experience.",
+      cvEmbedding: `[${new Array(512).fill(0.1).join(",")}]`,
+      generatedAt: new Date(),
+    });
+    const finished = await createApplication(talent, job, {
+      stages: aiConfig.stages,
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+    });
+
+    const res = await request(app)
+      .get(`/v1/jobs/talents/${job.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const stored = await testDataSource
+      .getRepository(Application)
+      .findOneByOrFail({ id: finished.id });
+    expect(stored.currentStage).toBe(ScreeningStage.Completed);
+    expect(stored.cvSimilarityScore).not.toBeNull();
   });
 });
 

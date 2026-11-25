@@ -7,6 +7,7 @@ import {
   testDataSource,
 } from "./helpers/db.js";
 import {
+  addReferee,
   createAIConfig,
   createApplication,
   createJob,
@@ -18,7 +19,7 @@ import {
 import { AiInterview } from "../src/entities/AiInterview.js";
 import { Application } from "../src/entities/Application.js";
 import { Message } from "../src/entities/Message.js";
-import { ApplicationStatus } from "../src/types/enums.js";
+import { ApplicationStatus, ScreeningStage } from "../src/types/enums.js";
 import * as AI from "../src/utils/integrations/openai.js";
 import EmailService from "../src/utils/integrations/email/emailService.js";
 
@@ -67,7 +68,7 @@ afterEach(async () => {
   jest.clearAllMocks();
 });
 
-const setup = async (aiInterview = true) => {
+const setup = async (aiInterview = true, overrides: Partial<Application> = {}) => {
   const { user: recruiter, token } = await createRecruiter({ firstName: "Philip" });
   const org = await createOrganization(recruiter, { name: "Kosana Tech" });
   const config = await createAIConfig(recruiter, {
@@ -79,9 +80,20 @@ const setup = async (aiInterview = true) => {
     aiConfigId: config.id,
   });
   const { user: talent } = await createTalent({ firstName: "Amaka" });
-  const application = await createApplication(talent, job);
+  const application = await createApplication(talent, job, {
+    currentStage: ScreeningStage.Completed,
+    status: ApplicationStatus.AwaitingDecision,
+    ...overrides,
+  });
   return { token, application };
 };
+
+const recordEveryQuestion = (applicationId: string) =>
+  testDataSource.query(
+    `UPDATE ai_interview_questions SET recorded_at = NOW()
+     WHERE interview_id IN (SELECT id FROM ai_interviews WHERE application_id = $1)`,
+    [applicationId]
+  );
 
 const advance = (id: string, token: string, sendInterviewInvite: boolean) =>
   request(app)
@@ -99,14 +111,14 @@ const statusOf = async (id: string) =>
   (await testDataSource.getRepository(Application).findOneByOrFail({ id })).status;
 
 describe("POST /v1/applications/:id/advance", () => {
-  it("shortlists and starts the interview with the invite email", async () => {
+  it("starts the interview with the invite email, without shortlisting", async () => {
     const { token, application } = await setup();
 
     const res = await advance(application.id, token, true);
 
     expect(res.status).toBe(200);
     expect(res.body.data).toMatchObject({ nextStep: "ai_interview", interview: "invited" });
-    expect(await statusOf(application.id)).toBe(ApplicationStatus.Shortlisted);
+    expect(await statusOf(application.id)).toBe(ApplicationStatus.AwaitingDecision);
     expect(mockSendInvite).toHaveBeenCalledTimes(1);
     const interview = await testDataSource
       .getRepository(AiInterview)
@@ -127,14 +139,56 @@ describe("POST /v1/applications/:id/advance", () => {
     expect(interview.invitedAt).toBeNull();
   });
 
-  it("only shortlists when the job has no recorded interview", async () => {
+  it("shortlists once the interview is recorded and a referee is added", async () => {
+    const { token, application } = await setup();
+    await advance(application.id, token, false);
+
+    await addReferee(application);
+    expect((await advance(application.id, token, false)).status).toBe(422);
+    await recordEveryQuestion(application.id);
+
+    const res = await advance(application.id, token, false);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ nextStep: "shortlisted", interview: null });
+    expect(await statusOf(application.id)).toBe(ApplicationStatus.Shortlisted);
+  });
+
+  it("shortlists a candidate who finished every step when the job has no recorded interview", async () => {
     const { token, application } = await setup(false);
+    await addReferee(application);
 
     const res = await advance(application.id, token, true);
 
     expect(res.body.data).toMatchObject({ nextStep: "shortlisted", interview: null });
     expect(await statusOf(application.id)).toBe(ApplicationStatus.Shortlisted);
     expect(mockQuestions).not.toHaveBeenCalled();
+  });
+
+  it("won't shortlist before the candidate adds a referee", async () => {
+    const { token, application } = await setup(false);
+
+    const res = await advance(application.id, token, true);
+
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe("STEPS_NOT_FINISHED");
+    expect(res.body.error.message).toMatch(/referee/);
+    expect(await statusOf(application.id)).toBe(ApplicationStatus.AwaitingDecision);
+  });
+
+  it("won't start the interview or shortlist before the steps before it are done", async () => {
+    const { token, application } = await setup(true, {
+      currentStage: ScreeningStage.Personalized,
+      status: ApplicationStatus.Pending,
+    });
+    await addReferee(application);
+
+    const res = await advance(application.id, token, true);
+
+    expect(res.status).toBe(422);
+    expect(res.body.error.message).toMatch(/tailored questions/);
+    expect(mockQuestions).not.toHaveBeenCalled();
+    expect(await statusOf(application.id)).toBe(ApplicationStatus.Pending);
   });
 
   it("can try again after the interview questions failed", async () => {
@@ -214,6 +268,6 @@ describe("PATCH /v1/applications/:id/status with a rejection email", () => {
       email: { send: true, body: "   " },
     });
     expect(empty.status).toBe(400);
-    expect(await statusOf(application.id)).toBe(ApplicationStatus.Pending);
+    expect(await statusOf(application.id)).toBe(ApplicationStatus.AwaitingDecision);
   });
 });

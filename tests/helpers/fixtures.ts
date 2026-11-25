@@ -21,6 +21,7 @@ import { Role } from "../../src/entities/Role.js";
 import { Job } from "../../src/entities/Job.js";
 import { AIConfig } from "../../src/entities/AIConfig.js";
 import { Application } from "../../src/entities/Application.js";
+import { ApplicationReference } from "../../src/entities/ApplicationReference.js";
 import { AiRecommendation } from "../../src/entities/AiRecommendation.js";
 import { Plan } from "../../src/entities/Plan.js";
 import { Payment } from "../../src/entities/Payment.js";
@@ -195,6 +196,34 @@ export async function createApplication(
     ...overrides,
   });
   return repo.save(app);
+}
+
+export async function addReferee(application: Application): Promise<ApplicationReference> {
+  return testDataSource.getRepository(ApplicationReference).save({
+    applicationId: application.id,
+    jobId: application.jobId,
+    talentId: application.talentId,
+    name: "Grace Referee",
+    email: `referee_${application.id.slice(0, 8)}@example.com`,
+    relationship: "manager",
+    tokenHash: application.id.replace(/-/g, "").padEnd(64, "0"),
+    tokenExpiresAt: new Date(Date.now() + 7 * 86_400_000),
+  });
+}
+
+// Every screening stage done and a referee added, so the company can review and shortlist it.
+export async function createApplicationReadyForReview(
+  talent: User,
+  job: Job,
+  overrides: Partial<Application> = {}
+): Promise<Application> {
+  const application = await createApplication(talent, job, {
+    currentStage: ScreeningStage.Completed,
+    status: ApplicationStatus.AwaitingDecision,
+    ...overrides,
+  });
+  await addReferee(application);
+  return application;
 }
 
 // A realistic, fully-populated MatchAnalysis — the evidence-based report and

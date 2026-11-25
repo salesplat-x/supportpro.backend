@@ -1167,11 +1167,17 @@ export const topTalents = async (
     const existing = existingAppMap.get(r.user_id);
 
     if (existing) {
+      // An applicant already past the CV match keeps their place; re-inviting never moves them back.
+      const beforeCvMatch =
+        existing.currentStage === ScreeningStage.Prescreening ||
+        existing.currentStage === ScreeningStage.CvSimilarity;
       toSave.push(
         applicationRepo().create({
           ...existing,
           cvSimilarityScore,
-          currentStage: currentStage as Application["currentStage"],
+          currentStage: beforeCvMatch
+            ? (currentStage as Application["currentStage"])
+            : existing.currentStage,
         })
       );
     } else {

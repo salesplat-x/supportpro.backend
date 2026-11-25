@@ -22,6 +22,7 @@ import {
   createQuestion,
   createAdmin,
   validPreAssessment,
+  createApplicationReadyForReview,
 } from "./helpers/fixtures.js";
 import { Application } from "../src/entities/Application.js";
 import { User } from "../src/entities/User.js";
@@ -392,7 +393,7 @@ describe("PATCH /v1/applications/:_id/status — update status (Recruiter only)"
     const { user: recruiter, token } = await createRecruiter();
     const role = await createRole();
     const job = await createJob(recruiter, role);
-    const app_ = await createApplication(talent, job);
+    const app_ = await createApplicationReadyForReview(talent, job);
 
     const res = await request(app)
       .patch(`/v1/applications/${app_.id}/status`)
@@ -400,6 +401,62 @@ describe("PATCH /v1/applications/:_id/status — update status (Recruiter only)"
       .send({ status: ApplicationStatus.Shortlisted });
     expect(res.status).toBe(200);
     expect(res.body.data.application.status).toBe(ApplicationStatus.Shortlisted);
+  });
+
+  it("won't shortlist a candidate who hasn't finished every step → 422", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter, token } = await createRecruiter();
+    const job = await createJob(recruiter, await createRole());
+    const app_ = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Personalized,
+    });
+
+    const res = await request(app)
+      .patch(`/v1/applications/${app_.id}/status`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: ApplicationStatus.Shortlisted });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe("STEPS_NOT_FINISHED");
+    expect(res.body.error.message).toMatch(/tailored questions/);
+    const stored = await testDataSource.getRepository(Application).findOneByOrFail({ id: app_.id });
+    expect(stored.status).toBe(ApplicationStatus.Pending);
+    expect(
+      await testDataSource.getRepository(Notification).count({ where: { userId: talent.id } })
+    ).toBe(0);
+  });
+
+  it("won't shortlist a candidate who finished screening but added no referee → 422", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter, token } = await createRecruiter();
+    const job = await createJob(recruiter, await createRole());
+    const app_ = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+    });
+
+    const res = await request(app)
+      .patch(`/v1/applications/${app_.id}/status`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: ApplicationStatus.Shortlisted });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error.message).toMatch(/referee/);
+  });
+
+  it("can reject a candidate at any step", async () => {
+    const { user: talent } = await createTalent();
+    const { user: recruiter, token } = await createRecruiter();
+    const job = await createJob(recruiter, await createRole());
+    const app_ = await createApplication(talent, job);
+
+    const res = await request(app)
+      .patch(`/v1/applications/${app_.id}/status`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ status: ApplicationStatus.Rejected });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.application.status).toBe(ApplicationStatus.Rejected);
   });
 
   it("Talent cannot call PATCH /status → 403 (route guard)", async () => {
@@ -452,7 +509,7 @@ describe("PATCH /v1/applications/:_id/status — update status (Recruiter only)"
     const { user: recruiter, token } = await createRecruiter();
     const role = await createRole("Backend Developer");
     const job = await createJob(recruiter, role);
-    const app_ = await createApplication(talent, job);
+    const app_ = await createApplicationReadyForReview(talent, job);
 
     await request(app)
       .patch(`/v1/applications/${app_.id}/status`)
@@ -479,7 +536,7 @@ describe("PATCH /v1/applications/:_id/status — update status (Recruiter only)"
     const organization = await createOrganization(recruiter, { name: "TechCorp" });
     const role = await createRole("Backend Developer");
     const job = await createJob(recruiter, role, { organizationId: organization.id });
-    const app_ = await createApplication(talent, job);
+    const app_ = await createApplicationReadyForReview(talent, job);
 
     await request(app)
       .patch(`/v1/applications/${app_.id}/status`)
@@ -523,7 +580,7 @@ describe("PATCH /v1/applications/:_id/status — update status (Recruiter only)"
     const { user: recruiter } = await createRecruiter();
     const role = await createRole();
     const job = await createJob(recruiter, role);
-    const app_ = await createApplication(talent, job);
+    const app_ = await createApplicationReadyForReview(talent, job);
 
     // Direct service call (bypassing middleware) — talent passes the check
     const { updateStatus } = await import("../src/services/application.js");
@@ -549,8 +606,8 @@ describe("PATCH /v1/applications/status — bulk shortlist/reject (Recruiter onl
     const job = await createJob(recruiter, role);
     const { user: talentA } = await createTalent();
     const { user: talentB } = await createTalent();
-    const appA = await createApplication(talentA, job);
-    const appB = await createApplication(talentB, job);
+    const appA = await createApplicationReadyForReview(talentA, job);
+    const appB = await createApplicationReadyForReview(talentB, job);
 
     const res = await request(app)
       .patch("/v1/applications/status")
@@ -558,7 +615,7 @@ describe("PATCH /v1/applications/status — bulk shortlist/reject (Recruiter onl
       .send({ applicationIds: [appA.id, appB.id], status: ApplicationStatus.Shortlisted });
 
     expect(res.status).toBe(200);
-    expect(res.body.data.updated).toBe(2);
+    expect(res.body.data).toMatchObject({ updated: 2, skipped: 0 });
 
     const reloaded = await testDataSource
       .getRepository(Application)
@@ -575,6 +632,33 @@ describe("PATCH /v1/applications/status — bulk shortlist/reject (Recruiter onl
       )
     ).toBe(true);
     expect(notifications.every((n) => n.message === n.title)).toBe(true);
+  });
+
+  it("shortlists only candidates who finished every step and counts the rest as skipped", async () => {
+    const { user: recruiter, token } = await createRecruiter();
+    const job = await createJob(recruiter, await createRole("Backend Developer"));
+    const { user: talentA } = await createTalent();
+    const { user: talentB } = await createTalent();
+    const ready = await createApplicationReadyForReview(talentA, job);
+    const unfinished = await createApplication(talentB, job);
+
+    const res = await request(app)
+      .patch("/v1/applications/status")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ applicationIds: [ready.id, unfinished.id], status: ApplicationStatus.Shortlisted });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ updated: 1, skipped: 1 });
+    const repo = testDataSource.getRepository(Application);
+    expect((await repo.findOneByOrFail({ id: ready.id })).status).toBe(
+      ApplicationStatus.Shortlisted
+    );
+    expect((await repo.findOneByOrFail({ id: unfinished.id })).status).toBe(
+      ApplicationStatus.Pending
+    );
+    expect(
+      await testDataSource.getRepository(Notification).count({ where: { userId: talentB.id } })
+    ).toBe(0);
   });
 
   it("silently skips applications the caller doesn't own (partial success)", async () => {

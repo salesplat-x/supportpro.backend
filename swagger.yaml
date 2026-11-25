@@ -3868,6 +3868,23 @@ paths:
                             enum: [ai_interview, shortlisted]
                             description: >-
                               What Move forward does next: ai_interview while the job runs a recorded interview and this candidate has none, otherwise shortlisted. Not sent to the candidate.
+                          readyForReview:
+                            type: boolean
+                            description: >-
+                              The candidate finished every application step (every screening stage, the recorded interview when there is one, and at least one referee), so they can be shortlisted. Not sent to the candidate.
+                          waitingFor:
+                            type: string
+                            nullable: true
+                            description: >-
+                              The first step still unfinished: a screening stage key (prescreening, cv_similarity, personalized, problem_solving, culture_fit, personality, ai_interview) or references. Null once ready for review. Not sent to the candidate.
+                          canStartInterview:
+                            type: boolean
+                            description: >-
+                              Move forward would start the recorded interview: the job runs one, the candidate has none, and every step before it is done. Not sent to the candidate.
+                          belowCvMinimum:
+                            type: boolean
+                            description: >-
+                              The CV match score is below the job's minimum CV score. It only flags the candidate; they still move on. Not sent to the candidate.
                           interview:
                             type: object
                             nullable: true
@@ -3957,6 +3974,9 @@ paths:
             application/json:
               schema:
                 type: object
+        "422":
+          description: >-
+            STEPS_NOT_FINISHED: shortlisting waits until the candidate finished every application step. The message names the step still missing. Rejecting is allowed at any step.
       requestBody:
         required: true
         content:
@@ -3988,9 +4008,10 @@ paths:
     post:
       summary: Recruiter. Move a candidate forward.
       description: >-
-        Shortlists the candidate. When the job runs a recorded AI interview and the candidate has
-        none yet, also starts it (writes the questions) and emails the invite if sendInterviewInvite
-        is true. Rejected candidates can't move forward.
+        When the job runs a recorded AI interview, the candidate has none yet and every step before
+        it is done, starts it (writes the questions) and emails the invite if sendInterviewInvite is
+        true, without shortlisting. Otherwise shortlists a candidate who finished every application
+        step. Rejected candidates can't move forward.
       tags:
         - applications
       parameters:
@@ -4025,6 +4046,8 @@ paths:
           description: The candidate was rejected.
         "403":
           description: The job belongs to another company.
+        "422":
+          description: STEPS_NOT_FINISHED, the candidate hasn't finished every application step.
       security:
         - bearerAuth: []
   /applications/{_id}/personality-fit:

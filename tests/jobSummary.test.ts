@@ -14,8 +14,9 @@ import {
   createRecruiter,
   createRole,
   createTalent,
+  addReferee,
 } from "./helpers/fixtures.js";
-import { ApplicationStatus } from "../src/types/enums.js";
+import { ApplicationStatus, ScreeningStage } from "../src/types/enums.js";
 import { AiInterview } from "../src/entities/AiInterview.js";
 import { ApplicationCheck } from "../src/entities/ApplicationCheck.js";
 import type { CheckStatus, CheckType } from "../src/types/checks.js";
@@ -260,6 +261,102 @@ describe("GET /v1/jobs/applications/:jobId progress fields", () => {
     const { token, job } = await setup();
     const res = await get(`/v1/jobs/applications/${job.id}?boardColumn=interview`, token);
     expect(res.status).toBe(400);
+  });
+});
+
+describe("GET /v1/jobs/applications/:jobId review readiness", () => {
+  const runInterviews = (job: Job, minCvSimilarityScore: number | null = null) =>
+    testDataSource.query(
+      `UPDATE ai_configs SET "aiInterview" = true, "aiInterviewMode" = 'audio', "minCvSimilarityScore" = $2
+       WHERE id = $1`,
+      [job.aiConfigId, minCvSimilarityScore]
+    );
+
+  const rowsById = async (job: Job, token: string) => {
+    const res = await get(`/v1/jobs/applications/${job.id}`, token);
+    expect(res.status).toBe(200);
+    return new Map(
+      (
+        res.body.data.applications as Array<{
+          id: string;
+          readyForReview: boolean;
+          waitingFor: string | null;
+          canStartInterview: boolean;
+          belowCvMinimum: boolean;
+        }>
+      ).map((row) => [row.id, row])
+    );
+  };
+
+  it("is ready only once the interview is recorded and a referee is added", async () => {
+    const { token, job } = await setup();
+    await runInterviews(job);
+    const atInterview = { currentStage: ScreeningStage.AiInterview };
+
+    const recorded = await applicant(job, atInterview);
+    await interviewFor(recorded, { recorded: 3, questions: 3 });
+    await addReferee(recorded);
+    const halfway = await applicant(job, atInterview);
+    await interviewFor(halfway, { recorded: 1, questions: 3 });
+    await addReferee(halfway);
+    const notStarted = await applicant(job, atInterview);
+    const noReferee = await applicant(job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+    });
+    const testing = await applicant(job, { currentStage: ScreeningStage.Personalized });
+
+    const rows = await rowsById(job, token);
+
+    expect(rows.get(recorded.id)).toMatchObject({
+      readyForReview: true,
+      waitingFor: null,
+      canStartInterview: false,
+    });
+    expect(rows.get(halfway.id)).toMatchObject({
+      readyForReview: false,
+      waitingFor: "ai_interview",
+      canStartInterview: false,
+    });
+    expect(rows.get(notStarted.id)).toMatchObject({
+      readyForReview: false,
+      waitingFor: "ai_interview",
+      canStartInterview: true,
+    });
+    expect(rows.get(noReferee.id)).toMatchObject({
+      readyForReview: false,
+      waitingFor: "references",
+      canStartInterview: true,
+    });
+    expect(rows.get(testing.id)).toMatchObject({
+      readyForReview: false,
+      waitingFor: "personalized",
+      canStartInterview: false,
+    });
+  });
+
+  it("treats the interview stage as done when the job doesn't run interviews", async () => {
+    const { token, job } = await setup();
+    const application = await applicant(job, { currentStage: ScreeningStage.AiInterview });
+    await addReferee(application);
+
+    const rows = await rowsById(job, token);
+
+    expect(rows.get(application.id)).toMatchObject({ readyForReview: true, waitingFor: null });
+  });
+
+  it("flags candidates below the job's minimum CV score", async () => {
+    const { token, job } = await setup();
+    await runInterviews(job, 60);
+    const below = await applicant(job, { cvSimilarityScore: 40 });
+    const above = await applicant(job, { cvSimilarityScore: 80 });
+    const unscored = await applicant(job);
+
+    const rows = await rowsById(job, token);
+
+    expect(rows.get(below.id)?.belowCvMinimum).toBe(true);
+    expect(rows.get(above.id)?.belowCvMinimum).toBe(false);
+    expect(rows.get(unscored.id)?.belowCvMinimum).toBe(false);
   });
 });
 
