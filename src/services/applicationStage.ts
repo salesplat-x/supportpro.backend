@@ -58,8 +58,6 @@ const talentEmbeddingRepo = () => AppDataSource.getRepository(TalentEmbedding);
 
 const userRepo = () => AppDataSource.getRepository(User);
 
-const CV_SIMILARITY_MAX_ATTEMPTS = 2;
-
 export type QuestionAnswerPair = {
   question: string;
   answer: string;
@@ -686,7 +684,7 @@ export const processNextStage = async (
   if (nextStage === ScreeningStage.CvSimilarity && aiConfig) {
     const score = await computeCvSimilarityScore(application.jobId, talent.id);
     if (score !== null) {
-      return runCvSimilarityGate(talent, application, aiConfig, score);
+      return completeCvMatch(talent, application, aiConfig, score);
     }
   }
 
@@ -715,7 +713,9 @@ export const computeCvSimilarityScore = async (
   return convertSimilarityToPercentage(Math.min(Math.max(Number(distance), 0), 1));
 };
 
-export const runCvSimilarityGate = async (
+// The CV match never holds a talent back: once it is scored they move on. The job's minimum
+// CV score only flags the candidate to the recruiter.
+export const completeCvMatch = async (
   talent: User,
   application: Application,
   aiConfig: AIConfig,
@@ -723,19 +723,11 @@ export const runCvSimilarityGate = async (
 ): Promise<Application> => {
   application.cvSimilarityScore = score;
   application.cvSimilarityAttempts = (application.cvSimilarityAttempts ?? 0) + 1;
-
-  const passed = score >= (aiConfig.minCvSimilarityScore ?? 0);
-  if (passed || application.cvSimilarityAttempts >= CV_SIMILARITY_MAX_ATTEMPTS) {
-    return processNextStage(talent, application, ScreeningStage.CvSimilarity, aiConfig);
-  }
-
-  application.status = ApplicationStatus.RetakeAssessment;
-  return application;
+  return processNextStage(talent, application, ScreeningStage.CvSimilarity, aiConfig);
 };
 
-// Runs once a talent's CV embedding is (re)generated: refreshes the match score
-// on every open application, and puts any application waiting at the CV stage
-// through the gate — this is also the retry path after a CV re-upload.
+// Runs once a talent's CV embedding is (re)generated: refreshes the match score on every open
+// application, and moves on any application waiting at the CV stage for its score.
 export const rescoreCvSimilarityForTalent = async (talentId: string): Promise<void> => {
   const talent = await userRepo().findOne({ where: { id: talentId } });
   if (!talent) return;
@@ -752,8 +744,8 @@ export const rescoreCvSimilarityForTalent = async (talentId: string): Promise<vo
   }
 };
 
-// Saves a fresh score on one application, gating it when it's waiting at the
-// CV stage. Returns null (nothing saved) while an embedding is missing.
+// Saves a fresh score on one application, moving it on when it's waiting at the CV stage.
+// Returns null (nothing saved) while an embedding is missing.
 export const rescoreCvSimilarity = async (
   talent: User,
   application: Application,
@@ -769,7 +761,7 @@ export const rescoreCvSimilarity = async (
 
   if (awaitingGate) {
     const saved = await applicationRepo().save(
-      await runCvSimilarityGate(talent, application, aiConfig, score)
+      await completeCvMatch(talent, application, aiConfig, score)
     );
     await notifyStageReached(saved.id);
     return saved;
@@ -790,9 +782,10 @@ export const STAGE_SWITCH: Partial<Record<ScreeningStage, keyof AIConfig>> = {
 const MAX_SYNC_MOVES = 8;
 
 /**
- * Moves an application past stages that are already settled: a valid skills test score,
- * a problem-solving or culture-fit test already scored, or a stage the recruiter switched
- * off. Holds the row lock and writes only stage columns, so parallel calls move it once.
+ * Moves an application past stages that are already settled: a valid skills test score, a CV
+ * match already scored, a problem-solving or culture-fit test already scored, or a stage the
+ * recruiter switched off. Holds the row lock and writes only stage columns, so parallel calls
+ * move it once.
  */
 export const syncCandidateStage = async (applicationId: string): Promise<void> => {
   let movedAny = false;
@@ -827,6 +820,9 @@ export const syncCandidateStage = async (applicationId: string): Promise<void> =
           await manager.update(Application, application.id, stageMoveColumns(application));
           return false;
         }
+      } else if (stage === ScreeningStage.CvSimilarity) {
+        if (application.cvSimilarityScore === null) return false;
+        application.cvSimilarityAttempts = Math.max(application.cvSimilarityAttempts ?? 0, 1);
       } else {
         if (application.status !== ApplicationStatus.Pending) return false;
         const scored =
@@ -845,6 +841,27 @@ export const syncCandidateStage = async (applicationId: string): Promise<void> =
     movedAny = true;
   }
   if (movedAny) await notifyStageReached(applicationId);
+};
+
+const SCORED_AT_CV_STAGE_SQL = `
+  SELECT a.id FROM "applications" a
+  WHERE a."currentStage" = '${ScreeningStage.CvSimilarity}'
+    AND a."cvSimilarityScore" IS NOT NULL
+    AND a."status" IN ('${ApplicationStatus.Pending}', '${ApplicationStatus.RetakeAssessment}')
+  LIMIT $1
+`;
+
+/**
+ * Moves on applications that already have a CV match score but still sit at the CV stage:
+ * talents held back under the old minimum-score rule, and any the old container parks while a
+ * deploy rolls out.
+ */
+export const moveOnScoredCvMatches = async (): Promise<{ moved: number }> => {
+  const ids = await selectDueIds(SCORED_AT_CV_STAGE_SQL, [SWEEP_BATCH_SIZE]);
+  for (const id of ids) {
+    await syncCandidateStage(id);
+  }
+  return { moved: ids.length };
 };
 
 // Runs after a skills test submission: a failing fresh score starts the retake wait on

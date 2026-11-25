@@ -1,6 +1,6 @@
 import logger from "../utils/logger.js";
 import { reconcileDueCvEmbeddings } from "./user.js";
-import { reconcileDueMatchVerdicts } from "./applicationStage.js";
+import { moveOnScoredCvMatches, reconcileDueMatchVerdicts } from "./applicationStage.js";
 import {
   ensureDuePreScreenings,
   reconcileDueNextPreScreeningSets,
@@ -123,6 +123,14 @@ export const reconcileDurableJobs = async (): Promise<void> => {
   } catch (err) {
     logger.error(
       `Interview scoring sweep failed: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+
+  try {
+    await moveOnScoredCvMatches();
+  } catch (err) {
+    logger.error(
+      `CV match stage sweep failed: ${err instanceof Error ? err.message : String(err)}`
     );
   }
 
