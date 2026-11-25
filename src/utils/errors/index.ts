@@ -7,3 +7,4 @@ export { ConflictError } from "./ConflictError.js";
 export { DatabaseError } from "./DatabaseError.js";
 export { PlanLimitError } from "./PlanLimitError.js";
 export { AiConfigError } from "./AiConfigError.js";
+export { AiCreditError } from "./AiCreditError.js";

@@ -61,6 +61,8 @@ import { AiInterview } from "../entities/AiInterview.js";
 import { AiInterviewQuestion } from "../entities/AiInterviewQuestion.js";
 import { SavedJob } from "../entities/SavedJob.js";
 import { AiSkillSetting } from "../entities/AiSkillSetting.js";
+import { AiUsageDaily } from "../entities/AiUsageDaily.js";
+import { AiProviderStatus } from "../entities/AiProviderStatus.js";
 import { AiInterviewScreenEvent } from "../entities/AiInterviewScreenEvent.js";
 import { StaffGoalReport } from "../entities/StaffGoalReport.js";
 import { Department } from "../entities/Department.js";
@@ -136,6 +138,8 @@ const databaseConfig: DataSourceOptions = {
     AiInterviewQuestion,
     SavedJob,
     AiSkillSetting,
+    AiUsageDaily,
+    AiProviderStatus,
     AiInterviewScreenEvent,
     StaffGoalReport,
     Department,

@@ -1,7 +1,7 @@
 import { AppDataSource } from "../database/dataSource.js";
 import { AiFeatureSetting } from "../entities/AiFeatureSetting.js";
 import { fullNameOf } from "./staffRecord.js";
-import { NotFoundError, ValidationError } from "../utils/errors";
+import { AiCreditError, NotFoundError, ValidationError } from "../utils/errors";
 import {
   AiChoice,
   AiFeature,
@@ -191,6 +191,9 @@ const assertModelAnswers = async (
     content = completion.choices[0]?.message.content;
   } catch (err) {
     logger.error(`AI model test failed for ${model.id}: ${(err as Error).message}`);
+    if (err instanceof AiCreditError) {
+      throw failed(`${provider.name} says the account is out of credit`);
+    }
     const status = getErrorStatus(err);
     throw failed(
       status ? `the provider answered with status ${status}` : "the provider didn't answer"

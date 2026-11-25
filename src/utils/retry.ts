@@ -1,4 +1,5 @@
 import logger from "./logger.js";
+import { isOutOfCreditError } from "./integrations/ai/credit.js";
 
 interface RetryOptions {
   retries?: number;
@@ -24,6 +25,8 @@ export const getErrorStatus = (err: unknown): number | undefined => {
 };
 
 export const isRetryableError = (err: unknown): boolean => {
+  // An empty account stays empty: retrying only repeats the refusal.
+  if (isOutOfCreditError(err)) return false;
   const status = getErrorStatus(err);
   if (status !== undefined) {
     return status === 429 || status >= 500;
@@ -36,7 +39,8 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 
 /**
  * Retries transient failures (429 rate limits, 5xx, connection resets/timeouts) with
- * exponential backoff + jitter. Non-retryable errors (4xx, validation, parse errors) fail immediately.
+ * exponential backoff + jitter. Non-retryable errors (4xx, validation, parse errors, an account
+ * out of credit) fail immediately.
  */
 export const withRetry = async <T>(
   fn: () => Promise<T>,

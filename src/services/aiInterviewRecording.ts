@@ -177,6 +177,7 @@ export const openQuestionAudio = async (
 
   const buffer = await synthesizeSpeech(question.question, {
     voiceId: env.elevenlabsInterviewVoiceId,
+    feature: "interview_question_audio",
   });
   const key = spacesKeyFor("interview-question-audio", interview.id, "question.mp3");
   await uploadPrivateToSpaces(buffer, key, QUESTION_AUDIO_TYPE);

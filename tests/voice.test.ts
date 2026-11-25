@@ -171,6 +171,7 @@ describe("POST /voice/transcribe", () => {
     await send("transcribe", { type: "audio/webm;codecs=opus" });
     expect(mockTranscribe).toHaveBeenCalledWith(expect.any(Buffer), "voice.webm", {
       signal: expect.any(AbortSignal) as unknown,
+      durationSeconds: 5,
     });
   });
 
@@ -178,6 +179,7 @@ describe("POST /voice/transcribe", () => {
     await send("transcribe", { type: "audio/mp4" });
     expect(mockTranscribe).toHaveBeenCalledWith(expect.any(Buffer), "voice.m4a", {
       signal: expect.any(AbortSignal) as unknown,
+      durationSeconds: 5,
     });
   });
 

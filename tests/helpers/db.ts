@@ -64,6 +64,8 @@ import { StuckEmailTimer } from "../../src/entities/StuckEmailTimer.js";
 import { ApplicationReference } from "../../src/entities/ApplicationReference.js";
 import { SavedJob } from "../../src/entities/SavedJob.js";
 import { AiSkillSetting } from "../../src/entities/AiSkillSetting.js";
+import { AiUsageDaily } from "../../src/entities/AiUsageDaily.js";
+import { AiProviderStatus } from "../../src/entities/AiProviderStatus.js";
 import { AiInterviewScreenEvent } from "../../src/entities/AiInterviewScreenEvent.js";
 import { StaffGoalReport } from "../../src/entities/StaffGoalReport.js";
 import { Department } from "../../src/entities/Department.js";
@@ -137,6 +139,8 @@ const ALL_ENTITIES = [
   AiInterviewQuestion,
   SavedJob,
   AiSkillSetting,
+  AiUsageDaily,
+  AiProviderStatus,
   AiInterviewScreenEvent,
   StaffGoalReport,
   Department,
