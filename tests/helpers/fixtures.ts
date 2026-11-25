@@ -87,7 +87,9 @@ export async function createAdmin(
 }
 
 // Profile fields of a talent who has taken the pre-assessment recently, so they may apply to jobs.
-export const validPreAssessment = (score = 80): Partial<User> => ({
+export const validPreAssessment = (
+  score = 80
+): Pick<User, "prescreeningScore" | "prescreeningScoredAt"> => ({
   prescreeningScore: score,
   prescreeningScoredAt: new Date(),
 });
