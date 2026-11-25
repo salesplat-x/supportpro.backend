@@ -11,6 +11,7 @@ import { reconcileDueCandidateEmbeddings } from "./scoutCandidate.js";
 import { reconcileDueDocumentFinalization } from "./contracts.js";
 import { clearOldAiClaims } from "./peopleAi.js";
 import { runStuckEmailSweep } from "./stuckEmails.js";
+import { checkProviderBalances } from "./aiUsage.js";
 import { reconcileDueSupportDrafts } from "./supportAi.js";
 import { closeExpiredJobs } from "./job.js";
 import { finalizeScheduledEndings } from "./staff.js";
@@ -139,6 +140,14 @@ export const reconcileDurableJobs = async (): Promise<void> => {
   } catch (err) {
     logger.error(
       `First pre-assessment sweep failed: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+
+  try {
+    await checkProviderBalances();
+  } catch (err) {
+    logger.error(
+      `AI provider balance check failed: ${err instanceof Error ? err.message : String(err)}`
     );
   }
 
