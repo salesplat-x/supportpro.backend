@@ -778,7 +778,7 @@ jobs:
         Talent setup, in order:
         1. Verify email: open the verification email, click the link, then sign in.
         2. Complete the profile ("Finish your profile" on the dashboard): pick the roles they want, add experience, work type, location and salary range, and upload a CV. Employers see the profile, and AI uses it to match them to jobs.
-        3. Take the pre-assessment ("Pre-Assessment test" in the sidebar). The whole profile must be complete first. It is taken once, takes about 20 quiet minutes, and the score is reused for every job. A retake is only possible after the retry date.
+        3. Take the pre-assessment ("Pre-Assessment test" in the sidebar). It is ready once the CV and roles are saved. It takes about 20 quiet minutes, the score is reused for every job for 90 days, and one retake is allowed.
         4. Apply to a job ("Jobs" in the sidebar). Each job lists the steps applicants go through.
         Talents follow each application under "Applications pipeline" and finish any steps waiting there. Messages from employers arrive in "Inbox", and updates in "Notifications".
 
@@ -801,7 +801,7 @@ jobs:
         Common fixes:
         - Can't publish another job: the plan's active listing limit may be used up. Closing a job they no longer need frees a slot, or a bigger plan allows more.
         - Can't invite a teammate: the plan's team member limit includes the owner.
-        - Can't start the pre-assessment: the profile must be complete, and a retake waits until the retry date.
+        - Can't start the pre-assessment: the CV and roles must be saved first. If it still says it's being prepared, wait a minute and open it again.
         - An application step is waiting: open "Applications pipeline" and finish it there.
   application_follow_up_email:
     - key: system
