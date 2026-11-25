@@ -134,7 +134,6 @@ describe("POST /v1/jobs/:jobId/applicants/messages/draft — happy paths", () =>
         recruiterFirstName: recruiter.firstName,
         intent: "Invite to interview",
         verdict: "high",
-        overallFitScore: 91,
         whyHire: "Shipped three production Kubernetes migrations solo.",
         strongestQualifications: ["Kubernetes migrations", "On-call leadership"],
         keyEvidence: ["CV: led K8s migration at Acme, 2022"],
@@ -157,8 +156,9 @@ describe("POST /v1/jobs/:jobId/applicants/messages/draft — happy paths", () =>
       expect.objectContaining({ subject: "You're shortlisted!", body: "Hi there,\n\nGreat news." })
     );
     expect(mockDraft).toHaveBeenCalledWith(
-      expect.objectContaining({ verdict: null, overallFitScore: null, whyHire: undefined })
+      expect.objectContaining({ verdict: null, whyHire: undefined })
     );
+    expect(mockDraft.mock.calls[0]![0]).not.toHaveProperty("overallFitScore");
   });
 
   it("uses matchStrengths as a fallback for strongestQualifications when there's no structured analysis", async () => {

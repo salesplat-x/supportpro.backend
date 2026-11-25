@@ -51,12 +51,30 @@ const applicationRepo = () => AppDataSource.getRepository(Application);
 
 const organizationRepo = () => AppDataSource.getRepository(Organization);
 
+// Candidates never see how they were scored: the CV match score, anything built from it, or
+// the AI's judgement of their fit.
 export const CANDIDATE_HIDDEN_APPLICATION_FIELDS = [
   "problemSolvingScore",
   "cultureFitScore",
   "personalityFitScore",
   "personalityFitReason",
   "personalityFitLockedAt",
+  "cvSimilarityScore",
+  "cvSimilarityAttempts",
+  "averageScore",
+  "overallFitScore",
+  "matchVerdict",
+  "matchVerdictStatus",
+  "matchVerdictAttempts",
+  "matchVerdictNextRetryAt",
+  "matchVerdictLockedAt",
+  "matchVerdictLastError",
+  "matchVerdictReasoning",
+  "matchRecommendation",
+  "matchStrengths",
+  "matchWeaknesses",
+  "matchRisks",
+  "matchAnalysis",
 ] as const;
 
 export const hideAssessmentResultsFromCandidate = (application: Application): Application => {
@@ -65,7 +83,7 @@ export const hideAssessmentResultsFromCandidate = (application: Application): Ap
     cultureFitSubmitted: application.cultureFitScore != null,
   });
   for (const field of CANDIDATE_HIDDEN_APPLICATION_FIELDS) {
-    delete (application as Partial<Application>)[field];
+    delete (application as Partial<Application> & { matchAnalysis?: unknown })[field];
   }
   return application;
 };
@@ -176,9 +194,8 @@ export const getApplication = async (
 
   Object.assign(application, { personalityAnswers, personalizedAnswers });
 
-  if (application.talentId === userId) {
-    hideAssessmentResultsFromCandidate(application);
-  } else {
+  const isCandidate = application.talentId === userId;
+  if (!isCandidate) {
     const [problemSolvingAnswers, cultureFitAnswers] = await Promise.all([
       buildGradedAnswerPairs(application.jobId, application.talentId, QuestionType.ProblemSolving),
       buildGradedAnswerPairs(application.jobId, application.talentId, QuestionType.CultureFit),
@@ -207,9 +224,11 @@ export const getApplication = async (
       });
       application.matchVerdictStatus = MatchVerdictStatus.Pending;
     }
-    void triggerMatchVerdict(application.talent, application);
+    // Its own copy: the verdict reads these fields after the candidate's view hides them below.
+    void triggerMatchVerdict(application.talent, { ...application } as Application);
   }
 
+  if (isCandidate) hideAssessmentResultsFromCandidate(application);
   return { application, count };
 };
 
@@ -251,11 +270,12 @@ export const getApplications = async (
   }
 
   const applications = await qb.skip(offset).take(limit).getMany();
-  if (userRole === UserRole.Talent) applications.forEach(hideAssessmentResultsFromCandidate);
   const recommendations = await loadRecommendationsByApplicationIds(applications.map((a) => a.id));
-  return applications.map((application) =>
+  const withVerdicts = applications.map((application) =>
     overlayVerdictFromRecommendation(application, recommendations.get(application.id))
   );
+  if (userRole === UserRole.Talent) withVerdicts.forEach(hideAssessmentResultsFromCandidate);
+  return withVerdicts;
 };
 
 export interface DecisionEmail {

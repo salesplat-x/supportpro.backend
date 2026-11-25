@@ -639,7 +639,6 @@ export interface DraftApplicantMessageContext {
   /** What the recruiter wants this message to do, e.g. "invite to interview", or a free-text instruction. Defaults to a general shortlist outreach. */
   intent?: string;
   verdict: string | null;
-  overallFitScore: number | null;
   whyHire?: string;
   strongestQualifications?: string[];
   keyEvidence?: string[];
@@ -662,7 +661,6 @@ export const draftApplicantMessage = async (
       context.intent || "Let them know they've been shortlisted and invite them to the next step.",
     evidence: {
       verdict: context.verdict,
-      overallFitScore: context.overallFitScore,
       whyHire: context.whyHire,
       strongestQualifications: context.strongestQualifications,
       keyEvidence: context.keyEvidence,

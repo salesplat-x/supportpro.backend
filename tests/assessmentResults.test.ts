@@ -17,6 +17,8 @@ import {
   createOrganization,
   createQuestion,
   createAdmin,
+  createAiRecommendation,
+  buildMatchAnalysis,
 } from "./helpers/fixtures.js";
 import { Application } from "../src/entities/Application.js";
 import { User } from "../src/entities/User.js";
@@ -29,6 +31,7 @@ import {
   ScreeningStage,
   MatchVerdict,
   MatchRecommendation,
+  MatchVerdictStatus,
   QuestionType,
 } from "../src/types/enums.js";
 
@@ -282,6 +285,99 @@ describe("Day 5 — candidates never see their scores or the grading", () => {
     expect(list.length).toBe(1);
     expect(list[0]).not.toHaveProperty("problemSolvingScore");
     expect(list[0]).not.toHaveProperty("cultureFitScore");
+  });
+
+  const setupMatchedApplication = async () => {
+    const { user: recruiter, token: recruiterToken } = await createRecruiter();
+    const job = await createJob(recruiter, await createRole());
+    const { user: talent, token: talentToken } = await createTalent();
+    const app_ = await createApplication(talent, job, {
+      currentStage: ScreeningStage.Completed,
+      status: ApplicationStatus.AwaitingDecision,
+      cvSimilarityScore: 42,
+      averageScore: 55,
+      matchVerdict: MatchVerdict.Medium,
+      matchVerdictStatus: MatchVerdictStatus.Succeeded,
+      matchRecommendation: MatchRecommendation.InterviewFurther,
+      overallFitScore: 61,
+      matchStrengths: ["Ships fast"],
+    });
+    await createAiRecommendation(app_, {
+      verdict: MatchVerdict.Medium,
+      analysis: buildMatchAnalysis({ overallFitScore: 61 }),
+    });
+    return { recruiterToken, talentToken, app_ };
+  };
+
+  const CV_MATCH_FIELDS = [
+    "cvSimilarityScore",
+    "cvSimilarityAttempts",
+    "averageScore",
+    "overallFitScore",
+    "matchVerdict",
+    "matchVerdictStatus",
+    "matchRecommendation",
+    "matchStrengths",
+    "matchWeaknesses",
+    "matchRisks",
+    "matchAnalysis",
+  ];
+
+  it("hides the CV match score and the AI's fit judgement from the candidate's own application", async () => {
+    const { talentToken, app_ } = await setupMatchedApplication();
+
+    const res = await request(app)
+      .get(`/v1/applications/${app_.id}`)
+      .set("Authorization", `Bearer ${talentToken}`);
+
+    expect(res.status).toBe(200);
+    for (const field of CV_MATCH_FIELDS) {
+      expect(res.body.data.application).not.toHaveProperty(field);
+    }
+    const stored = await testDataSource.getRepository(Application).findOneByOrFail({ id: app_.id });
+    expect(stored.matchVerdictStatus).toBe(MatchVerdictStatus.Succeeded);
+  });
+
+  it("hides the CV match score from the candidate's list, even with a stored recommendation", async () => {
+    const { talentToken } = await setupMatchedApplication();
+
+    const res = await request(app)
+      .get("/v1/applications")
+      .set("Authorization", `Bearer ${talentToken}`);
+
+    const list = res.body.data.applications ?? res.body.data;
+    expect(list).toHaveLength(1);
+    for (const field of CV_MATCH_FIELDS) {
+      expect(list[0]).not.toHaveProperty(field);
+    }
+  });
+
+  it("hides the CV match score from GET /user/applications", async () => {
+    const { talentToken } = await setupMatchedApplication();
+
+    const res = await request(app)
+      .get("/v1/user/applications")
+      .set("Authorization", `Bearer ${talentToken}`);
+
+    expect(res.status).toBe(200);
+    const [row] = res.body.data.applications;
+    for (const field of CV_MATCH_FIELDS) {
+      expect(row).not.toHaveProperty(field);
+    }
+  });
+
+  it("still shows the CV match score and verdict to the recruiter", async () => {
+    const { recruiterToken, app_ } = await setupMatchedApplication();
+
+    const res = await request(app)
+      .get(`/v1/applications/${app_.id}`)
+      .set("Authorization", `Bearer ${recruiterToken}`);
+
+    expect(res.body.data.application).toMatchObject({
+      cvSimilarityScore: 42,
+      matchVerdict: "medium",
+      overallFitScore: 61,
+    });
   });
 
   it("still shows the scores in the recruiter's application list", async () => {
