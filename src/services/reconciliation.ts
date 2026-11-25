@@ -1,7 +1,11 @@
 import logger from "../utils/logger.js";
 import { reconcileDueCvEmbeddings } from "./user.js";
 import { reconcileDueMatchVerdicts } from "./applicationStage.js";
-import { ensureDuePreScreenings, reconcileDuePreScreeningGenerations } from "./prescreening.js";
+import {
+  ensureDuePreScreenings,
+  reconcileDueNextPreScreeningSets,
+  reconcileDuePreScreeningGenerations,
+} from "./prescreening.js";
 import { reconcileDueScoutCvs } from "./scoutRun.js";
 import { reconcileDueCandidateEmbeddings } from "./scoutCandidate.js";
 import { reconcileDueDocumentFinalization } from "./contracts.js";
@@ -127,6 +131,14 @@ export const reconcileDurableJobs = async (): Promise<void> => {
   } catch (err) {
     logger.error(
       `First pre-assessment sweep failed: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+
+  try {
+    await reconcileDueNextPreScreeningSets();
+  } catch (err) {
+    logger.error(
+      `Next pre-assessment sweep failed: ${err instanceof Error ? err.message : String(err)}`
     );
   }
 };

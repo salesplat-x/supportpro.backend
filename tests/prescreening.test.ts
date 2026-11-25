@@ -26,6 +26,8 @@ import {
   isPrescreeningScoreValid,
   prepareFirstPreScreening,
   PRESCREENING_SCORE_VALIDITY_DAYS,
+  reconcileDueNextPreScreeningSets,
+  reconcileDuePreScreeningGenerations,
   refreshPreScreeningForRoles,
 } from "../src/services/prescreening.js";
 
@@ -227,10 +229,12 @@ describe("GET /v1/prescreening/ — get or generate prescreening", () => {
     expect(res1.status).toBe(200);
     expect(res2.status).toBe(200);
 
-    // Let the fire-and-forget generation settle before asserting on its side effects.
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await drainInFlightPreScreenings();
 
-    expect(openai.generatePreScreeningAssessment).toHaveBeenCalledTimes(1);
+    const firstSetCalls = (openai.generatePreScreeningAssessment as jest.Mock).mock.calls.filter(
+      ([context]: Array<{ isRetake: boolean }>) => !context.isRetake
+    );
+    expect(firstSetCalls).toHaveLength(1);
 
     const rows = await testDataSource
       .getRepository(PreScreening)
@@ -773,5 +777,278 @@ describe("Pre-assessment questions written ahead of time", () => {
     }
     await drainInFlightPreScreenings();
     expect(row).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The next set — questions for the next attempt, ready before the talent asks
+// ---------------------------------------------------------------------------
+
+interface NextSet {
+  nextQuestions: Array<{ question: string }> | null;
+  nextRoles: string | null;
+  nextGenerationStatus: string | null;
+  nextGenerationLockedAt: Date | null;
+}
+
+const nextSetFor = async (userId: string): Promise<NextSet> => {
+  const [row] = (await testDataSource.query(
+    `SELECT "nextQuestions", "nextRoles", "nextGenerationStatus", "nextGenerationLockedAt"
+     FROM pre_screenings WHERE user_id = $1`,
+    [userId]
+  )) as NextSet[];
+  return row!;
+};
+
+const NEXT_QUESTIONS = Array.from({ length: 6 }, (_, i) => ({
+  questionId: `next_q${i + 1}`,
+  question: `Next question ${i + 1}?`,
+  category: "general",
+  options: ["A", "B", "C", "D"],
+  correctOption: 1,
+  intent: "next",
+}));
+
+const giveReadyNextSet = async (userId: string, roleIds: string[]) => {
+  await testDataSource.query(
+    `UPDATE pre_screenings SET "nextQuestions" = $2::jsonb, "nextRoles" = $3,
+       "nextGenerationStatus" = 'succeeded' WHERE user_id = $1`,
+    [userId, JSON.stringify(NEXT_QUESTIONS), [...roleIds].sort().join(",")]
+  );
+};
+
+describe("Pre-assessment next set", () => {
+  it("is written right after the first questions", async () => {
+    const role = await createRole();
+    const { user } = await createCompleteTalent(role);
+
+    await prepareFirstPreScreening(user.id);
+    await drainInFlightPreScreenings();
+
+    const next = await nextSetFor(user.id);
+    expect(next.nextGenerationStatus).toBe("succeeded");
+    expect(next.nextQuestions).toHaveLength(5);
+    expect(next.nextRoles).toBe(role.id);
+  });
+
+  it("a retake swaps the ready set in without waiting on the AI", async () => {
+    const openai = await import("../src/utils/integrations/openai.js");
+    const role = await createRole();
+    const { user, token } = await createCompleteTalent(role);
+    await createPreScreening(user, [role.id], {
+      status: PreScreeningStatus.Completed,
+      score: 40,
+      attemptCount: 1,
+      generationStatus: GenerationStatus.Succeeded,
+    });
+    await giveReadyNextSet(user.id, [role.id]);
+
+    const res = await request(app)
+      .post("/v1/prescreening/retake")
+      .set("Authorization", `Bearer ${token}`);
+    await drainInFlightPreScreenings();
+
+    expect(res.status).toBe(200);
+    expect(openai.generatePreScreeningAssessment).not.toHaveBeenCalled();
+    const row = await questionsFor(user.id);
+    expect(row).toMatchObject({
+      status: PreScreeningStatus.Pending,
+      score: null,
+      attemptCount: 2,
+      roles: [role.id],
+    });
+    expect(row?.questions.map((q) => q.questionId)).toEqual(
+      NEXT_QUESTIONS.map((q) => q.questionId)
+    );
+    expect((await nextSetFor(user.id)).nextGenerationStatus).toBeNull();
+  });
+
+  it("two retake clicks at once use only one attempt", async () => {
+    const role = await createRole();
+    const { user, token } = await createCompleteTalent(role);
+    await createPreScreening(user, [role.id], {
+      status: PreScreeningStatus.Completed,
+      attemptCount: 1,
+      generationStatus: GenerationStatus.Succeeded,
+    });
+    await giveReadyNextSet(user.id, [role.id]);
+
+    const responses = await Promise.all([
+      request(app).post("/v1/prescreening/retake").set("Authorization", `Bearer ${token}`),
+      request(app).post("/v1/prescreening/retake").set("Authorization", `Bearer ${token}`),
+    ]);
+    await drainInFlightPreScreenings();
+
+    expect(responses.map((r) => r.status).sort()).toEqual([200, 400]);
+    expect((await questionsFor(user.id))?.attemptCount).toBe(2);
+  });
+
+  it("a set written for roles the talent has since changed is not used", async () => {
+    const openai = await import("../src/utils/integrations/openai.js");
+    const oldRole = await createRole();
+    const role = await createRole();
+    const { user, token } = await createCompleteTalent(role);
+    await createPreScreening(user, [oldRole.id], {
+      status: PreScreeningStatus.Completed,
+      attemptCount: 1,
+      generationStatus: GenerationStatus.Succeeded,
+    });
+    await giveReadyNextSet(user.id, [oldRole.id]);
+
+    const res = await request(app)
+      .post("/v1/prescreening/retake")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(openai.generatePreScreeningAssessment).toHaveBeenCalledTimes(1);
+    const row = await questionsFor(user.id);
+    expect(row?.roles).toEqual([role.id]);
+    expect(row?.questions.map((q) => q.questionId)).not.toContain("next_q1");
+  });
+
+  it("asks the talent to try again while the next set is still being written", async () => {
+    const role = await createRole();
+    const { user, token } = await createCompleteTalent(role);
+    await createPreScreening(user, [role.id], {
+      status: PreScreeningStatus.Completed,
+      attemptCount: 1,
+      generationStatus: GenerationStatus.Succeeded,
+    });
+    await testDataSource.query(
+      `UPDATE pre_screenings SET "nextGenerationStatus" = 'pending', "nextGenerationLockedAt" = NOW()
+       WHERE user_id = $1`,
+      [user.id]
+    );
+
+    const res = await request(app)
+      .post("/v1/prescreening/retake")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toMatch(/almost ready/);
+    expect((await questionsFor(user.id))?.status).toBe(PreScreeningStatus.Completed);
+  });
+
+  it("an expired score starts again on the ready set at attempt one", async () => {
+    const openai = await import("../src/utils/integrations/openai.js");
+    const role = await createRole();
+    const scoredAt = new Date();
+    scoredAt.setDate(scoredAt.getDate() - PRESCREENING_SCORE_VALIDITY_DAYS - 5);
+    const { user, token } = await createCompleteTalent(role, {
+      prescreeningScore: 70,
+      prescreeningScoredAt: scoredAt,
+    });
+    await createPreScreening(user, [role.id], {
+      status: PreScreeningStatus.Completed,
+      score: 70,
+      attemptCount: 2,
+      generationStatus: GenerationStatus.Succeeded,
+    });
+    await giveReadyNextSet(user.id, [role.id]);
+
+    const res = await request(app).get("/v1/prescreening/").set("Authorization", `Bearer ${token}`);
+    await drainInFlightPreScreenings();
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.preScreening.generating).toBeUndefined();
+    expect(res.body.data.preScreening).toMatchObject({ status: "pending", attemptCount: 1 });
+    expect(res.body.data.preScreening.questions).toHaveLength(NEXT_QUESTIONS.length);
+    expect(openai.generatePreScreeningAssessment).toHaveBeenCalledTimes(1);
+  });
+
+  it("a taken assessment is never rewritten in place, even if its last write was left pending", async () => {
+    const role = await createRole();
+    const { user, token } = await createCompleteTalent(role, {
+      prescreeningScore: 65,
+      prescreeningScoredAt: new Date(),
+    });
+    await createPreScreening(user, [role.id], {
+      status: PreScreeningStatus.Completed,
+      score: 65,
+      generationStatus: GenerationStatus.Pending,
+    });
+
+    await reconcileDuePreScreeningGenerations();
+    const res = await request(app).get("/v1/prescreening/").set("Authorization", `Bearer ${token}`);
+
+    expect(res.body.data.preScreening.generating).toBeUndefined();
+    expect(res.body.data.preScreening.score).toBe(65);
+    const row = await questionsFor(user.id);
+    expect(row?.status).toBe(PreScreeningStatus.Completed);
+  });
+
+  it("the sweep writes next sets only where one can be used", async () => {
+    const role = await createRole();
+    const { user: retakeLeft } = await createCompleteTalent(role);
+    await createPreScreening(retakeLeft, [role.id], {
+      status: PreScreeningStatus.Completed,
+      attemptCount: 1,
+      generationStatus: GenerationStatus.Succeeded,
+    });
+    const { user: noRetakeLeft } = await createCompleteTalent(role, {
+      prescreeningScore: 70,
+      prescreeningScoredAt: new Date(),
+    });
+    await createPreScreening(noRetakeLeft, [role.id], {
+      status: PreScreeningStatus.Completed,
+      attemptCount: 2,
+      generationStatus: GenerationStatus.Succeeded,
+    });
+    const expiringAt = new Date();
+    expiringAt.setDate(expiringAt.getDate() - PRESCREENING_SCORE_VALIDITY_DAYS + 3);
+    const { user: expiringSoon } = await createCompleteTalent(role, {
+      prescreeningScore: 70,
+      prescreeningScoredAt: expiringAt,
+    });
+    await createPreScreening(expiringSoon, [role.id], {
+      status: PreScreeningStatus.Completed,
+      attemptCount: 2,
+      generationStatus: GenerationStatus.Succeeded,
+    });
+
+    await reconcileDueNextPreScreeningSets();
+    await reconcileDueNextPreScreeningSets();
+
+    expect((await nextSetFor(retakeLeft.id)).nextGenerationStatus).toBe("succeeded");
+    expect((await nextSetFor(noRetakeLeft.id)).nextGenerationStatus).toBeNull();
+    expect((await nextSetFor(expiringSoon.id)).nextGenerationStatus).toBe("succeeded");
+  });
+
+  it("a role change on a taken assessment rewrites the next set for the new roles", async () => {
+    const role = await createRole();
+    const newRole = await createRole();
+    const { user } = await createCompleteTalent(role);
+    await createPreScreening(user, [role.id], {
+      status: PreScreeningStatus.Completed,
+      attemptCount: 1,
+      generationStatus: GenerationStatus.Succeeded,
+    });
+    await giveReadyNextSet(user.id, [role.id]);
+    await setRoles(user.id, [newRole.id]);
+
+    await refreshPreScreeningForRoles(user.id);
+    await drainInFlightPreScreenings();
+
+    const next = await nextSetFor(user.id);
+    expect(next.nextGenerationStatus).toBe("succeeded");
+    expect(next.nextRoles).toBe(newRole.id);
+  });
+
+  it("submitting answers keeps a next set that is already written", async () => {
+    const role = await createRole();
+    const { user, token } = await createCompleteTalent(role);
+    await createPreScreening(user, [role.id], { generationStatus: GenerationStatus.Succeeded });
+    await giveReadyNextSet(user.id, [role.id]);
+
+    const res = await request(app)
+      .post("/v1/prescreening/submit")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ answers: [{ questionId: "q1", selectedOption: 0 }] });
+    await drainInFlightPreScreenings();
+
+    expect(res.status).toBe(200);
+    const next = await nextSetFor(user.id);
+    expect(next.nextGenerationStatus).toBe("succeeded");
+    expect(next.nextQuestions?.[0]?.question).toBe("Next question 1?");
   });
 });

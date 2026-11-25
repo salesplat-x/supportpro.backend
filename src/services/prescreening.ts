@@ -124,39 +124,28 @@ const validateRoles = async (user: User): Promise<{ valid: boolean; names: strin
   return { valid: true, names: roles.map((r) => r.name) };
 };
 
-export const generatePreScreeningForUser = async (
+const roleKey = (roleIds: string[]): string => [...roleIds].sort().join(",");
+
+const MAX_GENERATION_ATTEMPTS = 3;
+
+/**
+ * Asks the AI for 5–10 four-option questions, up to three times. Passing the questions the talent
+ * already saw makes it a retake set that avoids them. Returns null when every try was unusable.
+ */
+const writeQuestions = async (
   user: User,
-  isRetake = false,
-  existingAttemptCount = 0
-): Promise<void> => {
-  const claimed = await claimRowById(CLAIM_PRESCREENING_SQL, user.id);
-  if (!claimed) {
-    if (isRetake) {
-      throw new ValidationError("Assessment generation is already in progress. Please wait.");
-    }
-    return;
-  }
-
-  const roleValidation = await validateRoles(user);
-  if (!roleValidation.valid) {
-    await recordPreScreeningFailure(user.id, new Error("Invalid roles"), { permanent: true });
-    throw new ValidationError("One or more selected roles do not exist in the role catalog");
-  }
-
-  const roleIds = (user.userRoles ?? []).map((r) => r.id);
-
-  // Get CV text chunks from talent_embeddings
+  roleNames: string[],
+  previousQuestions?: string[]
+): Promise<IGeneratedQuestion[] | null> => {
   const talentEmbeddings = await AppDataSource.getRepository(TalentEmbedding).find({
     where: { userId: user.id },
     select: { cvText: true },
   });
   const cvContent = talentEmbeddings.map((r) => r.cvText ?? "").join("\n\n");
 
-  const existingPreScreening = await preScreeningRepo().findOne({ where: { userId: user.id } });
-
   const context: PreScreeningProfileContext = {
     bio: user.bio ?? undefined,
-    roles: roleValidation.names,
+    roles: roleNames,
     cvContent,
     experience: user.experience ?? undefined,
     workType: user.workType ?? undefined,
@@ -167,15 +156,9 @@ export const generatePreScreeningForUser = async (
           country: user.locationCountry ?? undefined,
         }
       : undefined,
-    isRetake,
-    previousQuestions:
-      isRetake && existingPreScreening
-        ? existingPreScreening.questions.map((q) => q.question)
-        : undefined,
+    isRetake: !!previousQuestions,
+    previousQuestions,
   };
-
-  const MAX_GENERATION_ATTEMPTS = 3;
-  let parsed: { questions: IGeneratedQuestion[] } | null = null;
 
   for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt++) {
     const result = await generatePreScreeningAssessment(context);
@@ -194,12 +177,9 @@ export const generatePreScreeningForUser = async (
         Array.isArray(candidate.questions) &&
         candidate.questions.every((q) => Array.isArray(q.options) && q.options.length === 4);
       if (Array.isArray(candidate.questions) && count >= 5 && count <= 10 && optionsValid) {
-        parsed = {
-          questions: redistributeCorrectOptions(
-            candidate.questions.map((q) => ({ ...q, correctOption: normalizeCorrectOption(q) }))
-          ),
-        };
-        break;
+        return redistributeCorrectOptions(
+          candidate.questions.map((q) => ({ ...q, correctOption: normalizeCorrectOption(q) }))
+        );
       }
       logger.error(
         `Pre-screening attempt ${attempt} returned ${count} questions (expected 5–10) or invalid option counts for user ${user.id}`
@@ -210,11 +190,30 @@ export const generatePreScreeningForUser = async (
       );
     }
   }
+  return null;
+};
 
-  if (!parsed) {
-    const err = new ValidationError(
-      "Failed to generate a valid assessment (5–10 questions). Please try again."
-    );
+const invalidQuestionsError = () =>
+  new ValidationError("Failed to generate a valid assessment (5–10 questions). Please try again.");
+
+/** Writes the questions of an assessment the talent hasn't taken yet. */
+export const generatePreScreeningForUser = async (user: User): Promise<void> => {
+  const claimed = await claimRowById(CLAIM_PRESCREENING_SQL, user.id);
+  if (!claimed) return;
+
+  const roleValidation = await validateRoles(user);
+  if (!roleValidation.valid) {
+    await recordPreScreeningFailure(user.id, new Error("Invalid roles"), { permanent: true });
+    throw new ValidationError("One or more selected roles do not exist in the role catalog");
+  }
+
+  const roleIds = (user.userRoles ?? []).map((r) => r.id);
+  const preScreening = await preScreeningRepo().findOne({ where: { userId: user.id } });
+  if (!preScreening) return;
+
+  const questions = await writeQuestions(user, roleValidation.names);
+  if (!questions) {
+    const err = invalidQuestionsError();
     await recordPreScreeningFailure(user.id, err);
     throw err;
   }
@@ -231,49 +230,30 @@ export const generatePreScreeningForUser = async (
     return;
   }
 
-  const attemptCount = isRetake
-    ? existingAttemptCount + 1
-    : Math.max(existingPreScreening?.attemptCount ?? 0, 1);
-
-  // Upsert pre_screening record
-  let preScreening = existingPreScreening;
-
-  if (preScreening) {
-    preScreening.questions = parsed.questions;
-    preScreening.roles = roleIds;
-    preScreening.status = PreScreeningStatus.Pending;
-    preScreening.attemptCount = attemptCount;
-    preScreening.score = null;
-    preScreening.completedAt = null;
-    preScreening.generatedAt = new Date();
-    preScreening.generationStatus = GenerationStatus.Succeeded;
-    preScreening.generationLockedAt = null;
-    preScreening.generationNextRetryAt = null;
-    preScreening.generationLastError = null;
-  } else {
-    preScreening = preScreeningRepo().create({
-      userId: user.id,
-      roles: roleIds,
-      questions: parsed.questions,
-      status: PreScreeningStatus.Pending,
-      attemptCount,
-      maxAttempts: 2,
-      generatedAt: new Date(),
-      generationStatus: GenerationStatus.Succeeded,
-    });
-  }
-
+  preScreening.questions = questions;
+  preScreening.roles = roleIds;
+  preScreening.status = PreScreeningStatus.Pending;
+  preScreening.attemptCount = Math.max(preScreening.attemptCount, 1);
+  preScreening.score = null;
+  preScreening.completedAt = null;
+  preScreening.generatedAt = new Date();
+  preScreening.generationStatus = GenerationStatus.Succeeded;
+  preScreening.generationLockedAt = null;
+  preScreening.generationNextRetryAt = null;
+  preScreening.generationLastError = null;
   const saved = await preScreeningRepo().save(preScreening);
 
-  // Update user's activePreScreeningId
   await userRepo().update(user.id, { activePreScreeningId: saved.id });
+  startNextGeneration(user.id);
 };
 
+// Only an untaken assessment has its questions rewritten in place; a taken one gets a next set.
 const CLAIM_PRESCREENING_SQL = `
   UPDATE "pre_screenings"
   SET "generationLockedAt" = NOW(),
       "generationStatus" = 'pending'
   WHERE "user_id" = $1
+    AND "status" = 'pending'
     AND "generationStatus" IN ('pending', 'failed')
     AND "generationAttempts" < ${MAX_DURABLE_ATTEMPTS}
     AND ("generationNextRetryAt" IS NULL OR "generationNextRetryAt" <= NOW())
@@ -283,12 +263,205 @@ const CLAIM_PRESCREENING_SQL = `
 
 const DUE_PRESCREENING_SQL = `
   SELECT p."user_id" AS "id" FROM "pre_screenings" p
-  WHERE p."generationStatus" IN ('pending', 'failed')
+  WHERE p."status" = 'pending'
+    AND p."generationStatus" IN ('pending', 'failed')
     AND p."generationAttempts" < $1
     AND ("generationNextRetryAt" IS NULL OR "generationNextRetryAt" <= NOW())
     AND ("generationLockedAt" IS NULL OR "generationLockedAt" < NOW() - INTERVAL '${STALE_LOCK_INTERVAL}')
   LIMIT $2
 `;
+
+// ---- The next set: questions for the next attempt, written before the talent asks ----
+
+const CLEAR_NEXT_SET = `"nextQuestions" = NULL, "nextRoles" = NULL, "nextGenerationStatus" = NULL,
+  "nextGenerationAttempts" = 0, "nextGenerationNextRetryAt" = NULL, "nextGenerationLockedAt" = NULL,
+  "nextGenerationLastError" = NULL`;
+
+const NEXT_SET_UNLOCKED = `("nextGenerationLockedAt" IS NULL OR "nextGenerationLockedAt" < NOW() - INTERVAL '${STALE_LOCK_INTERVAL}')`;
+
+const EXPIRY_NOTICE_DAYS = 7;
+
+// The current set exists, no next set is written or being written, and one could be used: a retake
+// is left, or the score expires within a week and the talent will start again.
+const NEXT_SET_DUE = `
+  jsonb_array_length(p."questions") > 0
+  AND (p."status" = 'completed' OR p."generationStatus" = 'succeeded')
+  AND (p."nextGenerationStatus" IS NULL OR p."nextGenerationStatus" IN ('pending', 'failed'))
+  AND p."nextGenerationAttempts" < ${MAX_DURABLE_ATTEMPTS}
+  AND (p."nextGenerationNextRetryAt" IS NULL OR p."nextGenerationNextRetryAt" <= NOW())
+  AND (p."nextGenerationLockedAt" IS NULL OR p."nextGenerationLockedAt" < NOW() - INTERVAL '${STALE_LOCK_INTERVAL}')
+  AND (
+    p."attemptCount" < p."maxAttempts"
+    OR u."prescreeningScoredAt" < NOW() - INTERVAL '${PRESCREENING_SCORE_VALIDITY_DAYS - EXPIRY_NOTICE_DAYS} days'
+  )
+`;
+
+const CLAIM_NEXT_SET_SQL = `
+  UPDATE "pre_screenings" p
+  SET "nextGenerationLockedAt" = NOW(), "nextGenerationStatus" = 'pending'
+  FROM "users" u
+  WHERE u.id = p."user_id" AND p."user_id" = $1 AND ${NEXT_SET_DUE}
+  RETURNING p."id"
+`;
+
+const DUE_NEXT_SET_SQL = `
+  SELECT p."user_id" AS "id" FROM "pre_screenings" p
+  JOIN "users" u ON u.id = p."user_id"
+  WHERE ${NEXT_SET_DUE}
+  LIMIT $1
+`;
+
+const recordNextSetFailure = async (userId: string, err: unknown): Promise<void> => {
+  const [row]: Array<{ attempts: number }> = await AppDataSource.query(
+    `SELECT "nextGenerationAttempts" AS attempts FROM "pre_screenings" WHERE "user_id" = $1`,
+    [userId]
+  );
+  if (!row) return;
+  const patch = durableFailureUpdate(row.attempts ?? 0, err);
+  await AppDataSource.query(
+    `UPDATE "pre_screenings"
+     SET "nextGenerationStatus" = $2, "nextGenerationAttempts" = $3, "nextGenerationNextRetryAt" = $4,
+         "nextGenerationLockedAt" = NULL, "nextGenerationLastError" = $5
+     WHERE "user_id" = $1`,
+    [
+      userId,
+      patch.exhausted ? GenerationStatus.Failed : GenerationStatus.Pending,
+      patch.attempts,
+      patch.nextRetryAt,
+      patch.lastError,
+    ]
+  );
+};
+
+const releaseNextSet = (userId: string): Promise<unknown> =>
+  AppDataSource.query(
+    `UPDATE "pre_screenings" SET "nextGenerationLockedAt" = NULL WHERE "user_id" = $1`,
+    [userId]
+  );
+
+/** Writes the questions for the talent's next attempt. Returns false when there was nothing to claim. */
+const generateNextSet = async (userId: string): Promise<boolean> => {
+  if (!(await claimRowById(CLAIM_NEXT_SET_SQL, userId))) return false;
+
+  try {
+    const [user, preScreening] = await Promise.all([
+      loadTalent(userId),
+      preScreeningRepo().findOne({ where: { userId } }),
+    ]);
+    if (!user || !preScreening) {
+      await releaseNextSet(userId);
+      return false;
+    }
+    const roleValidation = await validateRoles(user);
+    if (!roleValidation.valid) {
+      throw new ValidationError("One or more selected roles do not exist in the role catalog");
+    }
+    const roleIds = (user.userRoles ?? []).map((r) => r.id);
+
+    const questions = await writeQuestions(
+      user,
+      roleValidation.names,
+      preScreening.questions.map((q) => q.question)
+    );
+    if (!questions) throw invalidQuestionsError();
+
+    if (!sameRoleIds(await currentRoleIds(userId), roleIds)) {
+      await releaseNextSet(userId);
+      return false;
+    }
+
+    await AppDataSource.query(
+      `UPDATE "pre_screenings"
+       SET "nextQuestions" = $2::jsonb, "nextRoles" = $3, "nextGenerationStatus" = 'succeeded',
+           "nextGenerationLockedAt" = NULL, "nextGenerationNextRetryAt" = NULL,
+           "nextGenerationLastError" = NULL
+       WHERE "user_id" = $1`,
+      [userId, JSON.stringify(questions), roleKey(roleIds)]
+    );
+    return true;
+  } catch (err) {
+    await recordNextSetFailure(userId, err);
+    throw err;
+  }
+};
+
+const startNextGeneration = (userId: string): void => {
+  track(
+    generateNextSet(userId).then(
+      () => undefined,
+      (err: unknown) => {
+        logger.error(
+          `Next pre-assessment generation failed for user ${userId}: ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        );
+      }
+    )
+  );
+};
+
+/**
+ * Moves a ready next set in as the talent's current questions. One conditional UPDATE, so a double
+ * click or two expiry reads can't swap twice, and a set written for roles the talent has since
+ * changed is never used. A retake adds an attempt; an expired score starts again at one.
+ */
+const swapInNextSet = async (
+  userId: string,
+  roleIds: string[],
+  mode: "retake" | "expired"
+): Promise<boolean> => {
+  const rows = resultRows(
+    await AppDataSource.query(
+      `UPDATE "pre_screenings"
+       SET "questions" = "nextQuestions", "roles" = "nextRoles", "status" = 'pending',
+           "score" = NULL, "completedAt" = NULL, "generatedAt" = NOW(), "updatedAt" = NOW(),
+           "attemptCount" = ${mode === "retake" ? `"attemptCount" + 1` : "1"},
+           "generationStatus" = 'succeeded', "generationAttempts" = 0,
+           "generationNextRetryAt" = NULL, "generationLockedAt" = NULL, "generationLastError" = NULL,
+           ${CLEAR_NEXT_SET}
+       WHERE "user_id" = $1 AND "status" = 'completed' AND "nextGenerationStatus" = 'succeeded'
+         AND "nextRoles" = $2
+         ${mode === "retake" ? `AND "attemptCount" < "maxAttempts"` : ""}
+       RETURNING "id"`,
+      [userId, roleKey(roleIds)]
+    )
+  );
+  if (rows.length === 0) return false;
+  startNextGeneration(userId);
+  return true;
+};
+
+const clearNextSet = (userId: string): Promise<unknown> =>
+  AppDataSource.query(
+    `UPDATE "pre_screenings" SET ${CLEAR_NEXT_SET} WHERE "user_id" = $1 AND ${NEXT_SET_UNLOCKED}`,
+    [userId]
+  );
+
+const NEXT_SET_SWEEP_BATCH = 2;
+let nextSetSweepRunning = false;
+
+/** Writes missing next sets a few at a time, including for assessments taken before this existed. */
+export const reconcileDueNextPreScreeningSets = async (): Promise<{ scanned: number }> => {
+  if (nextSetSweepRunning) return { scanned: 0 };
+  nextSetSweepRunning = true;
+  try {
+    const userIds = await selectDueIds(DUE_NEXT_SET_SQL, [NEXT_SET_SWEEP_BATCH]);
+    for (const userId of userIds) {
+      try {
+        await generateNextSet(userId);
+      } catch (err) {
+        logger.error(
+          `Next pre-assessment reconciliation failed for user ${userId}: ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        );
+      }
+    }
+    return { scanned: userIds.length };
+  } finally {
+    nextSetSweepRunning = false;
+  }
+};
 
 const recordPreScreeningFailure = async (
   userId: string,
@@ -441,6 +614,11 @@ export const getActivePreScreening = async (
     if (!getProfileCompletion(user).canProceedToPlatform) {
       throw profileIncomplete();
     }
+    const roleIds = (user.userRoles ?? []).map((r) => r.id);
+    if (scoreExpired && (await swapInNextSet(userId, roleIds, "expired"))) {
+      const fresh = await preScreeningRepo().findOneByOrFail({ userId });
+      return { preScreening: toClientPreScreening(fresh) };
+    }
     if (isWaitingForCvText(user)) {
       return { preScreening: waitingPlaceholder(preScreening) };
     }
@@ -454,11 +632,12 @@ export const getActivePreScreening = async (
     return { preScreening: toClientPreScreening(row, { generating: true }) };
   }
 
-  if (preScreening.generationStatus === GenerationStatus.Pending) {
+  const untaken = preScreening.status === PreScreeningStatus.Pending;
+  if (untaken && preScreening.generationStatus === GenerationStatus.Pending) {
     return { preScreening: toClientPreScreening(preScreening, { generating: true }) };
   }
 
-  if (preScreening.generationStatus === GenerationStatus.Failed) {
+  if (untaken && preScreening.generationStatus === GenerationStatus.Failed) {
     return { preScreening: toClientPreScreening(preScreening, { generationFailed: true }) };
   }
 
@@ -585,6 +764,7 @@ export const submitPreScreeningAnswers = async (
     // Advance every application currently parked at the Prescreening stage for this
     // talent — Pre-Assessment is a single global test reused across all jobs.
     await advanceApplicationsAfterPrescreening(user, totalScore);
+    startNextGeneration(user.id);
   }
 
   return {
@@ -619,14 +799,23 @@ export const retakePreScreening = async (userId: string): Promise<void> => {
     throw new NotFoundError("User not found");
   }
 
-  await preScreeningRepo().update(preScreening.id, {
-    generationStatus: GenerationStatus.Pending,
-    generationAttempts: 0,
-    generationNextRetryAt: null,
-    generationLockedAt: null,
-    generationLastError: null,
-  });
-  await generatePreScreeningForUser(user, true, preScreening.attemptCount);
+  const roleIds = (user.userRoles ?? []).map((r) => r.id);
+  if (await swapInNextSet(userId, roleIds, "retake")) return;
+
+  // The next set isn't ready, or was written for other roles: write it now while they wait.
+  const almostReady = new ValidationError(
+    "Your new questions are almost ready. Try again in a minute."
+  );
+  const cleared = resultRows(
+    await AppDataSource.query(
+      `UPDATE "pre_screenings" SET ${CLEAR_NEXT_SET}
+       WHERE "user_id" = $1 AND ${NEXT_SET_UNLOCKED} RETURNING "id"`,
+      [userId]
+    )
+  );
+  if (cleared.length === 0) throw almostReady;
+  if (!(await generateNextSet(userId))) throw almostReady;
+  if (!(await swapInNextSet(userId, roleIds, "retake"))) throw almostReady;
 };
 
 const inFlightGenerations = new Set<Promise<void>>();
@@ -688,7 +877,11 @@ export const refreshPreScreeningForRoles = async (userId: string): Promise<void>
     await prepareFirstPreScreening(userId);
     return;
   }
-  if (row.status !== PreScreeningStatus.Pending) return;
+  await clearNextSet(userId);
+  if (row.status !== PreScreeningStatus.Pending) {
+    startNextGeneration(userId);
+    return;
+  }
 
   const roleIds = (user.userRoles ?? []).map((r) => r.id);
   const marked = resultRows(
