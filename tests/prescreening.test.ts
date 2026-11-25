@@ -241,7 +241,7 @@ describe("GET /v1/prescreening/ — get or generate prescreening", () => {
     await drainInFlightPreScreenings();
 
     const firstSetCalls = (openai.generatePreScreeningAssessment as jest.Mock).mock.calls.filter(
-      ([context]: Array<{ isRetake: boolean }>) => !context.isRetake
+      ([context]: [{ isRetake: boolean }]) => !context.isRetake
     );
     expect(firstSetCalls).toHaveLength(1);
 
