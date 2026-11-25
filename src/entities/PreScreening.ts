@@ -71,6 +71,29 @@ export class PreScreening {
   @Column({ type: "timestamp", nullable: true, default: null })
   completedAt!: Date | null;
 
+  // The questions for the next attempt, written ahead of time. Never loaded with the row, so
+  // whole-row saves can't overwrite them; prescreening.ts reads and writes them with SQL.
+  @Column({ type: "jsonb", nullable: true, default: null, select: false })
+  nextQuestions!: PreScreening["questions"] | null;
+
+  @Column({ type: "simple-array", nullable: true, default: null, select: false })
+  nextRoles!: string[] | null;
+
+  @Column({ type: "varchar", length: 16, nullable: true, default: null, select: false })
+  nextGenerationStatus!: GenerationStatus | null;
+
+  @Column({ type: "int", default: 0, select: false })
+  nextGenerationAttempts!: number;
+
+  @Column({ type: "timestamp", nullable: true, default: null, select: false })
+  nextGenerationNextRetryAt!: Date | null;
+
+  @Column({ type: "timestamp", nullable: true, default: null, select: false })
+  nextGenerationLockedAt!: Date | null;
+
+  @Column({ type: "text", nullable: true, default: null, select: false })
+  nextGenerationLastError!: string | null;
+
   @Column({ type: "jsonb", nullable: true, default: null })
   metadata!: Record<string, unknown> | null;
 
