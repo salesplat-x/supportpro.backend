@@ -85,6 +85,12 @@ export async function createAdmin(
   return { user, token: signToken(user) };
 }
 
+// Profile fields of a talent who has taken the pre-assessment recently, so they may apply to jobs.
+export const validPreAssessment = (score = 80): Partial<User> => ({
+  prescreeningScore: score,
+  prescreeningScoredAt: new Date(),
+});
+
 // A talent with all required profile fields set — passes requireCompletedProfile
 export async function createCompleteTalent(
   role?: Role,

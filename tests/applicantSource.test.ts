@@ -14,6 +14,7 @@ import {
   createTalent,
   createAIConfig,
   createApplication,
+  validPreAssessment,
 } from "./helpers/fixtures.js";
 import { Application } from "../src/entities/Application.js";
 import { Job } from "../src/entities/Job.js";
@@ -61,7 +62,7 @@ async function openJob() {
 
 async function applyWith(jobId: string, body: Record<string, unknown>) {
   const { user: talent, token } = await createTalent({
-    prescreeningScore: 75,
+    ...validPreAssessment(75),
     cvFileName: "cv.pdf",
   });
   const res = await request(app)

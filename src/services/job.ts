@@ -9,7 +9,13 @@ import { User } from "../entities/User.js";
 import { Organization } from "../entities/Organization.js";
 import { Notification } from "../entities/Notification.js";
 import { Scout } from "../entities/Scout.js";
-import { NotFoundError, AuthorizationError, ValidationError, ConflictError } from "../utils/errors";
+import {
+  AppError,
+  NotFoundError,
+  AuthorizationError,
+  ValidationError,
+  ConflictError,
+} from "../utils/errors";
 import { purgeJobCascade } from "./cascadeDelete.js";
 import { JobPaymentStatus, latestJobPaymentStatuses, settleOpenJobPayments } from "./payment.js";
 import { assertCompanyResourceAccess, getActiveOrganizationId } from "./organizationScope.js";
@@ -70,6 +76,7 @@ import {
 } from "./applicationProgress.js";
 import { AiInterview } from "../entities/AiInterview.js";
 import { hasUploadedCv, regenerateCvEmbedding } from "./user.js";
+import { hasValidPreAssessment } from "./prescreening.js";
 import { isUniqueViolation } from "./staffRecord.js";
 import { screeningPlan, type ScreeningPlanStep } from "./screeningPlan.js";
 import { savedJobIds } from "./savedJobs.js";
@@ -1585,16 +1592,28 @@ export const apply = async (user: User, payload: ApplyPayload): Promise<Applicat
     return existingApp;
   }
 
-  const cv = await userRepo().findOne({
+  const talent = await userRepo().findOne({
     where: { id: user.id },
-    select: { id: true, cvUploadedAt: true, cvFileName: true, cvText: true },
+    select: {
+      id: true,
+      cvUploadedAt: true,
+      cvFileName: true,
+      cvText: true,
+      prescreeningScore: true,
+      prescreeningScoredAt: true,
+    },
   });
-  if (!cv || !hasUploadedCv(cv)) {
+  if (!talent || !hasUploadedCv(talent)) {
     throw new ValidationError("Add your CV to your profile before applying");
   }
+  if (!hasValidPreAssessment(talent)) {
+    throw new AppError(
+      403,
+      "PRE_ASSESSMENT_REQUIRED",
+      "Take your pre-assessment before applying to jobs."
+    );
+  }
 
-  // Application is created immediately on apply, regardless of assessment completion —
-  // every stage (including Pre-Assessment) is completed progressively afterward.
   const { stages, entryStage } = createStages(aiConfig);
 
   const application = applicationRepo().create({

@@ -13,6 +13,7 @@ import {
   createJob,
   createQuestion,
   createRole,
+  validPreAssessment,
 } from "./helpers/fixtures.js";
 import { Notification, StaffMember } from "../src/entities";
 import { ApplicationStatus, QuestionType, ScreeningStage } from "../src/types/enums.js";
@@ -81,7 +82,7 @@ async function openJob() {
 describe("application notifications", () => {
   it("applying tells the candidate once that their application arrived, linking to it", async () => {
     const { job } = await openJob();
-    const { user: talent, token } = await createCompleteTalent();
+    const { user: talent, token } = await createCompleteTalent(undefined, validPreAssessment());
     const apply = () =>
       request(app).patch(`/v1/jobs/applications/${job.id}`).set(authHeader(token)).send({});
 

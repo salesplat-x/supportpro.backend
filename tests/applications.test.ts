@@ -21,6 +21,7 @@ import {
   createOrganization,
   createQuestion,
   createAdmin,
+  validPreAssessment,
 } from "./helpers/fixtures.js";
 import { Application } from "../src/entities/Application.js";
 import { User } from "../src/entities/User.js";
@@ -687,7 +688,7 @@ describe("PATCH /v1/jobs/applications/:jobId — apply for job", () => {
 
   it("Talent with passing prescreening score applies successfully → 201", async () => {
     const { token: talentToken } = await createTalent({
-      prescreeningScore: 75,
+      ...validPreAssessment(75),
       cvFileName: "cv.pdf",
     });
     const { user: recruiter } = await createRecruiter();
@@ -704,8 +705,15 @@ describe("PATCH /v1/jobs/applications/:jobId — apply for job", () => {
     expect(res.status).toBe(201);
   });
 
-  it("Talent without prescreeningScore can still apply immediately → 201", async () => {
-    const { token } = await createTalent({ prescreeningScore: null, cvFileName: "cv.pdf" });
+  it.each([
+    ["has never taken the pre-assessment", { prescreeningScore: null }],
+    [
+      "took it more than 90 days ago",
+      { prescreeningScore: 75, prescreeningScoredAt: new Date(Date.now() - 91 * 86_400_000) },
+    ],
+    ["has a score with no date", { prescreeningScore: 75, prescreeningScoredAt: null }],
+  ])("a talent who %s can't apply → 403", async (_label, overrides) => {
+    const { user: talent, token } = await createTalent({ ...overrides, cvFileName: "cv.pdf" });
     const { user: recruiter } = await createRecruiter();
     const role = await createRole();
     const job = await createJob(recruiter, role);
@@ -716,11 +724,16 @@ describe("PATCH /v1/jobs/applications/:jobId — apply for job", () => {
       .patch(`/v1/jobs/applications/${job.id}`)
       .set("Authorization", `Bearer ${token}`)
       .send({});
-    expect(res.status).toBe(201);
+
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe("PRE_ASSESSMENT_REQUIRED");
+    expect(
+      await testDataSource.getRepository(Application).count({ where: { talentId: talent.id } })
+    ).toBe(0);
   });
 
   it("Talent with score below minPrescreeningScore can still apply immediately → 201", async () => {
-    const { token } = await createTalent({ prescreeningScore: 30, cvFileName: "cv.pdf" });
+    const { token } = await createTalent({ ...validPreAssessment(30), cvFileName: "cv.pdf" });
     const { user: recruiter } = await createRecruiter();
     const role = await createRole();
     const job = await createJob(recruiter, role);
@@ -757,7 +770,7 @@ describe("PATCH /v1/jobs/applications/:jobId — apply for job", () => {
 
   it("Applying twice returns the existing application (idempotent)", async () => {
     const { user: talent, token: talentToken } = await createTalent({
-      prescreeningScore: 75,
+      ...validPreAssessment(75),
       cvFileName: "cv.pdf",
     });
     const { user: recruiter } = await createRecruiter();
@@ -799,7 +812,10 @@ describe("PATCH /v1/jobs/applications/:jobId — apply for job", () => {
       .send(body);
 
   it("keeps the candidate's short note, trimmed", async () => {
-    const { user: talent, token } = await createTalent({ cvFileName: "cv.pdf" });
+    const { user: talent, token } = await createTalent({
+      ...validPreAssessment(),
+      cvFileName: "cv.pdf",
+    });
     const job = await openJobWithConfig();
 
     const res = await applyTo(token, job.id, { note: "  I designed the merchant app.  " });
@@ -834,7 +850,10 @@ describe("PATCH /v1/jobs/applications/:jobId — apply for job", () => {
   });
 
   it("two applications sent at once make one application and count one applicant", async () => {
-    const { user: talent, token } = await createTalent({ cvFileName: "cv.pdf" });
+    const { user: talent, token } = await createTalent({
+      ...validPreAssessment(),
+      cvFileName: "cv.pdf",
+    });
     const job = await openJobWithConfig();
 
     const results = await Promise.all([applyTo(token, job.id), applyTo(token, job.id)]);

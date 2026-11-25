@@ -39,6 +39,14 @@ export const isPrescreeningScoreValid = (scoredAt: Date | null): boolean => {
   return new Date() < expiresAt;
 };
 
+/** The talent has taken the pre-assessment and the score is still inside its validity window. */
+export const hasValidPreAssessment = (
+  user: Pick<User, "prescreeningScore" | "prescreeningScoredAt">
+): boolean =>
+  user.prescreeningScore !== null &&
+  user.prescreeningScore !== undefined &&
+  isPrescreeningScoreValid(user.prescreeningScoredAt);
+
 const preScreeningRepo = () => AppDataSource.getRepository(PreScreening);
 
 const userRepo = () => AppDataSource.getRepository(User);
@@ -593,6 +601,7 @@ export const getActivePreScreening = async (
     questions: ReturnType<typeof stripSensitiveFields>;
     generating?: boolean;
     generationFailed?: boolean;
+    hasValidScore: boolean;
   };
 }> => {
   const user = await userRepo().findOne({
@@ -604,6 +613,10 @@ export const getActivePreScreening = async (
   }
 
   const preScreening = await preScreeningRepo().findOne({ where: { userId } });
+  const hasValidScore = hasValidPreAssessment(user);
+  const respond = (view: Omit<ReturnType<typeof waitingPlaceholder>, "hasValidScore">) => ({
+    preScreening: { ...view, hasValidScore },
+  });
 
   const scoreExpired =
     !!preScreening &&
@@ -617,10 +630,10 @@ export const getActivePreScreening = async (
     const roleIds = (user.userRoles ?? []).map((r) => r.id);
     if (scoreExpired && (await swapInNextSet(userId, roleIds, "expired"))) {
       const fresh = await preScreeningRepo().findOneByOrFail({ userId });
-      return { preScreening: toClientPreScreening(fresh) };
+      return respond(toClientPreScreening(fresh));
     }
     if (isWaitingForCvText(user)) {
-      return { preScreening: waitingPlaceholder(preScreening) };
+      return respond(waitingPlaceholder(preScreening));
     }
     const { row, created } = await ensurePendingStub(user, {
       reset: scoreExpired,
@@ -629,19 +642,19 @@ export const getActivePreScreening = async (
     if (created || scoreExpired) {
       startGeneration(user);
     }
-    return { preScreening: toClientPreScreening(row, { generating: true }) };
+    return respond(toClientPreScreening(row, { generating: true }));
   }
 
   const untaken = preScreening.status === PreScreeningStatus.Pending;
   if (untaken && preScreening.generationStatus === GenerationStatus.Pending) {
-    return { preScreening: toClientPreScreening(preScreening, { generating: true }) };
+    return respond(toClientPreScreening(preScreening, { generating: true }));
   }
 
   if (untaken && preScreening.generationStatus === GenerationStatus.Failed) {
-    return { preScreening: toClientPreScreening(preScreening, { generationFailed: true }) };
+    return respond(toClientPreScreening(preScreening, { generationFailed: true }));
   }
 
-  return { preScreening: toClientPreScreening(preScreening) };
+  return respond(toClientPreScreening(preScreening));
 };
 
 export const submitPreScreeningAnswers = async (

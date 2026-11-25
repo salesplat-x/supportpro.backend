@@ -3242,6 +3242,9 @@ paths:
                 type: object
         "400":
           description: Bad body, the job isn't taking applications, or the candidate has no CV on their profile
+        "403":
+          description: >-
+            PRE_ASSESSMENT_REQUIRED: the candidate hasn't taken the pre-assessment, or their score is more than 90 days old. Nothing is created.
       security:
         - bearerAuth: []
     get:
