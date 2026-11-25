@@ -29,6 +29,7 @@ import {
   overlayVerdictFromRecommendation,
   buildQuestionAnswerPairs,
   buildGradedAnswerPairs,
+  buildPreAssessmentAnswerPairs,
   triggerMatchVerdict,
 } from "./applicationStage.js";
 import logger from "../utils/logger.js";
@@ -202,7 +203,8 @@ export const getApplication = async (
 
   const isCandidate = application.talentId === userId;
   if (!isCandidate) {
-    const [problemSolvingAnswers, cultureFitAnswers] = await Promise.all([
+    const [preAssessmentAnswers, problemSolvingAnswers, cultureFitAnswers] = await Promise.all([
+      buildPreAssessmentAnswerPairs(application.talentId),
       buildGradedAnswerPairs(application.jobId, application.talentId, QuestionType.ProblemSolving),
       buildGradedAnswerPairs(application.jobId, application.talentId, QuestionType.CultureFit),
     ]);
@@ -212,6 +214,7 @@ export const getApplication = async (
       progressOf(application.id),
     ]);
     Object.assign(application, {
+      preAssessmentAnswers,
       problemSolvingAnswers,
       cultureFitAnswers,
       personalityFitPending: isPersonalityFitPending(application),

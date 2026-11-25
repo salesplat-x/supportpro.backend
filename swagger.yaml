@@ -3929,6 +3929,40 @@ paths:
                               durationSeconds (length of the recording, null if it could not be measured) and
                               its transcript. Each flag is {text, question}, where question is the answer's
                               position, or null when the flag is about the whole interview.
+                          preAssessmentAnswers:
+                            description: >-
+                              The candidate's latest pre-assessment answers, in the order asked. Company only. The pre-assessment is one test for every job, so these are the same on each application. Empty when the candidate took it before answers were kept.
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                question:
+                                  type: string
+                                answer:
+                                  type: string
+                                  description: The text of the chosen option; empty when the question was left unanswered.
+                                score:
+                                  type: number
+                                  nullable: true
+                                  description: The AI's score for this answer, 0-10.
+                                maxScore:
+                                  type: number
+                                  example: 10
+                                feedback:
+                                  type: string
+                                  nullable: true
+                                  description: One line on why the answer got its score.
+                                options:
+                                  type: array
+                                  description: Missing when the question was left unanswered.
+                                  items:
+                                    type: string
+                                selectedOption:
+                                  type: integer
+                                  description: The option the candidate chose, from 0.
+                                correctOption:
+                                  type: integer
+                                  description: The correct option, from 0.
                           problemSolvingAnswers:
                             description: Scored problem-solving answers, in the order asked. Company only. Multiple-choice answers also carry the options, the chosen option and the correct option; older written answers carry the AI's feedback.
                             type: array
