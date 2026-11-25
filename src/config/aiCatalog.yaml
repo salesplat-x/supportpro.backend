@@ -1,5 +1,9 @@
 # Update this file from each provider's official models page, then run `npm run ai:smoke`.
 verifiedOn: "2026-11-24"
+# pricing: USD per 1M tokens from each provider's official pricing page, standard tier, prompts under
+# 200k tokens. DeepSeek charges half outside peak hours; the peak price is used so costs never read low.
+# A model without pricing shows its cost as unknown on the admin AI usage page.
+pricesVerifiedOn: "2026-11-25"
 
 providers:
   - key: openai
@@ -33,6 +37,10 @@ providers:
     docsUrl: https://api-docs.deepseek.com/quick_start/pricing
     attemptTimeoutMs: 30000
 
+# USD per minute of audio for the voice assistant's speech-to-text, which isn't a chat or embedding model.
+audioPricing:
+  - { provider: openai, model: whisper-1, perMinute: 0.006 }
+
 # tokenParam: the request field that caps output on this model.
 # supportsTemperature: false means the temperature field is dropped from the request.
 # reasoningEffort: sent as reasoning_effort. Absent means the field is left out.
@@ -43,6 +51,7 @@ models:
     provider: openai
     label: GPT-6 Astra
     kind: chat
+    pricing: [{ inputPerMillion: 10, outputPerMillion: 50 }]
     formats: [json_object, json_schema]
     tokenParam: max_completion_tokens
     supportsTemperature: false
@@ -52,6 +61,7 @@ models:
     provider: openai
     label: GPT-6.1 Sol
     kind: chat
+    pricing: [{ inputPerMillion: 2, outputPerMillion: 10 }]
     formats: [json_object, json_schema]
     tokenParam: max_completion_tokens
     supportsTemperature: false
@@ -61,6 +71,7 @@ models:
     provider: openai
     label: GPT-6.1 Terra
     kind: chat
+    pricing: [{ inputPerMillion: 1, outputPerMillion: 5 }]
     formats: [json_object, json_schema]
     tokenParam: max_completion_tokens
     supportsTemperature: true
@@ -69,6 +80,7 @@ models:
     provider: openai
     label: GPT-6 Luna
     kind: chat
+    pricing: [{ inputPerMillion: 0.1, outputPerMillion: 0.5 }]
     formats: [json_object, json_schema]
     tokenParam: max_completion_tokens
     supportsTemperature: true
@@ -77,6 +89,7 @@ models:
     provider: openai
     label: GPT-5.6 Terra
     kind: chat
+    pricing: [{ inputPerMillion: 2, outputPerMillion: 12 }]
     formats: [json_object, json_schema]
     tokenParam: max_completion_tokens
     supportsTemperature: true
@@ -85,6 +98,7 @@ models:
     provider: openai
     label: GPT-5.6 Luna
     kind: chat
+    pricing: [{ inputPerMillion: 0.2, outputPerMillion: 1.2 }]
     formats: [json_object, json_schema]
     tokenParam: max_completion_tokens
     supportsTemperature: true
@@ -93,6 +107,7 @@ models:
     provider: openai
     label: GPT-4o
     kind: chat
+    pricing: [{ inputPerMillion: 2.5, outputPerMillion: 10 }]
     formats: [json_object, json_schema]
     tokenParam: max_tokens
     supportsTemperature: true
@@ -102,6 +117,7 @@ models:
     provider: openai
     label: GPT-4o mini
     kind: chat
+    pricing: [{ inputPerMillion: 0.15, outputPerMillion: 0.6 }]
     formats: [json_object, json_schema]
     tokenParam: max_tokens
     supportsTemperature: true
@@ -111,15 +127,20 @@ models:
     provider: openai
     label: Text Embedding 3 Small
     kind: embedding
+    pricing: [{ inputPerMillion: 0.02 }]
   - id: text-embedding-3-large
     provider: openai
     label: Text Embedding 3 Large
     kind: embedding
+    pricing: [{ inputPerMillion: 0.13 }]
 
   - id: gemini-3.8-flash
     provider: gemini
     label: Gemini 3.8 Flash
     kind: chat
+    pricing:
+      - { inputPerMillion: 0.75, outputPerMillion: 3.75 }
+      - { from: "2027-01-01", inputPerMillion: 1.5, outputPerMillion: 7.5 }
     formats: [json_object, json_schema]
     tokenParam: max_tokens
     supportsTemperature: true
@@ -129,6 +150,9 @@ models:
     provider: gemini
     label: Gemini 3.6 Flash
     kind: chat
+    pricing:
+      - { inputPerMillion: 0.75, outputPerMillion: 3.75 }
+      - { from: "2027-01-01", inputPerMillion: 1.5, outputPerMillion: 7.5 }
     formats: [json_object, json_schema]
     tokenParam: max_tokens
     supportsTemperature: true
@@ -138,6 +162,7 @@ models:
     provider: gemini
     label: Gemini 3.5 Flash-Lite
     kind: chat
+    pricing: [{ inputPerMillion: 0.3, outputPerMillion: 2.5 }]
     formats: [json_object, json_schema]
     tokenParam: max_tokens
     supportsTemperature: true
@@ -147,16 +172,19 @@ models:
     provider: gemini
     label: Gemini Embedding 2
     kind: embedding
+    pricing: [{ inputPerMillion: 0.2 }]
   - id: gemini-embedding-001
     provider: gemini
     label: Gemini Embedding 001
     kind: embedding
+    pricing: [{ inputPerMillion: 0.15 }]
     retiresOn: "2028-05-14"
 
   - id: grok-4.7
     provider: grok
     label: Grok 4.7
     kind: chat
+    pricing: [{ inputPerMillion: 2, outputPerMillion: 6 }]
     formats: [json_object, json_schema]
     tokenParam: max_tokens
     supportsTemperature: true
@@ -165,6 +193,7 @@ models:
     provider: grok
     label: Grok 4.6
     kind: chat
+    pricing: [{ inputPerMillion: 2, outputPerMillion: 6 }]
     formats: [json_object, json_schema]
     tokenParam: max_tokens
     supportsTemperature: true
@@ -173,6 +202,7 @@ models:
     provider: grok
     label: Grok 4.5
     kind: chat
+    pricing: [{ inputPerMillion: 2, outputPerMillion: 6 }]
     formats: [json_object, json_schema]
     tokenParam: max_tokens
     supportsTemperature: true
@@ -181,6 +211,7 @@ models:
     provider: grok
     label: Grok 4.3
     kind: chat
+    pricing: [{ inputPerMillion: 1.25, outputPerMillion: 2.5 }]
     formats: [json_object, json_schema]
     tokenParam: max_tokens
     supportsTemperature: true
@@ -189,6 +220,7 @@ models:
     provider: grok
     label: Grok 4.20 Reasoning
     kind: chat
+    pricing: [{ inputPerMillion: 1.25, outputPerMillion: 2.5 }]
     formats: [json_object, json_schema]
     tokenParam: max_tokens
     supportsTemperature: true
@@ -197,6 +229,7 @@ models:
     provider: grok
     label: Grok 4.20
     kind: chat
+    pricing: [{ inputPerMillion: 1.25, outputPerMillion: 2.5 }]
     formats: [json_object, json_schema]
     tokenParam: max_tokens
     supportsTemperature: true
@@ -205,6 +238,7 @@ models:
     provider: groq
     label: GPT-OSS 120B
     kind: chat
+    pricing: [{ inputPerMillion: 0.15, outputPerMillion: 0.6 }]
     formats: [json_object, json_schema]
     tokenParam: max_completion_tokens
     supportsTemperature: true
@@ -214,6 +248,7 @@ models:
     provider: groq
     label: GPT-OSS 20B
     kind: chat
+    pricing: [{ inputPerMillion: 0.075, outputPerMillion: 0.3 }]
     formats: [json_object, json_schema]
     tokenParam: max_completion_tokens
     supportsTemperature: true
@@ -224,6 +259,7 @@ models:
     provider: deepseek
     label: DeepSeek Flash
     kind: chat
+    pricing: [{ inputPerMillion: 0.3, outputPerMillion: 1.2 }]
     formats: [json_object]
     tokenParam: max_tokens
     supportsTemperature: true
@@ -232,6 +268,7 @@ models:
     provider: deepseek
     label: DeepSeek V4 Pro
     kind: chat
+    pricing: [{ inputPerMillion: 1.32, outputPerMillion: 3.96 }]
     formats: [json_object]
     tokenParam: max_tokens
     supportsTemperature: true

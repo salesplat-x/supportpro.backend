@@ -8,6 +8,7 @@ import {
   adminAiFeatureKeyValidator,
   adminChangeOwnerValidator,
   adminAiFeatureModelValidator,
+  adminAiUsageQueryValidator,
   adminAiFeaturePromptsValidator,
   adminAiSkillValidator,
   adminApplicationFollowUpEmailValidator,
@@ -185,6 +186,13 @@ router.get(
   validateAccess([UserRole.Admin]),
   requireVerifiedEmail,
   asyncHandler(admin.getAiModels, "load AI models")
+);
+router.get(
+  "/ai-usage",
+  validateAccess([UserRole.Admin]),
+  requireVerifiedEmail,
+  validate(adminAiUsageQueryValidator),
+  asyncHandler(admin.getAiUsage, "load AI usage")
 );
 router.patch(
   "/ai-models/features/:key",
