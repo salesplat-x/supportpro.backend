@@ -7,6 +7,7 @@ import request from "supertest";
 import { createApp } from "../src/app.js";
 import {
   computeCvSimilarityScore,
+  moveOnScoredCvMatches,
   processNextStage,
   rescoreCvSimilarityForTalent,
 } from "../src/services/applicationStage.js";
@@ -30,7 +31,7 @@ import { Application } from "../src/entities/Application.js";
 import { Job } from "../src/entities/Job.js";
 import { TalentEmbedding } from "../src/entities/TalentEmbedding.js";
 import { User } from "../src/entities/User.js";
-import type { AIConfig } from "../src/entities/AIConfig.js";
+import { AIConfig } from "../src/entities/AIConfig.js";
 import { ApplicationStatus, ScreeningStage } from "../src/types/enums.js";
 
 jest.mock("../src/utils/integrations/openai.js", () => ({
@@ -159,8 +160,10 @@ describe("entering the CV stage", () => {
     expect(application.cvSimilarityAttempts).toBe(1);
   });
 
-  it("asks for a retake when the score is below the minimum", async () => {
+  it("moves on to tailored questions even when the score is below the job's minimum", async () => {
     const { talent, job, aiConfig } = await setup();
+    await testDataSource.getRepository(AIConfig).update(aiConfig.id, { minCvSimilarityScore: 70 });
+    aiConfig.minCvSimilarityScore = 70;
     await embedCv(talent.id, -1);
     const application = await processNextStage(
       talent,
@@ -168,8 +171,9 @@ describe("entering the CV stage", () => {
       ScreeningStage.Prescreening,
       aiConfig
     );
-    expect(application.currentStage).toBe(ScreeningStage.CvSimilarity);
-    expect(application.status).toBe(ApplicationStatus.RetakeAssessment);
+    expect(application.currentStage).toBe(ScreeningStage.Personalized);
+    expect(application.status).toBe(ApplicationStatus.Pending);
+    expect(application.cvSimilarityScore).toBe(0);
     expect(application.cvSimilarityAttempts).toBe(1);
   });
 
@@ -216,7 +220,7 @@ describe("rescoreCvSimilarityForTalent", () => {
     expect(scored.currentStage).toBe(ScreeningStage.Prescreening);
   });
 
-  it("advances a retake once both attempts are used, even on a low score", async () => {
+  it("moves on an application held back under the old minimum-score rule", async () => {
     const { talent, job, aiConfig } = await setup();
     const retake = await createApplication(talent, job, {
       stages: aiConfig.stages,
@@ -231,6 +235,42 @@ describe("rescoreCvSimilarityForTalent", () => {
     const updated = await reload(retake.id);
     expect(updated.cvSimilarityAttempts).toBe(2);
     expect(updated.currentStage).toBe(ScreeningStage.Personalized);
+    expect(updated.status).toBe(ApplicationStatus.Pending);
+  });
+});
+
+describe("moveOnScoredCvMatches", () => {
+  it("moves on scored applications still at the CV stage and leaves the rest alone", async () => {
+    const { talent, job, aiConfig } = await setup();
+    const { user: other } = await createTalent({ cvFileName: "cv.pdf" });
+    const { user: third } = await createTalent({ cvFileName: "cv.pdf" });
+    const heldBack = await createApplication(talent, job, {
+      stages: aiConfig.stages,
+      currentStage: ScreeningStage.CvSimilarity,
+      status: ApplicationStatus.RetakeAssessment,
+      cvSimilarityScore: 30,
+      cvSimilarityAttempts: 1,
+    });
+    const unscored = await createApplication(other, job, {
+      stages: aiConfig.stages,
+      currentStage: ScreeningStage.CvSimilarity,
+    });
+    const rejected = await createApplication(third, job, {
+      stages: aiConfig.stages,
+      currentStage: ScreeningStage.CvSimilarity,
+      status: ApplicationStatus.Rejected,
+      cvSimilarityScore: 30,
+    });
+
+    await moveOnScoredCvMatches();
+
+    expect(await reload(heldBack.id)).toMatchObject({
+      currentStage: ScreeningStage.Personalized,
+      status: ApplicationStatus.Pending,
+      cvSimilarityScore: 30,
+    });
+    expect((await reload(unscored.id)).currentStage).toBe(ScreeningStage.CvSimilarity);
+    expect((await reload(rejected.id)).currentStage).toBe(ScreeningStage.CvSimilarity);
   });
 });
 
