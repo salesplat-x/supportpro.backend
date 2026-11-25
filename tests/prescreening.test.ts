@@ -18,11 +18,15 @@ import {
 } from "./helpers/fixtures.js";
 import { PreScreening } from "../src/entities/PreScreening.js";
 import { User } from "../src/entities/User.js";
-import { PreScreeningStatus, GenerationStatus } from "../src/types/enums.js";
+import { CvEmbeddingStatus, PreScreeningStatus, GenerationStatus } from "../src/types/enums.js";
 import { TalentEmbedding } from "../src/entities/TalentEmbedding.js";
 import {
+  drainInFlightPreScreenings,
+  ensureDuePreScreenings,
   isPrescreeningScoreValid,
+  prepareFirstPreScreening,
   PRESCREENING_SCORE_VALIDITY_DAYS,
+  refreshPreScreeningForRoles,
 } from "../src/services/prescreening.js";
 
 jest.mock("../src/utils/integrations/email/emailService.js", () => ({
@@ -69,6 +73,7 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
+  await drainInFlightPreScreenings();
   await clearAllTables();
   jest.clearAllMocks();
 });
@@ -163,6 +168,39 @@ describe("GET /v1/prescreening/ — get or generate prescreening", () => {
       .set("Authorization", `Bearer ${poorToken}`);
 
     expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe("PROFILE_INCOMPLETE");
+  });
+
+  it("A talent with only a CV and roles gets questions, not a profile error", async () => {
+    const role = await createRole();
+    const { token } = await createCompleteTalent(role, {
+      bio: null,
+      experience: null,
+      locationCountry: null,
+      minSalary: null,
+      maxSalary: null,
+      workType: [],
+    });
+
+    const res = await request(app).get("/v1/prescreening/").set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.preScreening.generating).toBe(true);
+  });
+
+  it("While the CV text is still being prepared it shows generating and creates nothing", async () => {
+    const openai = await import("../src/utils/integrations/openai.js");
+    const role = await createRole();
+    const { token } = await createCompleteTalent(role, {
+      cvEmbeddingStatus: CvEmbeddingStatus.Pending,
+    });
+
+    const res = await request(app).get("/v1/prescreening/").set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.preScreening).toMatchObject({ id: null, generating: true, questions: [] });
+    expect(await testDataSource.getRepository(PreScreening).count()).toBe(0);
+    expect(openai.generatePreScreeningAssessment).not.toHaveBeenCalled();
   });
 
   it("Recruiter cannot access → 403", async () => {
@@ -576,5 +614,164 @@ describe("POST /v1/prescreening/submit — sets prescreeningScoredAt", () => {
       before.getTime() - 1000
     );
     expect(isPrescreeningScoreValid(updatedUser!.prescreeningScoredAt)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Questions written ahead of time
+// ---------------------------------------------------------------------------
+
+const questionsFor = async (userId: string) =>
+  testDataSource.getRepository(PreScreening).findOne({ where: { userId } });
+
+const setRoles = async (userId: string, roleIds: string[]) => {
+  await testDataSource.query(`DELETE FROM user_roles WHERE user_id = $1`, [userId]);
+  for (const roleId of roleIds) {
+    await testDataSource.query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, [
+      userId,
+      roleId,
+    ]);
+  }
+};
+
+describe("Pre-assessment questions written ahead of time", () => {
+  it("writes the first questions as soon as the CV and roles exist", async () => {
+    const role = await createRole();
+    const { user } = await createCompleteTalent(role, { bio: null });
+
+    await prepareFirstPreScreening(user.id);
+    await drainInFlightPreScreenings();
+
+    const row = await questionsFor(user.id);
+    expect(row?.generationStatus).toBe(GenerationStatus.Succeeded);
+    expect(row?.questions).toHaveLength(5);
+    expect(row?.attemptCount).toBe(1);
+  });
+
+  it("waits while the CV text is being prepared", async () => {
+    const role = await createRole();
+    const { user } = await createCompleteTalent(role, {
+      cvEmbeddingStatus: CvEmbeddingStatus.Pending,
+    });
+
+    await prepareFirstPreScreening(user.id);
+
+    expect(await questionsFor(user.id)).toBeNull();
+  });
+
+  it("the sweep creates rows only for verified talents with a CV, roles and no questions", async () => {
+    const role = await createRole();
+    const { user: ready } = await createCompleteTalent(role);
+    const { user: waiting } = await createCompleteTalent(role, {
+      cvEmbeddingStatus: CvEmbeddingStatus.Pending,
+    });
+    const { user: unverified } = await createCompleteTalent(role, { emailVerifiedAt: null });
+    const { user: noRoles } = await createCompleteTalent();
+    const { user: alreadyHas } = await createCompleteTalent(role);
+    await createPreScreening(alreadyHas, [role.id], {
+      generationStatus: GenerationStatus.Succeeded,
+    });
+
+    const { created } = await ensureDuePreScreenings();
+
+    expect(created).toBe(1);
+    expect((await questionsFor(ready.id))?.generationStatus).toBe(GenerationStatus.Pending);
+    expect(await questionsFor(waiting.id)).toBeNull();
+    expect(await questionsFor(unverified.id)).toBeNull();
+    expect(await questionsFor(noRoles.id)).toBeNull();
+  });
+
+  it("the sweep adds nothing while five writes are already queued", async () => {
+    const role = await createRole();
+    for (let i = 0; i < 5; i++) {
+      const { user } = await createCompleteTalent(role);
+      await createPreScreening(user, [role.id], { generationStatus: GenerationStatus.Pending });
+    }
+    const { user: eligible } = await createCompleteTalent(role);
+
+    const { created } = await ensureDuePreScreenings();
+
+    expect(created).toBe(0);
+    expect(await questionsFor(eligible.id)).toBeNull();
+  });
+
+  it("a role change rewrites questions not yet taken and keeps the attempt count", async () => {
+    const role = await createRole();
+    const newRole = await createRole();
+    const { user } = await createCompleteTalent(role);
+    await createPreScreening(user, [role.id], {
+      status: PreScreeningStatus.Pending,
+      attemptCount: 2,
+      generationStatus: GenerationStatus.Succeeded,
+    });
+    await setRoles(user.id, [newRole.id]);
+
+    await refreshPreScreeningForRoles(user.id);
+    await drainInFlightPreScreenings();
+
+    const row = await questionsFor(user.id);
+    expect(row?.roles).toEqual([newRole.id]);
+    expect(row?.attemptCount).toBe(2);
+    expect(row?.generationStatus).toBe(GenerationStatus.Succeeded);
+    expect(row?.questions).toHaveLength(5);
+  });
+
+  it("a role change never wipes a taken result", async () => {
+    const role = await createRole();
+    const newRole = await createRole();
+    const { user } = await createCompleteTalent(role);
+    await createPreScreening(user, [role.id], {
+      status: PreScreeningStatus.Completed,
+      score: 80,
+      generationStatus: GenerationStatus.Succeeded,
+    });
+    await setRoles(user.id, [newRole.id]);
+
+    await refreshPreScreeningForRoles(user.id);
+    await drainInFlightPreScreenings();
+
+    const row = await questionsFor(user.id);
+    expect(row?.status).toBe(PreScreeningStatus.Completed);
+    expect(row?.score).toBe(80);
+    expect(row?.roles).toEqual([role.id]);
+  });
+
+  it("questions written for roles the talent has since changed are not saved", async () => {
+    const openai = await import("../src/utils/integrations/openai.js");
+    const generate = openai.generatePreScreeningAssessment as jest.Mock;
+    const original = generate.getMockImplementation()!;
+    const role = await createRole();
+    const newRole = await createRole();
+    const { user } = await createCompleteTalent(role);
+    generate.mockImplementationOnce(async (...args: unknown[]) => {
+      await setRoles(user.id, [newRole.id]);
+      return original(...args);
+    });
+
+    await prepareFirstPreScreening(user.id);
+    await drainInFlightPreScreenings();
+
+    const row = await questionsFor(user.id);
+    expect(row?.generationStatus).toBe(GenerationStatus.Pending);
+    expect(row?.questions).toEqual([]);
+  });
+
+  it("saving roles for the first time through PATCH /user/me starts the first questions", async () => {
+    const role = await createRole();
+    const { user, token } = await createCompleteTalent();
+
+    const res = await request(app)
+      .patch("/v1/user/me")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ roleIds: [role.id] });
+    expect(res.status).toBe(200);
+
+    let row = await questionsFor(user.id);
+    for (let attempt = 0; attempt < 40 && !row; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      row = await questionsFor(user.id);
+    }
+    await drainInFlightPreScreenings();
+    expect(row).not.toBeNull();
   });
 });

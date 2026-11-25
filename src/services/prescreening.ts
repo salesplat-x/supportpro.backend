@@ -4,8 +4,13 @@ import { PreScreening } from "../entities/PreScreening.js";
 import { User } from "../entities/User.js";
 import { Role } from "../entities/Role.js";
 import { TalentEmbedding } from "../entities/TalentEmbedding.js";
-import { NotFoundError, ValidationError } from "../utils/errors";
-import { GenerationStatus, PreScreeningStatus } from "../types/enums.js";
+import { AppError, NotFoundError, ValidationError } from "../utils/errors";
+import {
+  CvEmbeddingStatus,
+  GenerationStatus,
+  PreScreeningStatus,
+  UserRole,
+} from "../types/enums.js";
 import {
   generatePreScreeningAssessment,
   scorePreScreeningAssessment,
@@ -21,6 +26,7 @@ import {
   SWEEP_BATCH_SIZE,
   claimRowById,
   durableFailureUpdate,
+  resultRows,
   selectDueIds,
 } from "../utils/durableJobs.js";
 
@@ -84,6 +90,31 @@ const stripSensitiveFields = (
     category,
     options,
   }));
+
+const profileIncomplete = () =>
+  new AppError(
+    404,
+    "PROFILE_INCOMPLETE",
+    "Add your CV and roles to your profile to get your pre-assessment."
+  );
+
+// Questions are written from the CV text in talent_embeddings, so wait while it is being written.
+const isWaitingForCvText = (user: Pick<User, "cvEmbeddingStatus">): boolean =>
+  user.cvEmbeddingStatus === CvEmbeddingStatus.Pending;
+
+const sameRoleIds = (a: string[], b: string[]): boolean => {
+  if (a.length !== b.length) return false;
+  const set = new Set(a);
+  return b.every((id) => set.has(id));
+};
+
+const currentRoleIds = async (userId: string): Promise<string[]> => {
+  const rows: Array<{ role_id: string }> = await AppDataSource.query(
+    `SELECT role_id FROM user_roles WHERE user_id = $1`,
+    [userId]
+  );
+  return rows.map((row) => row.role_id);
+};
 
 const validateRoles = async (user: User): Promise<{ valid: boolean; names: string[] }> => {
   const roleIds = (user.userRoles ?? []).map((r) => r.id);
@@ -188,7 +219,21 @@ export const generatePreScreeningForUser = async (
     throw err;
   }
 
-  const attemptCount = isRetake ? existingAttemptCount + 1 : 1;
+  if (!sameRoleIds(await currentRoleIds(user.id), roleIds)) {
+    await preScreeningRepo().update(
+      { userId: user.id },
+      {
+        generationStatus: GenerationStatus.Pending,
+        generationLockedAt: null,
+        generationNextRetryAt: null,
+      }
+    );
+    return;
+  }
+
+  const attemptCount = isRetake
+    ? existingAttemptCount + 1
+    : Math.max(existingPreScreening?.attemptCount ?? 0, 1);
 
   // Upsert pre_screening record
   let preScreening = existingPreScreening;
@@ -277,7 +322,7 @@ const recordPreScreeningFailure = async (
 
 const ensurePendingStub = async (
   user: User,
-  options: { reset?: boolean } = {}
+  options: { reset?: boolean; restartAttempts?: boolean } = {}
 ): Promise<{ row: PreScreening; created: boolean }> => {
   const roleIds = (user.userRoles ?? []).map((r) => r.id);
   const existing = await preScreeningRepo().findOne({ where: { userId: user.id } });
@@ -292,6 +337,7 @@ const ensurePendingStub = async (
     existing.status = PreScreeningStatus.Pending;
     existing.score = null;
     existing.completedAt = null;
+    if (options.restartAttempts) existing.attemptCount = 0;
     existing.generatedAt = new Date();
     existing.generationStatus = GenerationStatus.Pending;
     existing.generationAttempts = 0;
@@ -343,6 +389,22 @@ const toClientPreScreening = (
   ...extras,
 });
 
+const waitingPlaceholder = (preScreening: PreScreening | null) =>
+  preScreening
+    ? toClientPreScreening(preScreening, { generating: true })
+    : {
+        id: null,
+        status: PreScreeningStatus.Pending,
+        score: null,
+        attemptCount: 0,
+        maxAttempts: 2,
+        generatedAt: new Date(),
+        completedAt: null,
+        roles: [],
+        questions: [],
+        generating: true,
+      };
+
 export const getActivePreScreening = async (
   userId: string
 ): Promise<{
@@ -376,13 +438,18 @@ export const getActivePreScreening = async (
     !isPrescreeningScoreValid(user.prescreeningScoredAt);
 
   if (!preScreening || scoreExpired) {
-    const { isProfileComplete } = getProfileCompletion(user);
-    if (!isProfileComplete) {
-      throw new NotFoundError("No assessment found. Complete your profile to generate one.");
+    if (!getProfileCompletion(user).canProceedToPlatform) {
+      throw profileIncomplete();
     }
-    const { row, created } = await ensurePendingStub(user, { reset: scoreExpired });
+    if (isWaitingForCvText(user)) {
+      return { preScreening: waitingPlaceholder(preScreening) };
+    }
+    const { row, created } = await ensurePendingStub(user, {
+      reset: scoreExpired,
+      restartAttempts: scoreExpired,
+    });
     if (created || scoreExpired) {
-      triggerPreScreeningGeneration(user);
+      startGeneration(user);
     }
     return { preScreening: toClientPreScreening(row, { generating: true }) };
   }
@@ -562,16 +629,119 @@ export const retakePreScreening = async (userId: string): Promise<void> => {
   await generatePreScreeningForUser(user, true, preScreening.attemptCount);
 };
 
-export const triggerPreScreeningGeneration = (user: User): void => {
-  void ensurePendingStub(user, { reset: true })
-    .then(() => generatePreScreeningForUser(user))
-    .catch((err: unknown) =>
-      logger.error(
-        `Pre-screening generation failed for user ${user.id}: ${
-          err instanceof Error ? err.message : String(err)
-        }`
-      )
+const inFlightGenerations = new Set<Promise<void>>();
+
+const track = (task: Promise<void>): void => {
+  inFlightGenerations.add(task);
+  void task.finally(() => inFlightGenerations.delete(task));
+};
+
+export const drainInFlightPreScreenings = async (): Promise<void> => {
+  for (let attempt = 0; attempt < 100 && inFlightGenerations.size > 0; attempt++) {
+    await Promise.allSettled([...inFlightGenerations]);
+  }
+};
+
+const logGenerationFailure =
+  (userId: string) =>
+  (err: unknown): void => {
+    logger.error(
+      `Pre-screening generation failed for user ${userId}: ${
+        err instanceof Error ? err.message : String(err)
+      }`
     );
+  };
+
+const startGeneration = (user: User): void => {
+  track(generatePreScreeningForUser(user).catch(logGenerationFailure(user.id)));
+};
+
+const triggerPreScreeningGeneration = (user: User): void => {
+  track(
+    ensurePendingStub(user, { reset: true })
+      .then(() => generatePreScreeningForUser(user))
+      .catch(logGenerationFailure(user.id))
+  );
+};
+
+const loadTalent = (userId: string): Promise<User | null> =>
+  userRepo().findOne({ where: { id: userId }, relations: { userRoles: true } });
+
+/** Writes a talent's first questions as soon as their CV text and roles exist, before they open the page. */
+export const prepareFirstPreScreening = async (userId: string): Promise<void> => {
+  const user = await loadTalent(userId);
+  if (!user || user.userRole !== UserRole.Talent || !user.emailVerifiedAt) return;
+  if (!getProfileCompletion(user).canProceedToPlatform || isWaitingForCvText(user)) return;
+  const { created } = await ensurePendingStub(user);
+  if (created) startGeneration(user);
+};
+
+/**
+ * After the talent's roles change, rewrites whichever questions they haven't taken yet. A taken
+ * result is never wiped, and a write already running re-checks the roles before it saves.
+ */
+export const refreshPreScreeningForRoles = async (userId: string): Promise<void> => {
+  const user = await loadTalent(userId);
+  if (!user) return;
+  const row = await preScreeningRepo().findOne({ where: { userId } });
+  if (!row) {
+    await prepareFirstPreScreening(userId);
+    return;
+  }
+  if (row.status !== PreScreeningStatus.Pending) return;
+
+  const roleIds = (user.userRoles ?? []).map((r) => r.id);
+  const marked = resultRows(
+    await AppDataSource.query(
+      `UPDATE "pre_screenings"
+       SET "generationStatus" = 'pending', "generationAttempts" = 0,
+           "generationNextRetryAt" = NULL, "generationLastError" = NULL, "roles" = $2
+       WHERE "user_id" = $1 AND "status" = 'pending'
+         AND ("generationLockedAt" IS NULL OR "generationLockedAt" < NOW() - INTERVAL '${STALE_LOCK_INTERVAL}')
+       RETURNING "id"`,
+      [userId, roleIds.join(",")]
+    )
+  );
+  if (marked.length > 0 && !isWaitingForCvText(user)) startGeneration(user);
+};
+
+const DUE_FIRST_PRESCREENING_SQL = `
+  SELECT u.id FROM "users" u
+  WHERE u."userRole" = 'talent'
+    AND u."emailVerifiedAt" IS NOT NULL
+    AND (u."cvUploadedAt" IS NOT NULL OR NULLIF(u."cvFileName", '') IS NOT NULL OR NULLIF(u."cvText", '') IS NOT NULL)
+    AND u."cvEmbeddingStatus" IS DISTINCT FROM 'pending'
+    AND EXISTS (SELECT 1 FROM "user_roles" ur WHERE ur.user_id = u.id)
+    AND NOT EXISTS (SELECT 1 FROM "pre_screenings" p WHERE p.user_id = u.id)
+  ORDER BY u."createdAt" DESC
+  LIMIT $1
+`;
+
+const MAX_QUEUED_GENERATIONS = 5;
+
+/**
+ * Creates the pending row for talents who can have questions but have none yet, including
+ * talents who signed up before questions were written ahead of time. The generation sweep then
+ * writes them. New rows are only added while few generations are queued, so a backfill never
+ * crowds out the rest of the sweep.
+ */
+export const ensureDuePreScreenings = async (): Promise<{ created: number }> => {
+  const [counted]: Array<{ queued: number }> = await AppDataSource.query(
+    `SELECT COUNT(*)::int AS queued FROM "pre_screenings"
+     WHERE "generationStatus" = 'pending' AND "generationAttempts" < $1`,
+    [MAX_DURABLE_ATTEMPTS]
+  );
+  const room = MAX_QUEUED_GENERATIONS - (counted?.queued ?? 0);
+  if (room <= 0) return { created: 0 };
+
+  const rows: Array<{ id: string }> = await AppDataSource.query(DUE_FIRST_PRESCREENING_SQL, [room]);
+  let created = 0;
+  for (const { id } of rows) {
+    const user = await loadTalent(id);
+    if (!user) continue;
+    if ((await ensurePendingStub(user)).created) created++;
+  }
+  return { created };
 };
 
 export const retryPreScreeningGeneration = async (userId: string): Promise<void> => {

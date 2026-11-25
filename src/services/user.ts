@@ -145,7 +145,8 @@ export const updateUser = async (userId: string, payload: UpdateUserPayload): Pr
     update.compensationPeriod = payload.compensationPeriod as User["compensationPeriod"];
   if (payload.workType !== undefined) update.workType = payload.workType;
 
-  return AppDataSource.transaction(async (em) => {
+  let roleDidChange = false;
+  const saved = await AppDataSource.transaction(async (em) => {
     if (payload.roleIds !== undefined) {
       const picked = await validateAndFetchRoles(payload.roleIds);
       const typed = await findOrCreateRoles(payload.newRoles ?? [], em);
@@ -163,12 +164,18 @@ export const updateUser = async (userId: string, payload: UpdateUserPayload): Pr
           );
         }
         update.roleChangeCount = currentCount + 1;
+        roleDidChange = true;
       }
       existingUser.userRoles = roles;
     }
 
     return em.getRepository(User).save({ ...existingUser, ...update });
   });
+
+  if (roleDidChange && saved.userRole === UserRole.Talent) {
+    refreshPreScreeningAfterRoleChange(saved.id);
+  }
+  return saved;
 };
 
 export interface EditProfilePayload {
@@ -298,33 +305,39 @@ export const editProfile = async (
     });
   }
 
-  // Only a role change regenerates the assessment — CV replacement (or any other
-  // profile edit) must never trigger a new assessment. Initial generation for a
-  // profile that has just become complete is handled lazily by getActivePreScreening().
+  // Only a role change rewrites the questions; a new CV never does.
   if (roleDidChange) {
-    const triggerGeneration = () => {
-      // Fire-and-forget: prescreening generation is non-blocking but errors must be logged.
-      // The dynamic import avoids a circular dependency (prescreening.ts imports user.ts).
-      import("./prescreening.js")
-        .then(({ triggerPreScreeningGeneration }) => triggerPreScreeningGeneration(saved))
-        .catch((err: unknown) => {
-          logger.error("Prescreening generation failed after profile update", {
-            userId: saved.id,
-            message: err instanceof Error ? err.message : String(err),
-          });
-        });
-    };
-
-    // If this request also replaced the CV, wait for its embedding write to settle
-    // first — otherwise generation can read stale or half-written TalentEmbedding rows.
     if (embeddingPromise) {
-      void embeddingPromise.then(triggerGeneration);
+      void embeddingPromise.then(() => refreshPreScreeningAfterRoleChange(saved.id));
     } else {
-      triggerGeneration();
+      refreshPreScreeningAfterRoleChange(saved.id);
     }
   }
 
   return saved;
+};
+
+// The dynamic imports avoid a circular dependency (prescreening.ts imports user.ts).
+const refreshPreScreeningAfterRoleChange = (userId: string): void => {
+  import("./prescreening.js")
+    .then(({ refreshPreScreeningForRoles }) => refreshPreScreeningForRoles(userId))
+    .catch((err: unknown) => {
+      logger.error("Pre-assessment refresh failed after a role change", {
+        userId,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    });
+};
+
+const prepareFirstPreScreeningQuietly = (userId: string): void => {
+  import("./prescreening.js")
+    .then(({ prepareFirstPreScreening }) => prepareFirstPreScreening(userId))
+    .catch((err: unknown) => {
+      logger.error("First pre-assessment preparation failed", {
+        userId,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    });
 };
 
 const MAX_CV_SKILLS = 30;
@@ -577,6 +590,8 @@ export const generateCvEmbeddingForUser = async (userId: string): Promise<void> 
     await recordCvEmbeddingFailure(userId, err);
     throw err;
   }
+
+  prepareFirstPreScreeningQuietly(userId);
 
   // The dynamic import avoids a circular dependency (applicationStage.ts reaches
   // user.ts through prescreening.ts).
