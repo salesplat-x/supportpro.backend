@@ -29,7 +29,54 @@ const baseCandidate: FitReportCandidate = {
   ],
 };
 
+const pageCount = (pdf: Buffer): number =>
+  (pdf.toString("latin1").match(/\/Type \/Page\b(?!s)/g) ?? []).length;
+
+const minimal: FitReportCandidate = {
+  talentName: "Grace Hopper",
+  talentEmail: null,
+  jobTitle: "Some Role",
+  companyName: null,
+  appliedAt: null,
+  verdict: null,
+  overallFitScore: null,
+  recommendation: null,
+  whyHire: null,
+  whyFit: null,
+  strengths: [],
+  missingRequirements: [],
+  conflictingRequirements: [],
+  risks: [],
+  keyEvidence: [],
+  questionFeedback: [],
+};
+
 describe("generateFitReportPdf", () => {
+  it("carries the AuxHR logo", async () => {
+    const pdf = (await generateFitReportPdf([baseCandidate])).toString("latin1");
+    expect(pdf).toContain("/Subtype /Image");
+    expect(pdf).toContain("AuxHR");
+  });
+
+  it("fits a short candidate on one page, with no blank pages from the header or footer", async () => {
+    expect(pageCount(await generateFitReportPdf([minimal]))).toBe(1);
+  });
+
+  it("starts every candidate on a new page", async () => {
+    expect(pageCount(await generateFitReportPdf([minimal, minimal, minimal]))).toBe(3);
+  });
+
+  it("flows long evidence onto more pages", async () => {
+    const long = {
+      ...baseCandidate,
+      strengths: Array.from(
+        { length: 30 },
+        (_, i) => `Strength ${i + 1} with enough words to wrap.`
+      ),
+    };
+    expect(pageCount(await generateFitReportPdf([long]))).toBeGreaterThan(1);
+  });
+
   it("produces a valid, non-trivial PDF for a single scored candidate", async () => {
     const buffer = await generateFitReportPdf([baseCandidate]);
 
