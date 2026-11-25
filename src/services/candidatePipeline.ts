@@ -26,8 +26,7 @@ import {
   type ScreeningStepKey,
 } from "./screeningPlan.js";
 
-export type PipelineStepKey =
-  "applied" | ScreeningStepKey | "references" | "checks" | "company_review";
+export type PipelineStepKey = "applied" | ScreeningStepKey | "references" | "company_review";
 export type PipelineStepState = "done" | "current" | "upcoming";
 export type CandidateStatus =
   "interview_to_do" | "test_to_take" | "screening" | "shortlisted" | "applied" | "not_proceeding";
@@ -50,6 +49,8 @@ export interface PipelineStep {
   refereeCount: number | null;
   maxReferees: number | null;
   outcome: "shortlisted" | "not_proceeding" | null;
+  /** On company review only: the company asked the candidate to agree to background checks. */
+  checks: { requestedAt: string | null; answeredAt: string | null } | null;
 }
 
 export interface CandidatePipeline {
@@ -125,6 +126,7 @@ const emptyStep = (key: PipelineStepKey): PipelineStep => ({
   refereeCount: null,
   maxReferees: null,
   outcome: null,
+  checks: null,
 });
 
 interface InterviewState {
@@ -226,8 +228,12 @@ const loadContext = async (
   };
 };
 
-const stageOrder = (application: Application): string[] => {
+const stageOrder = (application: Application, hasInterview: boolean): string[] => {
   const order = orderedStages(application.stages ?? {});
+  // A recruiter can start the interview for a candidate whose stages didn't include one.
+  if (hasInterview && !order.includes(ScreeningStage.AiInterview)) {
+    order.push(ScreeningStage.AiInterview);
+  }
   const config = application.job?.aiConfig;
   const parallel = [
     {
@@ -276,7 +282,7 @@ const buildPipeline = (application: Application, ctx: PipelineContext): Candidat
   const appliedAt = iso(application.createdAt)!;
   const config = application.job?.aiConfig ?? null;
 
-  const order = stageOrder(application);
+  const order = stageOrder(application, !!interview && interview.status !== "failed");
   const steps: Array<PipelineStep & { done: boolean; started: boolean }> = [];
 
   const applied = emptyStep("applied");
@@ -335,7 +341,7 @@ const buildPipeline = (application: Application, ctx: PipelineContext): Candidat
         break;
       case ScreeningStage.AiInterview:
         done = interviewRecorded;
-        started = !!interview && interview.recorded > 0;
+        started = !!interview && interview.status !== "failed";
         step.questionCount = configuredQuestionCount(config, stage);
         step.sentAt = iso(interview?.invitedAt) ?? reachedAt(stage);
         step.doneAt = done ? iso(interview?.lastRecordedAt) : null;
@@ -370,17 +376,6 @@ const buildPipeline = (application: Application, ctx: PipelineContext): Candidat
   }
 
   const consent = ctx.consents.get(application.id);
-  if (consent) {
-    const answeredAt = consent.agreedAt ?? consent.declinedAt;
-    steps.push({
-      ...emptyStep("checks"),
-      sentAt: iso(consent.requestedAt),
-      doneAt: iso(answeredAt),
-      done: !!answeredAt,
-      started: !!answeredAt,
-    });
-  }
-
   const decided = DECIDED.includes(application.status);
   steps.push({
     ...emptyStep("company_review"),
@@ -389,6 +384,12 @@ const buildPipeline = (application: Application, ctx: PipelineContext): Candidat
       : application.status === ApplicationStatus.Shortlisted
         ? "shortlisted"
         : "not_proceeding",
+    checks: consent
+      ? {
+          requestedAt: iso(consent.requestedAt),
+          answeredAt: iso(consent.agreedAt ?? consent.declinedAt),
+        }
+      : null,
     done: decided,
     started: decided,
   });

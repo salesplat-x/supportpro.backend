@@ -11,6 +11,7 @@ import {
   createCompleteTalent,
   createAIConfig,
   createApplication,
+  addReferee,
   createJob,
   createRole,
 } from "./helpers/fixtures.js";
@@ -336,9 +337,9 @@ describe("GET /v1/user/applications/:applicationId/pipeline — steps", () => {
     expect(pipeline.nextStep?.key).toBe("company_review");
   });
 
-  it("a checks step appears once consent is requested and is done when the candidate answers", async () => {
+  it("background checks show inside company review, which stays the last step", async () => {
     const { token, application, talent } = await setup(ScreeningStage.AiInterview);
-    expect(step(await pipelineOf(token, application.id), "checks")).toBeUndefined();
+    expect(step(await pipelineOf(token, application.id), "company_review")?.checks).toBeNull();
 
     const consents = testDataSource.getRepository(ApplicationConsent);
     await consents.save({
@@ -347,12 +348,54 @@ describe("GET /v1/user/applications/:applicationId/pipeline — steps", () => {
       requestedAt: new Date(),
     });
     let pipeline = await pipelineOf(token, application.id);
-    expect(step(pipeline, "checks")).toMatchObject({ state: "upcoming", doneAt: null });
-    expect(pipeline.steps.map((s) => s.key).slice(-2)).toEqual(["checks", "company_review"]);
+    expect(pipeline.steps.map((s) => s.key)).not.toContain("checks");
+    expect(pipeline.steps.at(-1)?.key).toBe("company_review");
+    expect(step(pipeline, "company_review")?.checks).toEqual({
+      requestedAt: expect.any(String),
+      answeredAt: null,
+    });
 
     await consents.update({ applicationId: application.id }, { declinedAt: new Date() });
     pipeline = await pipelineOf(token, application.id);
-    expect(step(pipeline, "checks")).toMatchObject({ state: "done", doneAt: expect.any(String) });
+    expect(step(pipeline, "company_review")?.checks?.answeredAt).toEqual(expect.any(String));
+  });
+
+  it("company review only becomes current once the candidate adds a referee", async () => {
+    const { token, application } = await setup(
+      ScreeningStage.Completed,
+      { status: ApplicationStatus.AwaitingDecision },
+      { aiInterview: false }
+    );
+
+    let pipeline = await pipelineOf(token, application.id);
+    expect(pipeline.nextStep?.key).toBe("references");
+    expect(step(pipeline, "company_review")?.state).toBe("upcoming");
+
+    await addReferee(application);
+    pipeline = await pipelineOf(token, application.id);
+    expect(step(pipeline, "references")?.state).toBe("done");
+    expect(pipeline.nextStep?.key).toBe("company_review");
+  });
+
+  it("shows an interview the recruiter started even when the job's stages had none", async () => {
+    const { token, application } = await setup(
+      ScreeningStage.Completed,
+      { status: ApplicationStatus.AwaitingDecision },
+      { aiInterview: false }
+    );
+    await testDataSource.getRepository(AiInterview).save({
+      applicationId: application.id,
+      jobId: application.jobId,
+      talentId: application.talentId,
+      mode: "audio",
+      status: "invited",
+      invitedAt: new Date(),
+    });
+
+    const pipeline = await pipelineOf(token, application.id);
+
+    expect(pipeline.steps.map((s) => s.key)).toContain("ai_interview");
+    expect(pipeline.nextStep?.key).toBe("ai_interview");
   });
 
   it("tests the candidate has moved past count as done even without a score on record", async () => {
