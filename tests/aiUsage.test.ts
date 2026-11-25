@@ -16,6 +16,17 @@ jest.mock("../src/config/env.js", () => {
 });
 
 import axios from "axios";
+import request from "supertest";
+import { createApp } from "../src/app.js";
+import { createAdmin, createRecruiter } from "./helpers/fixtures.js";
+import { apiData } from "./helpers/http.js";
+import {
+  findModel,
+  loadAiCatalog,
+  priceOn,
+  validateAiCatalog,
+} from "../src/utils/integrations/ai/catalog.js";
+import type { AiUsageOverview } from "../src/services/aiUsage.js";
 import {
   startTestDatabase,
   stopTestDatabase,
@@ -219,5 +230,157 @@ describe("provider balances", () => {
     const deepseek = await statusOf("deepseek");
     expect(deepseek?.balance).toBeNull();
     expect(deepseek?.outOfCreditSince).toBeInstanceOf(Date);
+  });
+});
+
+describe("catalogue prices", () => {
+  it("uses the price in force on each day", () => {
+    const flash = findModel(loadAiCatalog(), { provider: "gemini", model: "gemini-3.8-flash" })!;
+    expect(priceOn(flash, "2026-12-31")).toMatchObject({ inputPerMillion: 0.75 });
+    expect(priceOn(flash, "2027-01-01")).toMatchObject({ inputPerMillion: 1.5 });
+  });
+
+  it("rejects a chat price with no output price", () => {
+    const catalog = loadAiCatalog();
+    const broken = {
+      ...catalog,
+      models: catalog.models.map((model, index) =>
+        index === 0 ? { ...model, pricing: [{ inputPerMillion: 1 }] } : model
+      ),
+    };
+    expect(() => validateAiCatalog(broken)).toThrow(/no output price/);
+  });
+});
+
+describe("GET /v1/admin/ai-usage", () => {
+  const app = createApp();
+
+  const addRow = (daysAgo: number, values: Record<string, string | number>) =>
+    testDataSource.query(
+      `INSERT INTO ai_usage_daily (day, provider, model, feature, calls, failed_calls,
+         credit_failures, input_tokens, output_tokens, characters, audio_seconds)
+       VALUES ((NOW() AT TIME ZONE 'UTC')::date - $1::int, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [
+        daysAgo,
+        values["provider"],
+        values["model"],
+        values["feature"],
+        values["calls"] ?? 1,
+        values["failed"] ?? 0,
+        values["credit"] ?? 0,
+        values["input"] ?? 0,
+        values["output"] ?? 0,
+        values["characters"] ?? 0,
+        values["audio"] ?? 0,
+      ]
+    );
+
+  const usage = async (token: string, days: number) => {
+    const res = await request(app)
+      .get(`/v1/admin/ai-usage?days=${days}`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    return apiData<AiUsageOverview>(res);
+  };
+
+  it("adds up calls, tokens and estimated cost by provider, model and job", async () => {
+    const { token } = await createAdmin();
+    await addRow(0, {
+      provider: "openai",
+      model: "gpt-5.6-luna",
+      feature: "job_post_writer",
+      calls: 4,
+      failed: 1,
+      input: 1_000_000,
+      output: 500_000,
+    });
+    await addRow(1, {
+      provider: "openai",
+      model: "whisper-1",
+      feature: "voice_transcription",
+      calls: 3,
+      audio: 600,
+    });
+    await addRow(2, {
+      provider: "elevenlabs",
+      model: "default",
+      feature: "voice_speech",
+      calls: 2,
+      characters: 1_000,
+    });
+    await addRow(10, {
+      provider: "openai",
+      model: "gpt-5.6-luna",
+      feature: "job_post_writer",
+      input: 1_000_000,
+    });
+    recordAiFailure({ provider: "grok", model: "grok-4.7", feature: "x" }, quotaError());
+    await drainAiUsageWrites();
+
+    const week = await usage(token, 7);
+
+    expect(week.totals).toMatchObject({
+      calls: 10,
+      failedCalls: 2,
+      creditFailures: 1,
+      inputTokens: 1_000_000,
+      outputTokens: 500_000,
+      characters: 1_000,
+      audioSeconds: 600,
+      costUsd: 0.86,
+      unpricedCalls: 2,
+    });
+    expect(week.byFeature.find((row) => row.key === "job_post_writer")).toMatchObject({
+      label: expect.any(String),
+      calls: 4,
+      costUsd: 0.8,
+    });
+    expect(week.byFeature.find((row) => row.key === "voice_speech")?.label).toBe(
+      "Voice assistant: reading replies aloud"
+    );
+    expect(week.byModel.find((row) => row.key === "openai:gpt-5.6-luna")).toMatchObject({
+      label: "GPT-5.6 Luna",
+      provider: "openai",
+    });
+    expect(week.byProvider.map((row) => row.key).sort()).toEqual(["elevenlabs", "grok", "openai"]);
+    expect(week.providers.map((card) => card.key)).toContain("elevenlabs");
+    expect(week.providers.find((card) => card.key === "grok")?.outOfCreditSince).not.toBeNull();
+    expect(week.pricesVerifiedOn).toBe("2026-11-25");
+
+    const month = await usage(token, 30);
+    expect(month.totals.calls).toBe(11);
+  });
+
+  it("is for admins only, over a known range", async () => {
+    const { token: admin } = await createAdmin();
+    const { token: recruiter } = await createRecruiter();
+
+    const forbidden = await request(app)
+      .get("/v1/admin/ai-usage")
+      .set("Authorization", `Bearer ${recruiter}`);
+    const badRange = await request(app)
+      .get("/v1/admin/ai-usage?days=90")
+      .set("Authorization", `Bearer ${admin}`);
+
+    expect(forbidden.status).toBe(403);
+    expect(badRange.status).toBe(400);
+  });
+
+  it("shows on the AI models page when a provider is out of credit", async () => {
+    const { token } = await createAdmin();
+    recordAiFailure({ provider: "openai", model: "gpt-5.6-luna", feature: "x" }, quotaError());
+    await drainAiUsageWrites();
+
+    const res = await request(app)
+      .get("/v1/admin/ai-models")
+      .set("Authorization", `Bearer ${token}`);
+
+    const providers = apiData<{
+      providers: Array<{ key: string; outOfCreditSince: string | null }>;
+    }>(res).providers;
+    expect(providers.find((provider) => provider.key === "openai")?.outOfCreditSince).toEqual(
+      expect.any(String)
+    );
+    expect(providers.find((provider) => provider.key === "gemini")?.outOfCreditSince).toBeNull();
   });
 });

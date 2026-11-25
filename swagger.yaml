@@ -3446,6 +3446,42 @@ paths:
           description: Caller is not an admin
       security:
         - bearerAuth: []
+  /admin/ai-usage:
+    get:
+      summary: Admin AI usage, estimated cost and provider credit
+      description: >-
+        Calls, failures, tokens (characters for ElevenLabs, audio seconds for Whisper) and an estimated
+        USD cost at the catalogue's prices, totalled and split by provider, model and AI job. Each
+        provider card says whether it is configured, when it started refusing calls for billing
+        (outOfCreditSince, null while it works), and its balance where the provider has an API for it
+        (DeepSeek, ElevenLabs), checked at most hourly. Calls with no USD price are counted in
+        unpricedCalls instead of the cost.
+      tags:
+        - admin
+      parameters:
+        - name: days
+          in: query
+          required: false
+          description: Today plus the days before it, in UTC. Defaults to 7.
+          schema:
+            type: integer
+            enum: [1, 7, 30]
+      responses:
+        "200":
+          description: >-
+            days, from, pricesVerifiedOn, providers, totals, byProvider, byModel and byFeature. Each
+            row has key, label, provider (on byModel), calls, failedCalls, creditFailures,
+            inputTokens, outputTokens, characters, audioSeconds, costUsd and unpricedCalls.
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Unsupported days value
+        "403":
+          description: Caller is not an admin
+      security:
+        - bearerAuth: []
   /error-logs/stats:
     get:
       summary: Superadmin

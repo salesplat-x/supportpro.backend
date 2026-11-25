@@ -25,6 +25,7 @@ import { clearAiSettingsCache, unusableReason } from "../utils/integrations/ai/s
 import { getErrorStatus } from "../utils/retry.js";
 import logger from "../utils/logger.js";
 import { AiSkillSetting } from "../entities/AiSkillSetting.js";
+import { outOfCreditSinceByProvider } from "./aiUsage.js";
 import { getAiSkill, loadAiSkills, skillProblem } from "../utils/integrations/ai/skills.js";
 
 const settingsRepo = () => AppDataSource.getRepository(AiFeatureSetting);
@@ -84,6 +85,8 @@ export interface AiModelsOverview {
     envKey: string;
     configured: boolean;
     docsUrl: string;
+    /** When the provider started refusing calls for billing; null while it works. */
+    outOfCreditSince: Date | null;
   }>;
   features: AiFeatureView[];
 }
@@ -136,7 +139,7 @@ const loadRows = async (): Promise<Map<string, AiFeatureSetting>> => {
 
 export const getAiModelsOverview = async (): Promise<AiModelsOverview> => {
   const catalog = loadAiCatalog();
-  const rows = await loadRows();
+  const [rows, outOfCredit] = await Promise.all([loadRows(), outOfCreditSinceByProvider()]);
   return {
     verifiedOn: catalog.verifiedOn,
     providers: catalog.providers.map((provider) => ({
@@ -145,6 +148,7 @@ export const getAiModelsOverview = async (): Promise<AiModelsOverview> => {
       envKey: provider.envKey,
       configured: isProviderConfigured(provider),
       docsUrl: provider.docsUrl,
+      outOfCreditSince: outOfCredit.get(provider.key) ?? null,
     })),
     features: catalog.features.map((feature) => toFeatureView(feature, rows.get(feature.key))),
   };

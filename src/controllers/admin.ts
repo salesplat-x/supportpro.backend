@@ -1,5 +1,6 @@
 import * as ownershipTransferService from "../services/ownershipTransfer.js";
 import * as aiModelsService from "../services/aiModels.js";
+import { getAiUsageOverview, type UsageRange } from "../services/aiUsage.js";
 import { Request, Response } from "express";
 import * as adminService from "../services/admin.js";
 import { DEFAULT_OVERVIEW_DAYS, getAdminOverview } from "../services/adminOverview.js";
@@ -144,6 +145,12 @@ export const sendApplicationFollowUpEmail = async (req: Request, res: Response) 
 export const getAiModels = async (_req: Request, res: Response) => {
   const result = await aiModelsService.getAiModelsOverview();
   sendSuccessResponse(res, "AI models fetched", result);
+};
+
+export const getAiUsage = async (req: Request, res: Response) => {
+  const days = Number(req.query["days"] ?? 7) as UsageRange;
+  const result = await getAiUsageOverview(days);
+  sendSuccessResponse(res, "AI usage fetched", result);
 };
 
 export const updateAiFeatureModel = async (req: Request, res: Response) => {

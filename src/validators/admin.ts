@@ -15,6 +15,7 @@ import {
 } from "../services/applicationFollowUpRules.js";
 import { OVERVIEW_RANGES } from "../services/adminOverview.js";
 import { AI_FEATURE_KEYS } from "../utils/integrations/ai/catalog.js";
+import { USAGE_RANGES } from "../services/aiUsage.js";
 import { idParam, paginationRules } from "./shared.js";
 
 const onboardingQueryRules = (stages: readonly string[]) => [
@@ -131,6 +132,13 @@ export const adminOverviewQueryValidator = [
     .optional()
     .isIn(OVERVIEW_RANGES.map(String))
     .withMessage(`days must be one of: ${OVERVIEW_RANGES.join(", ")}`),
+];
+
+export const adminAiUsageQueryValidator = [
+  query("days")
+    .optional()
+    .isIn(USAGE_RANGES.map(String))
+    .withMessage(`days must be one of: ${USAGE_RANGES.join(", ")}`),
 ];
 
 export const adminAiFeatureModelValidator = [

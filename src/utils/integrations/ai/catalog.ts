@@ -51,6 +51,20 @@ export interface AiProvider {
   attemptTimeoutMs: number;
 }
 
+/** USD. A period with no `from` applies from the start; a later `from` takes over on that day. */
+export interface AiPricePeriod {
+  from?: string;
+  inputPerMillion: number;
+  outputPerMillion?: number;
+}
+
+/** USD per minute of audio, for the voice models that aren't in the model list. */
+export interface AiAudioPrice {
+  provider: string;
+  model: string;
+  perMinute: number;
+}
+
 export interface AiModel {
   id: string;
   provider: string;
@@ -63,6 +77,7 @@ export interface AiModel {
   minOutputTokens?: number;
   retiresOn?: string;
   replacement?: string;
+  pricing?: AiPricePeriod[];
 }
 
 export interface AiChoice {
@@ -83,8 +98,10 @@ export interface AiFeature {
 
 export interface AiCatalog {
   verifiedOn: string;
+  pricesVerifiedOn?: string;
   providers: AiProvider[];
   models: AiModel[];
+  audioPricing?: AiAudioPrice[];
   features: AiFeature[];
 }
 
@@ -104,6 +121,40 @@ const resolveYamlPath = (): string => {
 export const findModel = (catalog: AiCatalog, choice: AiChoice): AiModel | undefined =>
   catalog.models.find((model) => model.id === choice.model && model.provider === choice.provider);
 
+/** The price in force on `day` (YYYY-MM-DD), or null when the model is unpriced. */
+export const priceOn = (model: AiModel, day: string): AiPricePeriod | null => {
+  let found: AiPricePeriod | null = null;
+  for (const period of model.pricing ?? []) {
+    if ((period.from ?? "") <= day && (period.from ?? "") >= (found?.from ?? "")) {
+      found = period;
+    }
+  }
+  return found;
+};
+
+const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const isPrice = (value: unknown): boolean => typeof value === "number" && value >= 0;
+
+const pricingProblems = (model: AiModel): string[] => {
+  const problems: string[] = [];
+  const periods = model.pricing ?? [];
+  if (periods.length > 0 && periods.filter((period) => !period.from).length !== 1) {
+    problems.push(`Model ${model.id} needs exactly one price without a from date`);
+  }
+  for (const period of periods) {
+    if (period.from !== undefined && !DAY_PATTERN.test(period.from)) {
+      problems.push(`Model ${model.id} has a price from ${period.from}, which isn't YYYY-MM-DD`);
+    }
+    if (!isPrice(period.inputPerMillion)) {
+      problems.push(`Model ${model.id} has no input price`);
+    }
+    if (model.kind === "chat" && !isPrice(period.outputPerMillion)) {
+      problems.push(`Chat model ${model.id} has no output price`);
+    }
+  }
+  return problems;
+};
+
 export const modelFitsFeature = (model: AiModel, feature: AiFeature): boolean =>
   model.kind === feature.kind && (!feature.format || !!model.formats?.includes(feature.format));
 
@@ -121,6 +172,13 @@ export const validateAiCatalog = (catalog: AiCatalog): void => {
     }
     if (model.replacement && !catalog.models.some((other) => other.id === model.replacement)) {
       problems.push(`Model ${model.id} has an unknown replacement ${model.replacement}`);
+    }
+    problems.push(...pricingProblems(model));
+  }
+
+  for (const price of catalog.audioPricing ?? []) {
+    if (!providerKeys.has(price.provider) || !isPrice(price.perMinute)) {
+      problems.push(`Audio price for ${price.model} needs a known provider and a perMinute price`);
     }
   }
 
