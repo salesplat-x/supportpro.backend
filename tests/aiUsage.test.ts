@@ -9,6 +9,13 @@ jest.mock("openai", () => ({
   })),
 }));
 
+jest.mock("axios");
+jest.mock("../src/config/env.js", () => {
+  const actual = jest.requireActual<{ default: Record<string, unknown> }>("../src/config/env.js");
+  return { __esModule: true, default: { ...actual.default, elevenlabsApiKey: "el-test-key" } };
+});
+
+import axios from "axios";
 import {
   startTestDatabase,
   stopTestDatabase,
@@ -25,6 +32,9 @@ import { clearAiSettingsCache } from "../src/utils/integrations/ai/settings.js";
 import { AiCreditError } from "../src/utils/errors";
 import { AiUsageDaily } from "../src/entities/AiUsageDaily.js";
 import { AiProviderStatus } from "../src/entities/AiProviderStatus.js";
+import { checkProviderBalances } from "../src/services/aiUsage.js";
+
+const axiosGet = axios.get as jest.Mock;
 
 const quotaError = () =>
   Object.assign(new Error("429 You exceeded your current quota"), {
@@ -140,5 +150,74 @@ describe("the AI gateway", () => {
     expect(createCompletion).toHaveBeenCalledTimes(1);
     await drainAiUsageWrites();
     expect((await statusOf("openai"))?.outOfCreditSince).toBeInstanceOf(Date);
+  });
+});
+
+describe("provider balances", () => {
+  const replies = (deepseek: unknown, elevenlabs: unknown) =>
+    axiosGet.mockImplementation((url: string) => {
+      const body = url.includes("deepseek") ? deepseek : elevenlabs;
+      return body instanceof Error ? Promise.reject(body) : Promise.resolve({ data: body });
+    });
+
+  beforeEach(() => {
+    process.env["DEEPSEEK_API_KEY"] = "deepseek-test-key";
+    axiosGet.mockReset();
+  });
+
+  afterEach(() => {
+    delete process.env["DEEPSEEK_API_KEY"];
+  });
+
+  it("stores what is left on DeepSeek and ElevenLabs, at most once an hour", async () => {
+    replies(
+      { is_available: true, balance_infos: [{ currency: "USD", total_balance: "42.50" }] },
+      { character_count: 9_000, character_limit: 100_000 }
+    );
+
+    expect((await checkProviderBalances({ force: true })).checked).toEqual([
+      "deepseek",
+      "elevenlabs",
+    ]);
+    expect(await checkProviderBalances({ force: true })).toEqual({ checked: [] });
+
+    expect(axiosGet).toHaveBeenCalledTimes(2);
+    expect(await statusOf("deepseek")).toMatchObject({ balance: "42.5000", balanceUnit: "USD" });
+    expect(await statusOf("elevenlabs")).toMatchObject({
+      balance: "91000.0000",
+      balanceUnit: "characters",
+      outOfCreditSince: null,
+    });
+  });
+
+  it("marks an empty account out of credit, and a topped-up one back in", async () => {
+    replies(
+      { is_available: false, balance_infos: [{ currency: "USD", total_balance: "0.00" }] },
+      { character_count: 100_000, character_limit: 100_000 }
+    );
+    await checkProviderBalances({ force: true });
+    expect((await statusOf("deepseek"))?.outOfCreditSince).toBeInstanceOf(Date);
+    expect((await statusOf("elevenlabs"))?.outOfCreditSince).toBeInstanceOf(Date);
+
+    await testDataSource.query(`UPDATE ai_provider_status SET balance_checked_at = NULL`);
+    replies(
+      { is_available: true, balance_infos: [{ currency: "USD", total_balance: "10.00" }] },
+      { character_count: 0, character_limit: 100_000 }
+    );
+    await checkProviderBalances({ force: true });
+    expect((await statusOf("deepseek"))?.outOfCreditSince).toBeNull();
+    expect((await statusOf("elevenlabs"))?.outOfCreditSince).toBeNull();
+  });
+
+  it("leaves no balance when the provider can't be asked, without touching the credit status", async () => {
+    recordAiFailure({ provider: "deepseek", model: "deepseek-chat", feature: "x" }, quotaError());
+    await drainAiUsageWrites();
+    replies(new Error("timeout"), new Error("401"));
+
+    await checkProviderBalances({ force: true });
+
+    const deepseek = await statusOf("deepseek");
+    expect(deepseek?.balance).toBeNull();
+    expect(deepseek?.outOfCreditSince).toBeInstanceOf(Date);
   });
 });
