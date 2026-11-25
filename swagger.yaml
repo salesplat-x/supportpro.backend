@@ -740,10 +740,6 @@ paths:
                             passed:
                               type: boolean
                               nullable: true
-                            matchLabel:
-                              type: string
-                              enum: [strong, good, fair]
-                              nullable: true
                             answersSent:
                               type: integer
                               nullable: true
@@ -822,10 +818,6 @@ paths:
                             description: The candidate's own skills test score. Other test scores are never sent.
                           passed:
                             type: boolean
-                            nullable: true
-                          matchLabel:
-                            type: string
-                            enum: [strong, good, fair]
                             nullable: true
                           answersSent:
                             type: integer

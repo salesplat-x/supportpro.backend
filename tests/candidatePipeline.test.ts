@@ -140,6 +140,22 @@ describe("GET /v1/user/applications/:applicationId/pipeline — access", () => {
     const body = JSON.stringify((await getPipeline(token, application.id)).body);
     for (const field of HIDDEN) expect(body).not.toContain(field);
   });
+
+  it("shows the CV match as done without any score or match label", async () => {
+    const { token, application } = await setup(
+      ScreeningStage.Personalized,
+      { cvSimilarityScore: 37.25 },
+      { cvSimilarity: true, personalizedAssessment: true }
+    );
+    const res = await getPipeline(token, application.id);
+    const pipeline = apiData<CandidatePipeline>(res);
+
+    expect(step(pipeline, "cv_match")?.state).toBe("done");
+    const body = JSON.stringify(res.body);
+    expect(body).not.toContain("matchLabel");
+    expect(body).not.toContain("cvSimilarityScore");
+    expect(body).not.toContain("37.25");
+  });
 });
 
 describe("GET /v1/user/applications/:applicationId/pipeline — steps", () => {

@@ -10,10 +10,8 @@ import {
 } from "../entities";
 import { ApplicationStatus, QuestionType, ScreeningStage } from "../types/enums.js";
 import {
-  GOOD_CV_MATCH,
   INTERVIEW_DUE_DAYS,
   SKILLS_TEST_DUE_DAYS,
-  STRONG_CV_MATCH,
   TEST_DUE_DAYS,
 } from "../config/candidatePipeline.js";
 import { isPrescreeningScoreValid } from "./prescreening.js";
@@ -46,7 +44,6 @@ export interface PipelineStep {
   minutes: number | null;
   score: number | null;
   passed: boolean | null;
-  matchLabel: "strong" | "good" | "fair" | null;
   answersSent: number | null;
   retryAt: string | null;
   interviewId: string | null;
@@ -122,7 +119,6 @@ const emptyStep = (key: PipelineStepKey): PipelineStep => ({
   minutes: null,
   score: null,
   passed: null,
-  matchLabel: null,
   answersSent: null,
   retryAt: null,
   interviewId: null,
@@ -130,13 +126,6 @@ const emptyStep = (key: PipelineStepKey): PipelineStep => ({
   maxReferees: null,
   outcome: null,
 });
-
-const matchLabel = (score: number | null): PipelineStep["matchLabel"] => {
-  if (score === null) return null;
-  if (score >= STRONG_CV_MATCH) return "strong";
-  if (score >= GOOD_CV_MATCH) return "good";
-  return "fair";
-};
 
 interface InterviewState {
   id: string;
@@ -320,9 +309,6 @@ const buildPipeline = (application: Application, ctx: PipelineContext): Candidat
         }
         break;
       }
-      case ScreeningStage.CvSimilarity:
-        step.matchLabel = done ? matchLabel(application.cvSimilarityScore) : null;
-        break;
       case ScreeningStage.ProblemSolving:
       case ScreeningStage.CultureFit: {
         const isPs = stage === ScreeningStage.ProblemSolving;

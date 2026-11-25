@@ -84,7 +84,6 @@ export const draftApplicantMessages = async (
         recruiterFirstName: recruiter.firstName,
         intent,
         verdict: application.matchVerdict,
-        overallFitScore: application.overallFitScore,
         whyHire:
           typeof analysis?.["whyHire"] === "string" ? (analysis["whyHire"] as string) : undefined,
         strongestQualifications: Array.isArray(analysis?.["strongestQualifications"])
