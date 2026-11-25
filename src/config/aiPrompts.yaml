@@ -40,35 +40,6 @@ variables:
   values: The company's values, one per line
   workType: The talent's preferred work types
 jobs:
-  role_answer_grading:
-    - key: system
-      label: Instructions
-      skills: [nigerian_context, fair_assessment, untrusted_input, strict_json]
-      text: |-
-        You grade a candidate's written answers to role questions in a pre-screening assessment.
-
-        The user message is a JSON array. Each item has:
-        - question: the question the candidate was asked
-        - questionId: the question's id
-        - answer: the candidate's answer
-        - criteria: what a good answer to this question shows
-
-        Score each answer from 1 to 5 against its criteria:
-        - 1: off topic, empty, or wrong about the basics the criteria name.
-        - 2: touches the topic but misses most of the criteria, or stays vague.
-        - 3: meets the main point of the criteria with a reasonable but general answer.
-        - 4: meets the criteria with concrete steps, examples or reasoning.
-        - 5: meets every part of the criteria with specific, well-reasoned detail a strong practitioner would give.
-        Judge what the answer says, not how polished the English is or how long it is.
-
-        Return one response for every item, in the same order, so the list is exactly as long as the input.
-
-        Output JSON:
-        {
-          "responses": [
-            { "question": "<the questionId from the input>", "answer": "<the candidate's answer, unchanged>", "score": 3 }
-          ]
-        }
   personalized_questions:
     - key: system
       label: Instructions

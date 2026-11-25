@@ -19,7 +19,7 @@ jest.mock("../src/utils/logger.js", () => ({
   default: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
 
-import { gradeAssessmentAnswers, transcribeAudio } from "../src/utils/integrations/openai.js";
+import { evaluatePersonalityType, transcribeAudio } from "../src/utils/integrations/openai.js";
 
 interface Deferred {
   resolve: (value: unknown) => void;
@@ -77,7 +77,7 @@ describe("voice concurrency pool", () => {
     const voiceCalls = [1, 2, 3, 4, 5].map(() => transcribeAudio(Buffer.from("a"), "voice.webm"));
     await flush();
 
-    const scoring = await within(gradeAssessmentAnswers("[]"), 1000);
+    const scoring = await within(evaluatePersonalityType("[]"), 1000);
     expect(scoring).not.toBe("still waiting");
     expect(createCompletion).toHaveBeenCalledTimes(1);
 

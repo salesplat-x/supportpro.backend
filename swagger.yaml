@@ -1758,35 +1758,6 @@ paths:
           description: The AI service gave no usable questions after a retry; nothing was saved
       security:
         - bearerAuth: []
-  /questions/answer/prescreening:
-    post:
-      summary: Talent
-      tags:
-        - questions
-      parameters: []
-      responses:
-        "200":
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: object
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                roleId:
-                  type: string
-                answers:
-                  type: object
-              required:
-                - roleId
-                - answers
-      security:
-        - bearerAuth: []
   /questions/answer/personality:
     post:
       summary: Talent

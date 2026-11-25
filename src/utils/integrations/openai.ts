@@ -68,21 +68,6 @@ const runVoiceCall = <T>(
     }
   });
 
-export const gradeAssessmentAnswers = async (
-  questionsJSON: string
-): Promise<OpenAI.Chat.Completions.ChatCompletion.Choice | undefined> => {
-  const prompt = await renderPrompt("role_answer_grading", "system");
-
-  const completion = await complete("role_answer_grading", {
-    messages: [
-      { role: "system", content: prompt },
-      { role: "user", content: questionsJSON },
-    ],
-    response_format: { type: "json_object" },
-  });
-  return completion.choices[0];
-};
-
 export const createEmbedding = async (text: string | string[]) => {
   const embedding = await embed("cv_matching", {
     input: text,

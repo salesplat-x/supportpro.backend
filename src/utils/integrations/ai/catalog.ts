@@ -19,7 +19,6 @@ export const AI_FEATURE_KEYS = [
   "culture_fit_questions",
   "prescreening_questions",
   "prescreening_scoring",
-  "role_answer_grading",
   "personalized_answer_grading",
   "personality_type",
   "personality_fit",

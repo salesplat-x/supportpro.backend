@@ -13,7 +13,6 @@ import { UserRole } from "../types/enums.js";
 import {
   createQuestionValidator,
   questionIdParamValidator,
-  answerPrescreeningValidator,
   answerPersonalizedValidator,
   evaluatePersonalityValidator,
   getQuestionsValidator,
@@ -93,14 +92,6 @@ router.get(
   asyncHandler(question.candidateCultureFitQuestions, "load culture-fit questions")
 );
 
-router.post(
-  "/answer/prescreening",
-  validateAccess([UserRole.Talent]),
-  requireVerifiedEmail,
-  requireCompletedProfile,
-  validate(answerPrescreeningValidator),
-  asyncHandler(question.answerPrescreening, "submit pre-screening answers")
-);
 router.post(
   "/answer/personality",
   validateAccess([UserRole.Talent]),
