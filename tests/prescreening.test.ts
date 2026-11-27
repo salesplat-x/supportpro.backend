@@ -199,19 +199,23 @@ describe("GET /v1/prescreening/ — get or generate prescreening", () => {
     expect(res.body.data.preScreening.generating).toBe(true);
   });
 
-  it("While the CV text is still being prepared it shows generating and creates nothing", async () => {
+  it("Writes questions from the saved CV text without waiting for the CV embedding", async () => {
     const openai = await import("../src/utils/integrations/openai.js");
     const role = await createRole();
-    const { token } = await createCompleteTalent(role, {
+    const { user, token } = await createCompleteTalent(role, {
       cvEmbeddingStatus: CvEmbeddingStatus.Pending,
     });
 
     const res = await request(app).get("/v1/prescreening/").set("Authorization", `Bearer ${token}`);
+    await drainInFlightPreScreenings();
 
     expect(res.status).toBe(200);
-    expect(res.body.data.preScreening).toMatchObject({ id: null, generating: true, questions: [] });
-    expect(await testDataSource.getRepository(PreScreening).count()).toBe(0);
-    expect(openai.generatePreScreeningAssessment).not.toHaveBeenCalled();
+    expect(res.body.data.preScreening.generating).toBe(true);
+    expect(openai.generatePreScreeningAssessment).toHaveBeenCalledWith(
+      expect.objectContaining({ cvContent: "Experienced developer resume content" })
+    );
+    const row = await testDataSource.getRepository(PreScreening).findOneBy({ userId: user.id });
+    expect(row?.generationStatus).toBe(GenerationStatus.Succeeded);
   });
 
   it("Recruiter cannot access → 403", async () => {
@@ -772,21 +776,21 @@ describe("Pre-assessment questions written ahead of time", () => {
     expect(row?.attemptCount).toBe(1);
   });
 
-  it("waits while the CV text is being prepared", async () => {
+  it("does not wait for the CV embedding", async () => {
     const role = await createRole();
     const { user } = await createCompleteTalent(role, {
       cvEmbeddingStatus: CvEmbeddingStatus.Pending,
     });
 
     await prepareFirstPreScreening(user.id);
+    await drainInFlightPreScreenings();
 
-    expect(await questionsFor(user.id)).toBeNull();
+    expect((await questionsFor(user.id))?.generationStatus).toBe(GenerationStatus.Succeeded);
   });
 
   it("the sweep creates rows only for verified talents with a CV, roles and no questions", async () => {
     const role = await createRole();
-    const { user: ready } = await createCompleteTalent(role);
-    const { user: waiting } = await createCompleteTalent(role, {
+    const { user: ready } = await createCompleteTalent(role, {
       cvEmbeddingStatus: CvEmbeddingStatus.Pending,
     });
     const { user: unverified } = await createCompleteTalent(role, { emailVerifiedAt: null });
@@ -800,7 +804,6 @@ describe("Pre-assessment questions written ahead of time", () => {
 
     expect(created).toBe(1);
     expect((await questionsFor(ready.id))?.generationStatus).toBe(GenerationStatus.Pending);
-    expect(await questionsFor(waiting.id)).toBeNull();
     expect(await questionsFor(unverified.id)).toBeNull();
     expect(await questionsFor(noRoles.id)).toBeNull();
   });
