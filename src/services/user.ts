@@ -220,7 +220,6 @@ export const editProfile = async (
   if (payload.workType !== undefined) update.workType = payload.workType;
 
   let roleDidChange = false;
-  let embeddingPromise: Promise<void> | undefined;
 
   if (payload.roleIds !== undefined) {
     const newRoles = await validateAndFetchRoles(payload.roleIds);
@@ -287,16 +286,11 @@ export const editProfile = async (
     await deleteSpacesObjectQuietly(previousCvKey, userId);
 
     // Generate embedding asynchronously after the CV row is committed — not needed
-    // for the response, takes 5–20s. The returned promise always resolves so
-    // callers can await "embedding write settled" without their own try/catch.
-    embeddingPromise = new Promise<void>((resolve) => {
-      setImmediate(() => {
-        generateCvEmbeddingForUser(userId)
-          .catch((err: Error) =>
-            logger.error(`CV embedding generation failed for user ${userId}: ${err.message}`)
-          )
-          .finally(resolve);
-      });
+    // for the response, takes 5–20s.
+    setImmediate(() => {
+      generateCvEmbeddingForUser(userId).catch((err: Error) =>
+        logger.error(`CV embedding generation failed for user ${userId}: ${err.message}`)
+      );
     });
 
     const cvKey = update.cvKey!;
@@ -305,13 +299,11 @@ export const editProfile = async (
     });
   }
 
-  // Only a role change rewrites the questions; a new CV never does.
+  // Only a role change rewrites the questions; a new CV only writes the first set.
   if (roleDidChange) {
-    if (embeddingPromise) {
-      void embeddingPromise.then(() => refreshPreScreeningAfterRoleChange(saved.id));
-    } else {
-      refreshPreScreeningAfterRoleChange(saved.id);
-    }
+    refreshPreScreeningAfterRoleChange(saved.id);
+  } else if (file) {
+    prepareFirstPreScreeningQuietly(saved.id);
   }
 
   return saved;
@@ -590,8 +582,6 @@ export const generateCvEmbeddingForUser = async (userId: string): Promise<void> 
     await recordCvEmbeddingFailure(userId, err);
     throw err;
   }
-
-  prepareFirstPreScreeningQuietly(userId);
 
   // The dynamic import avoids a circular dependency (applicationStage.ts reaches
   // user.ts through prescreening.ts).
