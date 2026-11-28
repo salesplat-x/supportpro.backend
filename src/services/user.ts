@@ -269,7 +269,6 @@ export const editProfile = async (
 
     update.cvText = text.trim();
     update.cvFileName = file.originalname || "cv.pdf";
-    update.cvUrl = null;
     update.cvKey = key;
     update.cvUploadedAt = new Date();
     update.cvEmbeddingStatus = CvEmbeddingStatus.Pending;
