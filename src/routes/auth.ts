@@ -3,7 +3,7 @@ import * as auth from "../controllers/auth.js";
 import { validate } from "../middleware/validate.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { loginRequired } from "../middleware/auth.js";
-import { authLimiter, verificationLimiter } from "../middleware/rateLimiter.js";
+import { authLimiter, registerLimiter, verificationLimiter } from "../middleware/rateLimiter.js";
 import {
   registerValidator,
   loginValidator,
@@ -20,11 +20,13 @@ const router = Router();
 
 router.post(
   "/register",
+  registerLimiter,
   validate(registerValidator),
   asyncHandler(auth.register, "create account")
 );
 router.post(
   "/register/recruiter",
+  registerLimiter,
   validate(registerValidator),
   asyncHandler(auth.registerRecruiter, "create recruiter account")
 );
