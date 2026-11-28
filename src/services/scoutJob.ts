@@ -89,7 +89,7 @@ export const updateJob = async (
   userId: string,
   payload: UpdateScoutJobPayload
 ): Promise<ScoutJob> => {
-  const { id, role, ...update } = payload;
+  const { id, role } = payload;
 
   const existingJob = await scoutJobRepo().findOne({
     where: { id },
@@ -111,6 +111,24 @@ export const updateJob = async (
     if (!existingRole) {
       throw new NotFoundError("Role does not exist");
     }
+  }
+
+  const editable = [
+    "name",
+    "jobBrief",
+    "recruiterGuide",
+    "shortlistSize",
+    "experienceLevel",
+    "mustHaveSkills",
+    "niceToHaveSkills",
+    "workMode",
+    "locationCountry",
+    "locationState",
+    "locationCity",
+  ] as const;
+  const update: Partial<ScoutJob> = {};
+  for (const field of editable) {
+    if (payload[field] !== undefined) Object.assign(update, { [field]: payload[field] });
   }
 
   const updated = await scoutJobRepo().save({

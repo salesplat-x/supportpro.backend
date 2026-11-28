@@ -242,6 +242,25 @@ describe("PUT /v1/scout/jobs/:_id", () => {
     expect(scoutJob.mustHaveSkills).toEqual(["python"]);
   });
 
+  it("ignores the company and poster fields in the body", async () => {
+    const { user, token } = await createRecruiter();
+    const org = await createOrganization(user);
+    const { user: other } = await createRecruiter();
+    const otherOrg = await createOrganization(other);
+    const job = await createScoutJob(user, undefined, { organizationId: org.id });
+
+    const res = await request(app)
+      .put(`/v1/scout/jobs/${job.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Renamed", organizationId: otherOrg.id, postedById: other.id });
+
+    expect(res.status).toBe(200);
+    const { scoutJob } = apiData<{ scoutJob: ScoutJob }>(res);
+    expect(scoutJob.name).toBe("Renamed");
+    expect(scoutJob.organizationId).toBe(org.id);
+    expect(scoutJob.postedById).toBe(user.id);
+  });
+
   it("rejects an out-of-range shortlist size on update", async () => {
     const { user, token } = await createRecruiter();
     const org = await createOrganization(user);
