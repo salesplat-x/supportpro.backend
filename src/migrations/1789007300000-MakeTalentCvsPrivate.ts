@@ -1,6 +1,5 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 import logger from "../utils/logger.js";
-import { isSpacesConfigured, makeSpacesObjectPrivate } from "../utils/integrations/spaces.js";
 
 const BATCH = 10;
 
@@ -16,7 +15,12 @@ export class MakeTalentCvsPrivate1789007300000 implements MigrationInterface {
     const rows: Array<{ cvKey: string }> = await queryRunner.query(
       `SELECT ${KEY} AS "cvKey" FROM "users" WHERE "cvUrl" IS NOT NULL`
     );
-    if (rows.length > 0 && isSpacesConfigured()) {
+    if (rows.length === 0) return;
+
+    // Loaded only when there are CVs, so the drift check can run this without app config.
+    const { isSpacesConfigured, makeSpacesObjectPrivate } =
+      await import("../utils/integrations/spaces.js");
+    if (isSpacesConfigured()) {
       let failed = 0;
       for (let i = 0; i < rows.length; i += BATCH) {
         const results = await Promise.allSettled(
