@@ -67,7 +67,7 @@ router.get(
 );
 router.get(
   "/profile/:_id/cv",
-  validateAccess([UserRole.Admin, UserRole.Recruiter]),
+  validateAccess([UserRole.Admin, UserRole.Recruiter, UserRole.Talent]),
   requireVerifiedEmail,
   validate(userIdParamValidator),
   asyncHandler(user.downloadTalentCv, "download CV")

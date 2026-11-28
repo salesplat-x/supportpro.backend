@@ -106,7 +106,7 @@ async function viewsUsed(orgId: string): Promise<number> {
 }
 
 async function talentWithCv(): Promise<User> {
-  const { user } = await createTalent({ cvUrl: "https://cdn.example.com/cvs/talent.pdf" });
+  const { user } = await createTalent({ cvText: "Experienced developer resume content" });
   return user;
 }
 
@@ -130,7 +130,7 @@ describe("candidate_views — monthly CV views", () => {
       .get(`/v1/user/profile/${talent.id}/cv`)
       .set("Authorization", `Bearer ${token}`);
 
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(200);
     expect(await viewsUsed(org.id)).toBe(50);
   });
 
@@ -163,7 +163,7 @@ describe("candidate_views — monthly CV views", () => {
       .get(`/v1/user/profile/${talent.id}/cv`)
       .set("Authorization", `Bearer ${token}`);
 
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(200);
   });
 });
 
@@ -323,7 +323,7 @@ describe("switching plans swaps the feature set", () => {
     const allowed = await request(app)
       .get(`/v1/user/profile/${talent.id}/cv`)
       .set("Authorization", `Bearer ${token}`);
-    expect(allowed.status).toBe(302);
+    expect(allowed.status).toBe(200);
     expect(await viewsUsed(org.id)).toBe(1);
   });
 
@@ -337,7 +337,7 @@ describe("switching plans swaps the feature set", () => {
       .get(`/v1/user/profile/${talent.id}/cv`)
       .set("Authorization", `Bearer ${token}`);
 
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(200);
     expect(await viewsUsed(org.id)).toBe(1);
   });
 });
