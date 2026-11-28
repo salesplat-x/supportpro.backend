@@ -5,6 +5,7 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  PutObjectAclCommand,
 } from "@aws-sdk/client-s3";
 import env from "../../config/env.js";
 import logger from "../logger.js";
@@ -89,6 +90,14 @@ export const getFromSpaces = async (key: string): Promise<Buffer> => {
     throw new Error(`Spaces object ${key} has no body`);
   }
   return Buffer.from(await result.Body.transformToByteArray());
+};
+
+/** Removes public read access from an object that was uploaded with public-read. */
+export const makeSpacesObjectPrivate = async (key: string): Promise<void> => {
+  assertSpacesConfigured();
+  await client.send(
+    new PutObjectAclCommand({ Bucket: env.doSpacesBucket, Key: key, ACL: "private" })
+  );
 };
 
 export const deleteFromSpaces = async (key: string): Promise<void> => {

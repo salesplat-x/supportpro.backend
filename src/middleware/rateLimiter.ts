@@ -24,6 +24,17 @@ export const authLimiter = rateLimit({
   skip: () => env.app_env === "test",
 });
 
+// Generous enough for a shared office or café connection, low enough to stop bulk sign-ups.
+export const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: clientIpKey,
+  message: { status: false, message: "Too many sign-ups, please try again later." },
+  skip: () => env.app_env === "test",
+});
+
 /**
  * A scout run can fire up to 50 AI calls, so it needs a tighter ceiling than the
  * general limiter. Keyed per user rather than per IP so one company behind a shared

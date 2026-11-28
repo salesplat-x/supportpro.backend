@@ -29,6 +29,8 @@ import {
   createJob,
   createAIConfig,
   createOrganization,
+  createApplication,
+  joinCompany,
 } from "./helpers/fixtures.js";
 import { User } from "../src/entities/User.js";
 import { Job } from "../src/entities/Job.js";
@@ -538,7 +540,8 @@ describe("Public job endpoints expose only public relation fields", () => {
 
     it("shows the count to a teammate in the same company, on the detail and their job list", async () => {
       const { job, organization } = await seedJobWithApplicants();
-      const { token } = await createRecruiter({ activeOrganizationId: organization.id });
+      const { user: teammate, token } = await createRecruiter();
+      await joinCompany(teammate, organization);
 
       const detail = await request(app)
         .get(`/v1/jobs/${job.id}`)
@@ -563,5 +566,23 @@ describe("Public job endpoints expose only public relation fields", () => {
       expect(res.status).toBe(200);
       expect(res.body.data.job.noOfApplicants).toBe(7);
     });
+  });
+});
+
+describe("Company access needs ownership or membership", () => {
+  it("ignores an active company the recruiter never joined", async () => {
+    const { user: owner } = await createRecruiter();
+    const org = await createOrganization(owner);
+    const role = await createRole();
+    const job = await createJob(owner, role, { organizationId: org.id });
+    const { user: talent } = await createTalent();
+    const application = await createApplication(talent, job);
+    const { token } = await createRecruiter({ activeOrganizationId: org.id });
+
+    const res = await request(app)
+      .get(`/v1/applications/${application.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(403);
   });
 });

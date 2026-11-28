@@ -15,6 +15,7 @@ import {
   createJob,
   createApplication,
   createOrganization,
+  joinCompany,
 } from "./helpers/fixtures.js";
 import { User } from "../src/entities/User.js";
 import { AiInterview } from "../src/entities/AiInterview.js";
@@ -99,9 +100,7 @@ async function setup() {
   const organization = await createOrganization(poster);
   const job = await createJob(poster, await createRole(), { organizationId: organization.id });
   const { user: teammate, token: teammateToken } = await createRecruiter();
-  await testDataSource
-    .getRepository(User)
-    .update(teammate.id, { activeOrganizationId: organization.id });
+  await joinCompany(teammate, organization);
   const { user: talent, token: talentToken } = await createTalent();
   const application = await createApplication(talent, job, {
     stages: { ai_interview: "completed" },

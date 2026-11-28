@@ -1,3 +1,4 @@
+import path from "path";
 import { In } from "typeorm";
 import { AppDataSource } from "../database/dataSource.js";
 import { Application, Job, Role, TalentEmbedding, User } from "../entities";
@@ -15,6 +16,8 @@ import { extractText, overlapChunkText, preprocessText, sortDirection } from "..
 import { createEmbedding, readTalentCv } from "../utils/integrations/openai.js";
 import {
   uploadToSpaces,
+  uploadPrivateToSpaces,
+  getFromSpaces,
   deleteSpacesObjectQuietly,
   spacesKeyFor,
   ALLOWED_IMAGE_TYPES,
@@ -30,7 +33,7 @@ import {
 import { Organization } from "../entities/Organization.js";
 import { StaffMember, StaffStatus } from "../entities/StaffMember.js";
 import { assertWithinLimit, recordUsage } from "./entitlements.js";
-import { getActiveOrganizationId } from "./organizationScope.js";
+import { getActiveOrganizationId, requireActiveOrganizationId } from "./organizationScope.js";
 import {
   buildCandidatePipelines,
   loadTalentApplications,
@@ -220,7 +223,6 @@ export const editProfile = async (
   if (payload.workType !== undefined) update.workType = payload.workType;
 
   let roleDidChange = false;
-  let embeddingPromise: Promise<void> | undefined;
 
   if (payload.roleIds !== undefined) {
     const newRoles = await validateAndFetchRoles(payload.roleIds);
@@ -261,13 +263,13 @@ export const editProfile = async (
     }
 
     // Upload before saving so a Spaces failure throws here and leaves the existing
-    // row untouched, instead of persisting cvText without a matching cvUrl.
+    // row untouched. CVs are private and only served through the CV download route.
     const key = spacesKeyFor("cvs", userId, file.originalname);
-    const cvUrl = await uploadToSpaces(file.buffer, key, file.mimetype);
+    await uploadPrivateToSpaces(file.buffer, key, file.mimetype);
 
     update.cvText = text.trim();
     update.cvFileName = file.originalname || "cv.pdf";
-    update.cvUrl = cvUrl;
+    update.cvUrl = null;
     update.cvKey = key;
     update.cvUploadedAt = new Date();
     update.cvEmbeddingStatus = CvEmbeddingStatus.Pending;
@@ -287,16 +289,11 @@ export const editProfile = async (
     await deleteSpacesObjectQuietly(previousCvKey, userId);
 
     // Generate embedding asynchronously after the CV row is committed — not needed
-    // for the response, takes 5–20s. The returned promise always resolves so
-    // callers can await "embedding write settled" without their own try/catch.
-    embeddingPromise = new Promise<void>((resolve) => {
-      setImmediate(() => {
-        generateCvEmbeddingForUser(userId)
-          .catch((err: Error) =>
-            logger.error(`CV embedding generation failed for user ${userId}: ${err.message}`)
-          )
-          .finally(resolve);
-      });
+    // for the response, takes 5–20s.
+    setImmediate(() => {
+      generateCvEmbeddingForUser(userId).catch((err: Error) =>
+        logger.error(`CV embedding generation failed for user ${userId}: ${err.message}`)
+      );
     });
 
     const cvKey = update.cvKey!;
@@ -305,13 +302,11 @@ export const editProfile = async (
     });
   }
 
-  // Only a role change rewrites the questions; a new CV never does.
+  // Only a role change rewrites the questions; a new CV only writes the first set.
   if (roleDidChange) {
-    if (embeddingPromise) {
-      void embeddingPromise.then(() => refreshPreScreeningAfterRoleChange(saved.id));
-    } else {
-      refreshPreScreeningAfterRoleChange(saved.id);
-    }
+    refreshPreScreeningAfterRoleChange(saved.id);
+  } else if (file) {
+    prepareFirstPreScreeningQuietly(saved.id);
   }
 
   return saved;
@@ -591,8 +586,6 @@ export const generateCvEmbeddingForUser = async (userId: string): Promise<void> 
     throw err;
   }
 
-  prepareFirstPreScreeningQuietly(userId);
-
   // The dynamic import avoids a circular dependency (applicationStage.ts reaches
   // user.ts through prescreening.ts).
   try {
@@ -727,27 +720,40 @@ export const regenerateCvEmbedding = async (talentId: string): Promise<void> => 
   await generateCvEmbeddingForUser(talentId);
 };
 
-export type TalentCvFile =
-  { type: "redirect"; url: string } | { type: "pdf"; buffer: Buffer; fileName: string };
+export interface TalentCvFile {
+  buffer: Buffer;
+  fileName: string;
+  contentType: string;
+}
+
+const CV_CONTENT_TYPES: Record<string, string> = {
+  ".pdf": "application/pdf",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".doc": "application/msword",
+};
 
 /**
- * Talents uploaded before Spaces storage shipped only have cvText, so this falls
- * back to a regenerated PDF for them; anyone with a stored cvUrl gets the real file.
+ * Serves the stored CV file. Talents uploaded before Spaces storage shipped only have
+ * cvText, so this falls back to a regenerated PDF for them. A recruiter needs a company,
+ * since every view counts against its plan; a talent may only fetch their own CV.
  */
 export const getTalentCvFile = async (
   talentId: string,
-  viewer?: { id: string; userRole: UserRole }
+  viewer: { id: string; userRole: UserRole }
 ): Promise<TalentCvFile> => {
-  if (viewer?.userRole === UserRole.Recruiter) {
-    const orgId = await getActiveOrganizationId(viewer.id);
-    if (orgId) {
-      const orgRepo = AppDataSource.getRepository(Organization);
-      const org = await orgRepo.findOne({ where: { id: orgId } });
-      if (org) {
-        await assertWithinLimit(org, "candidate_views");
-        await recordUsage(org, "candidate_views");
-      }
-    }
+  if (viewer.userRole === UserRole.Talent && viewer.id !== talentId) {
+    throw new AuthorizationError("You are not authorized to perform this action");
+  }
+  if (viewer.userRole === UserRole.Recruiter) {
+    const orgId = await requireActiveOrganizationId(
+      viewer.id,
+      "Create or switch to a company to view CVs"
+    );
+    const org = await AppDataSource.getRepository(Organization).findOneOrFail({
+      where: { id: orgId },
+    });
+    await assertWithinLimit(org, "candidate_views");
+    await recordUsage(org, "candidate_views");
   }
 
   const user = await userRepo()
@@ -759,8 +765,19 @@ export const getTalentCvFile = async (
   if (!user || user.userRole !== UserRole.Talent) {
     throw new NotFoundError("Talent not found");
   }
-  if (user.cvUrl) {
-    return { type: "redirect", url: user.cvUrl };
+  if (user.cvKey) {
+    const extension = path.extname(user.cvKey).toLowerCase();
+    try {
+      return {
+        buffer: await getFromSpaces(user.cvKey),
+        fileName: (user.cvFileName || `cv${extension}`).replace(/[^\w.-]+/g, "-"),
+        contentType: CV_CONTENT_TYPES[extension] ?? "application/octet-stream",
+      };
+    } catch (err) {
+      logger.error(`Stored CV could not be read for talent ${talentId}`, {
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 
   const cvText = user.cvText?.trim();
@@ -785,7 +802,7 @@ export const getTalentCvFile = async (
     .replace(/\.[^.]+$/, "")
     .replace(/[^\w.-]+/g, "-");
 
-  return { type: "pdf", buffer, fileName: `${baseName || "cv"}.pdf` };
+  return { buffer, fileName: `${baseName || "cv"}.pdf`, contentType: "application/pdf" };
 };
 
 export interface FetchProfilesParams {

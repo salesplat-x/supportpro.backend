@@ -4,15 +4,8 @@ import { PreScreening } from "../entities/PreScreening.js";
 import { Answer } from "../entities/Answer.js";
 import { User } from "../entities/User.js";
 import { Role } from "../entities/Role.js";
-import { TalentEmbedding } from "../entities/TalentEmbedding.js";
 import { AppError, NotFoundError, ValidationError } from "../utils/errors";
-import {
-  CvEmbeddingStatus,
-  GenerationStatus,
-  PreScreeningStatus,
-  QuestionType,
-  UserRole,
-} from "../types/enums.js";
+import { GenerationStatus, PreScreeningStatus, QuestionType, UserRole } from "../types/enums.js";
 import {
   generatePreScreeningAssessment,
   scorePreScreeningAssessment,
@@ -140,10 +133,6 @@ const profileIncomplete = () =>
     "Add your CV and roles to your profile to get your pre-assessment."
   );
 
-// Questions are written from the CV text in talent_embeddings, so wait while it is being written.
-const isWaitingForCvText = (user: Pick<User, "cvEmbeddingStatus">): boolean =>
-  user.cvEmbeddingStatus === CvEmbeddingStatus.Pending;
-
 const sameRoleIds = (a: string[], b: string[]): boolean => {
   if (a.length !== b.length) return false;
   const set = new Set(a);
@@ -179,11 +168,11 @@ const writeQuestions = async (
   roleNames: string[],
   previousQuestions?: string[]
 ): Promise<IGeneratedQuestion[] | null> => {
-  const talentEmbeddings = await AppDataSource.getRepository(TalentEmbedding).find({
-    where: { userId: user.id },
-    select: { cvText: true },
-  });
-  const cvContent = talentEmbeddings.map((r) => r.cvText ?? "").join("\n\n");
+  const [cv]: Array<{ cvText: string | null }> = await AppDataSource.query(
+    `SELECT "cvText" FROM "users" WHERE "id" = $1`,
+    [user.id]
+  );
+  const cvContent = cv?.cvText ?? "";
 
   const context: PreScreeningProfileContext = {
     bio: user.bio ?? undefined,
@@ -604,22 +593,6 @@ const toClientPreScreening = (
   ...extras,
 });
 
-const waitingPlaceholder = (preScreening: PreScreening | null) =>
-  preScreening
-    ? toClientPreScreening(preScreening, { generating: true })
-    : {
-        id: null,
-        status: PreScreeningStatus.Pending,
-        score: null,
-        attemptCount: 0,
-        maxAttempts: 2,
-        generatedAt: new Date(),
-        completedAt: null,
-        roles: [],
-        questions: [],
-        generating: true,
-      };
-
 export const getActivePreScreening = async (
   userId: string
 ): Promise<{
@@ -648,7 +621,7 @@ export const getActivePreScreening = async (
 
   const preScreening = await preScreeningRepo().findOne({ where: { userId } });
   const hasValidScore = hasValidPreAssessment(user);
-  const respond = (view: Omit<ReturnType<typeof waitingPlaceholder>, "hasValidScore">) => ({
+  const respond = (view: ReturnType<typeof toClientPreScreening>) => ({
     preScreening: { ...view, hasValidScore },
   });
 
@@ -665,9 +638,6 @@ export const getActivePreScreening = async (
     if (scoreExpired && (await swapInNextSet(userId, roleIds, "expired"))) {
       const fresh = await preScreeningRepo().findOneByOrFail({ userId });
       return respond(toClientPreScreening(fresh));
-    }
-    if (isWaitingForCvText(user)) {
-      return respond(waitingPlaceholder(preScreening));
     }
     const { row, created } = await ensurePendingStub(user, {
       reset: scoreExpired,
@@ -916,11 +886,11 @@ const triggerPreScreeningGeneration = (user: User): void => {
 const loadTalent = (userId: string): Promise<User | null> =>
   userRepo().findOne({ where: { id: userId }, relations: { userRoles: true } });
 
-/** Writes a talent's first questions as soon as their CV text and roles exist, before they open the page. */
+/** Writes a talent's first questions as soon as their CV and roles are saved, before they open the page. */
 export const prepareFirstPreScreening = async (userId: string): Promise<void> => {
   const user = await loadTalent(userId);
   if (!user || user.userRole !== UserRole.Talent || !user.emailVerifiedAt) return;
-  if (!getProfileCompletion(user).canProceedToPlatform || isWaitingForCvText(user)) return;
+  if (!getProfileCompletion(user).canProceedToPlatform) return;
   const { created } = await ensurePendingStub(user);
   if (created) startGeneration(user);
 };
@@ -955,7 +925,7 @@ export const refreshPreScreeningForRoles = async (userId: string): Promise<void>
       [userId, roleIds.join(",")]
     )
   );
-  if (marked.length > 0 && !isWaitingForCvText(user)) startGeneration(user);
+  if (marked.length > 0) startGeneration(user);
 };
 
 const DUE_FIRST_PRESCREENING_SQL = `
@@ -963,7 +933,6 @@ const DUE_FIRST_PRESCREENING_SQL = `
   WHERE u."userRole" = 'talent'
     AND u."emailVerifiedAt" IS NOT NULL
     AND (u."cvUploadedAt" IS NOT NULL OR NULLIF(u."cvFileName", '') IS NOT NULL OR NULLIF(u."cvText", '') IS NOT NULL)
-    AND u."cvEmbeddingStatus" IS DISTINCT FROM 'pending'
     AND EXISTS (SELECT 1 FROM "user_roles" ur WHERE ur.user_id = u.id)
     AND NOT EXISTS (SELECT 1 FROM "pre_screenings" p WHERE p.user_id = u.id)
   ORDER BY u."createdAt" DESC

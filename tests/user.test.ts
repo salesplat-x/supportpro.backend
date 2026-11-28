@@ -24,13 +24,21 @@ import {
   createRole,
   createCompleteTalent,
   validPreAssessment,
+  createOrganization,
 } from "./helpers/fixtures.js";
-import { uploadToSpaces, deleteFromSpaces } from "../src/utils/integrations/spaces.js";
+import {
+  uploadToSpaces,
+  uploadPrivateToSpaces,
+  getFromSpaces,
+  deleteFromSpaces,
+} from "../src/utils/integrations/spaces.js";
 import { extractText } from "../src/utils/text.js";
 import { readTalentCv } from "../src/utils/integrations/openai.js";
 import { cleanCvReading, parseTalentCv } from "../src/services/user.js";
 
 const mockUploadToSpaces = uploadToSpaces as jest.Mock;
+const mockUploadPrivateToSpaces = uploadPrivateToSpaces as jest.Mock;
+const mockGetFromSpaces = getFromSpaces as jest.Mock;
 const mockDeleteFromSpaces = deleteFromSpaces as jest.Mock;
 const mockExtractText = extractText as jest.Mock;
 const mockReadTalentCv = readTalentCv as jest.Mock;
@@ -62,6 +70,8 @@ jest.mock("../src/utils/integrations/spaces.js", () => {
     uploadToSpaces: jest.fn((_buffer: Buffer, key: string) =>
       Promise.resolve(`https://salesplat.nyc3.digitaloceanspaces.com/${key}`)
     ),
+    uploadPrivateToSpaces: jest.fn().mockResolvedValue(undefined),
+    getFromSpaces: jest.fn(),
     deleteFromSpaces,
     deleteSpacesObjectQuietly: jest.fn(async (key: string | null) => {
       if (!key) return;
@@ -416,7 +426,7 @@ describe("PATCH /v1/user/profile", () => {
     expect(res.status).toBe(400);
   });
 
-  it("stores extracted CV text, file name, and the Spaces file URL", async () => {
+  it("stores extracted CV text and file name, and keeps the CV file private", async () => {
     const { token, user } = await createTalent();
 
     const res = await request(app)
@@ -429,11 +439,11 @@ describe("PATCH /v1/user/profile", () => {
     expect(res.body.data.user.cvUploadedAt).toBeTruthy();
     expect(res.body.data.user.cvText).toBeUndefined();
 
-    expect(mockUploadToSpaces).toHaveBeenCalledTimes(1);
-    const [, key, mimetype] = mockUploadToSpaces.mock.calls[0] as [Buffer, string, string];
+    expect(mockUploadPrivateToSpaces).toHaveBeenCalledTimes(1);
+    const [, key, mimetype] = mockUploadPrivateToSpaces.mock.calls[0] as [Buffer, string, string];
     expect(key).toMatch(new RegExp(`^cvs/${user.id}/.+\\.pdf$`));
     expect(mimetype).toBe("application/pdf");
-    expect(res.body.data.user.cvUrl).toBe(`https://salesplat.nyc3.digitaloceanspaces.com/${key}`);
+    expect(res.body.data.user.cvUrl).toBeNull();
 
     const dbUser = await testDataSource
       .getRepository(User)
@@ -445,7 +455,7 @@ describe("PATCH /v1/user/profile", () => {
     expect(dbUser?.cvText).toContain("Software engineer");
     expect(dbUser?.cvFileName).toBe("jane-doe-cv.pdf");
     expect(dbUser?.cvKey).toBe(key);
-    expect(dbUser?.cvUrl).toBe(`https://salesplat.nyc3.digitaloceanspaces.com/${key}`);
+    expect(dbUser?.cvUrl).toBeNull();
 
     await new Promise((resolve) => setTimeout(resolve, 150));
     const afterEmbed = await testDataSource.getRepository(User).findOne({
@@ -463,7 +473,7 @@ describe("PATCH /v1/user/profile", () => {
       .set("Authorization", `Bearer ${token}`)
       .attach("cv", Buffer.from("%PDF-1.4 fake"), "first.pdf");
 
-    const firstKey = mockUploadToSpaces.mock.calls[0]![1] as string;
+    const firstKey = mockUploadPrivateToSpaces.mock.calls[0]![1] as string;
 
     const res = await request(app)
       .patch("/v1/user/profile")
@@ -484,7 +494,7 @@ describe("PATCH /v1/user/profile", () => {
       .attach("cv", oversized, "huge.pdf");
 
     expect(res.status).toBe(400);
-    expect(mockUploadToSpaces).not.toHaveBeenCalled();
+    expect(mockUploadPrivateToSpaces).not.toHaveBeenCalled();
   });
 
   it("accepts a CV just under the 5MB limit", async () => {
@@ -513,7 +523,7 @@ describe("PATCH /v1/user/profile", () => {
       });
 
     expect(res.status).toBe(400);
-    expect(mockUploadToSpaces).not.toHaveBeenCalled();
+    expect(mockUploadPrivateToSpaces).not.toHaveBeenCalled();
   });
 
   it("never calls Spaces when text extraction fails", async () => {
@@ -526,7 +536,7 @@ describe("PATCH /v1/user/profile", () => {
       .attach("cv", Buffer.from("%PDF-1.4 fake"), "resume.pdf");
 
     expect(res.status).toBe(400);
-    expect(mockUploadToSpaces).not.toHaveBeenCalled();
+    expect(mockUploadPrivateToSpaces).not.toHaveBeenCalled();
   });
 
   it("rejects an empty CV file without calling Spaces", async () => {
@@ -538,7 +548,7 @@ describe("PATCH /v1/user/profile", () => {
       .attach("cv", Buffer.alloc(0), "empty.pdf");
 
     expect(res.status).toBe(400);
-    expect(mockUploadToSpaces).not.toHaveBeenCalled();
+    expect(mockUploadPrivateToSpaces).not.toHaveBeenCalled();
   });
 
   it("leaves the existing CV row untouched when the Spaces upload fails", async () => {
@@ -547,7 +557,7 @@ describe("PATCH /v1/user/profile", () => {
       cvText: "Pre-existing CV text",
       cvUploadedAt: new Date("2024-01-01"),
     });
-    mockUploadToSpaces.mockRejectedValueOnce(new Error("Spaces is down"));
+    mockUploadPrivateToSpaces.mockRejectedValueOnce(new Error("Spaces is down"));
 
     const res = await request(app)
       .patch("/v1/user/profile")
@@ -845,7 +855,8 @@ describe("GET /v1/user/profile/:_id/cv", () => {
       cvText: "Ada Lovelace\nPioneer of computing.",
       cvUploadedAt: new Date(),
     });
-    const { token: recruiterToken } = await createRecruiter();
+    const { user: recruiter, token: recruiterToken } = await createRecruiter();
+    await createOrganization(recruiter);
 
     const res = await request(app)
       .get(`/v1/user/profile/${talent.id}/cv`)
@@ -864,28 +875,44 @@ describe("GET /v1/user/profile/:_id/cv", () => {
     expect((res.body as Buffer).subarray(0, 4).toString()).toBe("%PDF");
   });
 
-  it("redirects recruiters to the stored file when a cvUrl is present", async () => {
+  it("streams the private stored file to a recruiter with a company", async () => {
     const { user: talent } = await createTalent({
       cvFileName: "ada-cv.pdf",
       cvText: "Ada Lovelace\nPioneer of computing.",
-      cvUrl: "https://salesplat.nyc3.digitaloceanspaces.com/cvs/talent-id/some-uuid.pdf",
       cvKey: "cvs/talent-id/some-uuid.pdf",
       cvUploadedAt: new Date(),
     });
-    const { token: recruiterToken } = await createRecruiter();
+    const { user: recruiter, token: recruiterToken } = await createRecruiter();
+    await createOrganization(recruiter);
+    mockGetFromSpaces.mockResolvedValueOnce(Buffer.from("%PDF-1.4 stored"));
 
     const res = await request(app)
       .get(`/v1/user/profile/${talent.id}/cv`)
       .set("Authorization", `Bearer ${recruiterToken}`)
       .redirects(0);
 
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe(
-      "https://salesplat.nyc3.digitaloceanspaces.com/cvs/talent-id/some-uuid.pdf"
-    );
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toMatch(/application\/pdf/);
+    expect(res.headers["content-disposition"]).toContain("ada-cv.pdf");
+    expect(mockGetFromSpaces).toHaveBeenCalledWith("cvs/talent-id/some-uuid.pdf");
   });
 
-  it("rejects talent callers", async () => {
+  it("asks a recruiter without a company to create one first", async () => {
+    const { user: talent } = await createTalent({
+      cvFileName: "cv.pdf",
+      cvText: "Some resume text",
+      cvUploadedAt: new Date(),
+    });
+    const { token: recruiterToken } = await createRecruiter();
+
+    const res = await request(app)
+      .get(`/v1/user/profile/${talent.id}/cv`)
+      .set("Authorization", `Bearer ${recruiterToken}`);
+
+    expect(res.status).toBe(400);
+  });
+
+  it("lets a talent download their own CV", async () => {
     const { user: talent, token: talentToken } = await createTalent({
       cvFileName: "cv.pdf",
       cvText: "Some resume text",
@@ -894,6 +921,21 @@ describe("GET /v1/user/profile/:_id/cv", () => {
 
     const res = await request(app)
       .get(`/v1/user/profile/${talent.id}/cv`)
+      .set("Authorization", `Bearer ${talentToken}`);
+
+    expect(res.status).toBe(200);
+  });
+
+  it("rejects a talent asking for another talent's CV", async () => {
+    const { user: other } = await createTalent({
+      cvFileName: "cv.pdf",
+      cvText: "Some resume text",
+      cvUploadedAt: new Date(),
+    });
+    const { token: talentToken } = await createTalent();
+
+    const res = await request(app)
+      .get(`/v1/user/profile/${other.id}/cv`)
       .set("Authorization", `Bearer ${talentToken}`);
 
     expect(res.status).toBe(403);

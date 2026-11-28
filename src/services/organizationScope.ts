@@ -1,16 +1,21 @@
 import { AppDataSource } from "../database/dataSource.js";
-import { User } from "../entities/User.js";
 import { UserRole } from "../types/enums.js";
 import { AuthorizationError, ValidationError } from "../utils/errors";
 
-const userRepo = () => AppDataSource.getRepository(User);
-
+// The active company counts only while the user still owns it or is on its team.
 export const getActiveOrganizationId = async (userId: string): Promise<string | null> => {
-  const user = await userRepo().findOne({
-    where: { id: userId },
-    select: { id: true, activeOrganizationId: true },
-  });
-  return user?.activeOrganizationId ?? null;
+  const [row]: Array<{ id: string }> = await AppDataSource.query(
+    `SELECT u."active_organization_id" AS "id"
+     FROM "users" u
+     JOIN "organizations" o ON o."id" = u."active_organization_id"
+     WHERE u."id" = $1
+       AND (o."owner_id" = u."id" OR EXISTS (
+         SELECT 1 FROM "organization_members" m
+         WHERE m."user_id" = u."id" AND m."organization_id" = o."id"
+       ))`,
+    [userId]
+  );
+  return row?.id ?? null;
 };
 
 export const requireActiveOrganizationId = async (

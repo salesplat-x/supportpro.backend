@@ -14,6 +14,7 @@ import {
   createJob,
   createOrganization,
   createQuestion,
+  joinCompany,
 } from "./helpers/fixtures.js";
 import { Question } from "../src/entities/Question.js";
 import { User } from "../src/entities/User.js";
@@ -198,7 +199,7 @@ describe("POST /v1/questions/problem-solving", () => {
   it("another member of the same company can generate → 200", async () => {
     const { org, job } = await companyWithJob();
     const { user: teammate, token: teammateToken } = await createRecruiter();
-    await testDataSource.getRepository(User).update(teammate.id, { activeOrganizationId: org.id });
+    await joinCompany(teammate, org);
     mockProblemSolving.mockResolvedValueOnce(aiReply(reasoningQuestions(1)));
 
     const res = await postProblemSolving(teammateToken, { jobId: job.id, count: 1 });

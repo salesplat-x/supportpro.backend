@@ -41,8 +41,12 @@ export const createUser = async (
 
   const hashedPassword = await generateHashedPassword(payload.password);
 
+  // Only these fields come from the request; any other column a caller sends is ignored.
   const user = userRepo().create({
-    ...payload,
+    firstName: payload.firstName,
+    lastName: payload.lastName,
+    middleName: payload.middleName,
+    country: payload.country,
     email,
     password: hashedPassword,
     // role is always set by the route (register vs. register/recruiter), never
