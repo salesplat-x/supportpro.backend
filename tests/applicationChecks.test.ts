@@ -13,6 +13,7 @@ import {
   createJob,
   createApplication,
   createOrganization,
+  joinCompany,
 } from "./helpers/fixtures.js";
 import { ApplicationCheck } from "../src/entities/ApplicationCheck.js";
 import { CHECKS_CONSENT_VERSION } from "../src/services/checkConsent.js";
@@ -170,9 +171,8 @@ describe("company reads the checks with one overall status", () => {
     const job = await createJob(owner, await createRole(), { organizationId: organization.id });
     const { user: talent, token: talentToken } = await createTalent();
     const application = await createApplication(talent, job);
-    const { token: memberToken } = await createRecruiter({
-      activeOrganizationId: organization.id,
-    });
+    const { user: member, token: memberToken } = await createRecruiter();
+    await joinCompany(member, organization);
     const base = `/v1/checks/applications/${application.id}`;
     await request(app)
       .post(`${base}/consent`)

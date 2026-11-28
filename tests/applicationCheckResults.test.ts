@@ -1,3 +1,4 @@
+import { ObjectLiteral, Repository } from "typeorm";
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import {
@@ -13,6 +14,7 @@ import {
   createJob,
   createApplication,
   createOrganization,
+  joinCompany,
 } from "./helpers/fixtures.js";
 import { ApplicationCheckEvent } from "../src/entities/ApplicationCheckEvent.js";
 import { ApplicationCheck } from "../src/entities/ApplicationCheck.js";
@@ -48,12 +50,10 @@ async function setup(talentOverrides: Partial<User> = {}) {
   const { user: owner, token: ownerToken } = await createRecruiter();
   const organization = await createOrganization(owner);
   const job = await createJob(owner, await createRole(), { organizationId: organization.id });
-  const { user: member, token: memberToken } = await createRecruiter({
-    activeOrganizationId: organization.id,
-  });
-  const { token: secondMemberToken } = await createRecruiter({
-    activeOrganizationId: organization.id,
-  });
+  const { user: member, token: memberToken } = await createRecruiter();
+  await joinCompany(member, organization);
+  const { user: secondMember, token: secondMemberToken } = await createRecruiter();
+  await joinCompany(secondMember, organization);
   const { token: outsiderToken } = await createRecruiter();
   const { user: talent, token: talentToken } = await createTalent({
     firstName: "Amaka",
@@ -352,9 +352,18 @@ describe("who can read the results", () => {
       confirmedOn: "2026-11-05",
       result: "verified",
     });
-    const insert = jest
-      .spyOn(testDataSource.getRepository(ApplicationCheckEvent).constructor.prototype, "insert")
-      .mockRejectedValueOnce(new Error("disk full"));
+    const prototype = testDataSource.getRepository(ApplicationCheckEvent).constructor
+      .prototype as Repository<ObjectLiteral>;
+    const realInsert = prototype.insert;
+    const insert = jest.spyOn(prototype, "insert").mockImplementation(function (
+      this: Repository<ObjectLiteral>,
+      ...args: Parameters<Repository<ObjectLiteral>["insert"]>
+    ) {
+      if (this.metadata.target === ApplicationCheckEvent) {
+        return Promise.reject(new Error("disk full"));
+      }
+      return realInsert.apply(this, args);
+    });
     const res = await list(memberToken);
     insert.mockRestore();
     expect(res.status).toBe(500);
