@@ -65,11 +65,7 @@ export const downloadTalentCv = async (req: Request, res: Response) => {
     id: req.user.id,
     userRole: req.user.userRole,
   });
-  if (file.type === "redirect") {
-    res.redirect(302, file.url);
-    return;
-  }
-  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Type", file.contentType);
   res.setHeader("Content-Disposition", `inline; filename="${file.fileName}"`);
   res.setHeader("Content-Length", String(file.buffer.length));
   res.send(file.buffer);
