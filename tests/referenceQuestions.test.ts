@@ -14,6 +14,7 @@ import {
   createJob,
   createApplication,
   createOrganization,
+  joinCompany,
 } from "./helpers/fixtures.js";
 import { SIX_QUESTIONS, sendCompanyQuestions, setCompanyQuestions } from "./helpers/references.js";
 import { ApplicationReference } from "../src/entities/ApplicationReference.js";
@@ -65,9 +66,7 @@ async function setup() {
   const { user: owner, token: ownerToken } = await createRecruiter();
   const organization = await createOrganization(owner);
   const { user: teammate, token: teammateToken } = await createRecruiter();
-  await testDataSource
-    .getRepository(User)
-    .update(teammate.id, { activeOrganizationId: organization.id });
+  await joinCompany(teammate, organization);
   const job = await createJob(owner, await createRole("Support Agent"), {
     organizationId: organization.id,
   });

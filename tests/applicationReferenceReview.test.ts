@@ -13,6 +13,7 @@ import {
   createJob,
   createApplication,
   createOrganization,
+  joinCompany,
 } from "./helpers/fixtures.js";
 import { sendCompanyQuestions, setCompanyQuestions } from "./helpers/references.js";
 import { ApplicationReference } from "../src/entities/ApplicationReference.js";
@@ -69,9 +70,7 @@ async function setup() {
   await setCompanyQuestions(organization.id);
   const job = await createJob(poster, await createRole(), { organizationId: organization.id });
   const { user: teammate, token: teammateToken } = await createRecruiter();
-  await testDataSource
-    .getRepository(User)
-    .update(teammate.id, { activeOrganizationId: organization.id });
+  await joinCompany(teammate, organization);
   const { user: talent, token: talentToken } = await createTalent();
   const application = await createApplication(talent, job);
   const add = (email: string, name = "Ada Obi") =>

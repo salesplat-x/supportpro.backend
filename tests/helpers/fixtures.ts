@@ -29,6 +29,7 @@ import { Subscription } from "../../src/entities/Subscription.js";
 import { Question } from "../../src/entities/Question.js";
 import { PreScreening } from "../../src/entities/PreScreening.js";
 import { Organization } from "../../src/entities/Organization.js";
+import { OrganizationMember } from "../../src/entities/OrganizationMember.js";
 import { ScoutJob } from "../../src/entities/ScoutJob.js";
 import { Scout } from "../../src/entities/Scout.js";
 import { ScoutRun } from "../../src/entities/ScoutRun.js";
@@ -402,6 +403,19 @@ export async function createOrganization(
   const saved = await repo.save(org);
   await testDataSource.getRepository(User).update(owner.id, { activeOrganizationId: saved.id });
   return saved;
+}
+
+// Puts a recruiter on a company's team, as accepting an invite does, and makes it their active one.
+export async function joinCompany(user: User, organization: Organization): Promise<void> {
+  await testDataSource.getRepository(OrganizationMember).insert({
+    userId: user.id,
+    organizationId: organization.id,
+    workEmail: user.email,
+    role: "member",
+  });
+  await testDataSource
+    .getRepository(User)
+    .update(user.id, { activeOrganizationId: organization.id });
 }
 
 export async function createScoutJob(
