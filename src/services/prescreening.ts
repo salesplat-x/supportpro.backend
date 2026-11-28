@@ -21,6 +21,7 @@ import { redistributeCorrectOptions } from "../utils/generatedQuestions.js";
 import {
   MAX_DURABLE_ATTEMPTS,
   STALE_LOCK_INTERVAL,
+  STALE_LOCK_MS,
   SWEEP_BATCH_SIZE,
   claimRowById,
   durableFailureUpdate,
@@ -574,6 +575,17 @@ const ensurePendingStub = async (
   }
 };
 
+const isBeingWritten = (row: PreScreening): boolean =>
+  !!row.generationLockedAt && Date.now() - row.generationLockedAt.getTime() < STALE_LOCK_MS;
+
+// An untaken set whose last write failed and isn't being retried right now. The sweep may still
+// retry it later, but the talent sees the failure and can start a fresh write instead of waiting.
+const isGenerationStuck = (row: PreScreening): boolean =>
+  row.status === PreScreeningStatus.Pending &&
+  !isBeingWritten(row) &&
+  (row.generationStatus === GenerationStatus.Failed ||
+    (row.generationStatus === GenerationStatus.Pending && !!row.generationLastError));
+
 const toClientPreScreening = (
   preScreening: PreScreening,
   extras: { generating?: boolean; generationFailed?: boolean } = {}
@@ -649,13 +661,15 @@ export const getActivePreScreening = async (
     return respond(toClientPreScreening(row, { generating: true }));
   }
 
-  const untaken = preScreening.status === PreScreeningStatus.Pending;
-  if (untaken && preScreening.generationStatus === GenerationStatus.Pending) {
-    return respond(toClientPreScreening(preScreening, { generating: true }));
+  if (isGenerationStuck(preScreening)) {
+    return respond(toClientPreScreening(preScreening, { generationFailed: true }));
   }
 
-  if (untaken && preScreening.generationStatus === GenerationStatus.Failed) {
-    return respond(toClientPreScreening(preScreening, { generationFailed: true }));
+  if (
+    preScreening.status === PreScreeningStatus.Pending &&
+    preScreening.generationStatus === GenerationStatus.Pending
+  ) {
+    return respond(toClientPreScreening(preScreening, { generating: true }));
   }
 
   return respond(toClientPreScreening(preScreening));
@@ -979,7 +993,7 @@ export const retryPreScreeningGeneration = async (userId: string): Promise<void>
   if (!preScreening) {
     throw new NotFoundError("No assessment found");
   }
-  if (preScreening.generationStatus !== GenerationStatus.Failed) {
+  if (!isGenerationStuck(preScreening)) {
     throw new ValidationError("Assessment generation is not in a failed state");
   }
 

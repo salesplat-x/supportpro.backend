@@ -323,6 +323,79 @@ describe("GET /v1/prescreening/ — get or generate prescreening", () => {
       .set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(400);
   });
+
+  const saveFailedTry = (userId: string, roleId: string, lockedAt: Date | null) =>
+    testDataSource.getRepository(PreScreening).save(
+      testDataSource.getRepository(PreScreening).create({
+        userId,
+        roles: [roleId],
+        questions: [],
+        status: PreScreeningStatus.Pending,
+        attemptCount: 0,
+        maxAttempts: 2,
+        generatedAt: new Date(),
+        generationStatus: GenerationStatus.Pending,
+        generationAttempts: 0,
+        generationNextRetryAt: new Date(Date.now() + 8 * 60 * 1000),
+        generationLockedAt: lockedAt,
+        generationLastError: "OpenAI refused GPT-4o mini with status 429.",
+      })
+    );
+
+  it("shows a failed try waiting on its retry as failed, not generating", async () => {
+    const role = await createRole();
+    const { user, token } = await createCompleteTalent(role);
+    await saveFailedTry(user.id, role.id, null);
+
+    const res = await request(app).get("/v1/prescreening/").set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.preScreening.generationFailed).toBe(true);
+    expect(res.body.data.preScreening.generating).toBeFalsy();
+  });
+
+  it("keeps showing generating while a retry of a failed try is running", async () => {
+    const role = await createRole();
+    const { user, token } = await createCompleteTalent(role);
+    await saveFailedTry(user.id, role.id, new Date());
+
+    const res = await request(app).get("/v1/prescreening/").set("Authorization", `Bearer ${token}`);
+
+    expect(res.body.data.preScreening.generating).toBe(true);
+    expect(res.body.data.preScreening.generationFailed).toBeFalsy();
+  });
+
+  it("POST /retry-generation writes questions for a failed try without waiting on its retry", async () => {
+    const role = await createRole();
+    const { user, token } = await createCompleteTalent(role);
+    await saveFailedTry(user.id, role.id, null);
+
+    const retry = await request(app)
+      .post("/v1/prescreening/retry-generation")
+      .set("Authorization", `Bearer ${token}`);
+    expect(retry.status).toBe(200);
+
+    let last = retry;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      last = await request(app).get("/v1/prescreening/").set("Authorization", `Bearer ${token}`);
+      if (last.body.data.preScreening.questions?.length > 0) break;
+    }
+
+    expect(last.body.data.preScreening.questions.length).toBeGreaterThan(0);
+    expect(last.body.data.preScreening.generationFailed).toBeFalsy();
+  });
+
+  it("POST /retry-generation rejects while a write is running", async () => {
+    const role = await createRole();
+    const { user, token } = await createCompleteTalent(role);
+    await saveFailedTry(user.id, role.id, new Date());
+
+    const res = await request(app)
+      .post("/v1/prescreening/retry-generation")
+      .set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(400);
+  });
 });
 
 // ---------------------------------------------------------------------------
