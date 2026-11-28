@@ -9,6 +9,7 @@ import {
 import { User } from "../src/entities/User.js";
 import { UserRole } from "../src/types/enums.js";
 import { generateHashedPassword } from "../src/utils/crypto.js";
+import { createOrganization, createRecruiter } from "./helpers/fixtures.js";
 
 const sendPasswordReset = jest.fn().mockResolvedValue(undefined);
 
@@ -67,6 +68,31 @@ describe("POST /v1/auth/register", () => {
 
     expect(res.status).toBe(201);
     expect(res.body.data.user.userRole).toBe(UserRole.Recruiter);
+  });
+
+  it("ignores account fields a sign-up sends beyond name, email, password and country", async () => {
+    const { user: owner } = await createRecruiter();
+    const org = await createOrganization(owner);
+
+    const res = await request(app).post("/v1/auth/register/recruiter").send({
+      email: "intruder@example.com",
+      firstName: "Eve",
+      lastName: "Smith",
+      password: PLAIN_PASSWORD,
+      activeOrganizationId: org.id,
+      emailVerifiedAt: new Date().toISOString(),
+      prescreeningScore: 100,
+      tokenVersion: 7,
+    });
+
+    expect(res.status).toBe(201);
+    const stored = await testDataSource
+      .getRepository(User)
+      .findOneByOrFail({ email: "intruder@example.com" });
+    expect(stored.activeOrganizationId).toBeNull();
+    expect(stored.emailVerifiedAt).toBeNull();
+    expect(stored.prescreeningScore).toBeNull();
+    expect(stored.tokenVersion).toBe(0);
   });
 
   it("rejects duplicate email", async () => {
